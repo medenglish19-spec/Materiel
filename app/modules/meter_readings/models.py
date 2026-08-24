@@ -20,6 +20,7 @@ class MeterReading(Base):
     odometer = Column(Numeric(10, 1), nullable=True)
     hours = Column(Numeric(10, 1), nullable=True)
     source = Column(String(50), nullable=False, default="manual")
+    # حالة العتاد وقت تسجيل القراءة، وليست الحالة الحالية للعتاد.
     equipment_status = Column(String(30), nullable=False, default="available", server_default="available")
     notes = Column(String(300), nullable=True)
     equipment = relationship("Equipment")
@@ -34,9 +35,13 @@ def _validate_meter_reading(mapper, connection, target):
         target.updated_at = now
     if target.reading_date is not None and target.reading_date.date() > now.date():
         raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي.")
-    status = connection.execute(select(Equipment.operational_status).where(Equipment.id == target.equipment_id)).scalar_one_or_none()
-    if status:
-        target.equipment_status = status
+    # لا نستبدل الحالة التاريخية التي مررها مسار الحفظ.
+    # نستخدم الحالة الحالية فقط للتوافق مع القراءات القديمة/المستدعين الذين لم يحددوا حالة.
+    if not target.equipment_status:
+        status = connection.execute(
+            select(Equipment.operational_status).where(Equipment.id == target.equipment_id)
+        ).scalar_one_or_none()
+        target.equipment_status = status or "available"
 
 
 @event.listens_for(MeterReading, "before_update")
