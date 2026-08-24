@@ -11,289 +11,64 @@
     <h3>إضافة عتاد جديد</h3>
 
     <form method="post" action="/equipment/create" class="grid-form">
-
-        <div class="field">
-            <label>الوثيقة</label>
-            <input type="text" name="acquisition_document">
-        </div>
-
-        <div class="field">
-            <label>نوع العتاد *</label>
-            <select name="equipment_type_id"
-                    id="type-select"
-                    required
-                    onchange="onTypeChange()">
-                <option value="">اختر النوع...</option>
-                {% for t in types %}
-                <option value="{{ t.id }}">
-                    {{ t.name }}
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="field">
-            <label>الطراز</label>
-            <select name="equipment_model_id" id="model-select">
-                <option value="">اختر النوع أولاً</option>
-                {% for t in types %}
-                    {% for m in t.models %}
-                    <option value="{{ m.id }}" data-type-id="{{ t.id }}" hidden>{{ m.name }}</option>
-                    {% endfor %}
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="field">
-            <label>رقم التسجيل</label>
-            <input type="text" name="registration_number">
-        </div>
-
-        <div class="field">
-            <label>رقم الهيكل</label>
-            <input type="text" name="vin">
-        </div>
-
-        <div class="field field-submit">
-            <button type="submit">حفظ العتاد</button>
-        </div>
-
+        <div class="field"><label>الوثيقة</label><input type="text" name="acquisition_document"></div>
+        <div class="field"><label>نوع العتاد *</label><select name="equipment_type_id" id="type-select" required onchange="onTypeChange()"><option value="">اختر النوع...</option>{% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>الطراز</label><select name="equipment_model_id" id="model-select"><option value="">اختر النوع أولاً</option>{% for t in types %}{% for m in t.models %}<option value="{{ m.id }}" data-type-id="{{ t.id }}" hidden>{{ m.name }}</option>{% endfor %}{% endfor %}</select></div>
+        <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number"></div>
+        <div class="field"><label>رقم الهيكل</label><input type="text" name="vin"></div>
+        <div class="field field-submit"><button type="submit">حفظ العتاد</button></div>
     </form>
 </div>
 
-{% if not types %}
-<div class="card alert-warning">
-    لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.
-</div>
-{% endif %}
+{% if not types %}<div class="card alert-warning">لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.</div>{% endif %}
 
 <div class="toolbar">
     <input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل...">
-
-    <select id="filter-type">
-        <option value="">كل الأنواع</option>
-        {% for t in types %}
-        <option value="{{ t.name }}">{{ t.name }}</option>
-        {% endfor %}
-    </select>
-
-    <select id="filter-status">
-        <option value="">كل الوضعيات</option>
-        <option value="متاح">متاح</option>
-        <option value="في مهمة">في مهمة</option>
-        <option value="في الصيانة">في الصيانة</option>
-        <option value="في ورشة خارجية">في ورشة خارجية</option>
-        <option value="غير متاح">غير متاح</option>
-    </select>
-
-    <select id="filter-condition">
-        <option value="">كل الحالات الفنية</option>
-        <option value="جاهز">جاهز</option>
-        <option value="عاطل">عاطل</option>
-    </select>
-
-    <div class="columns-toggle">
-        <button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button>
-        <div id="columns-menu" class="columns-menu" style="display:none;">
-            <label><input type="checkbox" data-col="doc" checked> الوثيقة</label>
-            <label><input type="checkbox" data-col="model" checked> الطراز</label>
-            <label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label>
-            <label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label>
-            <label><input type="checkbox" data-col="odo" checked> عداد الكم</label>
-            <label><input type="checkbox" data-col="hours" checked> عداد الساعات</label>
-        </div>
-    </div>
+    <select id="filter-type"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select>
+    <select id="filter-status"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select>
+    <select id="filter-condition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select>
+    <div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="odo" checked> عداد الكم</label><label><input type="checkbox" data-col="hours" checked> عداد الساعات</label></div></div>
 </div>
 
-<div class="table-wrap">
+<style>
+/* الجدول عريض بطبيعته، لذلك يسمح بالتمرير يمينًا ويسارًا دون ضغط الأعمدة. */
+#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
+#equipment-table{min-width:1050px;}
+#equipment-table tbody tr.data-row{cursor:pointer;}
+#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2;}
+#equipment-table tbody tr.data-row.meter-not-working .badge{color:#991b1b;border-color:#fecaca;background:#fee2e2;}
+</style>
+
+<div class="table-wrap" id="equipment-table-wrap">
 <table class="data-table modern-table" id="equipment-table">
-    <thead>
-        <tr>
-            <th>#</th>
-            <th class="col-doc">الوثيقة</th>
-            <th>النوع</th>
-            <th class="col-model">الطراز</th>
-            <th class="col-reg">رقم التسجيل</th>
-            <th class="col-vin">رقم الهيكل</th>
-            <th class="col-odo">عداد الكم</th>
-            <th class="col-hours">عداد الساعات</th>
-            <th>الحالة الفنية</th>
-            <th>الوضعية</th>
-        </tr>
-    </thead>
+    <thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-odo">عداد الكم</th><th class="col-hours">عداد الساعات</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead>
     <tbody>
         {% for item in items %}
-        <tr class="data-row" onclick="openEquipment({{ item.id }})" style="cursor:pointer;"
+        <tr class="data-row{% if item.operational_status == 'unavailable' %} meter-not-working{% endif %}" onclick="openEquipment({{ item.id }})"
             data-type="{{ item.equipment_type.name if item.equipment_type else '' }}"
             data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}"
             data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}"
             data-search="{{ item.registration_number or '' }} {{ item.vin or '' }}">
-            <td class="row-number">{{ loop.index }}</td>
-            <td class="col-doc">{{ item.acquisition_document or "-" }}</td>
-            <td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td>
-            <td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td>
-            <td class="col-reg">{{ item.registration_number or "-" }}</td>
-            <td class="col-vin">{{ item.vin or "-" }}</td>
-            <td class="col-odo">{{ item.current_odometer or 0 }} كم</td>
-            <td class="col-hours">{{ item.current_hours or 0 }} س</td>
-            <td>
-                <span class="badge badge-condition-{{ item.technical_condition }}">
-                    {{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}
-                </span>
-            </td>
-            <td>
-                <span class="badge badge-status-{{ item.operational_status }}">
-                    {% if item.operational_status == "available" %}متاح
-                    {% elif item.operational_status == "in_mission" %}في مهمة
-                    {% elif item.operational_status == "in_maintenance" %}في الصيانة
-                    {% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية
-                    {% else %}غير متاح
-                    {% endif %}
-                </span>
-            </td>
+            <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-odo">{{ item.current_odometer or 0 }} كم</td><td class="col-hours">{{ item.current_hours or 0 }} س</td>
+            <td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td>
+            <td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td>
         </tr>
-        {% else %}
-        <tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>
-        {% endfor %}
+        {% else %}<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}
     </tbody>
 </table>
 </div>
 <p class="results-count" id="results-count"></p>
 
 <script>
-function openEquipment(id) {
-    window.location.href = '/equipment/' + id;
-}
-
-function toggleAddForm() {
-    const card = document.getElementById('add-form-card');
-    card.style.display = card.style.display === 'none' ? 'block' : 'none';
-}
-
-function showServerModels(typeId) {
-    const modelSelect = document.getElementById('model-select');
-    if (!modelSelect) return;
-
-    const modelOptions = modelSelect.querySelectorAll('option[data-type-id]');
-    modelOptions.forEach(option => {
-        option.hidden = option.dataset.typeId !== String(typeId);
-        option.style.display = option.hidden ? 'none' : '';
-    });
-
-    const hasModels = Array.from(modelOptions).some(option => option.dataset.typeId === String(typeId));
-    modelOptions.forEach(option => { if (!option.hidden) option.disabled = false; });
-
-    modelSelect.value = '';
-    return hasModels;
-}
-
-async function onTypeChange() {
-    const typeSelect = document.getElementById('type-select');
-    const modelSelect = document.getElementById('model-select');
-
-    if (!typeSelect || !modelSelect) return;
-
-    const typeId = typeSelect.value;
-
-    if (!typeId) {
-        modelSelect.innerHTML = '<option value="">اختر النوع أولاً</option>';
-        return;
-    }
-
-    // The models are already loaded with the selected equipment types on the server.
-    // Show them immediately so the form does not depend on a second API request.
-    const serverHasModels = showServerModels(typeId);
-    modelSelect.disabled = false;
-
-    if (serverHasModels) {
-        return;
-    }
-
-    // Keep the API as a fallback for data created while this page was open.
-    modelSelect.innerHTML = '<option value="">جاري تحميل الطرازات...</option>';
-    modelSelect.disabled = true;
-
-    try {
-        const response = await fetch(
-            '/api/equipment-types/' + encodeURIComponent(typeId) + '/models',
-            {
-                method: 'GET',
-                headers: {'Accept': 'application/json'},
-                credentials: 'same-origin'
-            }
-        );
-
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const models = await response.json();
-
-        modelSelect.innerHTML = '<option value="">بدون طراز محدد</option>';
-        if (Array.isArray(models)) {
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.id;
-                option.textContent = model.name;
-                modelSelect.appendChild(option);
-            });
-        }
-    } catch (error) {
-        console.error('خطأ في تحميل الطرازات:', error);
-        modelSelect.innerHTML = '<option value="">لا توجد طرازات لهذا النوع</option>';
-    } finally {
-        modelSelect.disabled = false;
-    }
-}
-
-function applyFilters() {
-    const search = document.getElementById('search-input').value.trim().toLowerCase();
-    const type = document.getElementById('filter-type').value;
-    const status = document.getElementById('filter-status').value;
-    const condition = document.getElementById('filter-condition').value;
-
-    const rows = document.querySelectorAll('#equipment-table tbody tr.data-row');
-    let visibleCount = 0;
-
-    rows.forEach(row => {
-        const matchesSearch = !search || row.dataset.search.toLowerCase().includes(search);
-        const matchesType = !type || row.dataset.type === type;
-        const matchesStatus = !status || row.dataset.status === status;
-        const matchesCondition = !condition || row.dataset.condition === condition;
-
-        const visible = matchesSearch && matchesType && matchesStatus && matchesCondition;
-        row.style.display = visible ? '' : 'none';
-        if (visible) visibleCount++;
-    });
-
-    document.getElementById('results-count').textContent = visibleCount + ' نتيجة';
-}
-
-['search-input', 'filter-type', 'filter-status', 'filter-condition'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', applyFilters);
-});
-
-function toggleColumnsMenu() {
-    const menu = document.getElementById('columns-menu');
-    menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
-}
-
-function applyColumnVisibility() {
-    document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb => {
-        const col = cb.dataset.col;
-        const visible = cb.checked;
-        document.querySelectorAll('.col-' + col).forEach(el => {
-            el.style.display = visible ? '' : 'none';
-        });
-        localStorage.setItem('equipment-col-' + col, visible ? '1' : '0');
-    });
-}
-
-document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb => {
-    const saved = localStorage.getItem('equipment-col-' + cb.dataset.col);
-    if (saved !== null) cb.checked = saved === '1';
-    cb.addEventListener('change', applyColumnVisibility);
-});
-
-applyColumnVisibility();
-applyFilters();
+function openEquipment(id){window.location.href='/equipment/'+id;}
+function toggleAddForm(){const card=document.getElementById('add-form-card');card.style.display=card.style.display==='none'?'block':'none';}
+function showServerModels(typeId){const modelSelect=document.getElementById('model-select');if(!modelSelect)return false;const options=modelSelect.querySelectorAll('option[data-type-id]');options.forEach(option=>{option.hidden=option.dataset.typeId!==String(typeId);option.style.display=option.hidden?'none':'';});const hasModels=Array.from(options).some(option=>option.dataset.typeId===String(typeId));options.forEach(option=>{if(!option.hidden)option.disabled=false;});modelSelect.value='';return hasModels;}
+async function onTypeChange(){const typeSelect=document.getElementById('type-select');const modelSelect=document.getElementById('model-select');if(!typeSelect||!modelSelect)return;const typeId=typeSelect.value;if(!typeId){modelSelect.innerHTML='<option value="">اختر النوع أولاً</option>';return;}if(showServerModels(typeId)){modelSelect.disabled=false;return;}modelSelect.innerHTML='<option value="">جاري تحميل الطرازات...</option>';modelSelect.disabled=true;try{const response=await fetch('/api/equipment-types/'+encodeURIComponent(typeId)+'/models',{headers:{'Accept':'application/json'},credentials:'same-origin'});if(!response.ok)throw new Error('HTTP '+response.status);const models=await response.json();modelSelect.innerHTML='<option value="">بدون طراز محدد</option>';if(Array.isArray(models))models.forEach(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=model.name;modelSelect.appendChild(option);});}catch(error){console.error('خطأ في تحميل الطرازات:',error);modelSelect.innerHTML='<option value="">لا توجد طرازات لهذا النوع</option>';}finally{modelSelect.disabled=false;}}
+function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value;const rows=document.querySelectorAll('#equipment-table tbody tr.data-row');let visibleCount=0;rows.forEach(row=>{const visible=(!search||row.dataset.search.toLowerCase().includes(search))&&(!type||row.dataset.type===type)&&(!status||row.dataset.status===status)&&(!condition||row.dataset.condition===condition);row.style.display=visible?'':'none';if(visible)visibleCount++;});document.getElementById('results-count').textContent=visibleCount+' نتيجة';}
+['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',applyFilters);});
+function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none';}
+function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>{el.style.display=visible?'':'none';});localStorage.setItem('equipment-col-'+col,visible?'1':'0');});}
+document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility);});
+applyColumnVisibility();applyFilters();
 </script>
 {% endblock %}
