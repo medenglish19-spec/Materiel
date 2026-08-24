@@ -32,6 +32,10 @@ def _equipment_status_label(equipment: Equipment) -> tuple[str, str]:
     value = str(equipment.operational_status or "available").strip().lower()
     if value in {"unavailable", "not_working", "not-working", "stopped", "out_of_service", "out-of-service"}: return "لا يعمل", "danger"
     return "يعمل", "success"
+def _reading_status_label(reading: MeterReading | None, fallback_equipment: Equipment | None = None) -> tuple[str, str]:
+    value = str((reading.equipment_status if reading is not None else None) or (fallback_equipment.operational_status if fallback_equipment is not None else "available")).strip().lower()
+    if value in {"unavailable", "not_working", "not-working", "stopped", "out_of_service", "out-of-service"}: return "لا يعمل", "danger"
+    return "يعمل", "success"
 def normalize_equipment_status(value) -> str:
     text = str(value or "").strip().lower()
     if text in {"لا يعمل", "لايعمل", "غير متاح", "غيرمتاح", "unavailable", "not_working", "not-working", "stopped", "out_of_service", "out-of-service"}: return "unavailable"
@@ -98,7 +102,7 @@ def list_latest_rows(db: Session, page: int = 1, page_size: int = 10, search: st
             if len(bucket) < 2: bucket.append(reading)
     rows = []
     for number, (equipment, _) in enumerate(selected, start=(page - 1) * page_size + 1):
-        unit_code = _unit(equipment); latest = history[equipment.id][0] if history[equipment.id] else None; previous = history[equipment.id][1] if len(history[equipment.id]) > 1 else None; difference = _difference(latest, previous, unit_code) if latest else None; equipment_status, status_class = _equipment_status_label(equipment)
+        unit_code = _unit(equipment); latest = history[equipment.id][0] if history[equipment.id] else None; previous = history[equipment.id][1] if len(history[equipment.id]) > 1 else None; difference = _difference(latest, previous, unit_code) if latest else None; equipment_status, status_class = _reading_status_label(latest, equipment)
         rows.append({"number": number, "equipment_id": equipment.id, "model": equipment.equipment_model.name if equipment.equipment_model else "—", "type_name": equipment.equipment_type.name if equipment.equipment_type else "—", "registration": equipment.registration_number or equipment.asset_code or "—", "location": "—", "unit": "كم" if unit_code == "km" else "ساعة عمل", "unit_code": unit_code, "date": latest.reading_date.strftime("%d/%m/%Y") if latest else "—", "reading": _fmt(_value(latest, unit_code)), "difference": _fmt_difference(difference), "note": latest.notes if latest and latest.notes else "—", "status": equipment_status, "status_class": status_class})
     last_update = db.query(func.max(MeterReading.reading_date)).scalar(); last_update_text = last_update.strftime("%d/%m/%Y") if last_update else "—"; pages = (total + page_size - 1) // page_size if total else 1
     return rows, total, pages, last_update_text
@@ -108,26 +112,20 @@ def history_rows(db: Session, equipment_id: int, page: int = 1, page_size: int =
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment: return None, [], 0, 1, 1
     page = max(1, page); page_size = min(max(1, page_size), 100); unit_code = _unit(equipment)
-    ordered = db.query(MeterReading.id.label("id"), MeterReading.reading_date.label("reading_date"), MeterReading.odometer.label("odometer"), MeterReading.hours.label("hours"), MeterReading.notes.label("notes"), func.lag(MeterReading.odometer).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_odometer"), func.lag(MeterReading.hours).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_hours")).filter(MeterReading.equipment_id == equipment_id).subquery()
-    total = db.query(func.count()).select_from(ordered).scalar() or 0; pages = max(1, (total + page_size - 1) // page_size); page = min(page, pages); rows_data = db.query(ordered).order_by(ordered.c.reading_date.desc(), ordered.c.id.desc()).offset((page - 1) * page_size).limit(page_size).all(); equipment_status, status_class = _equipment_status_label(equipment); rows = []
+    ordered = db.query(MeterReading.id.label("id"), MeterReading.reading_date.label("reading_date"), MeterReading.odometer.label("odometer"), MeterReading.hours.label("hours"), MeterReading.equipment_status.label("equipment_status"), MeterReading.notes.label("notes"), func.lag(MeterReading.odometer).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_odometer"), func.lag(MeterReading.hours).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_hours")).filter(MeterReading.equipment_id == equipment_id).subquery()
+    total = db.query(func.count()).select_from(ordered).scalar() or 0; pages = max(1, (total + page_size - 1) // page_size); page = min(page, pages); rows_data = db.query(ordered).order_by(ordered.c.reading_date.desc(), ordered.c.id.desc()).offset((page - 1) * page_size).limit(page_size).all(); rows = []
     for number, row in enumerate(rows_data, start=(page - 1) * page_size + 1):
-        current_value = row.odometer if unit_code == "km" else row.hours; previous_value = row.previous_odometer if unit_code == "km" else row.previous_hours; difference = Decimal(current_value) - Decimal(previous_value) if current_value is not None and previous_value is not None else None
-        rows.append({"number": number, "id": row.id, "date": row.reading_date.strftime("%d/%m/%Y"), "odometer": _fmt(row.odometer), "hours": _fmt(row.hours), "reading": _fmt(current_value), "difference": _fmt_difference(difference), "note": row.notes or "—", "status": equipment_status, "status_class": status_class, "unit": "كم" if unit_code == "km" else "ساعة عمل"})
+        current_value = row.odometer if unit_code == "km" else row.hours; previous_value = row.previous_odometer if unit_code == "km" else row.previous_hours; difference = Decimal(current_value) - Decimal(previous_value) if current_value is not None and previous_value is not None else None; status, status_class = _reading_status_label(row, equipment)
+        rows.append({"number": number, "id": row.id, "date": row.reading_date.strftime("%d/%m/%Y"), "odometer": _fmt(row.odometer), "hours": _fmt(row.hours), "reading": _fmt(current_value), "difference": _fmt_difference(difference), "note": row.notes or "—", "status": status, "status_class": status_class, "unit": "كم" if unit_code == "km" else "ساعة عمل"})
     return equipment, rows, total, pages, page
 def _ensure_not_duplicate_reading(db: Session, equipment_id: int, reading_date: datetime, value: Decimal, unit: str, exclude_id: int | None = None):
     for existing in list_readings(db, equipment_id):
-        if exclude_id is not None and existing.id == exclude_id:
-            continue
+        if exclude_id is not None and existing.id == exclude_id: continue
         existing_value = _value(existing, unit)
-        if existing_value is None:
-            continue
+        if existing_value is None: continue
         if existing.reading_date.date() == reading_date.date() and Decimal(existing_value) == value:
-            raise ValueError(
-                f"لا يمكن إضافة نفس قراءة العداد مرتين للعتاد في تاريخ {reading_date:%d/%m/%Y}: "
-                f"القيمة ({value:g}) موجودة مسبقًا. لم يتم حفظ قراءة مكررة."
-            )
-
-def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, reading_date: datetime | None = None, notes: str | None = None, equipment_status: str = "available") -> MeterReading:
+            raise ValueError(f"لا يمكن إضافة نفس قراءة العداد مرتين للعتاد في تاريخ {reading_date:%d/%m/%Y}: القيمة ({value:g}) موجودة مسبقًا. لم يتم حفظ قراءة مكررة.")
+def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, reading_date: datetime | None = None, notes: str | None = None, equipment_status: str | None = None) -> MeterReading:
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment: raise ValueError("العتاد غير موجود")
     unit_code = _unit(equipment); value = odometer if unit_code == "km" else hours
@@ -137,61 +135,48 @@ def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, re
     date_value = reading_date or datetime.now(timezone.utc)
     if date_value.date() > datetime.now(timezone.utc).date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي. اختر تاريخ اليوم أو تاريخًا سابقًا.")
     _ensure_not_duplicate_reading(db, equipment_id, date_value, value, unit_code)
-    _validate_reading_position(db, equipment_id, date_value, value, unit_code); equipment.operational_status = normalize_equipment_status(equipment_status)
-    reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source="manual", notes=(notes or "").strip()[:300] or None)
+    _validate_reading_position(db, equipment_id, date_value, value, unit_code)
+    captured_status = normalize_equipment_status(equipment_status) if equipment_status is not None else normalize_equipment_status(equipment.operational_status)
+    equipment.operational_status = captured_status
+    reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source="manual", equipment_status=captured_status, notes=(notes or "").strip()[:300] or None)
     db.add(reading); db.flush(); _refresh_equipment_current(db, equipment, unit_code); db.commit(); db.refresh(reading); return reading
-
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
-    """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type.
-
-    The list page displays ``registration_number`` and falls back to ``asset_code`` when the
-    former is empty. Bulk input must use the same identifier, otherwise a visible equipment
-    can incorrectly be reported as "not found". Prefer a real registration number when both
-    fields normalize to the same value.
-    """
+    """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type."""
     clean_rows = list(rows)
     if not clean_rows: return 0, 0, [], [], []
     equipment_list = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
     equipment_map: dict[str, Equipment] = {}
     for item in equipment_list:
-        registration_key = normalize_registration(item.registration_number)
-        asset_key = normalize_registration(item.asset_code)
-        if registration_key:
-            equipment_map[registration_key] = item
-        if asset_key and asset_key not in equipment_map:
-            equipment_map[asset_key] = item
+        registration_key = normalize_registration(item.registration_number); asset_key = normalize_registration(item.asset_code)
+        if registration_key: equipment_map[registration_key] = item
+        if asset_key and asset_key not in equipment_map: equipment_map[asset_key] = item
     errors: list[str] = []; warnings: list[str] = []; candidates: list[dict] = []
     for index, row in enumerate(clean_rows, start=1):
         row_number = row.get("_row_number", index); registration_raw = row.get("registration"); registration = normalize_registration(registration_raw)
         if not registration: errors.append(f"الصف {row_number}: رقم التسجيل فارغ."); continue
         equipment = equipment_map.get(registration)
         if not equipment: errors.append(f"الصف {row_number}: رقم التسجيل {registration_raw} غير موجود في النظام."); continue
-        model_raw = row.get("equipment_model")
-        legacy_type_raw = row.get("equipment_type")
+        model_raw = row.get("equipment_model"); legacy_type_raw = row.get("equipment_type")
         if model_raw is not None:
             supplied = " ".join(str(model_raw).strip().split()).casefold(); expected = str(equipment.equipment_model.name if equipment.equipment_model else "").strip()
             if not str(model_raw).strip(): errors.append(f"الصف {row_number}: الطراز فارغ للعتاد ذي رقم التسجيل {registration_raw}."); continue
-            if expected and supplied != " ".join(expected.split()).casefold():
-                errors.append(f"الصف {row_number}: الطراز «{model_raw}» لا يطابق الطراز المسجل «{expected}» للعتاد ذي رقم التسجيل {registration_raw}."); continue
+            if expected and supplied != " ".join(expected.split()).casefold(): errors.append(f"الصف {row_number}: الطراز «{model_raw}» لا يطابق الطراز المسجل «{expected}» للعتاد ذي رقم التسجيل {registration_raw}."); continue
         else:
             if legacy_type_raw is None or not str(legacy_type_raw).strip(): errors.append(f"الصف {row_number}: نوع العتاد فارغ."); continue
             expected_type = str(equipment.equipment_type.name if equipment.equipment_type else "").strip(); supplied_type = " ".join(str(legacy_type_raw).strip().split()).casefold()
-            if expected_type and supplied_type != " ".join(expected_type.split()).casefold():
-                errors.append(f"الصف {row_number}: نوع العتاد «{legacy_type_raw}» لا يطابق النوع المسجل «{expected_type}» لرقم التسجيل {registration_raw}."); continue
+            if expected_type and supplied_type != " ".join(expected_type.split()).casefold(): errors.append(f"الصف {row_number}: نوع العتاد «{legacy_type_raw}» لا يطابق النوع المسجل «{expected_type}» لرقم التسجيل {registration_raw}."); continue
         reading_date = row.get("reading_date")
         if not isinstance(reading_date, datetime): errors.append(f"الصف {row_number}: تاريخ القراءة غير صحيح."); continue
         if reading_date.date() > datetime.now(timezone.utc).date(): errors.append(f"الصف {row_number}: تاريخ القراءة {reading_date:%d/%m/%Y} مستقبلي، ولم يتم حفظ القراءة."); continue
         unit_code = _unit(equipment); km_value = row.get("km_value"); hours_value = row.get("hours_value"); legacy_value = row.get("value"); has_km = km_value is not None and str(km_value).strip() != ""; has_hours = hours_value is not None and str(hours_value).strip() != ""
-        if has_km and has_hours:
-            expected = "الكيلومترات" if unit_code == "km" else "الساعات"; errors.append(f"الصف {row_number}: تم إدخال الكيلومترات والساعات معًا. العتاد يعمل بعداد {expected} فقط."); continue
+        if has_km and has_hours: expected = "الكيلومترات" if unit_code == "km" else "الساعات"; errors.append(f"الصف {row_number}: تم إدخال الكيلومترات والساعات معًا. العتاد يعمل بعداد {expected} فقط."); continue
         if has_km or has_hours:
             if unit_code == "km" and not has_km: errors.append(f"الصف {row_number}: العتاد {registration_raw} يعمل بالكيلومترات، لكن القيمة وُضعت في عمود الساعات."); continue
             if unit_code == "hours" and not has_hours: errors.append(f"الصف {row_number}: العتاد {registration_raw} يعمل بالساعات، لكن القيمة وُضعت في عمود الكيلومترات."); continue
             raw_value = km_value if unit_code == "km" else hours_value
         else: raw_value = legacy_value
         blank_value = raw_value is None or str(raw_value).strip() == ""
-        if blank_value:
-            value = Decimal("0"); warnings.append(f"الصف {row_number}: لم توجد قيمة للعداد للعتاد {registration_raw} بتاريخ {reading_date:%d/%m/%Y}؛ تم اعتبار القراءة صفرًا.")
+        if blank_value: value = Decimal("0"); warnings.append(f"الصف {row_number}: لم توجد قيمة للعداد للعتاد {registration_raw} بتاريخ {reading_date:%d/%m/%Y}؛ تم اعتبار القراءة صفرًا.")
         else:
             try: value = _parse_decimal(raw_value)
             except ValueError: errors.append(f"الصف {row_number}: قيمة العداد غير صحيحة، ولم يتم حفظ القراءة."); continue
@@ -205,32 +190,25 @@ def create_bulk_readings(db: Session, rows: Iterable[dict]):
         equipment = items[0]["equipment"]; unit_code = _unit(equipment); existing = list_readings(db, equipment_id); accepted_for_equipment: list[dict] = []
         for item in sorted(items, key=lambda x: (x["reading_date"], x["_row_number"])):
             value = item["value"]; invalid_reason = None
-            comparisons = existing + [MeterReading(equipment_id=equipment_id, reading_date=x["reading_date"], odometer=x["value"] if unit_code == "km" else None, hours=x["value"] if unit_code == "hours" else None) for x in accepted_for_equipment]
+            comparisons = existing + [MeterReading(equipment_id=equipment_id, reading_date=x["reading_date"], odometer=x["value"] if unit_code == "km" else None, hours=x["value"] if unit_code == "hours" else None, equipment_status=x["equipment_status"]) for x in accepted_for_equipment]
             for other in comparisons:
                 other_value = _value(other, unit_code)
-                if other_value is None:
-                    continue
+                if other_value is None: continue
                 if other.reading_date.date() == item["reading_date"].date() and Decimal(other_value) == value:
-                    invalid_reason = (
-                        f"الصف {item['_row_number']}: القراءة ({value:g}) مكررة للعتاد بتاريخ "
-                        f"{item['reading_date']:%d/%m/%Y}، ولم يتم حفظ القراءة المكررة."
-                    )
-                    break
+                    invalid_reason = f"الصف {item['_row_number']}: القراءة ({value:g}) مكررة للعتاد بتاريخ {item['reading_date']:%d/%m/%Y}، ولم يتم حفظ القراءة المكررة."; break
             if invalid_reason is None and not item["blank_value"]:
                 for other in comparisons:
                     other_value = _value(other, unit_code)
                     if other_value is None: continue
                     other_value = Decimal(other_value)
-                    if other.reading_date < item["reading_date"] and other_value > value:
-                        invalid_reason = f"الصف {item['_row_number']}: لا يمكن حفظ القراءة بتاريخ {item['reading_date']:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g}). القيمة غير منطقية، ولم يتم حفظها."; break
-                    if other.reading_date > item["reading_date"] and other_value < value:
-                        invalid_reason = f"الصف {item['_row_number']}: لا يمكن إدخال قراءة قديمة بتاريخ {item['reading_date']:%d/%m/%Y}: قيمتها ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g}). القراءة غير منطقية، ولم يتم حفظها."; break
+                    if other.reading_date < item["reading_date"] and other_value > value: invalid_reason = f"الصف {item['_row_number']}: لا يمكن حفظ القراءة بتاريخ {item['reading_date']:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g}). القيمة غير منطقية، ولم يتم حفظها."; break
+                    if other.reading_date > item["reading_date"] and other_value < value: invalid_reason = f"الصف {item['_row_number']}: لا يمكن إدخال قراءة قديمة بتاريخ {item['reading_date']:%d/%m/%Y}: قيمتها ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g}). القراءة غير منطقية، ولم يتم حفظها."; break
             if invalid_reason: errors.append(invalid_reason)
             else: accepted_for_equipment.append(item); accepted.append(item)
     reading_ids: list[int] = []; affected: dict[int, Equipment] = {}
     for item in accepted:
         equipment = item["equipment"]; unit_code = _unit(equipment); equipment.operational_status = item["equipment_status"]
-        reading = MeterReading(equipment_id=equipment.id, reading_date=item["reading_date"], odometer=item["value"] if unit_code == "km" else None, hours=item["value"] if unit_code == "hours" else None, source="import", notes=None)
+        reading = MeterReading(equipment_id=equipment.id, reading_date=item["reading_date"], odometer=item["value"] if unit_code == "km" else None, hours=item["value"] if unit_code == "hours" else None, source="import", equipment_status=item["equipment_status"], notes=None)
         db.add(reading); db.flush(); reading_ids.append(reading.id); affected[equipment.id] = equipment
     if accepted:
         for equipment in affected.values(): _refresh_equipment_current(db, equipment, _unit(equipment))
