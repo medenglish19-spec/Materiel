@@ -3,160 +3,43 @@
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
-  <div class="page-top">
-    <div class="page-heading">
-      <h2>سجل الصيانة</h2>
-      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div>
-    </div>
-    <div class="hero-actions">
-      <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
-      <a class="m-btn primary" href="#newRecord">＋ &nbsp;تسجيل صيانة جديدة</a>
-    </div>
-  </div>
+  <div class="page-top"><div class="page-heading"><h2>سجل الصيانة</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div></div><div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="#newRecord">＋ &nbsp;تسجيل صيانة جديدة</a></div></div>
+  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. شروط الصيانة</a><a class="active" href="/maintenance/records">3. سجل الصيانة</a><a href="/maintenance/due">4. الصيانة المستحقة</a></nav>
+  <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
+  {% set error = request.query_params.get('error') %}{% set changed = request.query_params.get('changed') %}{% set saved = request.query_params.get('saved') %}
+  {% if error %}<div class="alert danger" style="margin-bottom:16px">{% if error == 'equipment' %}المركبة المحددة غير موجودة.{% elif error == 'rule' %}اختر نوع الصيانة الدورية أولًا.{% elif error == 'rule_type' %}نوع الصيانة الدورية المختار لا يتبع نوع عتاد هذه المركبة.{% elif error == 'future_date' %}لا يمكن تسجيل صيانة بتاريخ مستقبلي.{% elif error == 'meter' %}قيمة العداد غير صحيحة. أدخل رقمًا موجبًا أو صفرًا.{% elif error == 'meter_required' %}هذا النوع من الصيانة يعتمد على العداد، لذلك يجب إدخال العداد عند الصيانة.{% elif error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لقراءات سجل الصيانة.{% elif error == 'not_found' %}السجل المطلوب غير موجود.{% else %}تعذر تنفيذ العملية. تحقق من البيانات ثم أعد المحاولة.{% endif %}</div>{% endif %}
+  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة بنجاح. هذه العملية لا تحذف السيارة ولا شرط الصيانة.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
+  {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل سجل الصيانة بنجاح.{% else %}تم حفظ عملية الصيانة بنجاح.{% endif %}</div>{% endif %}
 
-  <nav class="module-tabs">
-    <a href="/maintenance/periodic">1. الصيانة الدورية</a>
-    <a href="/maintenance/rules">2. شروط الصيانة</a>
-    <a class="active" href="/maintenance/records">3. سجل الصيانة</a>
-    <a href="/maintenance/due">4. الصيانة المستحقة</a>
-  </nav>
-
-  <div class="toolbar-card">
-    <div class="toolbar">
-      <div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div>
-      <a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a>
-    </div>
-  </div>
-
-  {% set error = request.query_params.get('error') %}
-  {% if error %}
-    <div class="alert danger" style="margin-bottom:16px">
-      {% if error == 'equipment' %}المركبة المحددة غير موجودة.{% endif %}
-      {% if error == 'rule' %}اختر نوع الصيانة الدورية أولًا.{% endif %}
-      {% if error == 'rule_type' %}نوع الصيانة الدورية المختار لا يتبع نوع عتاد هذه المركبة.{% endif %}
-      {% if error == 'future_date' %}لا يمكن تسجيل صيانة بتاريخ مستقبلي.{% endif %}
-      {% if error == 'meter' %}قيمة العداد غير صحيحة. أدخل رقمًا موجبًا أو صفرًا.{% endif %}
-      {% if error == 'meter_required' %}هذا النوع من الصيانة يعتمد على العداد، لذلك يجب إدخال العداد عند الصيانة.{% endif %}
-      {% if error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لقراءات سجل الصيانة.{% endif %}
-    </div>
-  {% endif %}
-  {% if request.query_params.get('saved') == '1' %}
-    <div class="alert success" style="margin-bottom:16px">تم حفظ عملية الصيانة بنجاح.</div>
-  {% endif %}
-
-  <section class="panel">
-    <div class="panel-head">
-      <div><h3>سجل عمليات الصيانة</h3><p>السجل هو المرجع التاريخي لآخر صيانة لكل عتاد ولكل صيانة دورية.</p></div>
-      <span class="badge success">{{ records|length }} سجل</span>
-    </div>
-    <div class="table-wrap">
-      <table class="m-table" id="recordsTable">
-        <thead><tr><th>#</th><th>طراز السيارة</th><th>رقم السيارة</th><th>نوع الصيانة</th><th>تاريخ الصيانة</th><th>العداد عند الصيانة</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th></tr></thead>
-        <tbody>
-        {% for r in records %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ r.equipment.equipment_model.name if r.equipment.equipment_model and r.equipment.equipment_model.name is defined else (r.equipment.equipment_model if r.equipment.equipment_model else '—') }}</td>
-            <td class="vehicle">{{ r.equipment.registration_number or r.equipment.asset_code }}</td>
-            <td>{{ r.rule.name if r.rule else '—' }}</td>
-            <td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td>
-            <td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td>
-            <td>{{ r.work_order or '—' }}</td>
-            <td>{{ r.workshop or '—' }}</td>
-            <td><span class="badge success">{{ 'مكتملة' if r.status == 'completed' else r.status }}</span></td>
-            <td>{{ r.description or '—' }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="10" class="muted">لا يوجد سجل صيانة بعد.</td></tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <section class="panel"><div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>السجل هو المرجع التاريخي. الحذف يزيل العملية المحددة فقط ولا يمس السيارة أو نوع العتاد.</p></div><span class="badge success">{{ records|length }} سجل</span></div>
+    <div class="table-wrap"><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز السيارة</th><th>رقم السيارة</th><th>نوع الصيانة</th><th>تاريخ الصيانة</th><th>العداد عند الصيانة</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
+      {% for r in records %}<tr>
+        <td>{{ loop.index }}</td><td>{{ r.equipment.equipment_model.name if r.equipment.equipment_model and r.equipment.equipment_model.name is defined else (r.equipment.equipment_model if r.equipment.equipment_model else '—') }}</td><td class="vehicle">{{ r.equipment.registration_number or r.equipment.asset_code }}</td><td>{{ r.rule.name if r.rule else '—' }}</td><td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td><td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td><td>{{ r.work_order or '—' }}</td><td>{{ r.workshop or '—' }}</td><td><span class="badge success">{{ 'مكتملة' if r.status == 'completed' else r.status }}</span></td><td>{{ r.description or '—' }}</td>
+        <td style="white-space:nowrap"><a class="m-btn" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a><form method="post" action="/maintenance/records/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. لن يتم حذف السيارة أو شرط الصيانة. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form></td>
+      </tr>{% else %}<tr><td colspan="11" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
+    </tbody></table></div>
   </section>
 
-  <section class="panel" id="newRecord" style="margin-top:16px">
-    <div class="panel-head">
-      <div><h3>تسجيل صيانة جديدة</h3><p>اختر طراز السيارة ثم رقم السيارة؛ بعدها يعرض النظام فقط أنواع الصيانة الدورية التابعة لنوع عتاد السيارة. الاختيار النهائي للصيانة الدورية يكون للمستخدم.</p></div>
-    </div>
+  {% if edit_record %}<section class="panel" id="editRecord" style="margin-top:16px"><div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>يمكن تعديل الإدخال الخاطئ مع الحفاظ على قواعد نوع العتاد وتسلسل العداد.</p></div></div>
+    <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <select class="m-select" name="equipment_id" required><option value="">رقم السيارة</option>{% for e in equipment %}<option value="{{ e.id }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.asset_code }}</option>{% endfor %}</select>
+      <select class="m-select" name="rule_id" required>{% for r in rules %}<option value="{{ r.id }}" {% if r.id == edit_record.rule_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select>
+      <input class="m-input" name="maintenance_date" type="date" required value="{{ edit_record.maintenance_date }}">
+      <input class="m-input" name="meter_value" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="العداد عند الصيانة">
+      <input class="m-input" name="work_order" value="{{ edit_record.work_order or '' }}" placeholder="أمر العمل">
+      <input class="m-input" name="workshop" value="{{ edit_record.workshop or '' }}" placeholder="الورشة / الجهة">
+      <input class="m-input" name="description" value="{{ edit_record.description or '' }}" placeholder="الوصف / الأعمال المنجزة">
+      <button class="m-btn primary" type="submit">حفظ التعديل</button><a class="m-btn" href="/maintenance/records">إلغاء</a>
+    </form></section>{% endif %}
+
+  <section class="panel" id="newRecord" style="margin-top:16px"><div class="panel-head"><div><h3>تسجيل صيانة جديدة</h3><p>اختر طراز السيارة ثم رقم السيارة؛ بعدها يعرض النظام فقط أنواع الصيانة الدورية التابعة لنوع عتاد السيارة. الاختيار النهائي للصيانة الدورية يكون للمستخدم.</p></div></div>
     <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <select class="m-select" id="modelFilter" required>
-        <option value="">طراز السيارة</option>
-        {% set model_ids = [] %}
-        {% for e in equipment %}
-          {% if e.equipment_model_id not in model_ids %}
-            {% set _ = model_ids.append(e.equipment_model_id) %}
-            <option value="{{ e.equipment_model_id or '' }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else (e.equipment_model if e.equipment_model else 'بدون طراز') }}</option>
-          {% endif %}
-        {% endfor %}
-      </select>
-
-      <select class="m-select" name="equipment_id" id="equipmentSelect" required>
-        <option value="">رقم السيارة</option>
-        {% for e in equipment %}
-          <option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.asset_code }}</option>
-        {% endfor %}
-      </select>
-
-      <select class="m-select" name="rule_id" id="ruleSelect" required disabled>
-        <option value="">اختر نوع الصيانة الدورية</option>
-        {% for r in rules %}
-          <option value="{{ r.id }}" data-type-id="{{ r.equipment_type_id }}">{{ r.name }}</option>
-        {% endfor %}
-      </select>
-
-      <div id="currentMeterHint" class="muted" style="min-width:210px;align-self:center">اختر السيارة لعرض العداد الحالي.</div>
-      <input class="m-input" name="maintenance_date" type="date" required>
-      <input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="العداد عند الصيانة">
-      <input class="m-input" name="work_order" placeholder="أمر العمل">
-      <input class="m-input" name="workshop" placeholder="الورشة / الجهة">
-      <input class="m-input" name="description" placeholder="الوصف / الأعمال المنجزة">
-      <button class="m-btn primary" type="submit">حفظ الصيانة</button>
+      <select class="m-select" id="modelFilter" required><option value="">طراز السيارة</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id or '' }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else (e.equipment_model if e.equipment_model else 'بدون طراز') }}</option>{% endif %}{% endfor %}</select>
+      <select class="m-select" name="equipment_id" id="equipmentSelect" required><option value="">رقم السيارة</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.asset_code }}</option>{% endfor %}</select>
+      <select class="m-select" name="rule_id" id="ruleSelect" required disabled><option value="">اختر نوع الصيانة الدورية</option>{% for r in rules %}<option value="{{ r.id }}" data-type-id="{{ r.equipment_type_id }}">{{ r.name }}</option>{% endfor %}</select>
+      <div id="currentMeterHint" class="muted" style="min-width:210px;align-self:center">اختر السيارة لعرض العداد الحالي.</div><input class="m-input" name="maintenance_date" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="العداد عند الصيانة"><input class="m-input" name="work_order" placeholder="أمر العمل"><input class="m-input" name="workshop" placeholder="الورشة / الجهة"><input class="m-input" name="description" placeholder="الوصف / الأعمال المنجزة"><button class="m-btn primary" type="submit">حفظ الصيانة</button>
     </form>
   </section>
 </div>
-<script>
-(function(){
-  const q=document.getElementById('recordsSearch');
-  q.addEventListener('input',()=>{const x=q.value.toLowerCase().trim();document.querySelectorAll('#recordsTable tbody tr').forEach(r=>r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none')});
-
-  const model=document.getElementById('modelFilter');
-  const equipment=document.getElementById('equipmentSelect');
-  const rule=document.getElementById('ruleSelect');
-  const meter=document.getElementById('maintenanceMeter');
-  const hint=document.getElementById('currentMeterHint');
-  const allEquipment=[...equipment.options].slice(1);
-  const allRules=[...rule.options].slice(1);
-
-  function resetRuleList(message){
-    rule.innerHTML=`<option value="">${message}</option>`;
-    rule.disabled=true;
-  }
-
-  function refreshEquipment(){
-    const modelId=model.value;
-    equipment.innerHTML='<option value="">رقم السيارة</option>';
-    allEquipment.forEach(o=>{ if(modelId && o.dataset.modelId===modelId) equipment.appendChild(o.cloneNode(true)); });
-    resetRuleList('اختر السيارة أولًا');
-    meter.value='';
-    hint.textContent='اختر السيارة لعرض العداد الحالي.';
-  }
-
-  function refreshRules(){
-    const selected=equipment.selectedOptions[0];
-    const typeId=selected ? selected.dataset.typeId : '';
-    rule.innerHTML='<option value="">اختر نوع الصيانة الدورية</option>';
-    allRules.forEach(o=>{ if(typeId && o.dataset.typeId===typeId) rule.appendChild(o.cloneNode(true)); });
-    rule.disabled=!typeId;
-    if(selected){
-      const unit=selected.dataset.unit;
-      const value=unit==='hours' ? selected.dataset.currentHours : selected.dataset.currentKm;
-      hint.textContent=value ? `العداد الحالي: ${Number(value).toLocaleString('ar-DZ')} ${unit==='hours'?'ساعة':'كم'}` : 'لا توجد قراءة حالية للعداد.';
-      meter.placeholder=unit==='hours'?'العداد عند الصيانة (ساعة)':'العداد عند الصيانة (كم)';
-    }
-  }
-
-  model.addEventListener('change',refreshEquipment);
-  equipment.addEventListener('change',refreshRules);
-})();
-</script>
+<script>(function(){const q=document.getElementById('recordsSearch');q.addEventListener('input',()=>{const x=q.value.toLowerCase().trim();document.querySelectorAll('#recordsTable tbody tr').forEach(r=>r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none')});const model=document.getElementById('modelFilter'),equipment=document.getElementById('equipmentSelect'),rule=document.getElementById('ruleSelect'),meter=document.getElementById('maintenanceMeter'),hint=document.getElementById('currentMeterHint');const allEquipment=[...equipment.options].slice(1),allRules=[...rule.options].slice(1);function resetRuleList(message){rule.innerHTML=`<option value="">${message}</option>`;rule.disabled=true}function refreshEquipment(){const modelId=model.value;equipment.innerHTML='<option value="">رقم السيارة</option>';allEquipment.forEach(o=>{if(modelId&&o.dataset.modelId===modelId)equipment.appendChild(o.cloneNode(true))});resetRuleList('اختر السيارة أولًا');meter.value='';hint.textContent='اختر السيارة لعرض العداد الحالي.'}function refreshRules(){const selected=equipment.selectedOptions[0],typeId=selected?selected.dataset.typeId:'';rule.innerHTML='<option value="">اختر نوع الصيانة الدورية</option>';allRules.forEach(o=>{if(typeId&&o.dataset.typeId===typeId)rule.appendChild(o.cloneNode(true))});rule.disabled=!typeId;if(selected){const unit=selected.dataset.unit,value=unit==='hours'?selected.dataset.currentHours:selected.dataset.currentKm;hint.textContent=value?`العداد الحالي: ${Number(value).toLocaleString('ar-DZ')} ${unit==='hours'?'ساعة':'كم'}`:'لا توجد قراءة حالية للعداد.';meter.placeholder=unit==='hours'?'العداد عند الصيانة (ساعة)':'العداد عند الصيانة (كم)'}}model.addEventListener('change',refreshEquipment);equipment.addEventListener('change',refreshRules)})();</script>
 {% endblock %}
