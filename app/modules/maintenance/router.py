@@ -71,7 +71,7 @@ def status_for(rule, equipment, record, current_value):
 
     unit = measurement_unit(equipment)
     interval = rule.interval_hours if unit == "hours" else rule.interval_km
-    warning = rule.warning_days if unit == "hours" and rule.interval_hours is None else rule.warning_km
+    warning = rule.warning_km
 
     remaining = None
     if interval is not None and current_value is not None and record.meter_value is not None:
@@ -189,7 +189,6 @@ def maintenance_rule_create(
     hours = dec(interval_hours)
     days = int(interval_days) if interval_days else None
 
-    # Keep the rule aligned with the meter unit configured on the equipment type.
     if equipment_type.measurement_unit == "km":
         hours = None
     elif equipment_type.measurement_unit == "hours":
@@ -225,12 +224,23 @@ def maintenance_record_create(
     equipment_id: int = Form(...), rule_id: int = Form(...), maintenance_date: date = Form(...), meter_value: str = Form(""), work_order: str = Form(""), workshop: str = Form(""), description: str = Form(""),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
+    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type)).filter(Equipment.id == equipment_id).first()
+    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id, MaintenanceRule.is_active.is_(True)).first()
+    if equipment is None or rule is None or rule.equipment_type_id != equipment.equipment_type_id:
+        return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+
+    unit = measurement_unit(equipment)
     meter = None
     if meter_value:
         try:
             meter = Decimal(meter_value)
         except (InvalidOperation, ValueError):
-            meter = None
+            return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+
+    # A meter-based rule must carry the meter value used as the reference for the next service.
+    if (unit == "km" and rule.interval_km is not None) or (unit == "hours" and rule.interval_hours is not None):
+        if meter is None:
+            return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
 
     rec = MaintenanceRecord(
         equipment_id=equipment_id,
