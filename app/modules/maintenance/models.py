@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
@@ -25,14 +25,18 @@ class MaintenanceRule(Base):
     description = Column(Text, nullable=True)
 
     equipment_type = relationship("EquipmentType")
+    records = relationship("MaintenanceRecord", back_populates="rule")
 
 
 class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
+    __table_args__ = (
+        UniqueConstraint("equipment_id", "rule_id", "maintenance_date", name="uq_maintenance_record_equipment_rule_date"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False, index=True)
-    rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="SET NULL"), nullable=True, index=True)
+    rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=False, index=True)
     maintenance_date = Column(Date, nullable=False)
     meter_value = Column(Numeric(10, 1), nullable=True)
     work_order = Column(String(80), nullable=True)
@@ -42,4 +46,4 @@ class MaintenanceRecord(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
 
     equipment = relationship("Equipment")
-    rule = relationship("MaintenanceRule")
+    rule = relationship("MaintenanceRule", back_populates="records")
