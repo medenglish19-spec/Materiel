@@ -10,6 +10,7 @@ from app.modules.users import models as users_models  # noqa: F401
 from app.modules.equipment_types import models as equipment_types_models  # noqa: F401
 from app.modules.equipment import models as equipment_models  # noqa: F401
 from app.modules.meter_readings import models as meter_readings_models  # noqa: F401
+from app.modules.maintenance import models as maintenance_models  # noqa: F401
 
 
 def _repair_existing_meter_readings_schema() -> None:
@@ -36,7 +37,6 @@ def _repair_existing_meter_readings_schema() -> None:
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _repair_existing_meter_readings_schema()
-    # تنظيف البيانات القديمة التي أُدخلت قبل تفعيل الحماية الدائمة.
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
 
