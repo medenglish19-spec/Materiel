@@ -53,6 +53,8 @@ class MaintenanceRecord(Base):
     status = Column(String(30), nullable=False, default="completed")
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     equipment = relationship("Equipment")
     rule = relationship("MaintenanceRule", back_populates="records")
+    created_by = relationship("User", foreign_keys=[created_by_id])
