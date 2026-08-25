@@ -77,7 +77,8 @@ def _validate_meter_payload(connection, target, exclude_id=None):
             raise ValueError(f"قراءة العداد الجديدة ({value:g}) أقل من قراءة سابقة ({existing_value:g})؛ لا يمكن أن يعود العداد إلى الخلف.")
         if target.reading_date.date() == existing_date.date():
             if value == existing_value:
-                raise ValueError(f"قراءة العداد ({value:g}) مكررة في نفس التاريخ؛ لا يمكن تسجيلها مرتين.")
+                date_text = target.reading_date.strftime("%d/%m/%Y")
+                raise ValueError(f"قراءة العداد ({value:g}) مكررة في نفس التاريخ ({date_text})؛ لا يمكن تسجيلها مرتين.")
             raise ValueError("لا يمكن تسجيل قراءتين مختلفتين لنفس المعدة في نفس التاريخ.")
 
 
