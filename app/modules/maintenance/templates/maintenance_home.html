@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}لوحة الصيانة{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block content %}
+<div class="maintenance-page" dir="rtl">
+  <div class="page-top">
+    <div class="page-heading">
+      <h2>لوحة الصيانة</h2>
+      <div class="breadcrumb"><a href="/">الرئيسية</a> › <span class="current">الصيانة</span></div>
+    </div>
+  </div>
+
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head">
+      <div>
+        <h3>منظومة الصيانة</h3>
+        <p>اختر القسم الذي تريد العمل عليه.</p>
+      </div>
+      <span class="badge info">4 أقسام</span>
+    </div>
+
+    <div class="kpi-grid" style="margin-top:18px">
+      <a class="kpi" href="/maintenance/periodic" style="text-decoration:none;color:inherit">
+        <div class="kpi-icon">↻</div>
+        <div class="kpi-body"><div class="kpi-label">1. الصيانة الدورية</div><div class="kpi-meta">متابعة خطط الصيانة والعداد الحالي</div></div>
+      </a>
+      <a class="kpi" href="/maintenance/rules" style="text-decoration:none;color:inherit">
+        <div class="kpi-icon">⚙</div>
+        <div class="kpi-body"><div class="kpi-label">2. شروط الصيانة</div><div class="kpi-meta">تعريف قواعد وفترات الصيانة</div></div>
+      </a>
+      <a class="kpi" href="/maintenance/records" style="text-decoration:none;color:inherit">
+        <div class="kpi-icon">▤</div>
+        <div class="kpi-body"><div class="kpi-label">3. سجل الصيانة</div><div class="kpi-meta">تسجيل ومراجعة عمليات الصيانة</div></div>
+      </a>
+      <a class="kpi danger" href="/maintenance/due" style="text-decoration:none;color:inherit">
+        <div class="kpi-icon">▲</div>
+        <div class="kpi-body"><div class="kpi-label">4. الصيانة المستحقة</div><div class="kpi-meta">الحالات التي تحتاج إجراء أو متابعة</div></div>
+      </a>
+    </div>
+  </section>
+</div>
+{% endblock %}
