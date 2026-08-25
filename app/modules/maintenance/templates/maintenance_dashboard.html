@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}منظومة الصيانة{% endblock %}
+
+{% block content %}
+<div class="page-header" dir="rtl">
+    <div>
+        <h2>منظومة الصيانة</h2>
+        <p class="page-hint">إدارة الصيانة حسب منطق خطة الصيانة والعداد الحالي للمركبة</p>
+    </div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="page-tabs">
+        <a class="tab active" href="/maintenance/periodic">خطة الصيانة</a>
+        <a class="tab" href="/maintenance/rules">شروط الصيانة</a>
+        <a class="tab" href="/maintenance/records">سجل الصيانة</a>
+        <a class="tab" href="/maintenance/due">الصيانة المستحقة</a>
+    </div>
+</div>
+
+<div class="stats-grid" dir="rtl">
+    <div class="stat-card"><div class="stat-label">مستحقة الآن</div><div class="stat-value">—</div></div>
+    <div class="stat-card"><div class="stat-label">قريبة</div><div class="stat-value">—</div></div>
+    <div class="stat-card"><div class="stat-label">بلا سجل صيانة</div><div class="stat-value">—</div></div>
+    <div class="stat-card"><div class="stat-label">إجمالي خطط الصيانة</div><div class="stat-value">—</div></div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="card-header">
+        <div>
+            <h3>خطة الصيانة</h3>
+            <p class="page-hint">ستُحسب هذه الصفحة لاحقًا من المركبات + شروط الصيانة + آخر صيانة + آخر قراءة عداد.</p>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="data-table modern-table">
+            <thead>
+                <tr>
+                    <th>رقم السيارة</th>
+                    <th>نوع الصيانة</th>
+                    <th>آخر صيانة</th>
+                    <th>عداد آخر صيانة</th>
+                    <th>العداد الحالي</th>
+                    <th>الموعد القادم</th>
+                    <th>الكيلومتر القادم</th>
+                    <th>الأيام المتبقية</th>
+                    <th>الكيلومترات المتبقية</th>
+                    <th>الحالة</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="10" style="text-align:center; padding:28px;">سيتم ربط البيانات الفعلية بعد اعتماد شكل الصفحات.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
