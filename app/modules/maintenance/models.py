@@ -48,6 +48,7 @@ class MaintenanceRecord(Base):
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False, index=True)
     rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=False, index=True)
     maintenance_date = Column(Date, nullable=False)
+    reported_date = Column(Date, nullable=False)
     meter_value = Column(Numeric(10, 1), nullable=True)
     work_order = Column(String(80), nullable=True)
     workshop = Column(String(120), nullable=True)
@@ -112,11 +113,13 @@ def _validate_record(connection, target, exclude_id=None):
 
 @event.listens_for(MaintenanceRecord, "before_insert")
 def _validate_maintenance_record_insert(mapper, connection, target):
+    target.reported_date = target.maintenance_date
     _validate_record(connection, target)
 
 
 @event.listens_for(MaintenanceRecord, "before_update")
 def _validate_maintenance_record_update(mapper, connection, target):
+    target.reported_date = target.maintenance_date
     state = inspect(target)
     if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "rule_id", "maintenance_date", "meter_value")):
         _validate_record(connection, target, exclude_id=target.id)
