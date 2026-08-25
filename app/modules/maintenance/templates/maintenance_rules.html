@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}شروط الصيانة{% endblock %}
+
+{% block content %}
+<div class="page-header" dir="rtl">
+    <div>
+        <h2>شروط الصيانة حسب الصنف</h2>
+        <p class="page-hint">يُعرّف شرط الصيانة مرة واحدة، ثم يُطبق تلقائيًا على مركبات الصنف نفسه.</p>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" type="button">+ إضافة شرط صيانة</button></div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="page-tabs">
+        <a class="tab" href="/maintenance/periodic">خطة الصيانة</a>
+        <a class="tab active" href="/maintenance/rules">شروط الصيانة</a>
+        <a class="tab" href="/maintenance/records">سجل الصيانة</a>
+        <a class="tab" href="/maintenance/due">الصيانة المستحقة</a>
+    </div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="table-wrap">
+        <table class="data-table modern-table">
+            <thead>
+                <tr>
+                    <th>الصنف</th>
+                    <th>نوع الصيانة</th>
+                    <th>الفترة بالأيام</th>
+                    <th>الفترة بالكيلومترات</th>
+                    <th>الحالة</th>
+                    <th>الإجراءات</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="6" style="text-align:center; padding:28px;">لا توجد بيانات بعد. هذه الصفحة هي الواجهة الأولى لإدخال قواعد الصيانة.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
