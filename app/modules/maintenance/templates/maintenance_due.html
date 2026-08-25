@@ -1,46 +1,36 @@
 {% extends "base.html" %}
 
 {% block title %}الصيانة المستحقة{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 
 {% block content %}
-<div class="page-header" dir="rtl">
-    <div>
-        <h2>الصيانة المستحقة</h2>
-        <p class="page-hint">الأولوية تُحسب من تاريخ آخر صيانة والعداد الحالي، وليس من قيمة يدوية.</p>
+<div class="maintenance-page" dir="rtl">
+    <div class="maintenance-hero">
+        <div class="maintenance-title"><div class="maintenance-icon">⚠</div><div><h2>الصيانة المستحقة</h2><p class="subtitle">شاشة العمل اليومية: ترتيب الصيانة حسب درجة الاستحقاق والأولوية.</p></div></div>
+        <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← الصيانة الدورية</a><button class="m-btn primary" type="button">＋ تسجيل صيانة</button></div>
     </div>
-</div>
+    <nav class="module-tabs"><a href="/maintenance/periodic">الصيانة الدورية</a><a href="/maintenance/rules">شروط الصيانة</a><a href="/maintenance/records">سجل الصيانة</a><a class="active" href="/maintenance/due">الصيانة المستحقة</a></nav>
 
-<div class="card" dir="rtl">
-    <div class="page-tabs">
-        <a class="tab" href="/maintenance/periodic">خطة الصيانة</a>
-        <a class="tab" href="/maintenance/rules">شروط الصيانة</a>
-        <a class="tab" href="/maintenance/records">سجل الصيانة</a>
-        <a class="tab active" href="/maintenance/due">الصيانة المستحقة</a>
+    <div class="kpi-grid">
+        <div class="kpi danger"><div class="kpi-label">مستحقة الآن</div><div class="kpi-value">12</div><div class="kpi-meta">تحتاج إجراء</div></div>
+        <div class="kpi warning"><div class="kpi-label">قريبة خلال 30 يوم</div><div class="kpi-value">15</div><div class="kpi-meta">للتخطيط المسبق</div></div>
+        <div class="kpi warning"><div class="kpi-label">قريبة حسب العداد</div><div class="kpi-value">8</div><div class="kpi-meta">ضمن حد المتابعة</div></div>
+        <div class="kpi neutral"><div class="kpi-label">بلا سجل</div><div class="kpi-value">6</div><div class="kpi-meta">تحتاج تسجيل أولي</div></div>
+        <div class="kpi success"><div class="kpi-label">مغلقة اليوم</div><div class="kpi-value">4</div><div class="kpi-meta">تمت معالجتها</div></div>
     </div>
-</div>
 
-<div class="card" dir="rtl">
-    <div class="table-wrap">
-        <table class="data-table modern-table">
-            <thead>
-                <tr>
-                    <th>الأولوية</th>
-                    <th>رقم السيارة</th>
-                    <th>نوع الصيانة</th>
-                    <th>آخر صيانة</th>
-                    <th>العداد الحالي</th>
-                    <th>الموعد القادم</th>
-                    <th>الكيلومتر القادم</th>
-                    <th>الأيام المتبقية</th>
-                    <th>الكيلومترات المتبقية</th>
-                    <th>الحالة</th>
-                    <th>الإجراء</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td colspan="11" style="text-align:center; padding:28px;">ستظهر هنا الصيانة المستحقة بعد تشغيل محرك الحساب.</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input class="m-input" placeholder="بحث برقم السيارة أو نوع الصيانة..."></div><select class="m-select"><option>كل الأولويات</option><option>أولوية 1</option><option>أولوية 2</option><option>أولوية 3</option></select><select class="m-select"><option>كل الأصناف</option><option>4x4</option><option>شاحنة</option></select><button class="m-btn soft" type="button">⌁ فلاتر</button><button class="m-btn" type="button">⇩ تصدير</button></div></div>
+
+    <section class="panel">
+        <div class="panel-head"><div><h3>قائمة الصيانة المستحقة</h3><p>الترتيب يبدأ بالأكثر إلحاحًا. الاستحقاق يعتمد على آخر صيانة والعداد الحالي.</p></div><span class="badge danger">12 حالة عاجلة</span></div>
+        <div class="table-wrap"><table class="m-table"><thead><tr><th>الأولوية</th><th>رقم السيارة</th><th>الصنف</th><th>نوع الصيانة</th><th>آخر صيانة</th><th>العداد الحالي</th><th>الاستحقاق القادم</th><th>المتبقي بالأيام</th><th>المتبقي بالكم</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>
+            <tr><td><span class="priority p1">1</span></td><td class="vehicle">16-0001</td><td>4x4</td><td>تغيير زيت المحرك</td><td>01/05/2026</td><td class="num">85,700</td><td>10/07/2026</td><td class="num">-3</td><td class="num">-4,450</td><td><span class="badge danger">مستحقة الآن</span></td><td><button class="m-btn primary">تسجيل صيانة</button></td></tr>
+            <tr><td><span class="priority p2">2</span></td><td class="vehicle">16-0002</td><td>4x4</td><td>فحص الفرامل</td><td>05/05/2026</td><td class="num">62,550</td><td>23/06/2026</td><td class="num">-2</td><td class="num">-100</td><td><span class="badge danger">مستحقة الآن</span></td><td><button class="m-btn primary">تسجيل صيانة</button></td></tr>
+            <tr><td><span class="priority p3">3</span></td><td class="vehicle">20-0004</td><td>شاحنة</td><td>تغيير زيت المحرك</td><td>10/05/2026</td><td class="num">22,700</td><td>10/06/2026</td><td class="num">-1</td><td class="num">-2,300</td><td><span class="badge warning">قريبة</span></td><td><button class="m-btn primary">تسجيل صيانة</button></td></tr>
+            <tr><td><span class="priority p4">4</span></td><td class="vehicle">16-0003</td><td>4x4</td><td>فحص الفرامل</td><td>05/05/2026</td><td class="num">59,000</td><td>05/06/2026</td><td class="num">-5</td><td class="num">-1,000</td><td><span class="badge warning">قريبة</span></td><td><button class="m-btn primary">تسجيل صيانة</button></td></tr>
+            <tr><td><span class="priority p4">5</span></td><td class="vehicle">16-0004</td><td>حافلة</td><td>فحص الفرامل</td><td class="muted">—</td><td class="num">15,600</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="badge neutral">بلا سجل</span></td><td><button class="m-btn soft">إضافة أولية</button></td></tr>
+        </tbody></table></div>
+        <div class="pagination"><span>عرض 1–5 من 41 حالة</span><div class="pages"><button class="page-no">‹</button><button class="page-no active">1</button><button class="page-no">2</button><button class="page-no">3</button><button class="page-no">4</button><button class="page-no">5</button><button class="page-no">›</button></div></div>
+    </section>
 </div>
 {% endblock %}
