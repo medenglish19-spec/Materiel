@@ -56,7 +56,7 @@ class MaintenanceRecord(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    equipment = relationship("Equipment")
+    equipment = relationship("Equipment", back_populates="maintenance_records")
     rule = relationship("MaintenanceRule", back_populates="records")
     created_by = relationship("User", foreign_keys=[created_by_id])
 
