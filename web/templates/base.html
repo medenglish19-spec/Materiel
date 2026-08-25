@@ -73,6 +73,39 @@
                 const now=new Date();
                 el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(now);
             }
+
+            // النوافذ الخاصة بالإضافة لا تحتفظ بمدخلات قديمة عند الرجوع إليها.
+            // نستخدم sessionStorage فقط كإشارة إلى أن عملية POST تمت قبل الانتقال.
+            const mutationKey='materiel:mutation-completed';
+            document.querySelectorAll('form[method="post"]').forEach(form=>{
+                form.setAttribute('autocomplete','off');
+                form.addEventListener('submit',()=>{
+                    sessionStorage.setItem(mutationKey,'1');
+                });
+            });
+
+            function resetEntryForms(){
+                document.querySelectorAll('form[method="post"]').forEach(form=>{
+                    // لا نمسح نموذج البحث أو أي نموذج موسوم صراحةً بالحفاظ على حالته.
+                    if(form.dataset.preserveForm==='true') return;
+                    form.reset();
+                    form.querySelectorAll('select').forEach(select=>{
+                        if(select.dataset.resetDisabled==='true') select.disabled=true;
+                    });
+                });
+            }
+
+            if(sessionStorage.getItem(mutationKey)==='1'){
+                sessionStorage.removeItem(mutationKey);
+                resetEntryForms();
+            }
+
+            // عند استرجاع الصفحة من Back/Forward قد يعيد المتصفح حالة قديمة كاملة.
+            window.addEventListener('pageshow',function(event){
+                if(event.persisted){
+                    window.location.reload();
+                }
+            });
         })();
     </script>
 </body>
