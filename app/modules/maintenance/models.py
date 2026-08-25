@@ -52,6 +52,7 @@ class MaintenanceRecord(Base):
     work_order = Column(String(80), nullable=True)
     workshop = Column(String(120), nullable=True)
     status = Column(String(30), nullable=False, default="completed")
+    is_scheduled = Column(Boolean, nullable=False, default=False, server_default="0")
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -96,8 +97,6 @@ def _validate_record(connection, target, exclude_id=None):
     if target.meter_value is None:
         return
 
-    # Excel's contradiction check compares every maintenance record of the same vehicle,
-    # regardless of maintenance type: a newer dated record may never have a lower meter.
     query = select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value, MaintenanceRecord.id).where(
         MaintenanceRecord.equipment_id == target.equipment_id,
         MaintenanceRecord.meter_value.is_not(None),
