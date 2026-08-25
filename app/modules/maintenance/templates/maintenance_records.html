@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}سجل الصيانة{% endblock %}
+
+{% block content %}
+<div class="page-header" dir="rtl">
+    <div>
+        <h2>سجل الصيانة</h2>
+        <p class="page-hint">المرجع الفعلي لآخر صيانة لكل مركبة ولكل نوع صيانة.</p>
+    </div>
+    <div class="page-actions"><button class="btn btn-primary" type="button">+ تسجيل صيانة</button></div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="page-tabs">
+        <a class="tab" href="/maintenance/periodic">خطة الصيانة</a>
+        <a class="tab" href="/maintenance/rules">شروط الصيانة</a>
+        <a class="tab active" href="/maintenance/records">سجل الصيانة</a>
+        <a class="tab" href="/maintenance/due">الصيانة المستحقة</a>
+    </div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="table-wrap">
+        <table class="data-table modern-table">
+            <thead>
+                <tr>
+                    <th>رقم السيارة</th>
+                    <th>نوع الصيانة</th>
+                    <th>تاريخ الصيانة</th>
+                    <th>العداد عند الصيانة</th>
+                    <th>أمر العمل</th>
+                    <th>الورشة / الجهة</th>
+                    <th>الحالة</th>
+                    <th>الوصف</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="8" style="text-align:center; padding:28px;">لا توجد سجلات بعد. سيصبح هذا الجدول المرجع لآخر صيانة بعد ربطه بقاعدة البيانات.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
