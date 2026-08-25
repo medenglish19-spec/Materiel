@@ -28,6 +28,22 @@
     </div>
   </div>
 
+  {% set error = request.query_params.get('error') %}
+  {% if error %}
+    <div class="alert danger" style="margin-bottom:16px">
+      {% if error == 'equipment' %}المركبة المحددة غير موجودة.{% endif %}
+      {% if error == 'rule' %}اختر نوع الصيانة الدورية أولًا.{% endif %}
+      {% if error == 'rule_type' %}نوع الصيانة الدورية المختار لا يتبع نوع عتاد هذه المركبة.{% endif %}
+      {% if error == 'future_date' %}لا يمكن تسجيل صيانة بتاريخ مستقبلي.{% endif %}
+      {% if error == 'meter' %}قيمة العداد غير صحيحة. أدخل رقمًا موجبًا أو صفرًا.{% endif %}
+      {% if error == 'meter_required' %}هذا النوع من الصيانة يعتمد على العداد، لذلك يجب إدخال العداد عند الصيانة.{% endif %}
+      {% if error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لقراءات سجل الصيانة.{% endif %}
+    </div>
+  {% endif %}
+  {% if request.query_params.get('saved') == '1' %}
+    <div class="alert success" style="margin-bottom:16px">تم حفظ عملية الصيانة بنجاح.</div>
+  {% endif %}
+
   <section class="panel">
     <div class="panel-head">
       <div><h3>سجل عمليات الصيانة</h3><p>السجل هو المرجع التاريخي لآخر صيانة لكل عتاد ولكل صيانة دورية.</p></div>
@@ -60,7 +76,7 @@
 
   <section class="panel" id="newRecord" style="margin-top:16px">
     <div class="panel-head">
-      <div><h3>تسجيل صيانة جديدة</h3><p>يُستخدم طراز السيارة لتصفية المركبات فقط؛ أما شروط الصيانة فتأتي تلقائيًا من نوع العتاد.</p></div>
+      <div><h3>تسجيل صيانة جديدة</h3><p>اختر طراز السيارة ثم رقم السيارة؛ بعدها يعرض النظام فقط أنواع الصيانة الدورية التابعة لنوع عتاد السيارة. الاختيار النهائي للصيانة الدورية يكون للمستخدم.</p></div>
     </div>
     <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <select class="m-select" id="modelFilter" required>
@@ -82,7 +98,7 @@
       </select>
 
       <select class="m-select" name="rule_id" id="ruleSelect" required disabled>
-        <option value="">الصيانة الدورية</option>
+        <option value="">اختر نوع الصيانة الدورية</option>
         {% for r in rules %}
           <option value="{{ r.id }}" data-type-id="{{ r.equipment_type_id }}">{{ r.name }}</option>
         {% endfor %}
@@ -111,12 +127,16 @@
   const allEquipment=[...equipment.options].slice(1);
   const allRules=[...rule.options].slice(1);
 
+  function resetRuleList(message){
+    rule.innerHTML=`<option value="">${message}</option>`;
+    rule.disabled=true;
+  }
+
   function refreshEquipment(){
     const modelId=model.value;
     equipment.innerHTML='<option value="">رقم السيارة</option>';
     allEquipment.forEach(o=>{ if(modelId && o.dataset.modelId===modelId) equipment.appendChild(o.cloneNode(true)); });
-    rule.innerHTML='<option value="">الصيانة الدورية</option>';
-    rule.disabled=true;
+    resetRuleList('اختر السيارة أولًا');
     meter.value='';
     hint.textContent='اختر السيارة لعرض العداد الحالي.';
   }
@@ -124,7 +144,7 @@
   function refreshRules(){
     const selected=equipment.selectedOptions[0];
     const typeId=selected ? selected.dataset.typeId : '';
-    rule.innerHTML='<option value="">الصيانة الدورية</option>';
+    rule.innerHTML='<option value="">اختر نوع الصيانة الدورية</option>';
     allRules.forEach(o=>{ if(typeId && o.dataset.typeId===typeId) rule.appendChild(o.cloneNode(true)); });
     rule.disabled=!typeId;
     if(selected){
