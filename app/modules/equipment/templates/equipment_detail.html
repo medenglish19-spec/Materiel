@@ -2,146 +2,38 @@
 {% block title %}تفاصيل العتاد{% endblock %}
 
 {% block content %}
-
 <div class="page-header">
     <h2>تفاصيل العتاد</h2>
     <a href="/equipment" class="btn-outline">العودة إلى العتاد</a>
     <a href="/equipment/{{ item.id }}/meters" class="btn-outline">سجل قراءات العداد</a>
-    <a href="/maintenance/records#newRecord" class="btn-primary">➕ تسجيل صيانة</a>
+    <a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 سجل الصيانة</a>
 </div>
 
 <div class="card">
     <h3>{{ item.asset_code }}</h3>
-
     <div class="grid-form">
-        <div class="field">
-            <label>الرقم</label>
-            <div>{{ item.asset_code }}</div>
-        </div>
-
-        <div class="field">
-            <label>الوثيقة</label>
-            <div>{{ item.acquisition_document or "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>النوع</label>
-            <div>{{ item.equipment_type.name if item.equipment_type else "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>الطراز</label>
-            <div>{{ item.equipment_model.name if item.equipment_model else "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>رقم التسجيل</label>
-            <div>{{ item.registration_number or "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>رقم الهيكل</label>
-            <div>{{ item.vin or "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>تاريخ الاقتناء</label>
-            <div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else "-" }}</div>
-        </div>
-
-        <div class="field">
-            <label>عداد الكم</label>
-            <div>{{ item.current_odometer or 0 }} كم</div>
-        </div>
-
-        <div class="field">
-            <label>عداد الساعات</label>
-            <div>{{ item.current_hours or 0 }} س</div>
-        </div>
-
-        <div class="field">
-            <label>الحالة الفنية</label>
-            <div>
-                {% if item.technical_condition == "ready" %}جاهز{% else %}عاطل{% endif %}
-            </div>
-        </div>
-
-        <div class="field">
-            <label>الوضعية</label>
-            <div>
-                {% if item.operational_status == "available" %}متاح
-                {% elif item.operational_status == "in_mission" %}في مهمة
-                {% elif item.operational_status == "in_maintenance" %}في الصيانة
-                {% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية
-                {% else %}غير متاح{% endif %}
-            </div>
-        </div>
-
-        {% if item.notes %}
-        <div class="field">
-            <label>ملاحظات</label>
-            <div>{{ item.notes }}</div>
-        </div>
-        {% endif %}
+        <div class="field"><label>الرقم</label><div>{{ item.asset_code }}</div></div>
+        <div class="field"><label>الوثيقة</label><div>{{ item.acquisition_document or "-" }}</div></div>
+        <div class="field"><label>النوع</label><div>{{ item.equipment_type.name if item.equipment_type else "-" }}</div></div>
+        <div class="field"><label>الطراز</label><div>{{ item.equipment_model.name if item.equipment_model else "-" }}</div></div>
+        <div class="field"><label>رقم التسجيل</label><div>{{ item.registration_number or "-" }}</div></div>
+        <div class="field"><label>رقم الهيكل</label><div>{{ item.vin or "-" }}</div></div>
+        <div class="field"><label>تاريخ الاقتناء</label><div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else "-" }}</div></div>
+        <div class="field"><label>عداد الكم</label><div>{{ item.current_odometer or 0 }} كم</div></div>
+        <div class="field"><label>عداد الساعات</label><div>{{ item.current_hours or 0 }} س</div></div>
+        <div class="field"><label>الحالة الفنية</label><div>{% if item.technical_condition == "ready" %}جاهز{% else %}عاطل{% endif %}</div></div>
+        <div class="field"><label>الوضعية</label><div>{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</div></div>
+        {% if item.notes %}<div class="field"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}
     </div>
 </div>
 
-<div class="card" style="margin-top:20px;" id="maintenance-history">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-        <div>
-            <h3>🛠 سجل الصيانة</h3>
-            <p style="margin:4px 0;color:#666;">سجل السيارة يعرض السجلات الأصلية لهذه السيارة فقط؛ لا توجد نسخة مستقلة من البيانات.</p>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <a href="/maintenance/records#newRecord" class="btn-primary">➕ تسجيل صيانة جديدة</a>
-            <a href="/maintenance/records" class="btn-outline">عرض سجل الصيانة الكامل</a>
-        </div>
-    </div>
-
-    <div style="overflow-x:auto;margin-top:14px;">
-        <table style="width:100%;border-collapse:collapse;min-width:950px;">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>نوع الصيانة</th>
-                    <th>تاريخ الصيانة</th>
-                    <th>العداد عند الصيانة</th>
-                    <th>أمر العمل</th>
-                    <th>الورشة / الجهة</th>
-                    <th>الحالة</th>
-                    <th>الوصف</th>
-                    <th>الإجراء</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in item.maintenance_records %}
-                <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ record.rule.name if record.rule else '—' }}</td>
-                    <td>{{ record.maintenance_date.strftime('%d/%m/%Y') if record.maintenance_date else '—' }}</td>
-                    <td>{{ '{:,.0f}'.format(record.meter_value) if record.meter_value is not none else '—' }}</td>
-                    <td>{{ record.work_order or '—' }}</td>
-                    <td>{{ record.workshop or '—' }}</td>
-                    <td>{{ 'مكتملة' if record.status == 'completed' else (record.status or '—') }}</td>
-                    <td>{{ record.description or '—' }}</td>
-                    <td style="white-space:nowrap;">
-                        <a class="btn-outline" href="/maintenance/records?edit={{ record.id }}#editRecord">✏️ تعديل</a>
-                        <form method="post" action="/maintenance/records/{{ record.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');">
-                            <button type="submit" class="btn-danger">🗑 حذف</button>
-                        </form>
-                    </td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="9" style="text-align:center;padding:20px;color:#777;">لا يوجد سجل صيانة لهذه السيارة.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="card" style="margin-top:20px;">
+    <h3>🛠 سجل صيانة هذا العتاد</h3>
+    <p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p>
+    <a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a>
 </div>
 
-<div style="margin-top:20px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+<div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
     <a href="/equipment" class="btn-secondary">العودة إلى قائمة العتاد</a>
     <a href="/equipment/{{ item.id }}/edit" class="btn-primary">تعديل العتاد</a>
     <form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');">
@@ -153,5 +45,4 @@
     <h3>قراءات عداد الكيلومترات</h3>
     <a href="/equipment/{{ item.id }}/meters" class="btn-outline">عرض سجل القراءات</a>
 </div>
-
 {% endblock %}
