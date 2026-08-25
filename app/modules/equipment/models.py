@@ -19,7 +19,12 @@ class Equipment(Base, AuditMixin):
 
     equipment_type = relationship("EquipmentType")
     equipment_model = relationship("EquipmentModel")
-    maintenance_records = relationship("MaintenanceRecord", back_populates="equipment", order_by="MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()")
+    maintenance_records = relationship(
+        "MaintenanceRecord",
+        back_populates="equipment",
+        order_by="MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()",
+        passive_deletes=True,
+    )
 
     acquisition_date = Column(Date, nullable=True)
 
