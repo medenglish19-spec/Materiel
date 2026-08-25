@@ -35,26 +35,72 @@ def _repair_existing_meter_readings_schema() -> None:
 
 
 def _repair_existing_maintenance_schema() -> None:
-    """إصلاح أعمدة الصيانة التي أضيفت إلى SQLite بعد إنشاء قاعدة البيانات الأصلية."""
+    """ترحيل آمن لجدول سجلات الصيانة القديم إلى مخطط الوحدة الحالية دون حذف البيانات."""
     if not str(engine.url).startswith("sqlite"):
         return
+
     inspector = inspect(engine)
     if "maintenance_records" not in inspector.get_table_names():
         return
+
     columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
     with engine.begin() as connection:
+        # الأعمدة الجديدة في الوحدة الحالية.
         if "rule_id" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"))
+
+        if "maintenance_date" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
+            if "reported_date" in columns:
+                connection.execute(text(
+                    "UPDATE maintenance_records "
+                    "SET maintenance_date = reported_date "
+                    "WHERE maintenance_date IS NULL"
+                ))
+
+        if "meter_value" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN meter_value NUMERIC(10, 1)"))
+            if "meter_reading" in columns:
+                connection.execute(text(
+                    "UPDATE maintenance_records "
+                    "SET meter_value = meter_reading "
+                    "WHERE meter_value IS NULL"
+                ))
+
+        if "work_order" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN work_order VARCHAR(80)"))
+
+        if "workshop" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN workshop VARCHAR(120)"))
+            if "location" in columns:
+                connection.execute(text(
+                    "UPDATE maintenance_records "
+                    "SET workshop = location "
+                    "WHERE workshop IS NULL"
+                ))
+
+        if "status" not in columns:
             connection.execute(text(
-                "ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"
+                "ALTER TABLE maintenance_records ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'completed'"
             ))
+
+        if "description" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN description TEXT"))
+
         if "created_at" not in columns:
-            connection.execute(text(
-                "ALTER TABLE maintenance_records ADD COLUMN created_at DATETIME"
-            ))
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN created_at DATETIME"))
             connection.execute(text(
                 "UPDATE maintenance_records SET created_at = CURRENT_TIMESTAMP "
                 "WHERE created_at IS NULL"
             ))
+
+        # السجلات القديمة قد لا تملك تاريخًا إذا جاءت من نسخة شديدة القدم.
+        # نضع تاريخ اليوم فقط للسجلات التي لا يمكن ترحيل تاريخها من الحقل القديم.
+        connection.execute(text(
+            "UPDATE maintenance_records "
+            "SET maintenance_date = COALESCE(maintenance_date, DATE(created_at), DATE('now')) "
+            "WHERE maintenance_date IS NULL"
+        ))
 
 
 def init_db() -> None:
