@@ -1,68 +1,38 @@
 {% extends "base.html" %}
-
 {% block title %}الصيانة الدورية{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
-
 {% block content %}
 <div class="maintenance-page" dir="rtl">
-    <div class="maintenance-hero">
-        <div class="maintenance-title">
-            <div class="maintenance-icon">⚒</div>
-            <div>
-                <h2>الصيانة الدورية</h2>
-                <p class="subtitle">متابعة الصيانة الدورية للمركبات حسب آخر صيانة والعداد الحالي.</p>
-            </div>
-        </div>
-        <div class="hero-actions">
-            <a class="m-btn" href="/maintenance/records">↗ سجل الصيانة</a>
-            <a class="m-btn primary" href="/maintenance/records">＋ تسجيل صيانة</a>
-        </div>
-    </div>
-    <nav class="module-tabs" aria-label="وحدة الصيانة">
-        <a class="active" href="/maintenance/periodic" aria-current="page">الصيانة الدورية</a>
-        <a href="/maintenance/rules">شروط الصيانة</a>
-        <a href="/maintenance/records">سجل الصيانة</a>
-        <a href="/maintenance/due">الصيانة المستحقة</a>
-    </nav>
-    <div class="kpi-grid">
-        <div class="kpi danger"><div class="kpi-label">مستحقة الآن</div><div class="kpi-value">17</div><div class="kpi-meta">من إجمالي الصيانة</div></div>
-        <div class="kpi warning"><div class="kpi-label">قريبة</div><div class="kpi-value">42</div><div class="kpi-meta">تحتاج متابعة</div></div>
-        <div class="kpi neutral"><div class="kpi-label">بلا سجل</div><div class="kpi-value">24</div><div class="kpi-meta">تحتاج صيانة أولية</div></div>
-        <div class="kpi success"><div class="kpi-label">سليمة</div><div class="kpi-value">128</div><div class="kpi-meta">ضمن الحدود</div></div>
-        <div class="kpi"><div class="kpi-label">إجمالي المتابعات</div><div class="kpi-value">211</div><div class="kpi-meta">جميع قواعد الصيانة</div></div>
-    </div>
-    <div class="toolbar-card">
-        <div class="toolbar">
-            <div class="search-wrap"><span class="search-icon">⌕</span><input id="periodicSearch" class="m-input" placeholder="بحث برقم السيارة أو نوع الصيانة..." aria-label="بحث في الصيانة الدورية"></div>
-            <select id="typeFilter" class="m-select" aria-label="فلترة حسب الصنف"><option value="">كل الأصناف</option><option>4x4</option><option>شاحنة</option><option>حافلة</option></select>
-            <select id="statusFilter" class="m-select" aria-label="فلترة حسب الحالة"><option value="">كل الحالات</option><option>مستحقة الآن</option><option>قريبة</option><option>سليمة</option><option>بلا سجل</option></select>
-            <button class="m-btn soft" type="button" id="clearPeriodicFilters">⌁ مسح الفلاتر</button>
-            <a class="m-btn" href="/maintenance/due">⇩ الصيانة المستحقة</a>
-        </div>
-    </div>
-    <section class="panel">
-        <div class="panel-head"><div><h3>الصيانة الدورية</h3><p>العداد الحالي مصدره نظام قراءات العداد في Materiel.</p></div><span class="badge info">تحديث تلقائي</span></div>
-        <div class="table-wrap">
-            <table class="m-table" id="periodicTable">
-                <thead><tr><th>#</th><th>رقم السيارة</th><th>الصنف</th><th>نوع الصيانة</th><th>آخر صيانة</th><th>عداد آخر صيانة</th><th>العداد الحالي</th><th>الموعد القادم</th><th>الكيلومتر القادم</th><th>المتبقي</th><th>الحالة</th><th>الإجراء</th></tr></thead>
-                <tbody>
-                    <tr data-type="4x4" data-status="قريبة"><td>1</td><td class="vehicle">16-0001</td><td>4x4</td><td>تغيير زيت المحرك</td><td>01/06/2026</td><td class="num">81,250</td><td class="num">85,700</td><td>10/07/2026</td><td class="num">90,000</td><td class="num">4,300 كم</td><td><span class="badge warning">قريبة</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض سجل الصيانة" aria-label="عرض سجل الصيانة">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة" aria-label="تسجيل صيانة">＋</a></div></td></tr>
-                    <tr data-type="4x4" data-status="مستحقة الآن"><td>2</td><td class="vehicle">16-0002</td><td>4x4</td><td>فحص الفرامل</td><td>05/06/2026</td><td class="num">62,450</td><td class="num">62,550</td><td>23/06/2026</td><td class="muted">—</td><td class="num">متأخر</td><td><span class="badge danger">مستحقة الآن</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض سجل الصيانة" aria-label="عرض سجل الصيانة">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة" aria-label="تسجيل صيانة">＋</a></div></td></tr>
-                    <tr data-type="شاحنة" data-status="سليمة"><td>3</td><td class="vehicle">20-0003</td><td>شاحنة</td><td>تبديل السيور</td><td>20/06/2026</td><td class="num">28,100</td><td class="num">37,900</td><td>20/07/2026</td><td class="num">40,000</td><td class="num">2,100 كم</td><td><span class="badge success">سليمة</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض سجل الصيانة" aria-label="عرض سجل الصيانة">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة" aria-label="تسجيل صيانة">＋</a></div></td></tr>
-                    <tr data-type="حافلة" data-status="بلا سجل"><td>4</td><td class="vehicle">16-0004</td><td>حافلة</td><td>فحص الفرامل</td><td class="muted">—</td><td class="muted">—</td><td class="num">15,600</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="badge neutral">بلا سجل</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض سجل الصيانة" aria-label="عرض سجل الصيانة">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة أولية" aria-label="تسجيل صيانة أولية">＋</a></div></td></tr>
-                    <tr data-type="4x4" data-status="مستحقة الآن"><td>5</td><td class="vehicle">16-0005</td><td>4x4</td><td>تغيير زيت المحرك</td><td>20/05/2026</td><td class="num">44,200</td><td class="num">49,200</td><td>29/05/2026</td><td class="num">50,000</td><td class="num">800 كم</td><td><span class="badge danger">مستحقة الآن</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض سجل الصيانة" aria-label="عرض سجل الصيانة">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة" aria-label="تسجيل صيانة">＋</a></div></td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="pagination"><span>عرض 1–5 من 211 متابعة</span><div class="pages"><a class="page-no" href="/maintenance/periodic" aria-label="السابق">‹</a><a class="page-no active" href="/maintenance/periodic" aria-current="page">1</a><a class="page-no" href="/maintenance/periodic?page=2">2</a><a class="page-no" href="/maintenance/periodic?page=3">3</a><a class="page-no" href="/maintenance/periodic?page=4">4</a><span class="page-no">…</span><a class="page-no" href="/maintenance/periodic?page=43">43</a><a class="page-no" href="/maintenance/periodic?page=2" aria-label="التالي">›</a></div></div>
-    </section>
+  <div class="page-top">
+    <div class="page-heading"><h2>الصيانة الدورية</h2><div class="breadcrumb"><a href="/">الرئيسية</a> &nbsp;›&nbsp; <a href="/maintenance">الصيانة</a> &nbsp;›&nbsp; <span class="current">الصيانة الدورية</span></div></div>
+    <div class="hero-actions"><a class="m-btn" href="/maintenance/records">▤ &nbsp;سجل الصيانة</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a></div>
+  </div>
+  <nav class="module-tabs" aria-label="وحدة الصيانة"><a class="active" href="/maintenance/periodic" aria-current="page">1. الصيانة الدورية</a><a href="/maintenance/rules">2. شروط الصيانة</a><a href="/maintenance/records">3. سجل الصيانة</a><a href="/maintenance/due">4. الصيانة المستحقة</a></nav>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-icon">▣</div><div class="kpi-body"><div class="kpi-label">إجمالي المتابعات</div><div class="kpi-value">211</div><div class="kpi-meta">جميع قواعد الصيانة</div></div></div>
+    <div class="kpi danger"><div class="kpi-icon">▲</div><div class="kpi-body"><div class="kpi-label">مستحقة الآن</div><div class="kpi-value">17</div><div class="kpi-meta">تحتاج إجراء فوري</div></div></div>
+    <div class="kpi warning"><div class="kpi-icon">◷</div><div class="kpi-body"><div class="kpi-label">قريبة</div><div class="kpi-value">42</div><div class="kpi-meta">تحتاج متابعة</div></div></div>
+    <div class="kpi success"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-label">سليمة</div><div class="kpi-value">128</div><div class="kpi-meta">ضمن الحدود</div></div></div>
+    <div class="kpi neutral"><div class="kpi-icon">□</div><div class="kpi-body"><div class="kpi-label">بلا سجل</div><div class="kpi-value">24</div><div class="kpi-meta">تحتاج صيانة أولية</div></div></div>
+  </div>
+  <div class="toolbar-card"><div class="toolbar">
+    <div class="search-wrap"><span class="search-icon">⌕</span><input id="periodicSearch" class="m-input" placeholder="بحث برقم السيارة..." aria-label="بحث برقم السيارة"></div>
+    <select id="periodicType" class="m-select" aria-label="كل الأصناف"><option value="">كل الأصناف</option><option value="4x4">4x4</option><option value="شاحنة">شاحنة</option><option value="حافلة">حافلة</option></select>
+    <select id="periodicStatus" class="m-select" aria-label="كل الحالات"><option value="">كل الحالات</option><option value="مستحقة الآن">مستحقة الآن</option><option value="قريبة">قريبة</option><option value="سليمة">سليمة</option><option value="بلا سجل">بلا سجل</option></select>
+    <button class="m-btn soft" id="clearPeriodicFilters" type="button">⌁ &nbsp;مسح</button>
+    <a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a>
+  </div></div>
+  <section class="panel">
+    <div class="panel-head"><div><h3>الصيانة الدورية</h3><p>عرض جميع المتابعات حسب آخر صيانة والعداد الحالي من نظام قراءات العداد.</p></div><span class="badge info">تحديث تلقائي</span></div>
+    <div class="table-wrap"><table class="m-table" id="periodicTable"><thead><tr><th>#</th><th>رقم السيارة</th><th>الصنف</th><th>نوع الصيانة</th><th>آخر صيانة</th><th>عداد آخر صيانة</th><th>العداد الحالي</th><th>الموعد القادم</th><th>الكيلومتر القادم</th><th>المتبقي</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
+      <tr data-type="4x4" data-status="مستحقة الآن"><td>1</td><td class="vehicle">16-0001</td><td>4x4</td><td>تغيير زيت المحرك</td><td>01/05/2026</td><td class="num">80,000</td><td class="num">85,750</td><td>10/07/2026</td><td class="num">90,000</td><td class="num">-4,250 كم</td><td><span class="badge danger">مستحقة الآن</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض السجل">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة">✎</a></div></td></tr>
+      <tr data-type="4x4" data-status="قريبة"><td>2</td><td class="vehicle">16-0002</td><td>4x4</td><td>فحص الفرامل</td><td>05/06/2026</td><td class="num">62,000</td><td class="num">62,550</td><td>23/06/2026</td><td class="muted">—</td><td class="num">450 كم</td><td><span class="badge warning">قريبة</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض السجل">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة">✎</a></div></td></tr>
+      <tr data-type="شاحنة" data-status="سليمة"><td>3</td><td class="vehicle">20-0003</td><td>شاحنة</td><td>تبديل السيور</td><td>20/06/2026</td><td class="num">27,900</td><td class="num">28,100</td><td>08/07/2026</td><td class="num">40,000</td><td class="num">2,100 كم</td><td><span class="badge success">سليمة</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض السجل">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة">✎</a></div></td></tr>
+      <tr data-type="4x4" data-status="بلا سجل"><td>4</td><td class="vehicle">16-0004</td><td>4x4</td><td>فحص الفرامل</td><td class="muted">—</td><td class="muted">—</td><td class="num">15,600</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td><td><span class="badge neutral">بلا سجل</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="إضافة أولية">＋</a></div></td></tr>
+      <tr data-type="4x4" data-status="مستحقة الآن"><td>5</td><td class="vehicle">16-0005</td><td>4x4</td><td>تغيير زيت المحرك</td><td>15/07/2026</td><td class="num">47,400</td><td class="num">49,200</td><td>24/07/2026</td><td class="num">50,000</td><td class="num">800 كم</td><td><span class="badge danger">مستحقة الآن</span></td><td><div class="row-actions"><a class="icon-btn" href="/maintenance/records" title="عرض السجل">◉</a><a class="icon-btn" href="/maintenance/records" title="تسجيل صيانة">✎</a></div></td></tr>
+    </tbody></table></div>
+    <div class="pagination"><span>عرض 1–5 من 211 متابعة</span><div class="pages"><a class="page-no" href="/maintenance/periodic" aria-label="السابق">‹</a><a class="page-no active" href="/maintenance/periodic">1</a><a class="page-no" href="/maintenance/periodic?page=2">2</a><a class="page-no" href="/maintenance/periodic?page=3">3</a><a class="page-no" href="/maintenance/periodic?page=4">4</a><span class="page-no">…</span><a class="page-no" href="/maintenance/periodic?page=43">43</a><a class="page-no" href="/maintenance/periodic?page=2">›</a></div></div>
+  </section>
 </div>
-<script>
-(function(){
- const q=document.getElementById('periodicSearch'), t=document.getElementById('typeFilter'), s=document.getElementById('statusFilter'), clear=document.getElementById('clearPeriodicFilters');
- function filter(){const query=(q.value||'').trim().toLowerCase();document.querySelectorAll('#periodicTable tbody tr').forEach(r=>{const text=r.innerText.toLowerCase();r.style.display=(!query||text.includes(query))&&(!t.value||r.dataset.type===t.value)&&(!s.value||r.dataset.status===s.value)?'':'none';});}
- [q,t,s].forEach(el=>el.addEventListener('input',filter));
- clear.addEventListener('click',function(){q.value='';t.value='';s.value='';filter();});
-})();
-</script>
+<script>(function(){const q=document.getElementById('periodicSearch'),t=document.getElementById('periodicType'),s=document.getElementById('periodicStatus'),c=document.getElementById('clearPeriodicFilters');function f(){const x=(q.value||'').toLowerCase().trim();document.querySelectorAll('#periodicTable tbody tr').forEach(r=>{const ok=(!x||r.innerText.toLowerCase().includes(x))&&(!t.value||r.dataset.type===t.value)&&(!s.value||r.dataset.status===s.value);r.style.display=ok?'':'none'});} [q,t,s].forEach(e=>e.addEventListener('input',f));c.addEventListener('click',()=>{q.value='';t.value='';s.value='';f()});})();</script>
 {% endblock %}
