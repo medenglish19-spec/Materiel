@@ -98,10 +98,18 @@ def _repair_existing_maintenance_schema() -> None:
                 "WHERE created_at IS NULL"
             ))
 
+        if "reported_date" not in columns:
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN reported_date DATE"))
+
         connection.execute(text(
             "UPDATE maintenance_records "
-            "SET maintenance_date = COALESCE(maintenance_date, DATE(created_at), DATE('now')) "
+            "SET maintenance_date = COALESCE(maintenance_date, reported_date, DATE(created_at), DATE('now')) "
             "WHERE maintenance_date IS NULL"
+        ))
+        connection.execute(text(
+            "UPDATE maintenance_records "
+            "SET reported_date = COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) "
+            "WHERE reported_date IS NULL"
         ))
 
 
