@@ -28,8 +28,8 @@ class MaintenanceRule(Base):
     interval_km = Column(Numeric(10, 1), nullable=True)
     interval_hours = Column(Numeric(10, 1), nullable=True)
     interval_days = Column(Integer, nullable=True)
-    warning_km = Column(Numeric(10, 1), nullable=True, default=1000)
-    warning_days = Column(Integer, nullable=True, default=30)
+    warning_km = Column(Numeric(10, 1), nullable=True, default=500)
+    warning_days = Column(Integer, nullable=True, default=7)
     is_active = Column(Boolean, nullable=False, default=True)
     description = Column(Text, nullable=True)
 
@@ -62,6 +62,10 @@ class MaintenanceRecord(Base):
 
 
 def _validate_record(connection, target, exclude_id=None):
+    if target.equipment_id is None:
+        raise ValueError("يجب تحديد العتاد قبل تسجيل الصيانة.")
+    if target.rule_id is None:
+        raise ValueError("يجب تحديد الصيانة الدورية قبل تسجيل السجل.")
     if target.maintenance_date is None:
         raise ValueError("يجب تحديد تاريخ الصيانة.")
     if target.maintenance_date > datetime.now(timezone.utc).date():
@@ -80,21 +84,31 @@ def _validate_record(connection, target, exclude_id=None):
     if unit not in ("km", "hours"):
         raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح (km أو hours).")
 
+    rule_type_id = connection.execute(
+        select(MaintenanceRule.equipment_type_id).where(MaintenanceRule.id == target.rule_id)
+    ).scalar_one_or_none()
+    equipment_type_id = connection.execute(
+        select(Equipment.equipment_type_id).where(Equipment.id == target.equipment_id)
+    ).scalar_one_or_none()
+    if rule_type_id is None or equipment_type_id is None or rule_type_id != equipment_type_id:
+        raise ValueError("الصيانة الدورية المختارة لا تنتمي إلى نوع العتاد المحدد.")
+
     if target.meter_value is None:
         return
 
+    # Excel's contradiction check compares every maintenance record of the same vehicle,
+    # regardless of maintenance type: a newer dated record may never have a lower meter.
     query = select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value, MaintenanceRecord.id).where(
         MaintenanceRecord.equipment_id == target.equipment_id,
-        MaintenanceRecord.rule_id == target.rule_id,
         MaintenanceRecord.meter_value.is_not(None),
-    ).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id))
+    ).order_by(MaintenanceRecord.maintenance_date, MaintenanceRecord.id)
     for previous_date, previous_meter, previous_id in connection.execute(query).all():
         if exclude_id is not None and previous_id == exclude_id:
             continue
         if previous_date < target.maintenance_date and target.meter_value < previous_meter:
-            raise ValueError(f"قراءة الصيانة ({target.meter_value:g}) أقل من قراءة صيانة أقدم ({previous_meter:g}).")
+            raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أقل من قراءة أحدث زمنيًا قبلها ({previous_meter:g}).")
         if previous_date > target.maintenance_date and target.meter_value > previous_meter:
-            raise ValueError(f"قراءة الصيانة ({target.meter_value:g}) لا تتوافق مع سجل أحدث ({previous_meter:g})؛ راجع التاريخ والعداد.")
+            raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أكبر من قراءة سجل أحدث ({previous_meter:g}).")
 
 
 @event.listens_for(MaintenanceRecord, "before_insert")
