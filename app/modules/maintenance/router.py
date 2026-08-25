@@ -163,22 +163,50 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
 
 @router.post("/maintenance/records/create")
 def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form(...), maintenance_date: date = Form(...), meter_value: str = Form(""), work_order: str = Form(""), workshop: str = Form(""), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    records_url = "/maintenance/records"
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type)).filter(Equipment.id == equipment_id).first()
     rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id, MaintenanceRule.is_active.is_(True)).first()
-    if equipment is None or rule is None or rule.equipment_type_id != equipment.equipment_type_id: return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
-    if maintenance_date > date.today(): return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
-    unit = measurement_unit(equipment); meter = None
+    if equipment is None:
+        return RedirectResponse(f"{records_url}?error=equipment", status_code=status.HTTP_303_SEE_OTHER)
+    if rule is None:
+        return RedirectResponse(f"{records_url}?error=rule", status_code=status.HTTP_303_SEE_OTHER)
+    if rule.equipment_type_id != equipment.equipment_type_id:
+        return RedirectResponse(f"{records_url}?error=rule_type", status_code=status.HTTP_303_SEE_OTHER)
+    if maintenance_date > date.today():
+        return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
+
+    unit = measurement_unit(equipment)
+    meter = None
     if meter_value:
-        try: meter = Decimal(meter_value)
-        except (InvalidOperation, ValueError): return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
-        if meter < 0: return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            meter = Decimal(meter_value)
+        except (InvalidOperation, ValueError):
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+        if meter < 0:
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+
     if (unit == "km" and rule.interval_km is not None) or (unit == "hours" and rule.interval_hours is not None):
-        if meter is None: return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+        if meter is None:
+            return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
+
     chronology = chronology_error(db, equipment_id, maintenance_date, meter)
     if chronology:
-        return RedirectResponse("/maintenance/records?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
-    rec = MaintenanceRecord(equipment_id=equipment_id, rule_id=rule_id, maintenance_date=maintenance_date, meter_value=meter, work_order=work_order.strip() or None, workshop=workshop.strip() or None, description=description.strip() or None, status="completed", created_by_id=current_user.id if current_user else None)
-    db.add(rec); db.commit(); return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
+
+    rec = MaintenanceRecord(
+        equipment_id=equipment_id,
+        rule_id=rule_id,
+        maintenance_date=maintenance_date,
+        meter_value=meter,
+        work_order=work_order.strip() or None,
+        workshop=workshop.strip() or None,
+        description=description.strip() or None,
+        status="completed",
+        created_by_id=current_user.id if current_user else None,
+    )
+    db.add(rec)
+    db.commit()
+    return RedirectResponse(f"{records_url}?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/maintenance/due", response_class=HTMLResponse)
