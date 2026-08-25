@@ -66,6 +66,16 @@ def status_for(rule, equipment, record, current_value):
 
 
 @router.get("/maintenance", response_class=HTMLResponse)
+def maintenance_dashboard_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
+    return templates.TemplateResponse(
+        "maintenance_home.html",
+        {"request": request, "user": current_user},
+    )
+
+
 @router.get("/maintenance/periodic", response_class=HTMLResponse)
 def periodic_maintenance_page(
     request: Request,
