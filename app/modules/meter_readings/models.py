@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, String, event, func, select, insert, or_, and_
+from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, String, event, func, select, insert
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -26,15 +26,11 @@ class MeterReading(Base):
 
 
 def _equipment_unit(connection, equipment_id):
-    row = connection.execute(
-        select(Equipment.equipment_type_id).where(Equipment.id == equipment_id)
-    ).first()
+    row = connection.execute(select(Equipment.equipment_type_id).where(Equipment.id == equipment_id)).first()
     if row is None:
         raise ValueError("المعدة المحددة غير موجودة.")
     from app.modules.equipment_types.models import EquipmentType
-    unit = connection.execute(
-        select(EquipmentType.measurement_unit).where(EquipmentType.id == row[0])
-    ).scalar_one_or_none()
+    unit = connection.execute(select(EquipmentType.measurement_unit).where(EquipmentType.id == row[0])).scalar_one_or_none()
     return (unit or "").strip().lower()
 
 
@@ -59,23 +55,30 @@ def _validate_meter_payload(connection, target, exclude_id=None):
     if value < 0:
         raise ValueError("لا يمكن أن تكون قراءة العداد سالبة.")
 
+    # Excel imports deliberately represent a blank meter as zero. This is a
+    # placeholder rather than a real rollback, so it is exempt from the
+    # historical monotonicity check while still respecting duplicate dates.
+    is_excel_blank_zero = target.source == "import" and value == 0
+
     query = select(value_column, MeterReading.reading_date).where(MeterReading.equipment_id == target.equipment_id)
     if exclude_id is not None:
         query = query.where(MeterReading.id != exclude_id)
     rows = connection.execute(query).all()
 
-    # The meter must never move backwards relative to any older reading.
     for existing_value, existing_date in rows:
         if existing_value is None or existing_date is None:
             continue
+        existing_value = type(value)(existing_value)
+        if is_excel_blank_zero:
+            if target.reading_date.date() == existing_date.date() and existing_value == value:
+                raise ValueError("لا يمكن تسجيل قراءة مكررة في نفس التاريخ.")
+            continue
         if target.reading_date.date() > existing_date.date() and value < existing_value:
-            raise ValueError(
-                f"قراءة العداد الجديدة ({value:g}) أقل من قراءة سابقة ({existing_value:g})؛ لا يمكن أن يعود العداد إلى الخلف."
-            )
-        if target.reading_date.date() == existing_date.date() and value != existing_value:
-            raise ValueError(
-                "لا يمكن تسجيل قراءتين مختلفتين لنفس المعدة في نفس التاريخ."
-            )
+            raise ValueError(f"قراءة العداد الجديدة ({value:g}) أقل من قراءة سابقة ({existing_value:g})؛ لا يمكن أن يعود العداد إلى الخلف.")
+        if target.reading_date.date() == existing_date.date():
+            if value == existing_value:
+                raise ValueError(f"قراءة العداد ({value:g}) مكررة في نفس التاريخ؛ لا يمكن تسجيلها مرتين.")
+            raise ValueError("لا يمكن تسجيل قراءتين مختلفتين لنفس المعدة في نفس التاريخ.")
 
 
 @event.listens_for(MeterReading, "before_insert")
@@ -89,9 +92,7 @@ def _validate_meter_reading(mapper, connection, target):
         raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي.")
     _validate_meter_payload(connection, target)
     if not target.equipment_status:
-        status = connection.execute(
-            select(Equipment.operational_status).where(Equipment.id == target.equipment_id)
-        ).scalar_one_or_none()
+        status = connection.execute(select(Equipment.operational_status).where(Equipment.id == target.equipment_id)).scalar_one_or_none()
         target.equipment_status = status or "available"
 
 
