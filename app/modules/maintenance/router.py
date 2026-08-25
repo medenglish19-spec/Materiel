@@ -65,6 +65,18 @@ def current_meter_value(equipment, reading):
     return equipment.current_odometer
 
 
+def contradiction_for(equipment, record, current_value):
+    """Mirror Excel's automatic contradiction warning without changing the historical record."""
+    if record is None or record.meter_value is None or current_value is None:
+        return None
+    try:
+        if Decimal(str(record.meter_value)) > Decimal(str(current_value)):
+            return "قراءة العداد عند آخر صيانة أكبر من العداد الحالي"
+    except (InvalidOperation, ValueError):
+        return "قيمة العداد غير صالحة"
+    return None
+
+
 def status_for(rule, equipment, record, current_value):
     if record is None:
         return "بلا سجل", "neutral", None
@@ -91,6 +103,21 @@ def status_for(rule, equipment, record, current_value):
             return "قريبة", "warning", remaining
 
     return "سليمة", "success", remaining
+
+
+def priority_for(state, remaining, next_date):
+    """Stable numeric ordering equivalent to Excel's ترتيب الاستحقاق."""
+    if state == "مستحقة الآن":
+        return 1
+    if state == "قريبة":
+        return 2
+    if state == "بلا سجل":
+        return 3
+    if remaining is not None and remaining >= 0:
+        return 4
+    if next_date is not None:
+        return 4
+    return 5
 
 
 @router.get("/maintenance", response_class=HTMLResponse)
@@ -121,8 +148,11 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
             interval = rule.interval_hours if unit == "hours" else rule.interval_km
             next_meter = Decimal(str(rec.meter_value)) + Decimal(str(interval)) if rec and rec.meter_value is not None and interval is not None else None
             next_date = rec.maintenance_date + timedelta(days=int(rule.interval_days)) if rec and rule.interval_days else None
-            rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": unit, "next_meter": next_meter, "next_date": next_date, "remaining": remaining, "state": state, "css": css})
+            contradiction = contradiction_for(eq, rec, current_value)
+            priority = priority_for(state, remaining, next_date)
+            rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": unit, "next_meter": next_meter, "next_date": next_date, "remaining": remaining, "state": state, "css": css, "priority": priority, "contradiction": contradiction})
 
+    rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["equipment"].registration_number or r["equipment"].asset_code or ""))
     return templates.TemplateResponse("maintenance_dashboard.html", {"request": request, "user": current_user, "rows": rows, "counts": counts})
 
 
@@ -173,6 +203,8 @@ def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form
     rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id, MaintenanceRule.is_active.is_(True)).first()
     if equipment is None or rule is None or rule.equipment_type_id != equipment.equipment_type_id:
         return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+    if maintenance_date > date.today():
+        return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
 
     unit = measurement_unit(equipment)
     meter = None
@@ -180,6 +212,8 @@ def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form
         try:
             meter = Decimal(meter_value)
         except (InvalidOperation, ValueError):
+            return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
+        if meter < 0:
             return RedirectResponse("/maintenance/records", status_code=status.HTTP_303_SEE_OTHER)
 
     if (unit == "km" and rule.interval_km is not None) or (unit == "hours" and rule.interval_hours is not None):
@@ -208,6 +242,8 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             rec = records.get((eq.id, rule.id))
             state, css, remaining = status_for(rule, eq, rec, current_value)
             if state in ("مستحقة الآن", "قريبة", "بلا سجل"):
-                due_rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "state": state, "css": css})
+                next_date = rec.maintenance_date + timedelta(days=int(rule.interval_days)) if rec and rule.interval_days else None
+                due_rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "state": state, "css": css, "priority": priority_for(state, remaining, next_date), "contradiction": contradiction_for(eq, rec, current_value)})
 
+    due_rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999")))
     return templates.TemplateResponse("maintenance_due.html", {"request": request, "user": current_user, "rows": due_rows})
