@@ -45,6 +45,13 @@ def _repair_existing_maintenance_schema() -> None:
 
     columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
     with engine.begin() as connection:
+        # updated_at كان عمودًا من مخطط قديم، وليس جزءًا من MaintenanceRecord الحالي.
+        # وجوده كـ NOT NULL في SQLite يمنع أي INSERT جديد لأن التطبيق لا يعبئه.
+        # نحذفه نهائيًا بدل إضافة توافق قديم إلى النموذج الحالي.
+        if "updated_at" in columns:
+            connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at"))
+            columns.remove("updated_at")
+
         if "rule_id" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"))
 
