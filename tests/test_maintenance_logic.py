@@ -57,11 +57,13 @@ def test_date_due_is_or_condition_with_meter_due():
     assert meta["remaining_days"] == 0
 
 
-def test_hours_uses_hours_interval_and_date_warning_only():
+def test_hours_uses_hours_interval_and_does_not_apply_km_warning_threshold():
     r = rule(interval_km=None, interval_hours=Decimal("500"), interval_days=30, warning_km=Decimal("500"), warning_days=7)
     state, css, remaining, meta = status_for(r, equipment("hours"), record(meter=1000), Decimal("1499"))
-    assert state == "تقترب"
+    assert state == "ضمن الموعد"
+    assert css == "success"
     assert remaining == Decimal("1")
+    assert meta["remaining_days"] == 30
 
 
 def test_priority_puts_due_before_near_and_missing_record():
