@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}الصيانة المستحقة{% endblock %}
+
+{% block content %}
+<div class="page-header" dir="rtl">
+    <div>
+        <h2>الصيانة المستحقة</h2>
+        <p class="page-hint">الأولوية تُحسب من تاريخ آخر صيانة والعداد الحالي، وليس من قيمة يدوية.</p>
+    </div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="page-tabs">
+        <a class="tab" href="/maintenance/periodic">خطة الصيانة</a>
+        <a class="tab" href="/maintenance/rules">شروط الصيانة</a>
+        <a class="tab" href="/maintenance/records">سجل الصيانة</a>
+        <a class="tab active" href="/maintenance/due">الصيانة المستحقة</a>
+    </div>
+</div>
+
+<div class="card" dir="rtl">
+    <div class="table-wrap">
+        <table class="data-table modern-table">
+            <thead>
+                <tr>
+                    <th>الأولوية</th>
+                    <th>رقم السيارة</th>
+                    <th>نوع الصيانة</th>
+                    <th>آخر صيانة</th>
+                    <th>العداد الحالي</th>
+                    <th>الموعد القادم</th>
+                    <th>الكيلومتر القادم</th>
+                    <th>الأيام المتبقية</th>
+                    <th>الكيلومترات المتبقية</th>
+                    <th>الحالة</th>
+                    <th>الإجراء</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="11" style="text-align:center; padding:28px;">ستظهر هنا الصيانة المستحقة بعد تشغيل محرك الحساب.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
