@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
@@ -16,6 +16,18 @@ from app.modules.equipment_maintenance.router import router as equipment_mainten
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
     app.mount('/static', StaticFiles(directory='static'), name='static')
+
+    @app.middleware('http')
+    async def fresh_dynamic_pages(request: Request, call_next):
+        response = await call_next(request)
+        # صفحات النظام ديناميكية وتعرض بيانات المستخدم الحالية؛ لا نريد إعادة
+        # استخدام نسخة قديمة من المتصفح بعد الإضافة/التعديل/الحذف.
+        if not request.url.path.startswith('/static/'):
+            response.headers['Cache-Control'] = 'private, no-cache, max-age=0, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
+
     app.include_router(users_router, tags=['users'])
     app.include_router(equipment_types_router, tags=['equipment_types'])
     app.include_router(equipment_router, tags=['equipment'])
