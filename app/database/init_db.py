@@ -34,9 +34,33 @@ def _repair_existing_meter_readings_schema() -> None:
             ))
 
 
+def _repair_existing_maintenance_schema() -> None:
+    """إصلاح أعمدة الصيانة التي أضيفت إلى SQLite بعد إنشاء قاعدة البيانات الأصلية."""
+    if not str(engine.url).startswith("sqlite"):
+        return
+    inspector = inspect(engine)
+    if "maintenance_records" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
+    with engine.begin() as connection:
+        if "rule_id" not in columns:
+            connection.execute(text(
+                "ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"
+            ))
+        if "created_at" not in columns:
+            connection.execute(text(
+                "ALTER TABLE maintenance_records ADD COLUMN created_at DATETIME"
+            ))
+            connection.execute(text(
+                "UPDATE maintenance_records SET created_at = CURRENT_TIMESTAMP "
+                "WHERE created_at IS NULL"
+            ))
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     _repair_existing_meter_readings_schema()
+    _repair_existing_maintenance_schema()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
 
