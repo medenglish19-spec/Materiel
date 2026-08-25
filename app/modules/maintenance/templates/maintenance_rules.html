@@ -1,42 +1,28 @@
 {% extends "base.html" %}
 
 {% block title %}شروط الصيانة{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 
 {% block content %}
-<div class="page-header" dir="rtl">
-    <div>
-        <h2>شروط الصيانة حسب الصنف</h2>
-        <p class="page-hint">يُعرّف شرط الصيانة مرة واحدة، ثم يُطبق تلقائيًا على مركبات الصنف نفسه.</p>
+<div class="maintenance-page" dir="rtl">
+    <div class="maintenance-hero">
+        <div class="maintenance-title"><div class="maintenance-icon">⚙</div><div><h2>شروط الصيانة</h2><p class="subtitle">تعريف دورية الصيانة مرة واحدة لكل صنف وتطبيقها تلقائيًا على مركباته.</p></div></div>
+        <div class="hero-actions"><button class="m-btn" type="button">⇩ تصدير</button><button class="m-btn primary" type="button">＋ إضافة شرط صيانة</button></div>
     </div>
-    <div class="page-actions"><button class="btn btn-primary" type="button">+ إضافة شرط صيانة</button></div>
-</div>
+    <nav class="module-tabs"><a href="/maintenance/periodic">الصيانة الدورية</a><a class="active" href="/maintenance/rules">شروط الصيانة</a><a href="/maintenance/records">سجل الصيانة</a><a href="/maintenance/due">الصيانة المستحقة</a></nav>
 
-<div class="card" dir="rtl">
-    <div class="page-tabs">
-        <a class="tab" href="/maintenance/periodic">خطة الصيانة</a>
-        <a class="tab active" href="/maintenance/rules">شروط الصيانة</a>
-        <a class="tab" href="/maintenance/records">سجل الصيانة</a>
-        <a class="tab" href="/maintenance/due">الصيانة المستحقة</a>
-    </div>
-</div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input class="m-input" placeholder="بحث في نوع الصيانة أو الصنف..."></div><select class="m-select"><option>كل الأصناف</option><option>4x4</option><option>شاحنة</option><option>حافلة</option></select><select class="m-select"><option>كل الحالات</option><option>مفعلة</option><option>متوقفة</option></select><button class="m-btn soft" type="button">⌁ فلاتر</button><button class="m-btn" type="button">⇩ تصدير</button></div></div>
 
-<div class="card" dir="rtl">
-    <div class="table-wrap">
-        <table class="data-table modern-table">
-            <thead>
-                <tr>
-                    <th>الصنف</th>
-                    <th>نوع الصيانة</th>
-                    <th>الفترة بالأيام</th>
-                    <th>الفترة بالكيلومترات</th>
-                    <th>الحالة</th>
-                    <th>الإجراءات</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td colspan="6" style="text-align:center; padding:28px;">لا توجد بيانات بعد. هذه الصفحة هي الواجهة الأولى لإدخال قواعد الصيانة.</td></tr>
-            </tbody>
-        </table>
-    </div>
+    <section class="panel">
+        <div class="panel-head"><div><h3>قواعد الصيانة حسب الصنف</h3><p>الفترة بالكيلومتر أو بالأيام تُستخدم لاحقًا لحساب الاستحقاق.</p></div><span class="badge info">12 شرطًا فعالًا</span></div>
+        <div class="table-wrap"><table class="m-table"><thead><tr><th>#</th><th>الصنف</th><th>نوع الصيانة</th><th>الفترة (كم)</th><th>الفترة (أيام)</th><th>الحالة</th><th>آخر تعديل</th><th>الإجراءات</th></tr></thead><tbody>
+            <tr><td>1</td><td class="vehicle">4x4</td><td>تغيير زيت المحرك</td><td class="num">5,000</td><td class="num">9</td><td><span class="badge success">مفعلة</span></td><td>24/08/2026</td><td><div class="row-actions"><button class="icon-btn">⋯</button><button class="icon-btn">✎</button><button class="icon-btn danger">⌫</button></div></td></tr>
+            <tr><td>2</td><td class="vehicle">4x4</td><td>فحص الفرامل</td><td class="muted">—</td><td class="num">18</td><td><span class="badge success">مفعلة</span></td><td>24/08/2026</td><td><div class="row-actions"><button class="icon-btn">⋯</button><button class="icon-btn">✎</button><button class="icon-btn danger">⌫</button></div></td></tr>
+            <tr><td>3</td><td class="vehicle">4x4</td><td>تبديل السيور</td><td class="num">10,000</td><td class="muted">—</td><td><span class="badge success">مفعلة</span></td><td>23/08/2026</td><td><div class="row-actions"><button class="icon-btn">⋯</button><button class="icon-btn">✎</button><button class="icon-btn danger">⌫</button></div></td></tr>
+            <tr><td>4</td><td class="vehicle">شاحنة</td><td>تغيير زيت المحرك</td><td class="num">7,500</td><td class="num">15</td><td><span class="badge success">مفعلة</span></td><td>22/08/2026</td><td><div class="row-actions"><button class="icon-btn">⋯</button><button class="icon-btn">✎</button><button class="icon-btn danger">⌫</button></div></td></tr>
+            <tr><td>5</td><td class="vehicle">شاحنة</td><td>فحص الفرامل</td><td class="muted">—</td><td class="num">15</td><td><span class="badge neutral">متوقفة</span></td><td>20/08/2026</td><td><div class="row-actions"><button class="icon-btn">⋯</button><button class="icon-btn">✎</button><button class="icon-btn danger">⌫</button></div></td></tr>
+        </tbody></table></div>
+        <div class="pagination"><span>عرض 1–5 من 12 شرطًا</span><div class="pages"><button class="page-no active">1</button><button class="page-no">2</button><button class="page-no">3</button><button class="page-no">›</button></div></div>
+    </section>
 </div>
 {% endblock %}
