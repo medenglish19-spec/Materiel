@@ -45,7 +45,6 @@ def _repair_existing_maintenance_schema() -> None:
 
     columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
     with engine.begin() as connection:
-        # الأعمدة الجديدة في الوحدة الحالية.
         if "rule_id" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"))
 
@@ -84,6 +83,11 @@ def _repair_existing_maintenance_schema() -> None:
                 "ALTER TABLE maintenance_records ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'completed'"
             ))
 
+        if "is_scheduled" not in columns:
+            connection.execute(text(
+                "ALTER TABLE maintenance_records ADD COLUMN is_scheduled BOOLEAN NOT NULL DEFAULT 0"
+            ))
+
         if "description" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN description TEXT"))
 
@@ -94,8 +98,6 @@ def _repair_existing_maintenance_schema() -> None:
                 "WHERE created_at IS NULL"
             ))
 
-        # السجلات القديمة قد لا تملك تاريخًا إذا جاءت من نسخة شديدة القدم.
-        # نضع تاريخ اليوم فقط للسجلات التي لا يمكن ترحيل تاريخها من الحقل القديم.
         connection.execute(text(
             "UPDATE maintenance_records "
             "SET maintenance_date = COALESCE(maintenance_date, DATE(created_at), DATE('now')) "
