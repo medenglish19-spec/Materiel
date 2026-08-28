@@ -10,7 +10,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
-from app.modules.equipment_types.models import EquipmentType
+from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.meter_readings.models import MeterReading
 from app.modules.users.models import User
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
@@ -178,14 +178,101 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
 
 @router.get("/maintenance/rules", response_class=HTMLResponse)
 def maintenance_rules_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rules = db.query(MaintenanceRule).options(joinedload(MaintenanceRule.equipment_type)).order_by(MaintenanceRule.id.desc()).all()
+    rules = (
+        db.query(MaintenanceRule)
+        .options(
+            joinedload(MaintenanceRule.equipment_type),
+            joinedload(MaintenanceRule.equipment_model),
+            joinedload(MaintenanceRule.parent_rule),
+        )
+        .order_by(MaintenanceRule.id.desc())
+        .all()
+    )
     types = db.query(EquipmentType).order_by(EquipmentType.name).all()
+    models = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type)).order_by(EquipmentModel.name).all()
+    base_rules = [r for r in rules if r.parent_rule_id is None]
     record_counts = {r.id: db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id == r.id).count() for r in rules}
     edit_rule = None
     edit_id = request.query_params.get("edit")
     if edit_id and edit_id.isdigit():
         edit_rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == int(edit_id)).first()
-    return templates.TemplateResponse("maintenance_rules.html", {"request": request, "user": current_user, "rules": rules, "types": types, "record_counts": record_counts, "edit_rule": edit_rule})
+    return templates.TemplateResponse(
+        "maintenance_rules.html",
+        {
+            "request": request,
+            "user": current_user,
+            "rules": rules,
+            "base_rules": base_rules,
+            "types": types,
+            "models": models,
+            "record_counts": record_counts,
+            "edit_rule": edit_rule,
+        },
+    )
+
+
+@router.post("/maintenance/rules/{rule_id}/exceptions/create")
+def maintenance_rule_exception_create(
+    rule_id: int,
+    equipment_model_id: int = Form(...),
+    interval_km: str = Form(""),
+    interval_hours: str = Form(""),
+    interval_days: str = Form(""),
+    warning_km: str = Form(""),
+    warning_days: str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    parent = db.query(MaintenanceRule).filter(
+        MaintenanceRule.id == rule_id,
+        MaintenanceRule.parent_rule_id.is_(None),
+    ).first()
+    model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
+    if parent is None or model is None:
+        return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
+    if model.equipment_type_id != parent.equipment_type_id:
+        return RedirectResponse("/maintenance/rules?error=model_type", status_code=status.HTTP_303_SEE_OTHER)
+    if db.query(MaintenanceRule.id).filter(
+        MaintenanceRule.parent_rule_id == parent.id,
+        MaintenanceRule.equipment_model_id == model.id,
+    ).first():
+        return RedirectResponse("/maintenance/rules?error=exception_exists", status_code=status.HTTP_303_SEE_OTHER)
+
+    def dec(v, fallback):
+        try:
+            return Decimal(v) if v else fallback
+        except (InvalidOperation, ValueError):
+            return fallback
+
+    km = dec(interval_km, parent.interval_km)
+    hours = dec(interval_hours, parent.interval_hours)
+    days = int(interval_days) if interval_days else parent.interval_days
+    warning_km_value = dec(warning_km, parent.warning_km)
+    warning_days_value = int(warning_days) if warning_days else parent.warning_days
+    if parent.equipment_type.measurement_unit == "km":
+        hours = None
+    elif parent.equipment_type.measurement_unit == "hours":
+        km = None
+    if not (km or hours or days):
+        return RedirectResponse("/maintenance/rules?error=invalid", status_code=status.HTTP_303_SEE_OTHER)
+
+    exception = MaintenanceRule(
+        name=parent.name,
+        equipment_type_id=parent.equipment_type_id,
+        equipment_model_id=model.id,
+        parent_rule_id=parent.id,
+        interval_km=km,
+        interval_hours=hours,
+        interval_days=days,
+        warning_km=warning_km_value,
+        warning_days=warning_days_value,
+        is_active=True,
+        description=description.strip() or parent.description,
+    )
+    db.add(exception)
+    db.commit()
+    return RedirectResponse("/maintenance/rules?saved=exception", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/maintenance/rules/create")
@@ -206,6 +293,8 @@ def maintenance_rule_create(name: str = Form(...), equipment_type_id: int = Form
 def maintenance_rule_update(rule_id: int, name: str = Form(...), equipment_type_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
     equipment_type = db.query(EquipmentType).filter(EquipmentType.id == equipment_type_id).first()
+    if rule is not None and rule.parent_rule_id is not None:
+        return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=use_exception_form#editException", status_code=status.HTTP_303_SEE_OTHER)
     if rule is None or equipment_type is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
     def dec(v):
