@@ -4,6 +4,8 @@ Revision ID: 0003_equipment_classification
 Revises: 0002_remove_legacy_maintenance_columns
 """
 
+from datetime import datetime, timezone
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -54,7 +56,7 @@ def upgrade() -> None:
         sa.column("created_at", sa.DateTime),
         sa.column("updated_at", sa.DateTime),
     )
-    now = sa.func.current_timestamp()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     op.bulk_insert(
         category_table,
         [
