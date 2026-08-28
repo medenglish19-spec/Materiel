@@ -112,6 +112,50 @@ def priority_for(state, remaining_meter, meta):
     return 4 if candidates else 5
 
 
+def effective_rules_for_equipment(db: Session, equipment, include_rule_id=None):
+    """Return the rules that effectively apply to one equipment item."""
+    rules = (
+        db.query(MaintenanceRule)
+        .options(joinedload(MaintenanceRule.equipment_type), joinedload(MaintenanceRule.equipment_model))
+        .filter(MaintenanceRule.equipment_type_id == equipment.equipment_type_id)
+        .order_by(MaintenanceRule.name, MaintenanceRule.id)
+        .all()
+    )
+    base_rules = {rule.id: rule for rule in rules if rule.parent_rule_id is None}
+    exceptions = {
+        rule.parent_rule_id: rule
+        for rule in rules
+        if rule.parent_rule_id is not None
+        and rule.equipment_model_id == equipment.equipment_model_id
+    }
+    result = []
+    for base_id, base_rule in base_rules.items():
+        exception = exceptions.get(base_id)
+        if exception is not None:
+            if exception.is_active or include_rule_id == exception.id:
+                result.append(exception)
+            elif include_rule_id == base_id:
+                result.append(base_rule)
+        elif base_rule.is_active or include_rule_id == base_id:
+            result.append(base_rule)
+    if include_rule_id is not None and not any(rule.id == include_rule_id for rule in result):
+        historical = next((rule for rule in rules if rule.id == include_rule_id), None)
+        if historical is not None:
+            model_ok = historical.equipment_model_id is None or historical.equipment_model_id == equipment.equipment_model_id
+            if model_ok:
+                result.append(historical)
+    return sorted(result, key=lambda rule: (rule.name, rule.id))
+
+
+def get_effective_rule_for_equipment(db: Session, equipment, rule_id: int, include_historical: bool = False):
+    rules = effective_rules_for_equipment(
+        db,
+        equipment,
+        include_rule_id=rule_id if include_historical else None,
+    )
+    return next((rule for rule in rules if rule.id == rule_id), None)
+
+
 @router.get("/maintenance", response_class=HTMLResponse)
 def maintenance_dashboard_page(request: Request, current_user: User = Depends(get_current_user)):
     return templates.TemplateResponse("maintenance_home.html", {"request": request, "user": current_user})
@@ -120,13 +164,11 @@ def maintenance_dashboard_page(request: Request, current_user: User = Depends(ge
 @router.get("/maintenance/periodic", response_class=HTMLResponse)
 def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    rules = db.query(MaintenanceRule).options(joinedload(MaintenanceRule.equipment_type)).filter(MaintenanceRule.is_active.is_(True)).order_by(MaintenanceRule.id).all()
     readings = latest_readings(db); records = latest_records(db)
     rows = []; counts = {"total": 0, "danger": 0, "warning": 0, "success": 0, "neutral": 0}
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for rule in rules:
-            if rule.equipment_type_id != eq.equipment_type_id: continue
+        for rule in effective_rules_for_equipment(db, eq):
             rec = records.get((eq.id, rule.id)); state, css, remaining, meta = status_for(rule, eq, rec, current_value)
             counts["total"] += 1; counts[css] += 1
             rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
@@ -269,11 +311,10 @@ def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), cur
 
 @router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all(); rules = db.query(MaintenanceRule).filter(MaintenanceRule.is_active.is_(True)).all(); readings = latest_readings(db); records = latest_records(db); due_rows = []
+    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all(); readings = latest_readings(db); records = latest_records(db); due_rows = []
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for rule in rules:
-            if rule.equipment_type_id != eq.equipment_type_id: continue
+        for rule in effective_rules_for_equipment(db, eq):
             rec = records.get((eq.id, rule.id)); state, css, remaining, meta = status_for(rule, eq, rec, current_value)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
                 due_rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
