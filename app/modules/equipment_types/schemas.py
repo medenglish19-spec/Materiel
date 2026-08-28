@@ -4,9 +4,30 @@ from pydantic import BaseModel, ConfigDict, field_validator
 MEASUREMENT_UNITS = {"km", "hours"}
 
 
+class EquipmentCategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    code: str
+    sort_order: int
+    is_system: bool
+
+
+class EquipmentBrandCreate(BaseModel):
+    name: str
+
+
+class EquipmentBrandOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    is_active: bool
+
+
 class EquipmentTypeCreate(BaseModel):
     name: str
-    measurement_unit: str  # "km" أو "hours"
+    measurement_unit: str
+    category_id: Optional[int] = None
 
     @field_validator("measurement_unit")
     @classmethod
@@ -21,11 +42,13 @@ class EquipmentTypeOut(BaseModel):
     id: int
     name: str
     measurement_unit: str
+    category_id: Optional[int] = None
 
 
 class EquipmentModelCreate(BaseModel):
     name: str
     equipment_type_id: int
+    brand_id: Optional[int] = None
 
 
 class EquipmentModelOut(BaseModel):
@@ -33,3 +56,4 @@ class EquipmentModelOut(BaseModel):
     id: int
     name: str
     equipment_type_id: int
+    brand_id: Optional[int] = None

@@ -1,14 +1,37 @@
 {% extends "base.html" %}
-{% block title %}أنواع العتاد{% endblock %}
+{% block title %}تصنيف أنواع العتاد{% endblock %}
 
 {% block content %}
-<h2>إدارة أنواع العتاد والطُرز</h2>
-<p class="page-hint">هذه الصفحة للمستخدم الرئيسي فقط — القوائم هنا تظهر بالضبط بصفحة إضافة العتاد.</p>
+<h2>تصنيف أنواع العتاد والطُرز</h2>
+<p class="page-hint">الترتيب المعتمد: الفئة الرئيسية ← نوع العتاد ← العلامة التجارية ← الطراز ← العتاد الفعلي.</p>
+
+<div class="card">
+    <h3>الفئات الرئيسية</h3>
+    <div class="model-chips">
+        {% for c in categories %}
+        <span class="chip">{{ c.name }}</span>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h3>إضافة علامة تجارية</h3>
+    <form method="post" action="/equipment-types/brands/create" class="inline-form">
+        <input type="text" name="name" placeholder="مثال: Mercedes-Benz" required>
+        <button type="submit">إضافة العلامة</button>
+    </form>
+</div>
 
 <div class="card">
     <h3>إضافة نوع عتاد جديد</h3>
     <form method="post" action="/equipment-types/create" class="inline-form">
-        <input type="text" name="name" placeholder="اسم النوع (مثال: سيارة، مولد كهرباء)" required>
+        <input type="text" name="name" placeholder="مثال: شاحنات" required>
+        <select name="category_id" required>
+            <option value="">الفئة الرئيسية *</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+        </select>
         <select name="measurement_unit" required>
             <option value="">وحدة القياس *</option>
             <option value="km">كيلومترات (عداد المسافة)</option>
@@ -21,9 +44,20 @@
 {% for t in types %}
 <div class="card type-card">
     <div class="type-card-header">
-        <h3>{{ t.name }}
-            <span class="badge badge-status-in_mission">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span>
-        </h3>
+        <div>
+            <h3>{{ t.name }}
+                <span class="badge badge-status-in_mission">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span>
+            </h3>
+            <form method="post" action="/equipment-types/{{ t.id }}/category" class="inline-form">
+                <label>الفئة:</label>
+                <select name="category_id" onchange="this.form.submit()">
+                    <option value="">غير مصنف</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
         <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف هذا النوع سيحذف كل طُرزه المرتبطة، متأكد؟');">
             <button type="submit" class="btn-danger">حذف النوع</button>
         </form>
@@ -32,13 +66,27 @@
     <form method="post" action="/equipment-types/models/create" class="inline-form">
         <input type="hidden" name="equipment_type_id" value="{{ t.id }}">
         <input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required>
+        <select name="brand_id">
+            <option value="">علامة غير محددة</option>
+            {% for b in brands %}
+            <option value="{{ b.id }}">{{ b.name }}</option>
+            {% endfor %}
+        </select>
         <button type="submit">إضافة طراز</button>
     </form>
 
     <div class="model-chips">
         {% for m in t.models %}
         <span class="chip">
-            {{ m.name }}
+            <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }}</span>
+            <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form">
+                <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
+                    <option value="">بدون علامة</option>
+                    {% for b in brands %}
+                    <option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
             <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form">
                 <button type="submit" title="حذف">×</button>
             </form>
