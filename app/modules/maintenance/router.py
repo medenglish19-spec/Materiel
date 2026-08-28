@@ -275,6 +275,57 @@ def maintenance_rule_exception_create(
     return RedirectResponse("/maintenance/rules?saved=exception", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/maintenance/rules/{rule_id}/exceptions/update")
+def maintenance_rule_exception_update(
+    rule_id: int,
+    interval_km: str = Form(""),
+    interval_hours: str = Form(""),
+    interval_days: str = Form(""),
+    warning_km: str = Form(""),
+    warning_days: str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    exception = (
+        db.query(MaintenanceRule)
+        .options(joinedload(MaintenanceRule.parent_rule), joinedload(MaintenanceRule.equipment_model))
+        .filter(MaintenanceRule.id == rule_id, MaintenanceRule.parent_rule_id.is_not(None))
+        .first()
+    )
+    if exception is None:
+        return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
+    parent = exception.parent_rule
+    unit = parent.equipment_type.measurement_unit
+
+    def dec(v, fallback):
+        try:
+            return Decimal(v) if v else fallback
+        except (InvalidOperation, ValueError):
+            return fallback
+
+    km = dec(interval_km, parent.interval_km)
+    hours = dec(interval_hours, parent.interval_hours)
+    days = int(interval_days) if interval_days else parent.interval_days
+    warning_km_value = dec(warning_km, parent.warning_km)
+    warning_days_value = int(warning_days) if warning_days else parent.warning_days
+    if unit == "km":
+        hours = None
+    elif unit == "hours":
+        km = None
+    if not (km or hours or days):
+        return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=invalid#editException", status_code=status.HTTP_303_SEE_OTHER)
+
+    exception.interval_km = km
+    exception.interval_hours = hours
+    exception.interval_days = days
+    exception.warning_km = warning_km_value
+    exception.warning_days = warning_days_value
+    exception.description = description.strip() or parent.description
+    db.commit()
+    return RedirectResponse("/maintenance/rules?saved=exception_updated", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/maintenance/rules/create")
 def maintenance_rule_create(name: str = Form(...), equipment_type_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     def dec(v):
