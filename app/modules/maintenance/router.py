@@ -421,10 +421,9 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
 def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form(...), maintenance_date: date = Form(...), meter_value: str = Form(""), work_order: str = Form(""), workshop: str = Form(""), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records_url = "/maintenance/records"
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type)).filter(Equipment.id == equipment_id).first()
-    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id, MaintenanceRule.is_active.is_(True)).first()
+    rule = get_effective_rule_for_equipment(db, equipment, rule_id)
     if equipment is None: return RedirectResponse(f"{records_url}?error=equipment", status_code=status.HTTP_303_SEE_OTHER)
-    if rule is None: return RedirectResponse(f"{records_url}?error=rule", status_code=status.HTTP_303_SEE_OTHER)
-    if rule.equipment_type_id != equipment.equipment_type_id: return RedirectResponse(f"{records_url}?error=rule_type", status_code=status.HTTP_303_SEE_OTHER)
+    if rule is None: return RedirectResponse(f"{records_url}?error=rule_type", status_code=status.HTTP_303_SEE_OTHER)
     if maintenance_date > date.today(): return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
     unit = measurement_unit(equipment); meter = None
     if meter_value:
@@ -445,9 +444,8 @@ def maintenance_record_update(record_id: int, equipment_id: int = Form(...), rul
     records_url = "/maintenance/records"
     rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type)).filter(Equipment.id == equipment_id).first()
-    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
+    rule = get_effective_rule_for_equipment(db, equipment, rule_id, include_historical=True)
     if rec is None or equipment is None or rule is None: return RedirectResponse(f"{records_url}?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    if rule.equipment_type_id != equipment.equipment_type_id: return RedirectResponse(f"{records_url}?error=rule_type", status_code=status.HTTP_303_SEE_OTHER)
     if maintenance_date > date.today(): return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
     meter = None
     if meter_value:
