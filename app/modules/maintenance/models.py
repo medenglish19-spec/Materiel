@@ -25,6 +25,8 @@ class MaintenanceRule(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(120), nullable=False)
     equipment_type_id = Column(Integer, ForeignKey("equipment_types.id", ondelete="CASCADE"), nullable=False, index=True)
+    equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=True, index=True)
+    parent_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="CASCADE"), nullable=True, index=True)
     interval_km = Column(Numeric(10, 1), nullable=True)
     interval_hours = Column(Numeric(10, 1), nullable=True)
     interval_days = Column(Integer, nullable=True)
@@ -34,6 +36,8 @@ class MaintenanceRule(Base):
     description = Column(Text, nullable=True)
 
     equipment_type = relationship("EquipmentType")
+    equipment_model = relationship("EquipmentModel", foreign_keys=[equipment_model_id])
+    parent_rule = relationship("MaintenanceRule", remote_side=[id], foreign_keys=[parent_rule_id])
     records = relationship("MaintenanceRecord", back_populates="rule")
 
 
@@ -86,14 +90,21 @@ def _validate_record(connection, target, exclude_id=None):
     if unit not in ("km", "hours"):
         raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح (km أو hours).")
 
-    rule_type_id = connection.execute(
-        select(MaintenanceRule.equipment_type_id).where(MaintenanceRule.id == target.rule_id)
-    ).scalar_one_or_none()
-    equipment_type_id = connection.execute(
-        select(Equipment.equipment_type_id).where(Equipment.id == target.equipment_id)
-    ).scalar_one_or_none()
-    if rule_type_id is None or equipment_type_id is None or rule_type_id != equipment_type_id:
+    rule_row = connection.execute(
+        select(
+            MaintenanceRule.equipment_type_id,
+            MaintenanceRule.equipment_model_id,
+            MaintenanceRule.parent_rule_id,
+        ).where(MaintenanceRule.id == target.rule_id)
+    ).first()
+    equipment_row = connection.execute(
+        select(Equipment.equipment_type_id, Equipment.equipment_model_id)
+        .where(Equipment.id == target.equipment_id)
+    ).first()
+    if rule_row is None or equipment_row is None or rule_row.equipment_type_id != equipment_row.equipment_type_id:
         raise ValueError("الصيانة الدورية المختارة لا تنتمي إلى نوع العتاد المحدد.")
+    if rule_row.equipment_model_id is not None and rule_row.equipment_model_id != equipment_row.equipment_model_id:
+        raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
     if target.meter_value is None:
         return
