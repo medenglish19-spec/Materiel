@@ -387,11 +387,34 @@ def maintenance_rule_delete(rule_id: int, db: Session = Depends(get_db), current
 def maintenance_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = db.query(MaintenanceRecord).options(joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_type), joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model), joinedload(MaintenanceRecord.rule)).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    rules = db.query(MaintenanceRule).filter(MaintenanceRule.is_active.is_(True)).order_by(MaintenanceRule.name).all()
+    rules = db.query(MaintenanceRule).filter(MaintenanceRule.is_active.is_(True)).order_by(MaintenanceRule.name, MaintenanceRule.id).all()
     edit_record = None
     edit_id = request.query_params.get("edit")
     if edit_id and edit_id.isdigit(): edit_record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == int(edit_id)).first()
-    return templates.TemplateResponse("maintenance_records.html", {"request": request, "user": current_user, "records": records, "equipment": equipment, "rules": rules, "edit_record": edit_record})
+    if edit_record and edit_record.rule_id not in {rule.id for rule in rules}:
+        historical_rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == edit_record.rule_id).first()
+        if historical_rule is not None:
+            rules.append(historical_rule)
+    effective_rule_equipment_ids = {}
+    for eq in equipment:
+        for rule in effective_rules_for_equipment(db, eq):
+            effective_rule_equipment_ids.setdefault(rule.id, set()).add(eq.id)
+    effective_rule_equipment_ids = {
+        rule_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids))
+        for rule_id, equipment_ids in effective_rule_equipment_ids.items()
+    }
+    return templates.TemplateResponse(
+        "maintenance_records.html",
+        {
+            "request": request,
+            "user": current_user,
+            "records": records,
+            "equipment": equipment,
+            "rules": rules,
+            "effective_rule_equipment_ids": effective_rule_equipment_ids,
+            "edit_record": edit_record,
+        },
+    )
 
 
 @router.post("/maintenance/records/create")
