@@ -118,6 +118,36 @@ def _repair_existing_maintenance_schema() -> None:
         ))
 
 
+def _seed_equipment_classification_defaults() -> None:
+    """إضافة الفئات الرئيسية الثابتة عند إنشاء قاعدة جديدة فقط."""
+    from app.modules.equipment_types.models import EquipmentCategory
+    from app.database.session import SessionLocal
+
+    defaults = (
+        ("المركبات الخفيفة", "LIGHT", 10),
+        ("المركبات الثقيلة", "HEAVY", 20),
+        ("معدات الأشغال", "CONSTRUCTION", 30),
+        ("معدات الدعم", "SUPPORT", 40),
+    )
+
+    db = SessionLocal()
+    try:
+        for name, code, sort_order in defaults:
+            existing = db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first()
+            if existing is None:
+                db.add(
+                    EquipmentCategory(
+                        name=name,
+                        code=code,
+                        sort_order=sort_order,
+                        is_system=True,
+                    )
+                )
+        db.commit()
+    finally:
+        db.close()
+
+
 def _alembic_config() -> Config:
     root = Path(__file__).resolve().parents[2]
     config = Config(str(root / "alembic.ini"))
@@ -139,6 +169,8 @@ def init_db() -> None:
     else:
         # من هذه النقطة تصبح Alembic هي المرجع الوحيد لتغييرات المخطط.
         command.upgrade(_alembic_config(), "head")
+
+    _seed_equipment_classification_defaults()
 
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
