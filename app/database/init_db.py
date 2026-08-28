@@ -1,5 +1,10 @@
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import inspect, text
 
+from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine
 from app.modules.meter_readings import models as meter_models  # noqa: F401
@@ -14,7 +19,7 @@ from app.modules.maintenance import models as maintenance_models  # noqa: F401
 
 
 def _repair_existing_meter_readings_schema() -> None:
-    """إصلاح أعمدة أضيفت في الإصدارات الجديدة عند استخدام SQLite."""
+    """إصلاح أعمدة قديمة أثناء bootstrap الأول فقط قبل تثبيت Alembic."""
     if not str(engine.url).startswith("sqlite"):
         return
     inspector = inspect(engine)
@@ -35,7 +40,7 @@ def _repair_existing_meter_readings_schema() -> None:
 
 
 def _repair_existing_maintenance_schema() -> None:
-    """ترحيل آمن لجدول سجلات الصيانة القديم إلى مخطط الوحدة الحالية دون حذف البيانات."""
+    """ترحيل آمن للمخطط القديم أثناء bootstrap الأول فقط."""
     if not str(engine.url).startswith("sqlite"):
         return
 
@@ -45,9 +50,6 @@ def _repair_existing_maintenance_schema() -> None:
 
     columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
     with engine.begin() as connection:
-        # updated_at كان عمودًا من مخطط قديم، وليس جزءًا من MaintenanceRecord الحالي.
-        # وجوده كـ NOT NULL في SQLite يمنع أي INSERT جديد لأن التطبيق لا يعبئه.
-        # نحذفه نهائيًا بدل إضافة توافق قديم إلى النموذج الحالي.
         if "updated_at" in columns:
             connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at"))
             columns.remove("updated_at")
@@ -59,8 +61,7 @@ def _repair_existing_maintenance_schema() -> None:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
             if "reported_date" in columns:
                 connection.execute(text(
-                    "UPDATE maintenance_records "
-                    "SET maintenance_date = reported_date "
+                    "UPDATE maintenance_records SET maintenance_date = reported_date "
                     "WHERE maintenance_date IS NULL"
                 ))
 
@@ -68,8 +69,7 @@ def _repair_existing_maintenance_schema() -> None:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN meter_value NUMERIC(10, 1)"))
             if "meter_reading" in columns:
                 connection.execute(text(
-                    "UPDATE maintenance_records "
-                    "SET meter_value = meter_reading "
+                    "UPDATE maintenance_records SET meter_value = meter_reading "
                     "WHERE meter_value IS NULL"
                 ))
 
@@ -80,9 +80,7 @@ def _repair_existing_maintenance_schema() -> None:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN workshop VARCHAR(120)"))
             if "location" in columns:
                 connection.execute(text(
-                    "UPDATE maintenance_records "
-                    "SET workshop = location "
-                    "WHERE workshop IS NULL"
+                    "UPDATE maintenance_records SET workshop = location WHERE workshop IS NULL"
                 ))
 
         if "status" not in columns:
@@ -109,21 +107,39 @@ def _repair_existing_maintenance_schema() -> None:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN reported_date DATE"))
 
         connection.execute(text(
-            "UPDATE maintenance_records "
-            "SET maintenance_date = COALESCE(maintenance_date, reported_date, DATE(created_at), DATE('now')) "
+            "UPDATE maintenance_records SET maintenance_date = "
+            "COALESCE(maintenance_date, reported_date, DATE(created_at), DATE('now')) "
             "WHERE maintenance_date IS NULL"
         ))
         connection.execute(text(
-            "UPDATE maintenance_records "
-            "SET reported_date = COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) "
+            "UPDATE maintenance_records SET reported_date = "
+            "COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) "
             "WHERE reported_date IS NULL"
         ))
 
 
+def _alembic_config() -> Config:
+    root = Path(__file__).resolve().parents[2]
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL).replace("%", "%%"))
+    return config
+
+
 def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
-    _repair_existing_meter_readings_schema()
-    _repair_existing_maintenance_schema()
+    """تهيئة قاعدة البيانات وإدارة مخططها عبر Alembic."""
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    if "alembic_version" not in tables:
+        # Bootstrap آمن لقاعدة موجودة مسبقًا أو قاعدة جديدة.
+        Base.metadata.create_all(bind=engine)
+        _repair_existing_meter_readings_schema()
+        _repair_existing_maintenance_schema()
+        command.stamp(_alembic_config(), "head")
+    else:
+        # من هذه النقطة تصبح Alembic هي المرجع الوحيد لتغييرات المخطط.
+        command.upgrade(_alembic_config(), "head")
+
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
 

@@ -1,0 +1,10 @@
+# Materiel database migrations
+
+This directory is the official, versioned Alembic migration environment.
+
+Rules:
+- Every schema change gets a new revision under versions/.
+- Existing data must be preserved.
+- SQLite changes must use Alembic batch operations when needed.
+- Do not edit an already-applied migration; add a new revision instead.
+- The initial revision is a baseline for the schema that existed when formal migrations were introduced.
