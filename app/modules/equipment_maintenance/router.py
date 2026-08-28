@@ -11,7 +11,12 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
-from app.modules.maintenance.router import chronology_error, measurement_unit
+from app.modules.maintenance.router import (
+    chronology_error,
+    effective_rules_for_equipment,
+    get_effective_rule_for_equipment,
+    measurement_unit,
+)
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -27,17 +32,12 @@ def get_equipment(db: Session, equipment_id: int):
     )
 
 
-def get_rules(db: Session, equipment_type_id: int, include_rule_id=None):
-    query = db.query(MaintenanceRule).filter(
-        MaintenanceRule.equipment_type_id == equipment_type_id,
+def get_rules(db: Session, equipment, include_rule_id=None):
+    return effective_rules_for_equipment(
+        db,
+        equipment,
+        include_rule_id=include_rule_id,
     )
-    if include_rule_id is None:
-        query = query.filter(MaintenanceRule.is_active.is_(True))
-    else:
-        query = query.filter(
-            (MaintenanceRule.is_active.is_(True)) | (MaintenanceRule.id == include_rule_id)
-        )
-    return query.order_by(MaintenanceRule.name).all()
 
 
 def parse_meter(value: str):
@@ -82,7 +82,7 @@ def equipment_maintenance_page(
             )
             .first()
         )
-    rules = get_rules(db, item.equipment_type_id, edit_record.rule_id if edit_record else None)
+    rules = get_rules(db, item, edit_record.rule_id if edit_record else None)
     return templates.TemplateResponse(
         "equipment_maintenance.html",
         {
@@ -111,15 +111,7 @@ def equipment_maintenance_create(
     item = get_equipment(db, equipment_id)
     if not item:
         raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    rule = (
-        db.query(MaintenanceRule)
-        .filter(
-            MaintenanceRule.id == rule_id,
-            MaintenanceRule.equipment_type_id == item.equipment_type_id,
-            MaintenanceRule.is_active.is_(True),
-        )
-        .first()
-    )
+    rule = get_effective_rule_for_equipment(db, item, rule_id)
     if not rule:
         raise HTTPException(status_code=400, detail="الصيانة الدورية المختارة لا تتبع نوع عتاد هذا العتاد.")
     if maintenance_date > date.today():
@@ -174,14 +166,7 @@ def equipment_maintenance_update(
     )
     if not item or not record:
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
-    rule = (
-        db.query(MaintenanceRule)
-        .filter(
-            MaintenanceRule.id == rule_id,
-            MaintenanceRule.equipment_type_id == item.equipment_type_id,
-        )
-        .first()
-    )
+    rule = get_effective_rule_for_equipment(db, item, rule_id, include_historical=True)
     if not rule:
         raise HTTPException(status_code=400, detail="الصيانة الدورية المختارة لا تتبع نوع عتاد هذا العتاد.")
     if maintenance_date > date.today():
