@@ -89,7 +89,7 @@
       <div class="panel-head"><div><h2>تحقيق التعداد</h2><p>مدى مطابقة العدد المحقق للتعداد النظري المعتمد على مستوى الطراز.</p></div><strong style="font-size:18px;color:#173b63">{{ coverage }}%</strong></div>
       <div class="balance">
         <div class="balance-main">
-          <div><div class="balance-number">{{ totals.total }} <small>فعلي</small></div><div class="progress"><i style="width:{{ [coverage,100]|min }}%"></i></div><div class="balance-meta"><span>0</span><span><strong>{{ totals.theoretical }}</strong> نظري</span></div></div>
+          <div><div class="balance-number">{{ totals.total }} <small>محقق</small></div><div class="progress"><i style="width:{{ [coverage,100]|min }}%"></i></div><div class="balance-meta"><span>0</span><span><strong>{{ totals.theoretical }}</strong> نظري</span></div></div>
           <div><div class="balance-number">{{ readiness }}% <small>جاهزية</small></div><div class="progress"><i style="width:{{ readiness }}%"></i></div><div class="balance-meta"><span>{{ totals.ready }} جاهز</span><span>{{ totals.broken }} عاطل</span></div></div>
         </div>
         <div class="balance-note"><span>الاحتياج <b class="bad">{{ totals.need }}</b></span><span>الفائض <b class="warn">{{ ns.surplus }}</b></span><span>عتاد خارج TED <b>{{ ns.non_theoretical }}</b></span></div>
@@ -162,7 +162,7 @@
       <div class="analysis-card wide"><h3>توزيع العتاد حسب النوع</h3><div class="sub">أكثر الأنواع حضورًا داخل الحضيرة</div><div class="type-matrix">{% for row in type_analysis[:12] %}<div class="type-item"><strong title="{{ row.name }}">{{ row.name }}</strong><small>{{ row.category }}</small><b>{{ row.total }} <em>وحدة</em></b><small>تحقيق {{ row.coverage|round(1) }}% · جاهزية {{ row.ready|round(1) }}%</small></div>{% endfor %}</div></div>
     </div>
 
-    <div class="note"><strong>قاعدة القراءة:</strong> الاحتياج = <strong>max(النظري − المحقق، 0)</strong>، ولا علاقة له بعدد الأعطال. الفائض = <strong>max(المحقق − النظري، 0)</strong> ويُعرض منفصلًا. العتاد عتاد خارج TED هو عتاد فعلي بلا تعداد نظري معتمد، لذلك لا يدخل في حساب الاحتياج أو الفائض. كما أن الحالة الفنية والوضعية التشغيلية مؤشرات مستقلة عن التعداد.</div>
+    <div class="note"><strong>قاعدة القراءة:</strong> الاحتياج = <strong>max(النظري − المحقق، 0)</strong>، ولا علاقة له بعدد الأعطال. الفائض = <strong>max(المحقق − النظري، 0)</strong> ويُعرض منفصلًا. عتاد خارج TED هو عتاد محقق بلا تعداد نظري معتمد، لذلك لا يدخل في حساب الاحتياج أو الفائض. كما أن الحالة الفنية والوضعية التشغيلية مؤشرات مستقلة عن التعداد.</div>
   </section>
 
   <section class="panel model-panel" id="modelDetails" hidden>
@@ -195,7 +195,6 @@
     const visibleCategories=new Set([...visibleTypes].map(r=>{let p=r.previousElementSibling;while(p&&p.dataset.level!=='category')p=p.previousElementSibling;return p}));
     table.querySelectorAll('.type-row').forEach(r=>{if(x||b||c||o)r.style.display=visibleTypes.has(r)?'':'none'});
     table.querySelectorAll('.category-row').forEach(r=>{if(x||b||c||o)r.style.display=visibleCategories.has(r)?'':'none'});
-    });
   }
   [q,brand,condition,operational].forEach(el=>{el.addEventListener('input',filter);el.addEventListener('change',filter)});
 
@@ -215,7 +214,7 @@
     const d=modelData[btn.dataset.modelKey]; if(!d)return;
     title.textContent='تفاصيل الطراز: '+d.name;
     const surplus=d.theoretical>0&&d.total>d.theoretical?d.total-d.theoretical:0;
-    summary.textContent='الالنظري: '+d.theoretical+' · المحقق: '+d.total+' · الاحتياج: '+(d.theoretical?d.need:'—')+' · الفائض: '+(d.theoretical?surplus:'—');
+    summary.textContent='النظري: '+d.theoretical+' · المحقق: '+d.total+' · الاحتياج: '+(d.theoretical?d.need:'—')+' · الفائض: '+(d.theoretical?surplus:'—');
     body.innerHTML='<div class="model-summary"><span>النظري <b>'+d.theoretical+'</b></span><span>المحقق <b>'+d.total+'</b></span><span>الاحتياج <b>'+(d.theoretical?d.need:'—')+'</b></span><span>الفائض <b>'+(d.theoretical?surplus:'—')+'</b></span></div>'+(d.equipment?.length?'<div class="model-equipment-wrap"><table class="model-equipment-table"><thead><tr><th>الرمز</th><th>رقم التسجيل</th><th>الحالة الفنية</th><th>الوضعية</th><th>فتح</th></tr></thead><tbody>'+d.equipment.map(e=>'<tr><td>'+esc(e.asset_code||'—')+'</td><td>'+esc(e.registration_number||'—')+'</td><td>'+esc(cn[e.technical_condition]||e.technical_condition||'—')+'</td><td>'+esc(on[e.operational_status]||e.operational_status||'—')+'</td><td><a href="/equipment/'+encodeURIComponent(e.id)+'">عرض</a></td></tr>').join('')+'</tbody></table></div>':'<p class="page-hint">لا يوجد عتاد فعلي مسجل لهذا الطراز.</p>');
     detail.hidden=false;detail.scrollIntoView({behavior:'smooth',block:'start'});
   }));
