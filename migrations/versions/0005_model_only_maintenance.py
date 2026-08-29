@@ -28,19 +28,14 @@ def upgrade() -> None:
     rules = sa.Table("maintenance_rules", meta, autoload_with=bind)
 
     # Capture the active state before disabling legacy type-level rows.
+    # The model column is introduced below, so discover legacy rows using
+    # the pre-migration schema first.
+    legacy_rows = bind.execute(sa.select(rules)).mappings().all()
     legacy_active = {
         row["id"]: bool(row["is_active"])
-        for row in bind.execute(
-            sa.select(rules.c.id, rules.c.is_active)
-            .where(rules.c.equipment_model_id.is_(None))
-        ).mappings()
+        for row in legacy_rows
+        if row["parent_rule_id"] is None
     }
-    if legacy_active:
-        bind.execute(
-            sa.update(rules)
-            .where(rules.c.id.in_(legacy_active))
-            .values(is_active=False)
-        )
 
     with op.batch_alter_table(
         "maintenance_rules",
@@ -65,13 +60,12 @@ def upgrade() -> None:
 
     meta = sa.MetaData()
     rules = sa.Table("maintenance_rules", meta, autoload_with=bind)
+    all_rules = bind.execute(sa.select(rules)).mappings().all()
     models = sa.Table("equipment_models", meta, autoload_with=bind)
     equipment = sa.Table("equipment", meta, autoload_with=bind)
     records = sa.Table("maintenance_records", meta, autoload_with=bind)
 
-    legacy_rules = bind.execute(
-        sa.select(rules).where(rules.c.equipment_model_id.is_(None))
-    ).mappings().all()
+    legacy_rules = [r for r in all_rules if r["equipment_model_id"] is None]
 
     # Map every legacy rule to one new rule per model. Exceptions override the
     # base values for their target model, but remain separate historical rows.
