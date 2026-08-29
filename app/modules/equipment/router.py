@@ -36,6 +36,76 @@ def equipment_page(
     )
 
 
+@router.get("/equipment/numerical-status", response_class=HTMLResponse)
+def equipment_numerical_status_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = (
+        db.query(Equipment)
+        .options(
+            joinedload(Equipment.equipment_type).joinedload(type_services.EquipmentType.category)
+            if False else joinedload(Equipment.equipment_type),
+            joinedload(Equipment.equipment_model),
+        )
+        .order_by(Equipment.id)
+        .all()
+    )
+
+    groups = {}
+    totals = {
+        "equipment": len(items),
+        "ready": 0,
+        "broken": 0,
+        "available": 0,
+        "in_mission": 0,
+        "in_maintenance": 0,
+        "in_external_workshop": 0,
+        "unavailable": 0,
+    }
+
+    for item in items:
+        category = item.equipment_type.category if item.equipment_type else None
+        category_name = category.name if category else "غير مصنف"
+        type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
+        model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
+        category_group = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
+        type_group = category_group["types"].setdefault(type_name, {"models": {}, "sort": type_name})
+        model_group = type_group["models"].setdefault(model_name, {
+            "total": 0, "ready": 0, "broken": 0,
+            "available": 0, "in_mission": 0, "in_maintenance": 0,
+            "in_external_workshop": 0, "unavailable": 0,
+        })
+        model_group["total"] += 1
+        condition = item.technical_condition if item.technical_condition in ("ready", "broken") else "ready"
+        model_group[condition] += 1
+        if item.operational_status in totals:
+            model_group[item.operational_status] += 1
+            totals[item.operational_status] += 1
+        totals[condition] += 1
+
+    hierarchy = []
+    for category_name, category_group in sorted(groups.items(), key=lambda x: (x[1]["sort"], x[0])):
+        category_total = {key: 0 for key in ("total", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable")}
+        type_rows = []
+        for type_name, type_group in sorted(category_group["types"].items(), key=lambda x: x[0]):
+            type_total = {key: 0 for key in category_total}
+            model_rows = []
+            for model_name, stats in sorted(type_group["models"].items(), key=lambda x: x[0]):
+                for key in type_total:
+                    type_total[key] += stats[key]
+                    category_total[key] += stats[key]
+                model_rows.append({"name": model_name, "stats": stats, "need": stats["broken"]})
+            type_rows.append({"name": type_name, "stats": type_total, "models": model_rows})
+        hierarchy.append({"name": category_name, "stats": category_total, "types": type_rows})
+
+    return templates.TemplateResponse(
+        "equipment_numerical_status.html",
+        {"request": request, "user": current_user, "hierarchy": hierarchy, "totals": totals},
+    )
+
+
 @router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
 def equipment_detail_page(
     equipment_id: int,
