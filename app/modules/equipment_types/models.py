@@ -61,6 +61,7 @@ class EquipmentModel(Base, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(80), nullable=False)
+    theoretical_quantity = Column(Integer, nullable=False, default=0)
     equipment_type_id = Column(Integer, ForeignKey("equipment_types.id"), nullable=False)
     brand_id = Column(
         Integer,
