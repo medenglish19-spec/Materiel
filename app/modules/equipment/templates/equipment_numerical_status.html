@@ -22,7 +22,8 @@
 
 <div class="card">
   <div class="toolbar">
-    <input id="statusSearch" class="search-box" placeholder="بحث في التصنيف، النوع أو الطراز...">
+    <input id="statusSearch" class="search-box" placeholder="بحث في التصنيف، النوع، الماركة أو الطراز...">
+    <select id="statusBrand"><option value="">كل الماركات</option>{% for category in hierarchy %}{% for type in category.types %}{% for model in type.models %}<option value="{{ model.brand }}">{{ model.brand }}</option>{% endfor %}{% endfor %}{% endfor %}</select>
     <select id="statusCondition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select>
     <select id="statusOperational"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select>
     <button type="button" class="btn-outline" id="expandAll">فتح الكل</button>
@@ -34,20 +35,20 @@
   <div class="num-status-wrap">
     <table class="num-status" id="numericalStatusTable">
       <thead><tr>
-        <th>التصنيف / النوع / الطراز</th><th>النظري</th><th>الفعلي</th><th>الاحتياج</th><th>جاهز</th><th>عاطل</th>
+        <th colspan="1">التصنيف / النوع</th><th>الماركة</th><th>الطراز</th><th>النظري</th><th>الفعلي</th><th>الاحتياج</th><th>جاهز</th><th>عاطل</th>
         <th>متاح</th><th>في مهمة</th><th>في الصيانة</th><th>ورشة خارجية</th><th>غير متاح</th>
       </tr></thead>
       <tbody>
       {% for category in hierarchy %}
-        <tr class="category-row searchable" data-level="category"><td><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td>{{ category.stats.theoretical }}</td><td>{{ category.stats.total }}</td><td class="need">{{ category.stats.need }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td></tr>
+        <tr class="category-row searchable" data-level="category"><td colspan="3" class="hierarchy-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td colspan="0" class="hierarchy-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td>{{ category.stats.theoretical }}</td><td>{{ category.stats.total }}</td><td class="need">{{ category.stats.need }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td></tr>
         {% for type in category.types %}
-          <tr class="type-row searchable" data-level="type"><td><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
+          <tr class="type-row searchable" data-level="type"><td colspan="3" class="hierarchy-name type-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
           {% for model in type.models %}
-            <tr class="model-row searchable" data-level="model" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}" data-op-available="{{ model.stats.available }}" data-op-mission="{{ model.stats.in_mission }}" data-op-maintenance="{{ model.stats.in_maintenance }}" data-op-external="{{ model.stats.in_external_workshop }}" data-op-unavailable="{{ model.stats.unavailable }}"><td>↳ {{ model.name }}</td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
+            <tr class="model-row searchable" data-level="model" data-brand="{{ model.brand }}" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}" data-op-available="{{ model.stats.available }}" data-op-mission="{{ model.stats.in_mission }}" data-op-maintenance="{{ model.stats.in_maintenance }}" data-op-external="{{ model.stats.in_external_workshop }}" data-op-unavailable="{{ model.stats.unavailable }}"><td class="model-group-cell"></td><td class="brand-cell">{{ model.brand }}</td><td class="model-cell">↳ <strong>{{ model.name }}</strong></td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
           {% endfor %}
         {% endfor %}
       {% else %}
-        <tr><td colspan="11" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
+        <tr><td colspan="12" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -61,7 +62,7 @@
 .num-status th:first-child,.num-status td:first-child{text-align:right}
 .num-status th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:2}
 .num-status .category-row td{background:#eaf3fb;font-weight:800;color:#173b63}
-.num-status .type-row td{background:#f5f8fb;font-weight:700}
+.num-status .type-row td{background:#f5f8fb;font-weight:700}.hierarchy-name{direction:rtl;text-align:right!important}.brand-cell{font-weight:700}.model-cell{min-width:170px}
 .num-status .model-row td:first-child{padding-right:38px}
 .tree-toggle{background:none!important;color:inherit!important;border:0!important;padding:0 6px!important;font-size:16px;cursor:pointer}
 .need{font-weight:800}
@@ -73,18 +74,19 @@
 <script>
 (function(){
   const table=document.getElementById('numericalStatusTable');
-  const q=document.getElementById('statusSearch'), condition=document.getElementById('statusCondition'), operational=document.getElementById('statusOperational');
+  const q=document.getElementById('statusSearch'), brand=document.getElementById('statusBrand'), condition=document.getElementById('statusCondition'), operational=document.getElementById('statusOperational');
   const rows=[...table.querySelectorAll('tbody tr.searchable')];
 
   function filter(){
-    const x=q.value.toLowerCase().trim(), c=condition.value, o=operational.value;
+    const x=q.value.toLowerCase().trim(), b=brand.value, c=condition.value, o=operational.value;
     rows.forEach(r=>{
       const text=r.innerText.toLowerCase();
       const modelCondition=r.dataset.conditionBroken==='0'?'جاهز':(r.dataset.conditionBroken?'عاطل':'');
       const okSearch=!x||text.includes(x);
+      const okBrand=!b||r.dataset.level!=='model'||r.dataset.brand===b;
       const okCondition=!c||modelCondition===c||r.dataset.level!=='model';
       const okOperational=!o||r.innerText.includes(o)||r.dataset.level!=='model';
-      r.style.display=okSearch&&okCondition&&okOperational?'':'none';
+      r.style.display=okSearch&&okBrand&&okCondition&&okOperational?'':'none';
     });
   }
 
@@ -118,7 +120,7 @@
     table.querySelectorAll('.type-row,.model-row').forEach(r=>r.style.display='none');
     table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','false');b.textContent='+';});
   };
-  [q,condition,operational].forEach(el=>el.addEventListener('input',filter));
+  [q,brand,condition,operational].forEach(el=>el.addEventListener('input',filter));
 })();
 </script>
 {% endblock %}
