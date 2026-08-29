@@ -14,6 +14,7 @@ from app.modules.equipment import services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
+from app.modules.equipment_types.models import EquipmentType
 from app.modules.users.models import User
 from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
@@ -46,7 +47,7 @@ def equipment_numerical_status_page(
     items = (
         db.query(Equipment)
         .options(
-            joinedload(Equipment.equipment_type).joinedload(type_services.EquipmentType.category),
+            joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
             joinedload(Equipment.equipment_model),
         )
         .order_by(Equipment.id)
