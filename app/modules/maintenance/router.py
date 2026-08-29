@@ -320,27 +320,31 @@ def maintenance_rule_exception_update(
 
 
 @router.post("/maintenance/rules/create")
-def maintenance_rule_create(name: str = Form(...), equipment_type_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def maintenance_rule_create(name: str = Form(...), equipment_type_id: int = Form(...), equipment_model_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     def dec(v):
         try: return Decimal(v) if v else None
         except (InvalidOperation, ValueError): return None
     equipment_type = db.query(EquipmentType).filter(EquipmentType.id == equipment_type_id).first()
+    model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
     if equipment_type is None: return RedirectResponse("/maintenance/rules?error=equipment_type", status_code=status.HTTP_303_SEE_OTHER)
+    if model is None or model.equipment_type_id != equipment_type_id:
+        return RedirectResponse("/maintenance/rules?error=model_type", status_code=status.HTTP_303_SEE_OTHER)
     km = dec(interval_km); hours = dec(interval_hours); days = int(interval_days) if interval_days else None
     if equipment_type.measurement_unit == "km": hours = None
     elif equipment_type.measurement_unit == "hours": km = None
-    rule = MaintenanceRule(name=name.strip(), equipment_type_id=equipment_type_id, interval_km=km, interval_hours=hours, interval_days=days, warning_km=dec(warning_km), warning_days=int(warning_days) if warning_days else None, description=description.strip() or None)
+    rule = MaintenanceRule(name=name.strip(), equipment_type_id=equipment_type_id, equipment_model_id=equipment_model_id, parent_rule_id=None, interval_km=km, interval_hours=hours, interval_days=days, warning_km=dec(warning_km), warning_days=int(warning_days) if warning_days else None, description=description.strip() or None)
     db.add(rule); db.commit(); return RedirectResponse("/maintenance/rules?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/maintenance/rules/{rule_id}/update")
-def maintenance_rule_update(rule_id: int, name: str = Form(...), equipment_type_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def maintenance_rule_update(rule_id: int, name: str = Form(...), equipment_type_id: int = Form(...), equipment_model_id: int = Form(...), interval_km: str = Form(""), interval_hours: str = Form(""), interval_days: str = Form(""), warning_km: str = Form("500"), warning_days: str = Form("7"), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
     equipment_type = db.query(EquipmentType).filter(EquipmentType.id == equipment_type_id).first()
-    if rule is not None and rule.parent_rule_id is not None:
-        return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=use_exception_form#editException", status_code=status.HTTP_303_SEE_OTHER)
     if rule is None or equipment_type is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
+    model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
+    if model is None or model.equipment_type_id != equipment_type_id:
+        return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=model_type#editRule", status_code=status.HTTP_303_SEE_OTHER)
     def dec(v):
         try: return Decimal(v) if v else None
         except (InvalidOperation, ValueError): return None
@@ -349,7 +353,7 @@ def maintenance_rule_update(rule_id: int, name: str = Form(...), equipment_type_
     elif equipment_type.measurement_unit == "hours": km = None
     if not name.strip() or not (km or hours or days):
         return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=invalid", status_code=status.HTTP_303_SEE_OTHER)
-    rule.name = name.strip(); rule.equipment_type_id = equipment_type_id; rule.interval_km = km; rule.interval_hours = hours; rule.interval_days = days; rule.warning_km = dec(warning_km); rule.warning_days = int(warning_days) if warning_days else None; rule.description = description.strip() or None
+    rule.name = name.strip(); rule.equipment_type_id = equipment_type_id; rule.equipment_model_id = equipment_model_id; rule.parent_rule_id = None; rule.interval_km = km; rule.interval_hours = hours; rule.interval_days = days; rule.warning_km = dec(warning_km); rule.warning_days = int(warning_days) if warning_days else None; rule.description = description.strip() or None
     db.commit()
     return RedirectResponse("/maintenance/rules?saved=updated", status_code=status.HTTP_303_SEE_OTHER)
 
