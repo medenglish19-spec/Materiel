@@ -24,6 +24,12 @@ class Equipment(Base, AuditMixin):
         back_populates="equipment",
         order_by="MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()",
         passive_deletes=True,
+    ),
+    faults = relationship(
+        "Fault",
+        back_populates="equipment",
+        order_by="Fault.reported_date.desc(), Fault.id.desc()",
+        passive_deletes=True,
     )
 
     acquisition_date = Column(Date, nullable=True)
