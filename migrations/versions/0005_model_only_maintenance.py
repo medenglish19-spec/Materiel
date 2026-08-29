@@ -24,6 +24,24 @@ def upgrade() -> None:
         return
 
     columns = _columns(bind, "maintenance_rules")
+    meta = sa.MetaData()
+    rules = sa.Table("maintenance_rules", meta, autoload_with=bind)
+
+    # Capture the active state before disabling legacy type-level rows.
+    legacy_active = {
+        row["id"]: bool(row["is_active"])
+        for row in bind.execute(
+            sa.select(rules.c.id, rules.c.is_active)
+            .where(rules.c.equipment_model_id.is_(None))
+        ).mappings()
+    }
+    if legacy_active:
+        bind.execute(
+            sa.update(rules)
+            .where(rules.c.id.in_(legacy_active))
+            .values(is_active=False)
+        )
+
     with op.batch_alter_table(
         "maintenance_rules",
         naming_convention={
@@ -81,7 +99,7 @@ def upgrade() -> None:
                 "interval_days": source["interval_days"],
                 "warning_km": source["warning_km"],
                 "warning_days": source["warning_days"],
-                "is_active": bool(source["is_active"]),
+                "is_active": legacy_active.get(source["id"], bool(source["is_active"])),
                 "description": source["description"],
             }
             new_id = bind.execute(
