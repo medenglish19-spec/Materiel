@@ -45,8 +45,7 @@ def equipment_numerical_status_page(
     items = (
         db.query(Equipment)
         .options(
-            joinedload(Equipment.equipment_type).joinedload(type_services.EquipmentType.category)
-            if False else joinedload(Equipment.equipment_type),
+            joinedload(Equipment.equipment_type),
             joinedload(Equipment.equipment_model),
         )
         .order_by(Equipment.id)
