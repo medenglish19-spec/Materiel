@@ -56,6 +56,7 @@
 </div>
 
 <div class="analysis-section" id="fleetAnalysis">
+  <div class="analysis-filter"><label>مستوى التحليل</label><select id="analysisLevel"><option value="fleet">كامل الحضيرة</option><option value="category">تصنيف</option><option value="type">نوع</option><option value="model">طراز</option></select><select id="analysisEntity" disabled><option value="">اختر المستوى أولًا</option></select><span id="analysisPath">كامل الحضيرة</span></div>
   <div class="section-heading">
     <div><h3>التحليل الإداري للحضيرة</h3><p class="page-hint">قراءة إحصائية لتركيبة الحضيرة، تحقيق التعداد، الجاهزية والفجوات العددية.</p></div>
   </div>
@@ -80,7 +81,7 @@
 
   <div class="analysis-grid">
     <div class="analysis-card">
-      <h4>تركيبة الحضيرة حسب التصنيف</h4>
+      <h4>توزيع أعداد العتاد حسب التصنيف</h4>
       {% if category_analysis %}
       <div class="bar-list">
       {% for row in category_analysis %}
@@ -111,7 +112,7 @@
     </div>
 
     <div class="analysis-card">
-      <h4>أكبر الفجوات العددية</h4>
+      <h4>أعلى الاحتياجات العددية حسب الطراز</h4>
       {% if model_analysis %}
       <div class="rank-list">
       {% for row in model_analysis[:7] %}
@@ -123,7 +124,7 @@
   </div>
 
   <div class="analysis-card wide">
-    <h4>توزيع الأنواع</h4>
+    <h4>توزيع أعداد العتاد حسب النوع</h4>
     <div class="type-grid">
       {% for row in type_analysis[:12] %}
       <div class="type-chip"><div><strong>{{ row.name }}</strong><small>{{ row.category }}</small></div><b>{{ row.total }} <small>{{ row.share|round(1) }}%</small></b></div>
@@ -140,6 +141,9 @@
   <div id="modelDetailsBody"></div>
 </div>
 
+<style>
+.analysis-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px}.analysis-filter label{font-size:11px;color:#64748b;font-weight:700}.analysis-filter select{min-width:145px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}.analysis-filter span{font-size:11px;color:#64748b;margin-right:auto}
+</style>
 <style>
 .decision-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}.decision-strip>div{padding:11px 13px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0}.decision-strip span{display:block;font-size:10px;color:#64748b}.decision-strip b{display:block;margin-top:4px;font-size:18px;color:#173b63}
 </style>
@@ -230,5 +234,33 @@
   };
   [q,brand,condition,operational].forEach(el=>el.addEventListener('input',filter));
 })();
+<script>
+(function(){
+ const level=document.getElementById('analysisLevel'), entity=document.getElementById('analysisEntity'), path=document.getElementById('analysisPath'), table=document.getElementById('numericalStatusTable');
+ const rows=[...table.querySelectorAll('tbody tr.searchable')];
+ const maps={category:[...table.querySelectorAll('.category-row')],type:[...table.querySelectorAll('.type-row')],model:[...table.querySelectorAll('.model-row')]};
+ function fill(){
+   entity.innerHTML='';
+   const opts=maps[level.value]||[];
+   if(level.value==='fleet'){entity.disabled=true;entity.innerHTML='<option>كامل الحضيرة</option>';path.textContent='كامل الحضيرة';rows.forEach(r=>r.style.display='');return;}
+   entity.disabled=false; entity.innerHTML='<option value="">اختر...</option>';
+   opts.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.querySelector('td')?.innerText.replace(/[−+↳]/g,'').trim()||'';entity.appendChild(o);});
+   apply();
+ }
+ function apply(){
+   const l=level.value, idx=Number(entity.value);
+   rows.forEach(r=>r.style.display='none');
+   if(l==='fleet'){rows.forEach(r=>r.style.display='');path.textContent='كامل الحضيرة';return;}
+   const selected=maps[l][idx]; if(!selected){path.textContent='اختر '+(l==='category'?'تصنيفًا':l==='type'?'نوعًا':'طرازًا');return;}
+   const name=selected.querySelector('td')?.innerText.replace(/[−+↳]/g,'').trim()||'';
+   path.textContent=(l==='category'?'التصنيف: ':l==='type'?'النوع: ':'الطراز: ')+name;
+   selected.style.display='';
+   let r=selected.nextElementSibling;
+   if(l==='category'){while(r&&r.dataset.level!=='category'){r.style.display='';r=r.nextElementSibling;}}
+   else if(l==='type'){while(r&&r.dataset.level==='model'){r.style.display='';r=r.nextElementSibling;}}
+ }
+ level.addEventListener('change',fill); entity.addEventListener('change',apply); fill();
+})();
+</script>
 </script>
 {% endblock %}
