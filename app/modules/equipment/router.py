@@ -126,6 +126,70 @@ def equipment_numerical_status_page(
                 add_percentages(model_row["stats"], type_row["stats"]["total"])
     add_percentages(totals, totals["total"])
 
+    # التحليل الإداري: ترتيب التصنيفات والأنواع والطرازات وأبرز فجوات التعداد.
+    category_analysis = sorted(
+        [
+            {
+                "name": c["name"],
+                "total": c["stats"]["total"],
+                "theoretical": c["stats"]["theoretical"],
+                "need": c["stats"]["need"],
+                "share": c["stats"]["parent_pct"],
+                "coverage": c["stats"]["coverage_pct"],
+                "ready": c["stats"]["ready_pct"],
+                "broken": c["stats"]["broken_pct"],
+            }
+            for c in hierarchy
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )
+    type_analysis = []
+    model_analysis = []
+    for c in hierarchy:
+        for t in c["types"]:
+            row = {
+                "category": c["name"], "name": t["name"],
+                "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"],
+                "need": t["stats"]["need"], "share": t["stats"]["parent_pct"],
+                "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"],
+                "broken": t["stats"]["broken_pct"],
+            }
+            type_analysis.append(row)
+            for m in t["models"]:
+                model_analysis.append({
+                    "category": c["name"], "type": t["name"],
+                    "name": (m["stats"].get("brand") + " — " if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]),
+                    "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"],
+                    "need": m["stats"]["need"], "share": m["stats"]["parent_pct"],
+                    "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"],
+                    "broken": m["stats"]["broken_pct"],
+                })
+    type_analysis.sort(key=lambda x: x["total"], reverse=True)
+    model_analysis.sort(key=lambda x: x["need"], reverse=True)
+
+    status_analysis = [
+        {"name": "جاهز", "count": totals["ready"], "pct": totals["ready_pct"]},
+        {"name": "عاطل", "count": totals["broken"], "pct": totals["broken_pct"]},
+        {"name": "متاح", "count": totals["available"], "pct": totals["available_pct"]},
+        {"name": "في مهمة", "count": totals["in_mission"], "pct": totals["mission_pct"]},
+        {"name": "في الصيانة", "count": totals["in_maintenance"], "pct": totals["maintenance_pct"]},
+        {"name": "ورشة خارجية", "count": totals["in_external_workshop"], "pct": totals["external_pct"]},
+        {"name": "غير متاح", "count": totals["unavailable"], "pct": totals["unavailable_pct"]},
+    ]
+    analysis = {
+        "category_count": len(category_analysis),
+        "type_count": len(type_analysis),
+        "model_count": len(model_analysis),
+        "coverage": totals["coverage_pct"],
+        "need_pct": totals["need_pct"],
+        "ready_pct": totals["ready_pct"],
+        "broken_pct": totals["broken_pct"],
+        "largest_category": category_analysis[0] if category_analysis else None,
+        "largest_type": type_analysis[0] if type_analysis else None,
+        "highest_need_model": model_analysis[0] if model_analysis and model_analysis[0]["need"] else None,
+    }
+
     return templates.TemplateResponse(
         "equipment_numerical_status.html",
         {"request": request, "user": current_user, "hierarchy": hierarchy, "totals": totals},
