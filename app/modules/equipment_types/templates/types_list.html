@@ -80,6 +80,9 @@
         {% for m in t.models %}
         <span class="chip">
             <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }} <small>({{ m.theoretical_quantity }} نظري)</small></span>
+            <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity" class="chip-delete-form">
+                <input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()" style="width:72px">
+            </form>
             <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form">
                 <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
                     <option value="">بدون علامة</option>
