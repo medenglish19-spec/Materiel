@@ -169,6 +169,15 @@ def set_model_brand(db: Session, obj: EquipmentModel, brand_id: Optional[int]) -
     return obj
 
 
+def set_model_theoretical_quantity(db: Session, obj: EquipmentModel, theoretical_quantity: int) -> EquipmentModel:
+    if theoretical_quantity < 0:
+        raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+    obj.theoretical_quantity = theoretical_quantity
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
 def delete_model(db: Session, obj: EquipmentModel) -> None:
     db.delete(obj)
     db.commit()
