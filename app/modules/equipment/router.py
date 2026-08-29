@@ -166,7 +166,7 @@ def equipment_numerical_status_page(
                     "broken": m["stats"]["broken_pct"],
                 })
     type_analysis.sort(key=lambda x: x["total"], reverse=True)
-    model_analysis.sort(key=lambda x: x["need"], reverse=True)
+    model_analysis.sort(key=lambda x: (x["need"], -x["coverage"]), reverse=True)
 
     status_analysis = [
         {"name": "جاهز", "count": totals["ready"], "pct": totals["ready_pct"]},
@@ -185,6 +185,12 @@ def equipment_numerical_status_page(
         "need_pct": totals["need_pct"],
         "ready_pct": totals["ready_pct"],
         "broken_pct": totals["broken_pct"],
+        "operational_availability_pct": totals["available_pct"],
+        "maintenance_load_pct": totals["maintenance_pct"],
+        "mission_load_pct": totals["mission_pct"],
+        "external_workshop_pct": totals["external_pct"],
+        "theoretical_gap": max(0, totals["theoretical"] - totals["total"]),
+        "overstrength": max(0, totals["total"] - totals["theoretical"]),
         "largest_category": category_analysis[0] if category_analysis else None,
         "largest_type": type_analysis[0] if type_analysis else None,
         "highest_need_model": model_analysis[0] if model_analysis and model_analysis[0]["need"] else None,
