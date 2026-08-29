@@ -76,6 +76,21 @@ def equipment_numerical_status_page(
         if item.operational_status in keys:
             mg[item.operational_status] += 1
 
+    def add_percentages(stats, parent_total=None):
+        base = stats["total"] or 0
+        parent = parent_total or 0
+        stats["parent_pct"] = (base / parent * 100) if parent else (100.0 if base else 0.0)
+        stats["coverage_pct"] = (stats["total"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
+        stats["need_pct"] = (stats["need"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
+        stats["ready_pct"] = (stats["ready"] / base * 100) if base else 0.0
+        stats["broken_pct"] = (stats["broken"] / base * 100) if base else 0.0
+        stats["available_pct"] = (stats["available"] / base * 100) if base else 0.0
+        stats["mission_pct"] = (stats["in_mission"] / base * 100) if base else 0.0
+        stats["maintenance_pct"] = (stats["in_maintenance"] / base * 100) if base else 0.0
+        stats["external_pct"] = (stats["in_external_workshop"] / base * 100) if base else 0.0
+        stats["unavailable_pct"] = (stats["unavailable"] / base * 100) if base else 0.0
+        return stats
+
     def sum_stats(stats_list):
         out = zero()
         for st in stats_list:
@@ -88,9 +103,9 @@ def equipment_numerical_status_page(
         type_rows = []
         for type_name, tg in sorted(cg["types"].items()):
             model_rows = []
-            for model_name, st in sorted(tg["models"].items(), key=lambda x: (x[1]["brand"], x[1]["model"])):
+            for model_name, st in sorted(tg["models"].items()):
                 st["need"] = max(0, st["theoretical"] - st["total"])
-                model_rows.append({"name": st["model"], "brand": st["brand"], "stats": st, "equipment": st["equipment"]})
+                model_rows.append({"name": model_name, "stats": st})
             ts = sum_stats([m["stats"] for m in model_rows])
             ts["need"] = max(0, ts["theoretical"] - ts["total"])
             type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
@@ -101,6 +116,15 @@ def equipment_numerical_status_page(
     totals = sum_stats([c["stats"] for c in hierarchy])
     totals["need"] = max(0, totals["theoretical"] - totals["total"])
     totals["equipment"] = totals["total"]
+
+    # نسب التكوين: التصنيف من إجمالي الحضيرة، والنوع من تصنيفه، والطراز من نوعه.
+    for category in hierarchy:
+        add_percentages(category["stats"], totals["total"])
+        for type_row in category["types"]:
+            add_percentages(type_row["stats"], category["stats"]["total"])
+            for model_row in type_row["models"]:
+                add_percentages(model_row["stats"], type_row["stats"]["total"])
+    add_percentages(totals, totals["total"])
 
     return templates.TemplateResponse(
         "equipment_numerical_status.html",
