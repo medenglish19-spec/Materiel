@@ -1,20 +1,12 @@
-
 # Python cache
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Backup files
-*.bak
-*.backup
-
-# Local databases
-*.db
-
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
+# Virtual environments
+.venv/
+venv/
+env/
 
 # Backup files
 *.bak
