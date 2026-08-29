@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
+from app.core.security import decode_access_token
 from app.database.init_db import init_db, create_default_admin
 from app.modules.users.router import router as users_router
 from app.modules.equipment_types.router import router as equipment_types_router
@@ -44,8 +45,15 @@ def create_app() -> FastAPI:
         create_default_admin()
 
     @app.get('/')
-    def root():
-        return RedirectResponse(url='/dashboard')
+    def root(request: Request):
+        # لا نرسل المستخدم غير المسجّل مباشرة إلى /dashboard لأن الصفحة محمية
+        # وقد تُرجع 401 كـ JSON، وهو ما يظهر في بعض المتصفحات كصفحة بيضاء.
+        token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+        if token:
+            payload = decode_access_token(token)
+            if payload and payload.get("sub"):
+                return RedirectResponse(url="/dashboard")
+        return RedirectResponse(url="/login")
 
     return app
 
