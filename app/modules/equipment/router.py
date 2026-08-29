@@ -36,6 +36,91 @@ def equipment_page(
     )
 
 
+@router.get("/equipment/fleet-status", response_class=HTMLResponse)
+def equipment_fleet_status_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = services.list_equipment(db)
+    categories = {}
+    for item in items:
+        category = item.equipment_type.category if item.equipment_type else None
+        category_key = category.id if category else 0
+        category_name = category.name if category else "غير مصنف"
+        bucket = categories.setdefault(category_key, {
+            "name": category_name,
+            "total": 0,
+            "ready": 0,
+            "not_ready": 0,
+            "in_maintenance": 0,
+            "unavailable": 0,
+            "types": {},
+        })
+        bucket["total"] += 1
+        ready = item.technical_condition == "ready" and item.operational_status == "available"
+        if ready:
+            bucket["ready"] += 1
+        else:
+            bucket["not_ready"] += 1
+        if item.operational_status in ("in_maintenance", "in_external_workshop"):
+            bucket["in_maintenance"] += 1
+        if item.operational_status == "unavailable" or item.technical_condition == "broken":
+            bucket["unavailable"] += 1
+
+        type_bucket = bucket["types"].setdefault(item.equipment_type_id, {
+            "name": item.equipment_type.name if item.equipment_type else "غير معروف",
+            "total": 0,
+            "ready": 0,
+            "not_ready": 0,
+            "models": {},
+        })
+        type_bucket["total"] += 1
+        if ready:
+            type_bucket["ready"] += 1
+        else:
+            type_bucket["not_ready"] += 1
+
+        model_key = item.equipment_model_id or 0
+        model_bucket = type_bucket["models"].setdefault(model_key, {
+            "name": item.equipment_model.name if item.equipment_model else "بدون طراز",
+            "total": 0,
+            "ready": 0,
+            "not_ready": 0,
+        })
+        model_bucket["total"] += 1
+        if ready:
+            model_bucket["ready"] += 1
+        else:
+            model_bucket["not_ready"] += 1
+
+    category_rows = sorted(
+        categories.values(),
+        key=lambda x: x["name"],
+    )
+    for row in category_rows:
+        row["types"] = sorted(row["types"].values(), key=lambda x: x["name"])
+        for type_row in row["types"]:
+            type_row["models"] = sorted(type_row["models"].values(), key=lambda x: x["name"])
+
+    totals = {
+        "total": len(items),
+        "ready": sum(1 for x in items if x.technical_condition == "ready" and x.operational_status == "available"),
+        "not_ready": sum(1 for x in items if not (x.technical_condition == "ready" and x.operational_status == "available")),
+        "in_maintenance": sum(1 for x in items if x.operational_status in ("in_maintenance", "in_external_workshop")),
+        "unavailable": sum(1 for x in items if x.operational_status == "unavailable" or x.technical_condition == "broken"),
+    }
+    return templates.TemplateResponse(
+        "fleet_status.html",
+        {
+            "request": request,
+            "categories": category_rows,
+            "totals": totals,
+            "user": current_user,
+        },
+    )
+
+
 @router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
 def equipment_detail_page(
     equipment_id: int,
