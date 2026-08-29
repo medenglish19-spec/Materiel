@@ -112,6 +112,7 @@ def create_model_form(
     name: str = Form(...),
     equipment_type_id: int = Form(...),
     brand_id: str = Form(""),
+    theoretical_quantity: int = Form(0),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.ADMIN)),
 ):
@@ -122,6 +123,7 @@ def create_model_form(
                 name=name,
                 equipment_type_id=equipment_type_id,
                 brand_id=int(brand_id) if brand_id else None,
+                theoretical_quantity=max(0, theoretical_quantity),
             ),
         )
     except ValueError:
