@@ -50,7 +50,6 @@ class EquipmentModelCreate(BaseModel):
     equipment_type_id: int
     brand_id: Optional[int] = None
     theoretical_quantity: int = 0
-    theoretical_quantity: int = 0
 
 
 class EquipmentModelOut(BaseModel):
