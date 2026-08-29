@@ -67,9 +67,10 @@ def equipment_numerical_status_page(
         tg = cg["types"].setdefault(type_name, {"models": {}})
         theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
         model_key = (brand_name, model_name)
-        mg = tg["models"].setdefault(model_key, dict(zero(), theoretical=theoretical, brand=brand_name, model=model_name))
+        mg = tg["models"].setdefault(model_key, dict(zero(), theoretical=theoretical, brand=brand_name, model=model_name, equipment=[]))
         mg["total"] += 1
         mg["theoretical"] = max(mg["theoretical"], theoretical)
+        mg["equipment"].append({"id": item.id, "asset_code": item.asset_code, "registration_number": item.registration_number, "technical_condition": item.technical_condition, "operational_status": item.operational_status})
         condition = item.technical_condition if item.technical_condition in ("ready", "broken") else "ready"
         mg[condition] += 1
         if item.operational_status in keys:
@@ -89,7 +90,7 @@ def equipment_numerical_status_page(
             model_rows = []
             for model_name, st in sorted(tg["models"].items(), key=lambda x: (x[1]["brand"], x[1]["model"])):
                 st["need"] = max(0, st["theoretical"] - st["total"])
-                model_rows.append({"name": st["model"], "brand": st["brand"], "stats": st})
+                model_rows.append({"name": st["model"], "brand": st["brand"], "stats": st, "equipment": st["equipment"]})
             ts = sum_stats([m["stats"] for m in model_rows])
             ts["need"] = max(0, ts["theoretical"] - ts["total"])
             type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
