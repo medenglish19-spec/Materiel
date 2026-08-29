@@ -66,6 +66,7 @@
     <form method="post" action="/equipment-types/models/create" class="inline-form">
         <input type="hidden" name="equipment_type_id" value="{{ t.id }}">
         <input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required>
+        <input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري">
         <select name="brand_id">
             <option value="">علامة غير محددة</option>
             {% for b in brands %}
@@ -78,7 +79,7 @@
     <div class="model-chips">
         {% for m in t.models %}
         <span class="chip">
-            <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }}</span>
+            <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }} <small>({{ m.theoretical_quantity }} نظري)</small></span>
             <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form">
                 <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
                     <option value="">بدون علامة</option>
