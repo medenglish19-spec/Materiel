@@ -38,6 +38,58 @@ def equipment_page(
     )
 
 
+@router.get("/equipment/analysis", response_class=HTMLResponse)
+def equipment_analysis_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
+        joinedload(Equipment.equipment_model),
+    ).order_by(Equipment.id).all()
+
+    categories = {}
+    ready = 0
+    broken = 0
+    for item in items:
+        category = item.equipment_type.category if item.equipment_type else None
+        category_name = category.name if category else "غير مصنف"
+        type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
+        model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
+        theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
+        cg = categories.setdefault(category_name, {"types": {}, "actual": 0, "ready": 0, "broken": 0})
+        tg = cg["types"].setdefault(type_name, {"models": {}, "actual": 0, "ready": 0, "broken": 0})
+        mg = tg["models"].setdefault(model_name, {"theoretical": theoretical, "actual": 0, "ready": 0, "broken": 0})
+        mg["theoretical"] = max(mg["theoretical"], theoretical)
+        mg["actual"] += 1
+        tg["actual"] += 1
+        cg["actual"] += 1
+        if item.technical_condition == "ready":
+            ready += 1; mg["ready"] += 1; tg["ready"] += 1; cg["ready"] += 1
+        else:
+            broken += 1; mg["broken"] += 1; tg["broken"] += 1; cg["broken"] += 1
+
+    for cg in categories.values():
+        cg["theoretical"] = sum(m["theoretical"] for t in cg["types"].values() for m in t["models"].values())
+        cg["need"] = max(0, cg["theoretical"] - cg["actual"])
+        for tg in cg["types"].values():
+            tg["theoretical"] = sum(m["theoretical"] for m in tg["models"].values())
+            tg["need"] = max(0, tg["theoretical"] - tg["actual"])
+            for mg in tg["models"].values():
+                mg["need"] = max(0, mg["theoretical"] - mg["actual"])
+
+    totals_theoretical = sum(c["theoretical"] for c in categories.values())
+    totals_actual = len(items)
+    return templates.TemplateResponse("equipment_analysis.html", {
+        "request": request, "user": current_user, "categories": categories,
+        "totals": {"theoretical": totals_theoretical, "actual": totals_actual,
+                   "need": max(0, totals_theoretical - totals_actual),
+                   "ready": ready, "broken": broken,
+                   "readiness": round(ready / totals_actual * 100, 1) if totals_actual else 0}
+    )
+
+
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
 def equipment_numerical_status_page(
     request: Request,
