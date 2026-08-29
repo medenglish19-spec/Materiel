@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
-from app.modules.equipment.schemas import EquipmentUpdate
+from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment_types.models import EquipmentType, EquipmentModel
 from app.modules.equipment import services
 
@@ -69,6 +69,21 @@ def test_equipment_edit_updates_fields_and_rejects_duplicate_identifiers():
         assert first.equipment_model_id == model_b.id
         assert first.acquisition_date == date(2026, 8, 17)
         assert first.notes == "تم تعديل بيانات العتاد"
+
+
+        try:
+            services.create_equipment(
+                db,
+                EquipmentCreate(
+                    equipment_type_id=type_a.id,
+                    equipment_model_id=model_b.id,
+                    registration_number="EDIT-BAD-MODEL",
+                ),
+            )
+        except ValueError as exc:
+            assert "لا ينتمي" in str(exc)
+        else:
+            raise AssertionError("equipment was created with a model from another type")
 
         try:
             services.update_equipment(db, first, EquipmentUpdate(registration_number="EDIT-REG-2"))
