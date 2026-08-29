@@ -52,8 +52,17 @@ def create_equipment(
     db: Session, data: EquipmentCreate, user_id: Optional[int] = None
 ) -> Equipment:
     asset_code = generate_asset_code(db, data.registration_number)
+    values = data.model_dump()
+    model_id = values.get("equipment_model_id")
+    if model_id is not None:
+        model = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
+        if model is None:
+            raise ValueError("طراز العتاد المحدد غير موجود")
+        if model.equipment_type_id != values["equipment_type_id"]:
+            raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
+
     equipment = Equipment(
-        **data.model_dump(), asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id
+        **values, asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id
     )
     db.add(equipment)
     db.commit()
