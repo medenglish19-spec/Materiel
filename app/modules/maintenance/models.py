@@ -92,19 +92,20 @@ def _validate_record(connection, target, exclude_id=None):
         raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح (km أو hours).")
 
     rule_row = connection.execute(
-        select(
-            MaintenanceRule.equipment_type_id,
-            MaintenanceRule.equipment_model_id,
-            MaintenanceRule.parent_rule_id,
-        ).where(MaintenanceRule.id == target.rule_id)
+        select(MaintenanceRule.equipment_model_id)
+        .where(MaintenanceRule.id == target.rule_id)
     ).first()
     equipment_row = connection.execute(
-        select(Equipment.equipment_type_id, Equipment.equipment_model_id)
+        select(Equipment.equipment_model_id)
         .where(Equipment.id == target.equipment_id)
     ).first()
-    if rule_row is None or equipment_row is None or rule_row.equipment_type_id != equipment_row.equipment_type_id:
-        raise ValueError("الصيانة الدورية المختارة لا تنتمي إلى نوع العتاد المحدد.")
-    if rule_row.equipment_model_id is not None and rule_row.equipment_model_id != equipment_row.equipment_model_id:
+    if rule_row is None or equipment_row is None:
+        raise ValueError("الصيانة الدورية أو العتاد المحدد غير موجود.")
+    if rule_row.equipment_model_id is None:
+        raise ValueError("لا يمكن تسجيل صيانة بقاعدة قديمة غير مرتبطة بطراز.")
+    if equipment_row.equipment_model_id is None:
+        raise ValueError("يجب تحديد طراز العتاد قبل تسجيل الصيانة.")
+    if rule_row.equipment_model_id != equipment_row.equipment_model_id:
         raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
     if target.meter_value is None:
