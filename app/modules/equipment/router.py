@@ -98,14 +98,14 @@ def equipment_numerical_status_page(
                 out[k] += st[k]
         return out
 
-    hierarchy = []
+    model_details = {}\n    hierarchy = []
     for category_name, cg in sorted(groups.items(), key=lambda x: (x[1]["sort"], x[0])):
         type_rows = []
         for type_name, tg in sorted(cg["types"].items()):
             model_rows = []
             for model_name, st in sorted(tg["models"].items()):
                 st["need"] = max(0, st["theoretical"] - st["total"])
-                model_rows.append({"name": model_name, "stats": st})
+                model_key = "{}::{}::{}::{}".format(category_name, type_name, model_name[0], model_name[1])\n                display_name = ((st.get("brand") + " — ") if st.get("brand") and st.get("brand") != "بدون ماركة" else "") + st.get("model", model_name[1])\n                model_details[model_key] = {"name": display_name, "theoretical": st["theoretical"], "total": st["total"], "need": st["need"], "equipment": st["equipment"]}\n                model_rows.append({"name": display_name, "key": model_key, "stats": st})
             ts = sum_stats([m["stats"] for m in model_rows])
             ts["need"] = max(0, ts["theoretical"] - ts["total"])
             type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
