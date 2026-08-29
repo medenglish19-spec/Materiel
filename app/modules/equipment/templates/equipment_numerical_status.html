@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}الحالة العددية للعتاد{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h2>الحالة العددية للعتاد</h2><p class="page-hint">تركيبة الحضيرة وأعداد العتاد حسب التصنيف ← النوع ← الطراز، مع الحالة ومؤشر الاحتياج.</p></div>
+  <a href="/equipment" class="btn-outline">← العودة إلى العتاد</a>
+</div>
+
+<div class="cards-grid">
+  <div class="stat-card"><div class="stat-number">{{ totals.equipment }}</div><div class="stat-label">إجمالي العتاد</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.ready }}</div><div class="stat-label">جاهز</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.broken }}</div><div class="stat-label">عاطل / يحتاج إصلاح</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.in_mission }}</div><div class="stat-label">في مهمة</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.in_maintenance }}</div><div class="stat-label">في الصيانة</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.unavailable }}</div><div class="stat-label">غير متاح</div></div>
+</div>
+
+<div class="card">
+  <h3>مفتاح الحالة</h3>
+  <p class="page-hint">«الاحتياج» في هذه النسخة مؤشر أولي مشتق من الحالة الفنية: كل عتاد عاطل يظهر كاحتياج إصلاح. يمكن لاحقًا توسيعه إلى احتياجات الإحلال والتدعيم وقطع الغيار.</p>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <input id="statusSearch" class="search-box" placeholder="بحث في التصنيف، النوع أو الطراز...">
+  </div>
+</div>
+
+<style>
+.num-status-wrap{overflow-x:auto}
+.num-status{width:100%;min-width:980px;border-collapse:collapse}
+.num-status th,.num-status td{padding:10px 9px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:12px}
+.num-status th:first-child,.num-status td:first-child{text-align:right}
+.num-status th{background:#f8fafc;color:#475569;position:sticky;top:0}
+.num-status .category-row td{background:#eaf3fb;font-weight:800;color:#173b63}
+.num-status .type-row td{background:#f5f8fb;font-weight:700}
+.num-status .model-row td:first-child{padding-right:42px}
+.num-status .model-row{background:#fff}
+.need{font-weight:700}
+.empty-status{text-align:center;padding:30px;color:#64748b}
+</style>
+
+<div class="card">
+  <div class="num-status-wrap">
+    <table class="num-status" id="numericalStatusTable">
+      <thead>
+        <tr>
+          <th>التصنيف / النوع / الطراز</th>
+          <th>العدد</th>
+          <th>جاهز</th>
+          <th>عاطل</th>
+          <th>متاح</th>
+          <th>في مهمة</th>
+          <th>في الصيانة</th>
+          <th>ورشة خارجية</th>
+          <th>غير متاح</th>
+          <th>الاحتياج</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for category in hierarchy %}
+        <tr class="category-row searchable"><td>▾ {{ category.name }}</td><td>{{ category.stats.total }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ category.stats.broken if category.stats.broken else '—' }}</td></tr>
+        {% for type in category.types %}
+          <tr class="type-row searchable"><td>↳ {{ type.name }}</td><td>{{ type.stats.total }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ type.stats.broken if type.stats.broken else '—' }}</td></tr>
+          {% for model in type.models %}
+            <tr class="model-row searchable"><td>    ↳ {{ model.name }}</td><td>{{ model.stats.total }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ model.need if model.need else '—' }}</td></tr>
+          {% endfor %}
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="10" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  const q=document.getElementById('statusSearch');
+  q.addEventListener('input',function(){
+    const x=q.value.toLowerCase().trim();
+    document.querySelectorAll('#numericalStatusTable tbody tr.searchable').forEach(r=>{
+      r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none';
+    });
+  });
+})();
+</script>
+{% endblock %}
