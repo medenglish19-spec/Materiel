@@ -81,7 +81,7 @@
 
   <div class="analysis-grid">
     <div class="analysis-card">
-      <h4>توزيع أعداد العتاد حسب التصنيف</h4>
+      <h4>توزيع العتاد حسب التصنيف</h4>
       {% if category_analysis %}
       <div class="bar-list">
       {% for row in category_analysis %}
@@ -124,7 +124,7 @@
   </div>
 
   <div class="analysis-card wide">
-    <h4>توزيع أعداد العتاد حسب النوع</h4>
+    <h4>توزيع العتاد حسب النوع</h4>
     <div class="type-grid">
       {% for row in type_analysis[:12] %}
       <div class="type-chip"><div><strong>{{ row.name }}</strong><small>{{ row.category }}</small></div><b>{{ row.total }} <small>{{ row.share|round(1) }}%</small></b></div>
