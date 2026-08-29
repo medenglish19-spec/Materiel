@@ -251,16 +251,16 @@ def maintenance_rule_exception_create(
     days = int(interval_days) if interval_days else parent.interval_days
     warning_km_value = dec(warning_km, parent.warning_km)
     warning_days_value = int(warning_days) if warning_days else parent.warning_days
-    if parent.equipment_type.measurement_unit == "km":
+    if model.equipment_type.measurement_unit == "km":
         hours = None
-    elif parent.equipment_type.measurement_unit == "hours":
+    elif model.equipment_type.measurement_unit == "hours":
         km = None
     if not (km or hours or days):
         return RedirectResponse("/maintenance/rules?error=invalid", status_code=status.HTTP_303_SEE_OTHER)
 
     exception = MaintenanceRule(
         name=parent.name,
-        equipment_type_id=parent.equipment_type_id,
+        equipment_type_id=model.equipment_type_id,
         equipment_model_id=model.id,
         parent_rule_id=None,
         interval_km=km,
@@ -297,7 +297,7 @@ def maintenance_rule_exception_update(
     if exception is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
     parent = exception.parent_rule
-    unit = parent.equipment_type.measurement_unit
+    unit = exception.equipment_model.equipment_type.measurement_unit
 
     def dec(v, fallback):
         try:
