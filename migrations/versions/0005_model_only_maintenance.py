@@ -83,7 +83,7 @@ def upgrade() -> None:
 
         children = {
             r["equipment_model_id"]: r
-            for r in legacy_rules
+            for r in all_rules
             if r["parent_rule_id"] == base["id"] and r["equipment_model_id"] is not None
         }
 
