@@ -40,7 +40,7 @@
       </tr></thead>
       <tbody>
       {% for category in hierarchy %}
-        <tr class="category-row searchable" data-level="category"><td colspan="3" class="hierarchy-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td colspan="0" class="hierarchy-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td>{{ category.stats.theoretical }}</td><td>{{ category.stats.total }}</td><td class="need">{{ category.stats.need }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td></tr>
+        <tr class="category-row searchable" data-level="category"><td colspan="3" class="hierarchy-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td>{{ category.stats.theoretical }}</td><td>{{ category.stats.total }}</td><td class="need">{{ category.stats.need }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td></tr>
         {% for type in category.types %}
           <tr class="type-row searchable" data-level="type"><td colspan="3" class="hierarchy-name type-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
           {% for model in type.models %}
@@ -48,7 +48,7 @@
           {% endfor %}
         {% endfor %}
       {% else %}
-        <tr><td colspan="12" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
+        <tr><td colspan="13" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
       {% endfor %}
       </tbody>
     </table>
