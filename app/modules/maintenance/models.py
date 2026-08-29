@@ -20,6 +20,7 @@ class MaintenanceRule(Base):
         CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_rule_interval_days_positive"),
         CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_rule_warning_km_nonnegative"),
         CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_rule_warning_days_nonnegative"),
+        CheckConstraint("equipment_model_id IS NOT NULL OR is_active = 0", name="ck_maintenance_rule_active_requires_model"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
