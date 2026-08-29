@@ -36,6 +36,117 @@ def equipment_page(
     )
 
 
+@router.get("/equipment/fleet-status", response_class=HTMLResponse)
+def equipment_fleet_status_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """عرض تركيبة الحضيرة ومؤشرات الاحتياج التشغيلي دون التأثير على بيانات العتاد."""
+    from collections import defaultdict
+    from app.modules.equipment_types.models import EquipmentCategory, EquipmentType, EquipmentModel
+
+    categories = db.query(EquipmentCategory).order_by(EquipmentCategory.sort_order, EquipmentCategory.name).all()
+    category_map = {
+        c.id: {"category_id": c.id, "category_name": c.name, "total": 0, "ready": 0,
+               "in_mission": 0, "in_maintenance": 0, "in_external_workshop": 0,
+               "unavailable": 0, "potential_need": 0}
+        for c in categories
+    }
+
+    type_map = {}
+    model_map = {}
+    rows = (
+        db.query(Equipment)
+        .join(EquipmentType, Equipment.equipment_type_id == EquipmentType.id)
+        .outerjoin(EquipmentCategory, EquipmentType.category_id == EquipmentCategory.id)
+        .outerjoin(EquipmentModel, Equipment.equipment_model_id == EquipmentModel.id)
+        .with_entities(
+            Equipment.equipment_type_id,
+            Equipment.equipment_model_id,
+            Equipment.operational_status,
+            Equipment.technical_condition,
+            EquipmentType.name,
+            EquipmentModel.name,
+            EquipmentType.category_id,
+            EquipmentCategory.name,
+        )
+        .all()
+    )
+
+    for type_id, model_id, op_status, tech_condition, type_name, model_name, category_id, category_name in rows:
+        category_name = category_name or "غير مصنف"
+        if category_id not in category_map:
+            category_map[category_id] = {
+                "category_id": category_id, "category_name": category_name, "total": 0,
+                "ready": 0, "in_mission": 0, "in_maintenance": 0,
+                "in_external_workshop": 0, "unavailable": 0, "potential_need": 0,
+            }
+        cat = category_map[category_id]
+        cat["total"] += 1
+        if op_status in cat:
+            cat[op_status] += 1
+        if op_status == "available" and tech_condition == "ready":
+            cat["ready"] += 1
+        if op_status != "available" or tech_condition != "ready":
+            cat["potential_need"] += 1
+
+        tkey = type_id
+        t = type_map.setdefault(tkey, {
+            "category_id": category_id, "category_name": category_name,
+            "type_name": type_name, "total": 0, "ready": 0,
+            "not_ready": 0, "in_maintenance": 0, "unavailable": 0,
+        })
+        t["total"] += 1
+        if op_status == "available" and tech_condition == "ready":
+            t["ready"] += 1
+        else:
+            t["not_ready"] += 1
+        if op_status == "in_maintenance":
+            t["in_maintenance"] += 1
+        if op_status == "unavailable":
+            t["unavailable"] += 1
+
+        if model_id is not None:
+            mkey = model_id
+            m = model_map.setdefault(mkey, {
+                "category_id": category_id, "category_name": category_name,
+                "type_name": type_name, "model_name": model_name,
+                "total": 0, "ready": 0, "not_ready": 0,
+                "in_maintenance": 0, "unavailable": 0,
+            })
+            m["total"] += 1
+            if op_status == "available" and tech_condition == "ready":
+                m["ready"] += 1
+            else:
+                m["not_ready"] += 1
+            if op_status == "in_maintenance":
+                m["in_maintenance"] += 1
+            if op_status == "unavailable":
+                m["unavailable"] += 1
+
+    category_rows = sorted(category_map.values(), key=lambda x: x["category_name"])
+    type_rows = sorted(type_map.values(), key=lambda x: (x["category_name"], x["type_name"]))
+    model_rows = sorted(model_map.values(), key=lambda x: (x["category_name"], x["type_name"], x["model_name"] or ""))
+
+    total = len(rows)
+    ready = sum(1 for row in rows if row[2] == "available" and row[3] == "ready")
+    potential_need = sum(1 for row in rows if row[2] != "available" or row[3] != "ready")
+    summary = {"total": total, "ready": ready, "not_ready": total - ready, "potential_need": potential_need}
+
+    return templates.TemplateResponse(
+        "equipment_fleet_status.html",
+        {
+            "request": request,
+            "user": current_user,
+            "summary": summary,
+            "categories": category_rows,
+            "types": type_rows,
+            "models": model_rows,
+        },
+    )
+
+
 @router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
 def equipment_detail_page(
     equipment_id: int,
