@@ -43,7 +43,7 @@
         {% for type in category.types %}
           <tr class="type-row searchable" data-level="type"><td><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
           {% for model in type.models %}
-            <tr class="model-row searchable" data-level="model" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}"><td>↳ {{ model.name }}</td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
+            <tr class="model-row searchable" data-level="model" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}" data-op-available="{{ model.stats.available }}" data-op-mission="{{ model.stats.in_mission }}" data-op-maintenance="{{ model.stats.in_maintenance }}" data-op-external="{{ model.stats.in_external_workshop }}" data-op-unavailable="{{ model.stats.unavailable }}"><td>↳ {{ model.name }}</td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
           {% endfor %}
         {% endfor %}
       {% else %}
@@ -109,8 +109,15 @@
     });
   });
 
-  document.getElementById('expandAll').onclick=()=>table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','true');b.textContent='−';});
-  document.getElementById('collapseAll').onclick=()=>table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','false');b.textContent='+';});
+  document.getElementById('expandAll').onclick=()=>{
+    table.querySelectorAll('tbody tr.searchable').forEach(r=>r.style.display='');
+    table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','true');b.textContent='−';});
+    filter();
+  };
+  document.getElementById('collapseAll').onclick=()=>{
+    table.querySelectorAll('.type-row,.model-row').forEach(r=>r.style.display='none');
+    table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','false');b.textContent='+';});
+  };
   [q,condition,operational].forEach(el=>el.addEventListener('input',filter));
 })();
 </script>
