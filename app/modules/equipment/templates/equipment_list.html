@@ -3,8 +3,16 @@
 
 {% block content %}
 <div class="page-header">
-    <h2>العتاد والسيارات</h2>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><a href="/equipment/numerical-status" class="btn-outline">الحالة العددية للعتاد</a><button type="button" class="btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button></div>
+    <div><h2>العتاد</h2><p class="page-hint">إدارة الحضيرة ومتابعة تركيبها وحالتها التشغيلية.</p></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <a href="/equipment/numerical-status" class="btn-outline">الحالة العددية</a>
+        <button type="button" class="btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button>
+    </div>
+</div>
+<div class="equipment-nav">
+    <a class="active" href="/equipment">قائمة العتاد</a>
+    <a href="/equipment/numerical-status">الحالة العددية</a>
+    <a href="/equipment-types">الطرازات</a>
 </div>
 
 <div class="card" id="add-form-card" style="display:none;">
@@ -31,6 +39,8 @@
 </div>
 
 <style>
+.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}
+#equipment-table tbody tr.data-row{transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}
 /* الجدول عريض بطبيعته، لذلك يسمح بالتمرير يمينًا ويسارًا دون ضغط الأعمدة. */
 #equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
 #equipment-table{min-width:1050px;}
@@ -48,7 +58,7 @@
             data-type="{{ item.equipment_type.name if item.equipment_type else '' }}"
             data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}"
             data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}"
-            data-search="{{ item.registration_number or '' }} {{ item.vin or '' }}">
+            data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
             <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-odo">{{ item.current_odometer or 0 }} كم</td><td class="col-hours">{{ item.current_hours or 0 }} س</td>
             <td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td>
             <td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td>
