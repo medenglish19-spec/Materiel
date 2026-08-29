@@ -5,6 +5,7 @@ from alembic.config import Config
 from sqlalchemy import inspect, text
 
 from app.core.config import settings
+from app.database.base import Base
 from app.database.session import engine
 from app.modules.meter_readings import models as meter_models  # noqa: F401
 from app.modules.meter_readings import batches as meter_batches  # noqa: F401
@@ -198,8 +199,10 @@ def init_db() -> None:
 
     if "alembic_version" not in tables:
         if not tables:
-            # قاعدة جديدة: Alembic ينشئ المخطط كاملًا من البداية.
-            command.upgrade(config, "head")
+            # قاعدة جديدة: النماذج الحالية تنشئ المخطط الأولي، ثم نسجل
+            # baseline حتى تتولى Alembic كل التغييرات اللاحقة.
+            Base.metadata.create_all(bind=engine)
+            command.stamp(config, "head")
         else:
             # قاعدة قديمة: نحافظ على البيانات، نصلح legacy الضروري، ثم نبدأ
             # من baseline الحقيقي وننفذ كل revisions اللاحقة.
