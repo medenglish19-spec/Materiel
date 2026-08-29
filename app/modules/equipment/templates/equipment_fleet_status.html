@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}الحالة العددية للعتاد{% endblock %}
+{% block content %}
+<style>
+.fleet-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.fleet-kpi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px}
+.fleet-kpi .label{font-size:12px;color:#64748b}.fleet-kpi .value{font-size:28px;font-weight:800;color:#173b63;margin-top:5px}
+.fleet-alert{color:#991b1b}.fleet-ok{color:#166534}
+.fleet-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.fleet-toolbar input,.fleet-toolbar select{height:38px;border:1px solid #cbd5e1;border-radius:7px;padding:0 10px;background:#fff}
+.fleet-section{margin-bottom:16px}
+.fleet-section h3{margin:0 0 10px}
+.fleet-table{width:100%;border-collapse:collapse;background:#fff}
+.fleet-table th,.fleet-table td{padding:9px 10px;border-bottom:1px solid #e5e7eb;text-align:right;white-space:nowrap}
+.fleet-table th{background:#f8fafc;color:#475569;font-size:12px}
+.fleet-table td{font-size:13px}
+.fleet-total{font-weight:800;background:#f8fafc}
+.fleet-badge{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:11px}
+.fleet-badge.ready{background:#dcfce7;color:#166534}.fleet-badge.warn{background:#fef3c7;color:#92400e}.fleet-badge.danger{background:#fee2e2;color:#991b1b}
+@media(max-width:900px){.fleet-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fleet-table-wrap{overflow-x:auto}.fleet-table{min-width:850px}}
+@media(max-width:500px){.fleet-grid{grid-template-columns:1fr 1fr}}
+</style>
+
+<div class="page-header">
+  <div>
+    <h2>الحالة العددية للعتاد</h2>
+    <p class="page-hint">تركيبة الحضيرة، توزيعها حسب الفئات والأنواع والطرازات، ومؤشرات الاحتياج التشغيلي.</p>
+  </div>
+  <a class="btn-secondary" href="/equipment">← قائمة العتاد</a>
+</div>
+
+<div class="fleet-grid">
+  <div class="fleet-kpi"><div class="label">إجمالي الحضيرة</div><div class="value">{{ summary.total }}</div></div>
+  <div class="fleet-kpi"><div class="label">جاهز ومتاح</div><div class="value fleet-ok">{{ summary.ready }}</div></div>
+  <div class="fleet-kpi"><div class="label">غير جاهز / خارج الخدمة</div><div class="value fleet-alert">{{ summary.not_ready }}</div></div>
+  <div class="fleet-kpi"><div class="label">الاحتياج التشغيلي المحتمل</div><div class="value fleet-alert">{{ summary.potential_need }}</div></div>
+</div>
+
+<div class="card">
+  <div class="fleet-toolbar">
+    <input id="fleetSearch" type="search" placeholder="بحث بالفئة أو النوع أو الطراز...">
+    <select id="fleetCategory"><option value="">كل الفئات</option>{% for row in categories %}<option value="{{ row.category_id }}">{{ row.category_name }}</option>{% endfor %}</select>
+    <select id="fleetStatus"><option value="">كل الوضعيات</option><option value="available">متاح</option><option value="in_mission">في مهمة</option><option value="in_maintenance">في الصيانة</option><option value="in_external_workshop">في ورشة خارجية</option><option value="unavailable">غير متاح</option></select>
+  </div>
+  <p class="page-hint">الاحتياج التشغيلي المحتمل هو عدد الوحدات غير المتاحة أو غير الجاهزة فنيًا. لا يمثل طلب اقتناء نهائيًا إلا بعد اعتماد الهدف العددي للإدارة.</p>
+</div>
+
+<section class="card fleet-section">
+  <h3>تركيبة الحضيرة حسب الفئة</h3>
+  <div class="fleet-table-wrap">
+  <table class="fleet-table" id="categoryTable">
+    <thead><tr><th>الفئة</th><th>الإجمالي</th><th>جاهز</th><th>في مهمة</th><th>في الصيانة</th><th>ورشـة خارجية</th><th>غير متاح</th><th>احتياج تشغيلي محتمل</th></tr></thead>
+    <tbody>
+    {% for row in categories %}
+      <tr data-search="{{ row.category_name|lower }}" data-category="{{ row.category_id }}" data-status="">
+        <td>{{ row.category_name }}</td><td>{{ row.total }}</td><td>{{ row.ready }}</td><td>{{ row.in_mission }}</td><td>{{ row.in_maintenance }}</td><td>{{ row.in_external_workshop }}</td><td>{{ row.unavailable }}</td><td><span class="fleet-badge {% if row.potential_need %}danger{% else %}ready{% endif %}">{{ row.potential_need }}</span></td>
+      </tr>
+    {% else %}<tr><td colspan="8">لا توجد بيانات.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card fleet-section">
+  <h3>التوزيع حسب نوع العتاد</h3>
+  <div class="fleet-table-wrap">
+  <table class="fleet-table" id="typeTable">
+    <thead><tr><th>الفئة</th><th>نوع العتاد</th><th>الإجمالي</th><th>جاهز</th><th>غير جاهز</th><th>في الصيانة</th><th>غير متاح</th></tr></thead>
+    <tbody>
+    {% for row in types %}
+      <tr data-search="{{ row.category_name|lower }} {{ row.type_name|lower }}" data-category="{{ row.category_id }}">
+        <td>{{ row.category_name }}</td><td>{{ row.type_name }}</td><td>{{ row.total }}</td><td>{{ row.ready }}</td><td>{{ row.not_ready }}</td><td>{{ row.in_maintenance }}</td><td>{{ row.unavailable }}</td>
+      </tr>
+    {% else %}<tr><td colspan="7">لا توجد بيانات.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="card fleet-section">
+  <h3>التوزيع حسب الطراز</h3>
+  <div class="fleet-table-wrap">
+  <table class="fleet-table" id="modelTable">
+    <thead><tr><th>الفئة</th><th>النوع</th><th>الطراز</th><th>الإجمالي</th><th>جاهز</th><th>غير جاهز</th><th>في الصيانة</th><th>غير متاح</th></tr></thead>
+    <tbody>
+    {% for row in models %}
+      <tr data-search="{{ row.category_name|lower }} {{ row.type_name|lower }} {{ row.model_name|lower }}" data-category="{{ row.category_id }}">
+        <td>{{ row.category_name }}</td><td>{{ row.type_name }}</td><td>{{ row.model_name }}</td><td>{{ row.total }}</td><td>{{ row.ready }}</td><td>{{ row.not_ready }}</td><td>{{ row.in_maintenance }}</td><td>{{ row.unavailable }}</td>
+      </tr>
+    {% else %}<tr><td colspan="8">لا توجد طرازات مرتبطة بعتاد.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<script>
+(function(){
+ const search=document.getElementById('fleetSearch'), category=document.getElementById('fleetCategory'), status=document.getElementById('fleetStatus');
+ function apply(){
+   const q=(search.value||'').trim().toLowerCase(), cat=category.value;
+   document.querySelectorAll('.fleet-table tbody tr').forEach(row=>{
+     const text=(row.dataset.search||'').toLowerCase();
+     const ok=(!q||text.includes(q))&&(!cat||row.dataset.category===cat);
+     row.style.display=ok?'':'none';
+   });
+ }
+ [search,category,status].forEach(el=>el&&el.addEventListener('input',apply));
+})();
+</script>
+{% endblock %}
