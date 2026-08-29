@@ -44,6 +44,7 @@
         <nav class="app-menu">
             <a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a>
             <a href="/equipment" class="{% if request.url.path.startswith('/equipment') and not request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">▣</span><span>العتاد</span></a>
+            <a href="/equipment/numerical-status" class="{% if request.url.path.startswith('/equipment/numerical-status') %}active{% endif %}"><span class="menu-icon">▥</span><span>الحالة العددية للعتاد</span></a>
             <a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>قراءات العداد</span></a>
             <a href="/meter-readings/operations" class="{% if request.url.path.startswith('/meter-readings/operations') %}active{% endif %}"><span class="menu-icon">▤</span><span>سجل عمليات الإدخال</span></a>
             <a href="/equipment-types" class="{% if request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">⌘</span><span>أنواع العتاد</span></a>
