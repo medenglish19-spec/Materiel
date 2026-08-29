@@ -34,7 +34,7 @@
 .equip-link{border:1px solid #d8e0e8;background:#fff;color:var(--navy);padding:8px 12px;border-radius:6px;text-decoration:none;font-size:11px;font-weight:700}
 .equip-link:hover{background:#f7fafc}
 
-.metric-bar{display:grid;grid-template-columns:1.25fr repeat(5,1fr);background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:16px}
+.metric-bar{display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:16px}
 .metric{min-height:92px;padding:16px 18px;border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
 .metric:last-child{border-left:0}.metric-label{font-size:10px;color:#7a8795;font-weight:700;margin-bottom:7px}.metric-value{font-size:25px;line-height:1;color:var(--navy);font-weight:760;letter-spacing:-.03em}.metric-sub{font-size:10px;color:#8995a3;margin-top:6px}.metric.primary{background:#f8fafc}.metric.primary .metric-value{font-size:31px}.metric.need .metric-value{color:var(--danger)}.metric.surplus .metric-value{color:var(--warning)}.metric.nt .metric-value{color:#657488}
 
@@ -62,7 +62,7 @@
 .model-panel{margin-top:12px;padding:15px}.model-panel[hidden]{display:none}.model-summary{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.model-summary span{background:#f8fafc;border:1px solid #e4e9ee;border-radius:6px;padding:7px 9px;font-size:9px;color:#718096}.model-summary b{color:var(--ink)}.model-equipment-wrap{overflow:auto}.model-equipment-table{width:100%;min-width:600px;border-collapse:collapse}.model-equipment-table th,.model-equipment-table td{padding:8px;border-bottom:1px solid #edf0f3;text-align:right;font-size:10px}.model-equipment-table th{color:#7b8794;background:#fafbfc}.model-equipment-table a{color:#245d88;font-weight:700;text-decoration:none}
 
 @media(max-width:1050px){.metric-bar{grid-template-columns:repeat(3,1fr)}.metric.primary{grid-column:1/-1}.metric{border-bottom:1px solid var(--line)}.executive{grid-template-columns:1fr}.toolbar{grid-template-columns:1fr 1fr 1fr}.toolbar input{grid-column:1/-1}.analysis-grid{grid-template-columns:1fr}.type-matrix{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:700px){.equip-head{align-items:flex-start;flex-direction:column}.equip-head h1{font-size:21px}.metric-bar{grid-template-columns:1fr 1fr}.metric.primary{grid-column:1/-1}.toolbar{grid-template-columns:1fr 1fr}.toolbar input{grid-column:1/-1}.analysis-top{align-items:flex-start;flex-direction:column}.analysis-context{grid-template-columns:1fr 1fr}.context-item:nth-child(odd){border-left:1px solid var(--line)}.context-item:nth-child(n+3){border-top:1px solid var(--line)}.context-item:last-child{border-left:0}.balance-main{grid-template-columns:1fr}.dual{grid-template-columns:1fr}.bar-row{grid-template-columns:100px 1fr 45px}.type-matrix{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.metric-bar{grid-template-columns:1fr 1fr}.metric.primary{grid-column:1/-1}.equip-head{align-items:flex-start;flex-direction:column}.equip-head h1{font-size:21px}.metric-bar{grid-template-columns:1fr 1fr}.metric.primary{grid-column:1/-1}.toolbar{grid-template-columns:1fr 1fr}.toolbar input{grid-column:1/-1}.analysis-top{align-items:flex-start;flex-direction:column}.analysis-context{grid-template-columns:1fr 1fr}.context-item:nth-child(odd){border-left:1px solid var(--line)}.context-item:nth-child(n+3){border-top:1px solid var(--line)}.context-item:last-child{border-left:0}.balance-main{grid-template-columns:1fr}.dual{grid-template-columns:1fr}.bar-row{grid-template-columns:100px 1fr 45px}.type-matrix{grid-template-columns:1fr 1fr}}
 </style>
 
 <div class="equip-page">
@@ -76,9 +76,8 @@
   </header>
 
   <section class="metric-bar" aria-label="المؤشرات الرئيسية">
-    <div class="metric primary"><span class="metric-label">المحقق</span><span class="metric-value">{{ totals.total }}</span><span class="metric-sub">وحدة مسجلة في الحضيرة</span></div>
-    <div class="metric"><span class="metric-label">النظري</span><span class="metric-value">{{ totals.theoretical }}</span><span class="metric-sub">الواجب تحقيقه</span></div>
-    <div class="metric"><span class="metric-label">تحقيق التعداد</span><span class="metric-value">{{ coverage }}%</span><span class="metric-sub">{{ totals.total }} من {{ totals.theoretical }}</span></div>
+    <div class="metric primary"><span class="metric-label">النظري</span><span class="metric-value">{{ totals.theoretical }}</span><span class="metric-sub">الواجب تحقيقه</span></div>
+    <div class="metric"><span class="metric-label">المحقق</span><span class="metric-value">{{ totals.total }}</span><span class="metric-sub">وحدة مسجلة في الحضيرة</span></div>
     <div class="metric need"><span class="metric-label">الاحتياج</span><span class="metric-value">{{ totals.need }}</span><span class="metric-sub">{{ need_pct }}% من النظري</span></div>
     <div class="metric surplus"><span class="metric-label">الفائض</span><span class="metric-value">{{ ns.surplus }}</span><span class="metric-sub">{{ surplus_pct }}% من النظري</span></div>
     <div class="metric nt"><span class="metric-label">عتاد خارج TED</span><span class="metric-value">{{ ns.non_theoretical }}</span><span class="metric-sub">{{ non_theoretical_pct }}% من المحقق · خارج TED لا يدخل في الفجوة</span></div>
