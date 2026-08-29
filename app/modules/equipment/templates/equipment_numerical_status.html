@@ -55,6 +55,14 @@
   </div>
 </div>
 
+<div class="card model-detail-card" id="modelDetails" hidden>
+  <div class="page-header" style="margin-bottom:10px">
+    <div><h3 id="modelDetailsTitle">تفاصيل الطراز</h3><p class="page-hint" id="modelDetailsSummary"></p></div>
+    <button type="button" class="btn-outline" id="closeModelDetails">إغلاق</button>
+  </div>
+  <div id="modelDetailsBody"></div>
+</div>
+
 <style>
 .num-status-wrap{overflow-x:auto}
 .num-status{width:100%;min-width:1120px;border-collapse:collapse}
@@ -66,6 +74,8 @@
 .num-status .model-row td:first-child{padding-right:38px}
 .tree-toggle{background:none!important;color:inherit!important;border:0!important;padding:0 6px!important;font-size:16px;cursor:pointer}
 .need{font-weight:800}
+.model-details-btn{border:0;background:none;padding:0;color:#2563eb;font-weight:700;cursor:pointer;font:inherit;text-decoration:underline}
+.model-details-btn:hover{opacity:.75}
 .model-row[data-condition-broken="0"] .need{color:#166534}
 .model-row[data-condition-broken]:not([data-condition-broken="0"]) .need{color:#991b1b}
 @media(max-width:700px){.page-header{align-items:flex-start;gap:10px}.page-header h2{font-size:18px}.cards-grid{grid-template-columns:repeat(2,1fr)}.stat-card{padding:12px 8px}.stat-number{font-size:22px}}
