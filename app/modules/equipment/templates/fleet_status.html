@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}الحالة العددية للعتاد{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h2>الحالة العددية للعتاد</h2>
+    <p style="color:#64748b;margin-top:4px">تركيبة الحضيرة حسب التصنيف والنوع والطراز، مع مؤشرات الجاهزية والاحتياج التشغيلي.</p>
+  </div>
+  <a class="btn-outline" href="/equipment">← العتاد</a>
+</div>
+
+<div class="stats-grid" style="margin-bottom:18px">
+  <div class="card"><div style="color:#64748b;font-size:12px">إجمالي الحضيرة</div><div style="font-size:28px;font-weight:800">{{ totals.total }}</div></div>
+  <div class="card"><div style="color:#64748b;font-size:12px">جاهز ومتاح</div><div style="font-size:28px;font-weight:800">{{ totals.ready }}</div></div>
+  <div class="card"><div style="color:#64748b;font-size:12px">غير جاهز</div><div style="font-size:28px;font-weight:800">{{ totals.not_ready }}</div></div>
+  <div class="card"><div style="color:#64748b;font-size:12px">في الصيانة/الورشة</div><div style="font-size:28px;font-weight:800">{{ totals.in_maintenance }}</div></div>
+  <div class="card"><div style="color:#64748b;font-size:12px">عاطل/غير متاح</div><div style="font-size:28px;font-weight:800">{{ totals.unavailable }}</div></div>
+</div>
+
+{% for category in categories %}
+<section class="card" style="margin-bottom:18px">
+  <div class="page-header" style="margin-bottom:12px">
+    <div><h3 style="margin:0">{{ category.name }}</h3><span style="color:#64748b;font-size:12px">{{ category.total }} وحدة — جاهز {{ category.ready }} — غير جاهز {{ category.not_ready }}</span></div>
+    <strong style="font-size:20px">{{ category.total }}</strong>
+  </div>
+  <div style="overflow-x:auto">
+    <table class="data-table modern-table">
+      <thead><tr><th>نوع العتاد</th><th>الطراز</th><th>الإجمالي</th><th>جاهز ومتاح</th><th>غير جاهز</th><th>مؤشر الاحتياج</th></tr></thead>
+      <tbody>
+      {% for typ in category.types %}
+        {% for model in typ.models %}
+        <tr>
+          {% if loop.first %}<td rowspan="{{ typ.models|length }}">{{ typ.name }}</td>{% endif %}
+          <td>{{ model.name }}</td>
+          <td>{{ model.total }}</td>
+          <td>{{ model.ready }}</td>
+          <td>{{ model.not_ready }}</td>
+          <td>{% if model.not_ready %}<span class="badge badge-condition-broken">{{ model.not_ready }} تحتاج معالجة</span>{% else %}<span class="badge badge-condition-ready">لا يوجد عجز تشغيلي</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<div class="card"><div class="empty">لا يوجد عتاد مسجل بعد.</div></div>
+{% endfor %}
+{% endblock %}
