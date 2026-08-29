@@ -192,7 +192,7 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
     )
     types = db.query(EquipmentType).order_by(EquipmentType.name).all()
     models = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type)).order_by(EquipmentModel.name).all()
-    base_rules = [r for r in rules if r.parent_rule_id is None]
+    base_rules = [r for r in rules if r.parent_rule_id is None and r.equipment_model_id is None]
     record_counts = {r.id: db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id == r.id).count() for r in rules}
     edit_rule = None
     edit_id = request.query_params.get("edit")
@@ -234,8 +234,9 @@ def maintenance_rule_exception_create(
     if parent is None or model is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
     if db.query(MaintenanceRule.id).filter(
-        MaintenanceRule.parent_rule_id == parent.id,
         MaintenanceRule.equipment_model_id == model.id,
+        MaintenanceRule.name == parent.name,
+        MaintenanceRule.is_active.is_(True),
     ).first():
         return RedirectResponse("/maintenance/rules?error=exception_exists", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -261,7 +262,7 @@ def maintenance_rule_exception_create(
         name=parent.name,
         equipment_type_id=parent.equipment_type_id,
         equipment_model_id=model.id,
-        parent_rule_id=parent.id,
+        parent_rule_id=None,
         interval_km=km,
         interval_hours=hours,
         interval_days=days,
@@ -322,6 +323,7 @@ def maintenance_rule_exception_update(
     exception.warning_km = warning_km_value
     exception.warning_days = warning_days_value
     exception.description = description.strip() or parent.description
+    exception.parent_rule_id = None
     db.commit()
     return RedirectResponse("/maintenance/rules?saved=exception_updated", status_code=status.HTTP_303_SEE_OTHER)
 
