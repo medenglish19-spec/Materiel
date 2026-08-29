@@ -14,6 +14,8 @@
     {% endfor %}
   {% endfor %}
 {% endfor %}
+{% set ns.covered_actual = totals.total - ns.non_theoretical %}
+{% set ns.theoretical_models = 0 %}
 {% set coverage = analysis.coverage|round(1) %}
 {% set readiness = analysis.ready_pct|round(1) %}
 {% set need_pct = analysis.need_pct|round(1) %}
@@ -32,7 +34,7 @@
 .equip-link{border:1px solid #d8e0e8;background:#fff;color:var(--navy);padding:8px 12px;border-radius:6px;text-decoration:none;font-size:11px;font-weight:700}
 .equip-link:hover{background:#f7fafc}
 
-.metric-bar{display:grid;grid-template-columns:1.35fr repeat(4,1fr);background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:16px}
+.metric-bar{display:grid;grid-template-columns:1.25fr repeat(5,1fr);background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:16px}
 .metric{min-height:92px;padding:16px 18px;border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
 .metric:last-child{border-left:0}.metric-label{font-size:10px;color:#7a8795;font-weight:700;margin-bottom:7px}.metric-value{font-size:25px;line-height:1;color:var(--navy);font-weight:760;letter-spacing:-.03em}.metric-sub{font-size:10px;color:#8995a3;margin-top:6px}.metric.primary{background:#f8fafc}.metric.primary .metric-value{font-size:31px}.metric.need .metric-value{color:var(--danger)}.metric.surplus .metric-value{color:var(--warning)}.metric.nt .metric-value{color:#657488}
 
@@ -79,7 +81,7 @@
     <div class="metric"><span class="metric-label">تحقيق التعداد</span><span class="metric-value">{{ coverage }}%</span><span class="metric-sub">{{ totals.total }} من {{ totals.theoretical }}</span></div>
     <div class="metric need"><span class="metric-label">الاحتياج</span><span class="metric-value">{{ totals.need }}</span><span class="metric-sub">{{ need_pct }}% من النظري</span></div>
     <div class="metric surplus"><span class="metric-label">الفائض</span><span class="metric-value">{{ ns.surplus }}</span><span class="metric-sub">{{ surplus_pct }}% من النظري</span></div>
-    <div class="metric nt"><span class="metric-label">غير النظري</span><span class="metric-value">{{ ns.non_theoretical }}</span><span class="metric-sub">{{ non_theoretical_pct }}% من الفعلي</span></div>
+    <div class="metric nt"><span class="metric-label">غير النظري</span><span class="metric-value">{{ ns.non_theoretical }}</span><span class="metric-sub">{{ non_theoretical_pct }}% من الفعلي · لا يدخل في الفجوة</span></div>
   </section>
 
   <section class="executive">
@@ -160,7 +162,7 @@
       <div class="analysis-card wide"><h3>توزيع العتاد حسب النوع</h3><div class="sub">أكثر الأنواع حضورًا داخل الحضيرة</div><div class="type-matrix">{% for row in type_analysis[:12] %}<div class="type-item"><strong title="{{ row.name }}">{{ row.name }}</strong><small>{{ row.category }}</small><b>{{ row.total }} <em>وحدة</em></b><small>تحقيق {{ row.coverage|round(1) }}% · جاهزية {{ row.ready|round(1) }}%</small></div>{% endfor %}</div></div>
     </div>
 
-    <div class="note"><strong>قاعدة القراءة:</strong> الاحتياج يظهر فقط عندما يكون الفعلي أقل من النظري. الفائض يظهر عندما يتجاوز الفعلي النظري. العتاد غير النظري هو عتاد فعلي لا يرتبط بتعداد نظري محدد، ولذلك لا يُحسب فائضًا ولا احتياجًا.</div>
+    <div class="note"><strong>قاعدة القراءة:</strong> الاحتياج = <strong>max(التعداد النظري − التعداد الفعلي، 0)</strong>، ولا علاقة له بعدد الأعطال. الفائض = <strong>max(التعداد الفعلي − التعداد النظري، 0)</strong> ويُعرض منفصلًا. العتاد غير النظري هو عتاد فعلي بلا تعداد نظري معتمد، لذلك لا يدخل في حساب الاحتياج أو الفائض. كما أن الحالة الفنية والوضعية التشغيلية مؤشرات مستقلة عن التعداد.</div>
   </section>
 
   <section class="panel model-panel" id="modelDetails" hidden>
@@ -186,6 +188,13 @@
       const opOk=!o||!isModel||Object.keys(ops).some(k=>r.dataset['op'+k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase())] && ops[k]===o && Number(r.dataset['op'+k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase())])>0);
       const ok=!x||text.includes(x); const okB=!b||!isModel||r.dataset.brand===b; const okC=!c||!isModel||modelCondition===c;
       r.style.display=(ok&&okB&&okC&&opOk)?'':'none';
+    });
+    /* Keep hierarchy readable: when filtering models, retain their type/category parents only if a descendant remains visible. */
+    const visibleModels=[...table.querySelectorAll('.model-row')].filter(r=>r.style.display!=='none');
+    const visibleTypes=new Set(visibleModels.map(r=>{let p=r.previousElementSibling;while(p&&p.dataset.level!=='type')p=p.previousElementSibling;return p}));
+    const visibleCategories=new Set([...visibleTypes].map(r=>{let p=r.previousElementSibling;while(p&&p.dataset.level!=='category')p=p.previousElementSibling;return p}));
+    table.querySelectorAll('.type-row').forEach(r=>{if(x||b||c||o)r.style.display=visibleTypes.has(r)?'':'none'});
+    table.querySelectorAll('.category-row').forEach(r=>{if(x||b||c||o)r.style.display=visibleCategories.has(r)?'':'none'});
     });
   }
   [q,brand,condition,operational].forEach(el=>{el.addEventListener('input',filter);el.addEventListener('change',filter)});
