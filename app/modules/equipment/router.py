@@ -4,13 +4,14 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
+from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
 from app.modules.users.models import User
@@ -45,59 +46,57 @@ def equipment_numerical_status_page(
     items = (
         db.query(Equipment)
         .options(
-            joinedload(Equipment.equipment_type),
+            joinedload(Equipment.equipment_type).joinedload(type_services.EquipmentType.category),
             joinedload(Equipment.equipment_model),
         )
         .order_by(Equipment.id)
         .all()
     )
-
+    keys = ("total", "theoretical", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable")
+    zero = lambda: {k: 0 for k in keys}
     groups = {}
-    totals = {
-        "equipment": len(items),
-        "ready": 0,
-        "broken": 0,
-        "available": 0,
-        "in_mission": 0,
-        "in_maintenance": 0,
-        "in_external_workshop": 0,
-        "unavailable": 0,
-    }
 
     for item in items:
         category = item.equipment_type.category if item.equipment_type else None
         category_name = category.name if category else "غير مصنف"
         type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
         model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
-        category_group = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
-        type_group = category_group["types"].setdefault(type_name, {"models": {}, "sort": type_name})
-        model_group = type_group["models"].setdefault(model_name, {
-            "total": 0, "ready": 0, "broken": 0,
-            "available": 0, "in_mission": 0, "in_maintenance": 0,
-            "in_external_workshop": 0, "unavailable": 0,
-        })
-        model_group["total"] += 1
+        cg = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
+        tg = cg["types"].setdefault(type_name, {"models": {}})
+        theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
+        mg = tg["models"].setdefault(model_name, dict(zero(), theoretical=theoretical))
+        mg["total"] += 1
+        mg["theoretical"] = max(mg["theoretical"], theoretical)
         condition = item.technical_condition if item.technical_condition in ("ready", "broken") else "ready"
-        model_group[condition] += 1
-        if item.operational_status in totals:
-            model_group[item.operational_status] += 1
-            totals[item.operational_status] += 1
-        totals[condition] += 1
+        mg[condition] += 1
+        if item.operational_status in keys:
+            mg[item.operational_status] += 1
+
+    def sum_stats(stats_list):
+        out = zero()
+        for st in stats_list:
+            for k in keys:
+                out[k] += st[k]
+        return out
 
     hierarchy = []
-    for category_name, category_group in sorted(groups.items(), key=lambda x: (x[1]["sort"], x[0])):
-        category_total = {key: 0 for key in ("total", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable")}
+    for category_name, cg in sorted(groups.items(), key=lambda x: (x[1]["sort"], x[0])):
         type_rows = []
-        for type_name, type_group in sorted(category_group["types"].items(), key=lambda x: x[0]):
-            type_total = {key: 0 for key in category_total}
+        for type_name, tg in sorted(cg["types"].items()):
             model_rows = []
-            for model_name, stats in sorted(type_group["models"].items(), key=lambda x: x[0]):
-                for key in type_total:
-                    type_total[key] += stats[key]
-                    category_total[key] += stats[key]
-                model_rows.append({"name": model_name, "stats": stats, "need": stats["broken"]})
-            type_rows.append({"name": type_name, "stats": type_total, "models": model_rows})
-        hierarchy.append({"name": category_name, "stats": category_total, "types": type_rows})
+            for model_name, st in sorted(tg["models"].items()):
+                st["need"] = max(0, st["theoretical"] - st["total"])
+                model_rows.append({"name": model_name, "stats": st})
+            ts = sum_stats([m["stats"] for m in model_rows])
+            ts["need"] = max(0, ts["theoretical"] - ts["total"])
+            type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
+        cs = sum_stats([t["stats"] for t in type_rows])
+        cs["need"] = max(0, cs["theoretical"] - cs["total"])
+        hierarchy.append({"name": category_name, "stats": cs, "types": type_rows})
+
+    totals = sum_stats([c["stats"] for c in hierarchy])
+    totals["need"] = max(0, totals["theoretical"] - totals["total"])
+    totals["equipment"] = totals["total"]
 
     return templates.TemplateResponse(
         "equipment_numerical_status.html",
