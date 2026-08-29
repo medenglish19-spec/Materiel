@@ -2,87 +2,116 @@
 {% block title %}الحالة العددية للعتاد{% endblock %}
 {% block content %}
 <div class="page-header">
-  <div><h2>الحالة العددية للعتاد</h2><p class="page-hint">تركيبة الحضيرة وأعداد العتاد حسب التصنيف ← النوع ← الطراز، مع الحالة ومؤشر الاحتياج.</p></div>
+  <div><h2>الحالة العددية للعتاد</h2><p class="page-hint">تركيبة الحضيرة مقارنة بالتعداد النظري الواجب تحقيقه.</p></div>
   <a href="/equipment" class="btn-outline">← العودة إلى العتاد</a>
 </div>
 
 <div class="cards-grid">
-  <div class="stat-card"><div class="stat-number">{{ totals.equipment }}</div><div class="stat-label">إجمالي العتاد</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.total }}</div><div class="stat-label">التعداد الفعلي</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.theoretical }}</div><div class="stat-label">التعداد النظري</div></div>
+  <div class="stat-card {% if totals.need > 0 %}stat-alert{% endif %}"><div class="stat-number">{{ totals.need }}</div><div class="stat-label">الاحتياج</div></div>
   <div class="stat-card"><div class="stat-number">{{ totals.ready }}</div><div class="stat-label">جاهز</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.broken }}</div><div class="stat-label">عاطل / يحتاج إصلاح</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.in_mission }}</div><div class="stat-label">في مهمة</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.broken }}</div><div class="stat-label">عاطل</div></div>
   <div class="stat-card"><div class="stat-number">{{ totals.in_maintenance }}</div><div class="stat-label">في الصيانة</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.unavailable }}</div><div class="stat-label">غير متاح</div></div>
 </div>
 
 <div class="card">
-  <h3>مفتاح الحالة</h3>
-  <p class="page-hint">«الاحتياج» في هذه النسخة مؤشر أولي مشتق من الحالة الفنية: كل عتاد عاطل يظهر كاحتياج إصلاح. يمكن لاحقًا توسيعه إلى احتياجات الإحلال والتدعيم وقطع الغيار.</p>
+  <h3>طريقة حساب الاحتياج</h3>
+  <p class="page-hint" style="margin-bottom:0"><strong>الاحتياج = التعداد النظري الواجب تحقيقه − التعداد الفعلي.</strong> إذا كان الفعلي مساويًا أو أكبر من النظري، يكون الاحتياج صفرًا. التعداد النظري يحدد على مستوى الطراز.</p>
 </div>
 
 <div class="card">
   <div class="toolbar">
     <input id="statusSearch" class="search-box" placeholder="بحث في التصنيف، النوع أو الطراز...">
+    <select id="statusCondition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select>
+    <select id="statusOperational"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select>
+    <button type="button" class="btn-outline" id="expandAll">فتح الكل</button>
+    <button type="button" class="btn-outline" id="collapseAll">طي الكل</button>
   </div>
 </div>
-
-<style>
-.num-status-wrap{overflow-x:auto}
-.num-status{width:100%;min-width:980px;border-collapse:collapse}
-.num-status th,.num-status td{padding:10px 9px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:12px}
-.num-status th:first-child,.num-status td:first-child{text-align:right}
-.num-status th{background:#f8fafc;color:#475569;position:sticky;top:0}
-.num-status .category-row td{background:#eaf3fb;font-weight:800;color:#173b63}
-.num-status .type-row td{background:#f5f8fb;font-weight:700}
-.num-status .model-row td:first-child{padding-right:42px}
-.num-status .model-row{background:#fff}
-.need{font-weight:700}
-.empty-status{text-align:center;padding:30px;color:#64748b}
-</style>
 
 <div class="card">
   <div class="num-status-wrap">
     <table class="num-status" id="numericalStatusTable">
-      <thead>
-        <tr>
-          <th>التصنيف / النوع / الطراز</th>
-          <th>العدد</th>
-          <th>جاهز</th>
-          <th>عاطل</th>
-          <th>متاح</th>
-          <th>في مهمة</th>
-          <th>في الصيانة</th>
-          <th>ورشة خارجية</th>
-          <th>غير متاح</th>
-          <th>الاحتياج</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th>التصنيف / النوع / الطراز</th><th>النظري</th><th>الفعلي</th><th>الاحتياج</th><th>جاهز</th><th>عاطل</th>
+        <th>متاح</th><th>في مهمة</th><th>في الصيانة</th><th>ورشة خارجية</th><th>غير متاح</th>
+      </tr></thead>
       <tbody>
       {% for category in hierarchy %}
-        <tr class="category-row searchable"><td>▾ {{ category.name }}</td><td>{{ category.stats.total }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ category.stats.broken if category.stats.broken else '—' }}</td></tr>
+        <tr class="category-row searchable" data-level="category"><td><button type="button" class="tree-toggle" aria-expanded="true">−</button><strong>{{ category.name }}</strong></td><td>{{ category.stats.theoretical }}</td><td>{{ category.stats.total }}</td><td class="need">{{ category.stats.need }}</td><td>{{ category.stats.ready }}</td><td>{{ category.stats.broken }}</td><td>{{ category.stats.available }}</td><td>{{ category.stats.in_mission }}</td><td>{{ category.stats.in_maintenance }}</td><td>{{ category.stats.in_external_workshop }}</td><td>{{ category.stats.unavailable }}</td></tr>
         {% for type in category.types %}
-          <tr class="type-row searchable"><td>↳ {{ type.name }}</td><td>{{ type.stats.total }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ type.stats.broken if type.stats.broken else '—' }}</td></tr>
+          <tr class="type-row searchable" data-level="type"><td><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
           {% for model in type.models %}
-            <tr class="model-row searchable"><td>    ↳ {{ model.name }}</td><td>{{ model.stats.total }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td><td class="need">{{ 'إصلاح: ' ~ model.need if model.need else '—' }}</td></tr>
+            <tr class="model-row searchable" data-level="model" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}"><td>↳ {{ model.name }}</td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
           {% endfor %}
         {% endfor %}
       {% else %}
-        <tr><td colspan="10" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
+        <tr><td colspan="11" class="empty-status">لا يوجد عتاد مسجّل بعد.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 
+<style>
+.num-status-wrap{overflow-x:auto}
+.num-status{width:100%;min-width:1120px;border-collapse:collapse}
+.num-status th,.num-status td{padding:9px 8px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:12px;white-space:nowrap}
+.num-status th:first-child,.num-status td:first-child{text-align:right}
+.num-status th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:2}
+.num-status .category-row td{background:#eaf3fb;font-weight:800;color:#173b63}
+.num-status .type-row td{background:#f5f8fb;font-weight:700}
+.num-status .model-row td:first-child{padding-right:38px}
+.tree-toggle{background:none!important;color:inherit!important;border:0!important;padding:0 6px!important;font-size:16px;cursor:pointer}
+.need{font-weight:800}
+.model-row[data-condition-broken="0"] .need{color:#166534}
+.model-row[data-condition-broken]:not([data-condition-broken="0"]) .need{color:#991b1b}
+@media(max-width:700px){.page-header{align-items:flex-start;gap:10px}.page-header h2{font-size:18px}.cards-grid{grid-template-columns:repeat(2,1fr)}.stat-card{padding:12px 8px}.stat-number{font-size:22px}}
+</style>
+
 <script>
 (function(){
-  const q=document.getElementById('statusSearch');
-  q.addEventListener('input',function(){
-    const x=q.value.toLowerCase().trim();
-    document.querySelectorAll('#numericalStatusTable tbody tr.searchable').forEach(r=>{
-      r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none';
+  const table=document.getElementById('numericalStatusTable');
+  const q=document.getElementById('statusSearch'), condition=document.getElementById('statusCondition'), operational=document.getElementById('statusOperational');
+  const rows=[...table.querySelectorAll('tbody tr.searchable')];
+
+  function filter(){
+    const x=q.value.toLowerCase().trim(), c=condition.value, o=operational.value;
+    rows.forEach(r=>{
+      const text=r.innerText.toLowerCase();
+      const modelCondition=r.dataset.conditionBroken==='0'?'جاهز':(r.dataset.conditionBroken?'عاطل':'');
+      const okSearch=!x||text.includes(x);
+      const okCondition=!c||modelCondition===c||r.dataset.level!=='model';
+      const okOperational=!o||r.innerText.includes(o)||r.dataset.level!=='model';
+      r.style.display=okSearch&&okCondition&&okOperational?'':'none';
+    });
+  }
+
+  function setChildrenVisibility(parentRow, show){
+    let row=parentRow.nextElementSibling;
+    const level=parentRow.dataset.level;
+    const childLevel=level==='category'?'type':'model';
+    while(row && row.dataset.level!==level){
+      if(row.dataset.level===childLevel) row.style.display=show?'':'none';
+      if(level==='category' && row.dataset.level==='type' && !show) {
+        row.querySelector('.tree-toggle')?.setAttribute('aria-expanded','false');
+      }
+      row=row.nextElementSibling;
+    }
+  }
+
+  table.querySelectorAll('.tree-toggle').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const tr=btn.closest('tr'), expanded=btn.getAttribute('aria-expanded')==='true';
+      btn.setAttribute('aria-expanded',String(!expanded)); btn.textContent=expanded?'+':'−';
+      setChildrenVisibility(tr,!expanded);
     });
   });
+
+  document.getElementById('expandAll').onclick=()=>table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','true');b.textContent='−';});
+  document.getElementById('collapseAll').onclick=()=>table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','false');b.textContent='+';});
+  [q,condition,operational].forEach(el=>el.addEventListener('input',filter));
 })();
 </script>
 {% endblock %}
