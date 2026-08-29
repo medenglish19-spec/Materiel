@@ -192,7 +192,7 @@ def equipment_numerical_status_page(
 
     return templates.TemplateResponse(
         "equipment_numerical_status.html",
-        {"request": request, "user": current_user, "hierarchy": hierarchy, "totals": totals},
+        {"request": request, "user": current_user, "hierarchy": hierarchy, "totals": totals, "category_analysis": category_analysis, "type_analysis": type_analysis, "model_analysis": model_analysis, "status_analysis": status_analysis, "analysis": analysis},
     )
 
 
