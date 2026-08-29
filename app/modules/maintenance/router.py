@@ -113,47 +113,67 @@ def priority_for(state, remaining_meter, meta):
 
 
 def effective_rules_for_equipment(db: Session, equipment, include_rule_id=None):
-    """Return the rules that effectively apply to one equipment item."""
+    """Return maintenance rules for the equipment model.
+
+    New maintenance logic is model-based: a rule with an equipment_model_id
+    applies only to that exact model. Legacy type-wide rules remain available
+    only as a backward-compatible fallback when no model-specific rule exists,
+    so existing installations are not left without maintenance coverage.
+    Exception/parent rules created by the former implementation are ignored.
+    """
     rules = (
         db.query(MaintenanceRule)
         .options(joinedload(MaintenanceRule.equipment_type), joinedload(MaintenanceRule.equipment_model))
-        .filter(MaintenanceRule.equipment_type_id == equipment.equipment_type_id)
+        .filter(
+            MaintenanceRule.equipment_type_id == equipment.equipment_type_id,
+            MaintenanceRule.is_active.is_(True),
+            MaintenanceRule.parent_rule_id.is_(None),
+        )
         .order_by(MaintenanceRule.name, MaintenanceRule.id)
         .all()
     )
-    base_rules = {rule.id: rule for rule in rules if rule.parent_rule_id is None}
-    exceptions = {
-        rule.parent_rule_id: rule
-        for rule in rules
-        if rule.parent_rule_id is not None
+
+    model_rules = [
+        rule for rule in rules
+        if rule.equipment_model_id is not None
         and rule.equipment_model_id == equipment.equipment_model_id
-    }
-    result = []
-    for base_id, base_rule in base_rules.items():
-        exception = exceptions.get(base_id)
-        if exception is not None:
-            if exception.is_active or include_rule_id == exception.id:
-                result.append(exception)
-            elif include_rule_id == base_id:
-                result.append(base_rule)
-        elif base_rule.is_active or include_rule_id == base_id:
-            result.append(base_rule)
+    ]
+    legacy_rules = [rule for rule in rules if rule.equipment_model_id is None]
+
+    result = model_rules if model_rules else legacy_rules
+
     if include_rule_id is not None and not any(rule.id == include_rule_id for rule in result):
-        historical = next((rule for rule in rules if rule.id == include_rule_id), None)
-        if historical is not None:
-            model_ok = historical.equipment_model_id is None or historical.equipment_model_id == equipment.equipment_model_id
+        historical = (
+            db.query(MaintenanceRule)
+            .options(joinedload(MaintenanceRule.equipment_type), joinedload(MaintenanceRule.equipment_model))
+            .filter(MaintenanceRule.id == include_rule_id)
+            .first()
+        )
+        if historical is not None and historical.parent_rule_id is None:
+            model_ok = (
+                historical.equipment_model_id is None
+                or historical.equipment_model_id == equipment.equipment_model_id
+            )
             if model_ok:
                 result.append(historical)
+
     return sorted(result, key=lambda rule: (rule.name, rule.id))
 
 
 def get_effective_rule_for_equipment(db: Session, equipment, rule_id: int, include_historical: bool = False):
-    rules = effective_rules_for_equipment(
-        db,
-        equipment,
-        include_rule_id=rule_id if include_historical else None,
+    if equipment is None:
+        return None
+    return next(
+        (
+            rule for rule in effective_rules_for_equipment(
+                db,
+                equipment,
+                include_rule_id=rule_id if include_historical else None,
+            )
+            if rule.id == rule_id
+        ),
+        None,
     )
-    return next((rule for rule in rules if rule.id == rule_id), None)
 
 
 @router.get("/maintenance", response_class=HTMLResponse)
