@@ -28,7 +28,9 @@ def _repair_existing_meter_readings_schema() -> None:
     columns = {column["name"] for column in inspector.get_columns("meter_readings")}
     with engine.begin() as connection:
         if "updated_at" not in columns:
-            connection.execute(text("ALTER TABLE meter_readings ADD COLUMN updated_at DATETIME"))
+            connection.execute(
+                text("ALTER TABLE meter_readings ADD COLUMN updated_at DATETIME")
+            )
             connection.execute(text(
                 "UPDATE meter_readings SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) "
                 "WHERE updated_at IS NULL"
@@ -40,7 +42,7 @@ def _repair_existing_meter_readings_schema() -> None:
 
 
 def _repair_existing_maintenance_schema() -> None:
-    """ترحيل آمن للمخطط القديم أثناء bootstrap الأول فقط."""
+    """ترحيل أعمدة legacy اللازمة فقط قبل بدء سلسلة Alembic الرسمية."""
     if not str(engine.url).startswith("sqlite"):
         return
 
@@ -56,6 +58,7 @@ def _repair_existing_maintenance_schema() -> None:
 
         if "rule_id" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"))
+            columns.add("rule_id")
 
         if "maintenance_date" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
@@ -64,6 +67,7 @@ def _repair_existing_maintenance_schema() -> None:
                     "UPDATE maintenance_records SET maintenance_date = reported_date "
                     "WHERE maintenance_date IS NULL"
                 ))
+            columns.add("maintenance_date")
 
         if "meter_value" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN meter_value NUMERIC(10, 1)"))
@@ -72,9 +76,11 @@ def _repair_existing_maintenance_schema() -> None:
                     "UPDATE maintenance_records SET meter_value = meter_reading "
                     "WHERE meter_value IS NULL"
                 ))
+            columns.add("meter_value")
 
         if "work_order" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN work_order VARCHAR(80)"))
+            columns.add("work_order")
 
         if "workshop" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN workshop VARCHAR(120)"))
@@ -82,19 +88,23 @@ def _repair_existing_maintenance_schema() -> None:
                 connection.execute(text(
                     "UPDATE maintenance_records SET workshop = location WHERE workshop IS NULL"
                 ))
+            columns.add("workshop")
 
         if "status" not in columns:
             connection.execute(text(
                 "ALTER TABLE maintenance_records ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'completed'"
             ))
+            columns.add("status")
 
         if "is_scheduled" not in columns:
             connection.execute(text(
                 "ALTER TABLE maintenance_records ADD COLUMN is_scheduled BOOLEAN NOT NULL DEFAULT 0"
             ))
+            columns.add("is_scheduled")
 
         if "description" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN description TEXT"))
+            columns.add("description")
 
         if "created_at" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN created_at DATETIME"))
@@ -102,9 +112,11 @@ def _repair_existing_maintenance_schema() -> None:
                 "UPDATE maintenance_records SET created_at = CURRENT_TIMESTAMP "
                 "WHERE created_at IS NULL"
             ))
+            columns.add("created_at")
 
         if "reported_date" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN reported_date DATE"))
+            columns.add("reported_date")
 
         connection.execute(text(
             "UPDATE maintenance_records SET maintenance_date = "
@@ -119,7 +131,7 @@ def _repair_existing_maintenance_schema() -> None:
 
 
 def _seed_equipment_classification_defaults() -> None:
-    """إضافة الفئات الرئيسية الثابتة عند إنشاء قاعدة جديدة فقط."""
+    """إضافة الفئات الرئيسية الثابتة بشكل idempotent."""
     from app.modules.equipment_types.models import EquipmentCategory
     from app.database.session import SessionLocal
 
@@ -133,7 +145,9 @@ def _seed_equipment_classification_defaults() -> None:
     db = SessionLocal()
     try:
         for name, code, sort_order in defaults:
-            existing = db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first()
+            existing = db.query(EquipmentCategory).filter(
+                EquipmentCategory.code == code
+            ).first()
             if existing is None:
                 db.add(
                     EquipmentCategory(
@@ -151,24 +165,53 @@ def _seed_equipment_classification_defaults() -> None:
 def _alembic_config() -> Config:
     root = Path(__file__).resolve().parents[2]
     config = Config(str(root / "alembic.ini"))
-    config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL).replace("%", "%%"))
+    config.set_main_option(
+        "sqlalchemy.url",
+        str(settings.DATABASE_URL).replace("%", "%%"),
+    )
     return config
 
 
+def _has_current_classification_schema(tables: set[str]) -> bool:
+    """Detect a DB that already contains the 0003 classification schema."""
+    if not {"equipment_categories", "equipment_brands"}.issubset(tables):
+        return False
+
+    inspector = inspect(engine)
+    type_columns = {c["name"] for c in inspector.get_columns("equipment_types")}
+    model_columns = {c["name"] for c in inspector.get_columns("equipment_models")}
+    return "category_id" in type_columns and "brand_id" in model_columns
+
+
+def _has_model_exception_schema() -> bool:
+    inspector = inspect(engine)
+    if "maintenance_rules" not in inspector.get_table_names():
+        return False
+    columns = {c["name"] for c in inspector.get_columns("maintenance_rules")}
+    return {"equipment_model_id", "parent_rule_id"}.issubset(columns)
+
+
 def init_db() -> None:
-    """تهيئة قاعدة البيانات وإدارة مخططها عبر Alembic."""
+    """تهيئة قاعدة البيانات عبر Alembic دون تجاوز migrations أو إعادة إنشاء schema فوقها."""
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
+    config = _alembic_config()
 
     if "alembic_version" not in tables:
-        # Bootstrap آمن لقاعدة موجودة مسبقًا أو قاعدة جديدة.
-        Base.metadata.create_all(bind=engine)
-        _repair_existing_meter_readings_schema()
-        _repair_existing_maintenance_schema()
-        command.stamp(_alembic_config(), "head")
+        if not tables:
+            # قاعدة جديدة: النماذج الحالية تنشئ المخطط الأولي، ثم نسجل
+            # baseline حتى تتولى Alembic كل التغييرات اللاحقة.
+            Base.metadata.create_all(bind=engine)
+            command.stamp(config, "head")
+        else:
+            # قاعدة قديمة: نحافظ على البيانات، نصلح legacy الضروري، ثم نبدأ
+            # من baseline الحقيقي وننفذ كل revisions اللاحقة.
+            _repair_existing_meter_readings_schema()
+            _repair_existing_maintenance_schema()
+            command.stamp(config, "0001_baseline")
+            command.upgrade(config, "head")
     else:
-        # من هذه النقطة تصبح Alembic هي المرجع الوحيد لتغييرات المخطط.
-        command.upgrade(_alembic_config(), "head")
+        command.upgrade(config, "head")
 
     _seed_equipment_classification_defaults()
 
@@ -188,11 +231,20 @@ def create_default_admin() -> None:
     from app.database.session import SessionLocal
     from app.modules.users.services import get_user_by_username, create_user
     from app.modules.users.schemas import UserCreate
+
     db = SessionLocal()
     try:
         existing = get_user_by_username(db, "admin")
         if not existing:
-            create_user(db, UserCreate(username="admin", full_name="مدير النظام", password="Admin@123", role="admin"))
+            create_user(
+                db,
+                UserCreate(
+                    username="admin",
+                    full_name="مدير النظام",
+                    password="Admin@123",
+                    role="admin",
+                ),
+            )
             print("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
     finally:
         db.close()
