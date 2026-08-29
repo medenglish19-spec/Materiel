@@ -233,8 +233,6 @@ def maintenance_rule_exception_create(
     model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
     if parent is None or model is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    if model.equipment_type_id != parent.equipment_type_id:
-        return RedirectResponse("/maintenance/rules?error=model_type", status_code=status.HTTP_303_SEE_OTHER)
     if db.query(MaintenanceRule.id).filter(
         MaintenanceRule.parent_rule_id == parent.id,
         MaintenanceRule.equipment_model_id == model.id,
