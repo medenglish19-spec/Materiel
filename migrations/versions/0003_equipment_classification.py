@@ -7,8 +7,8 @@ Revises: 0002_remove_legacy_maintenance_columns
 from datetime import datetime, timezone
 
 from alembic import op
-import sqlalchemy as sa
 from sqlalchemy import inspect
+import sqlalchemy as sa
 
 
 revision = "0003_equipment_classification"
@@ -22,6 +22,14 @@ _CATEGORIES = (
     ("معدات الأشغال", "CONSTRUCTION", 30),
     ("معدات الدعم", "SUPPORT", 40),
 )
+
+
+def _unique_constraint_for_columns(inspector, table_name: str, columns: list[str]):
+    wanted = tuple(columns)
+    for constraint in inspector.get_unique_constraints(table_name):
+        if tuple(constraint.get("column_names") or ()) == wanted:
+            return constraint.get("name")
+    return None
 
 
 def upgrade() -> None:
@@ -42,7 +50,9 @@ def upgrade() -> None:
             sa.UniqueConstraint("name", name="uq_equipment_categories_name"),
             sa.UniqueConstraint("code", name="uq_equipment_category_code"),
         )
-    if "equipment_brands" not in tables:
+
+    inspector = inspect(bind)
+    if "equipment_brands" not in inspector.get_table_names():
         op.create_table(
             "equipment_brands",
             sa.Column("id", sa.Integer(), primary_key=True),
@@ -64,8 +74,8 @@ def upgrade() -> None:
     )
     existing_codes = {
         row[0] for row in bind.execute(
-            sa.select(sa.column("code")).select_from(sa.table("equipment_categories"))
-        )
+            sa.select(categories.c.code)
+        ).fetchall()
     }
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     missing = [
@@ -83,12 +93,15 @@ def upgrade() -> None:
     if missing:
         op.bulk_insert(categories, missing)
 
-    if "equipment_types" in tables:
+    inspector = inspect(bind)
+    if "equipment_types" in inspector.get_table_names():
         columns = {c["name"] for c in inspector.get_columns("equipment_types")}
         if "category_id" not in columns:
             with op.batch_alter_table(
                 "equipment_types",
-                naming_convention={"fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"},
+                naming_convention={
+                    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
+                },
             ) as batch_op:
                 batch_op.add_column(sa.Column("category_id", sa.Integer(), nullable=True))
                 batch_op.create_foreign_key(
@@ -99,13 +112,23 @@ def upgrade() -> None:
                     ondelete="SET NULL",
                 )
 
-    if "equipment_models" in tables:
+    inspector = inspect(bind)
+    if "equipment_models" in inspector.get_table_names():
         columns = {c["name"] for c in inspector.get_columns("equipment_models")}
-        constraints = {c["name"] for c in inspector.get_unique_constraints("equipment_models")}
-        fks = {c["name"] for c in inspector.get_foreign_keys("equipment_models")}
+        old_constraint = _unique_constraint_for_columns(
+            inspector, "equipment_models", ["equipment_type_id", "name"]
+        )
+        new_constraint = _unique_constraint_for_columns(
+            inspector, "equipment_models",
+            ["equipment_type_id", "brand_id", "name"]
+        )
+        fks = {c.get("name") for c in inspector.get_foreign_keys("equipment_models")}
+
         with op.batch_alter_table(
             "equipment_models",
-            naming_convention={"fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"},
+            naming_convention={
+                "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
+            },
         ) as batch_op:
             if "brand_id" not in columns:
                 batch_op.add_column(sa.Column("brand_id", sa.Integer(), nullable=True))
@@ -117,9 +140,8 @@ def upgrade() -> None:
                     ["id"],
                     ondelete="SET NULL",
                 )
-            if "uq_model_per_type" in constraints:
-                batch_op.drop_constraint("uq_model_per_type", type_="unique")
-            if "uq_model_per_type_brand" not in constraints:
+            if old_constraint and not new_constraint:
+                batch_op.drop_constraint(old_constraint, type_="unique")
                 batch_op.create_unique_constraint(
                     "uq_model_per_type_brand",
                     ["equipment_type_id", "brand_id", "name"],
@@ -129,33 +151,49 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = inspect(bind)
+
     if "equipment_models" in inspector.get_table_names():
         with op.batch_alter_table(
             "equipment_models",
-            naming_convention={"fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"},
+            naming_convention={
+                "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
+            },
         ) as batch_op:
-            constraints = {c["name"] for c in inspector.get_unique_constraints("equipment_models")}
-            fks = {c["name"] for c in inspector.get_foreign_keys("equipment_models")}
-            if "uq_model_per_type_brand" in constraints:
-                batch_op.drop_constraint("uq_model_per_type_brand", type_="unique")
-            if "fk_equipment_models_brand" in fks:
+            constraint = _unique_constraint_for_columns(
+                inspector, "equipment_models",
+                ["equipment_type_id", "brand_id", "name"]
+            )
+            if constraint:
+                batch_op.drop_constraint(constraint, type_="unique")
+            if "fk_equipment_models_brand" in {
+                c.get("name") for c in inspector.get_foreign_keys("equipment_models")
+            }:
                 batch_op.drop_constraint("fk_equipment_models_brand", type_="foreignkey")
             if "brand_id" in {c["name"] for c in inspector.get_columns("equipment_models")}:
                 batch_op.drop_column("brand_id")
-            if "uq_model_per_type" not in constraints:
-                batch_op.create_unique_constraint("uq_model_per_type", ["equipment_type_id", "name"])
+            if _unique_constraint_for_columns(
+                inspector, "equipment_models", ["equipment_type_id", "name"]
+            ) is None:
+                batch_op.create_unique_constraint(
+                    "uq_model_per_type", ["equipment_type_id", "name"]
+                )
 
+    inspector = inspect(bind)
     if "equipment_types" in inspector.get_table_names():
         with op.batch_alter_table(
             "equipment_types",
-            naming_convention={"fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"},
+            naming_convention={
+                "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s"
+            },
         ) as batch_op:
-            fks = {c["name"] for c in inspector.get_foreign_keys("equipment_types")}
-            if "fk_equipment_types_category" in fks:
+            if "fk_equipment_types_category" in {
+                c.get("name") for c in inspector.get_foreign_keys("equipment_types")
+            }:
                 batch_op.drop_constraint("fk_equipment_types_category", type_="foreignkey")
             if "category_id" in {c["name"] for c in inspector.get_columns("equipment_types")}:
                 batch_op.drop_column("category_id")
 
+    inspector = inspect(bind)
     if "equipment_brands" in inspector.get_table_names():
         op.drop_table("equipment_brands")
     if "equipment_categories" in inspector.get_table_names():
