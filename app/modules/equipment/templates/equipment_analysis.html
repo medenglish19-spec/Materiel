@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}تحليل العتاد{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h2>تحليل العتاد</h2><p class="page-hint">تحليل وصفي لتركيبة الحضيرة والتعداد والاحتياج والجاهزية.</p></div>
+  <a href="/equipment" class="btn-outline">← العتاد</a>
+</div>
+<div class="equipment-nav">
+  <a href="/equipment">قائمة العتاد</a><a href="/equipment/numerical-status">الحالة العددية</a><a class="active" href="/equipment/analysis">التحليل</a><a href="/equipment-types">الطرازات</a>
+</div>
+<div class="cards-grid">
+  <div class="stat-card"><div class="stat-number">{{ totals.actual }}</div><div class="stat-label">التعداد الفعلي</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.theoretical }}</div><div class="stat-label">التعداد النظري</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.need }}</div><div class="stat-label">الاحتياج</div></div>
+  <div class="stat-card"><div class="stat-number">{{ totals.readiness }}%</div><div class="stat-label">نسبة الجاهزية</div></div>
+</div>
+<div class="analysis-grid">
+  <div class="card"><h3>الجاهزية</h3><div class="bar-row"><span>جاهز</span><div class="bar"><i style="width:{{ totals.readiness }}%"></i></div><b>{{ totals.ready }}</b></div><div class="bar-row"><span>عاطل</span><div class="bar"><i style="width:{{ 100-totals.readiness }}%"></i></div><b>{{ totals.broken }}</b></div></div>
+  <div class="card"><h3>التعداد والاحتياج</h3><div class="bar-row"><span>محقق</span><div class="bar"><i style="width:{{ (totals.actual/totals.theoretical*100 if totals.theoretical else 0) if totals.theoretical else 0 }}%"></i></div><b>{{ totals.actual }}</b></div><div class="analysis-note">الاحتياج يحسب من التعداد النظري الواجب تحقيقه مطروحًا منه التعداد الفعلي.</div></div>
+</div>
+<div class="card">
+<h3>تحليل التركيبة</h3>
+<div class="analysis-tree">
+{% for cname,c in categories.items() %}
+<details open><summary><strong>{{ cname }}</strong><span>{{ c.actual }} فعلي · {{ c.need }} احتياج</span></summary>
+{% for tname,t in c.types.items() %}<details class="nested"><summary>{{ tname }}<span>{{ t.actual }} فعلي · {{ t.need }} احتياج</span></summary>
+{% for mname,m in t.models.items() %}<div class="model-analysis"><span>{{ mname }}</span><span>نظري {{ m.theoretical }}</span><span>فعلي {{ m.actual }}</span><strong>احتياج {{ m.need }}</strong><span>جاهز {{ m.ready }}</span><span>عاطل {{ m.broken }}</span></div>{% endfor %}
+</details>{% endfor %}</details>
+{% else %}<div class="empty">لا توجد بيانات للتحليل.</div>{% endfor %}
+</div></div>
+<style>
+.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.bar-row{display:grid;grid-template-columns:70px 1fr 45px;gap:10px;align-items:center;margin:14px 0}.bar{height:9px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb;border-radius:99px}.analysis-note{color:#64748b;font-size:13px;line-height:1.7}.analysis-tree details{border-bottom:1px solid #e5e7eb;padding:10px 0}.analysis-tree summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px}.analysis-tree summary span{color:#64748b;font-size:12px}.nested{margin-right:20px}.model-analysis{display:grid;grid-template-columns:2fr repeat(5,1fr);gap:8px;padding:10px 12px;margin:5px 0;background:#f8fafc;border-radius:8px;font-size:12px}.model-analysis strong{font-weight:800}.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}@media(max-width:800px){.analysis-grid{grid-template-columns:1fr}.model-analysis{grid-template-columns:1fr 1fr}}
+</style>
+{% endblock %}
