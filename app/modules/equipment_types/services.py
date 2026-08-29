@@ -140,6 +140,7 @@ def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
         name=name,
         equipment_type_id=data.equipment_type_id,
         brand_id=data.brand_id,
+        theoretical_quantity=max(0, data.theoretical_quantity),
     )
     db.add(obj)
     db.commit()
