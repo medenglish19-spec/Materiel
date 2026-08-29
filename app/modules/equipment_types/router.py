@@ -147,6 +147,22 @@ def set_model_brand_form(
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
 
+@router.post("/equipment-types/models/{model_id}/theoretical-quantity")
+def set_model_theoretical_quantity_form(
+    model_id: int,
+    theoretical_quantity: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    obj = services.get_model(db, model_id)
+    if obj:
+        try:
+            services.set_model_theoretical_quantity(db, obj, theoretical_quantity)
+        except ValueError:
+            pass
+    return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
+
+
 @router.post("/equipment-types/models/{model_id}/delete")
 def delete_model_form(
     model_id: int,
