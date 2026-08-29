@@ -44,7 +44,7 @@
         {% for type in category.types %}
           <tr class="type-row searchable" data-level="type"><td colspan="3" class="hierarchy-name type-name"><button type="button" class="tree-toggle" aria-expanded="true">−</button>{{ type.name }}</td><td>{{ type.stats.theoretical }}</td><td>{{ type.stats.total }}</td><td class="need">{{ type.stats.need }}</td><td>{{ type.stats.ready }}</td><td>{{ type.stats.broken }}</td><td>{{ type.stats.available }}</td><td>{{ type.stats.in_mission }}</td><td>{{ type.stats.in_maintenance }}</td><td>{{ type.stats.in_external_workshop }}</td><td>{{ type.stats.unavailable }}</td></tr>
           {% for model in type.models %}
-            <tr class="model-row searchable" data-level="model" data-brand="{{ model.brand }}" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}" data-op-available="{{ model.stats.available }}" data-op-mission="{{ model.stats.in_mission }}" data-op-maintenance="{{ model.stats.in_maintenance }}" data-op-external="{{ model.stats.in_external_workshop }}" data-op-unavailable="{{ model.stats.unavailable }}"><td class="model-group-cell"></td><td class="brand-cell">{{ model.brand }}</td><td class="model-cell">↳ <strong>{{ model.name }}</strong></td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
+            <tr class="model-row searchable" data-level="model" data-brand="{{ model.brand }}" data-condition-ready="{{ model.stats.ready }}" data-condition-broken="{{ model.stats.broken }}" data-op-available="{{ model.stats.available }}" data-op-mission="{{ model.stats.in_mission }}" data-op-maintenance="{{ model.stats.in_maintenance }}" data-op-external="{{ model.stats.in_external_workshop }}" data-op-unavailable="{{ model.stats.unavailable }}"><td class="model-group-cell"></td><td class="brand-cell">{{ model.brand }}</td><td class="model-cell">↳ <button type="button" class="model-details-btn" data-model="{{ model.name|e }}" data-brand="{{ model.brand|e }}" data-theoretical="{{ model.stats.theoretical }}" data-total="{{ model.stats.total }}" data-need="{{ model.stats.need }}" data-equipment='{{ model.equipment|tojson|e }}'><strong>{{ model.name }}</strong></button></td><td>{{ model.stats.theoretical }}</td><td>{{ model.stats.total }}</td><td class="need">{{ model.stats.need }}</td><td>{{ model.stats.ready }}</td><td>{{ model.stats.broken }}</td><td>{{ model.stats.available }}</td><td>{{ model.stats.in_mission }}</td><td>{{ model.stats.in_maintenance }}</td><td>{{ model.stats.in_external_workshop }}</td><td>{{ model.stats.unavailable }}</td></tr>
           {% endfor %}
         {% endfor %}
       {% else %}
@@ -70,7 +70,7 @@
 .num-status th:first-child,.num-status td:first-child{text-align:right}
 .num-status th{background:#f8fafc;color:#475569;position:sticky;top:0;z-index:2}
 .num-status .category-row td{background:#eaf3fb;font-weight:800;color:#173b63}
-.num-status .type-row td{background:#f5f8fb;font-weight:700}.hierarchy-name{direction:rtl;text-align:right!important}.brand-cell{font-weight:700}.model-cell{min-width:170px}
+.num-status .type-row td{background:#f5f8fb;font-weight:700}.hierarchy-name{direction:rtl;text-align:right!important}.brand-cell{font-weight:700}.model-cell{min-width:170px}.num-detail-table-wrap{overflow-x:auto}.num-detail-table{width:100%;border-collapse:collapse;min-width:650px}.num-detail-table th,.num-detail-table td{padding:9px;border-bottom:1px solid #e5e7eb;text-align:center}.num-detail-table th{background:#f8fafc}.num-detail-table a{font-weight:700;text-decoration:underline}
 .num-status .model-row td:first-child{padding-right:38px}
 .tree-toggle{background:none!important;color:inherit!important;border:0!important;padding:0 6px!important;font-size:16px;cursor:pointer}
 .need{font-weight:800}
@@ -112,6 +112,21 @@
       row=row.nextElementSibling;
     }
   }
+
+  const details=document.getElementById('modelDetails'), detailsTitle=document.getElementById('modelDetailsTitle'), detailsSummary=document.getElementById('modelDetailsSummary'), detailsBody=document.getElementById('modelDetailsBody');
+  function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+  const conditionNames={ready:'جاهز',broken:'عاطل'};
+  const opNames={available:'متاح',in_mission:'في مهمة',in_maintenance:'في الصيانة',in_external_workshop:'في ورشة خارجية',unavailable:'غير متاح'};
+  table.querySelectorAll('.model-details-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const equipment=JSON.parse(btn.dataset.equipment||'[]');
+      detailsTitle.textContent=(btn.dataset.brand && btn.dataset.brand!=='بدون ماركة'?btn.dataset.brand+' — ':'')+btn.dataset.model;
+      detailsSummary.textContent='التعداد النظري: '+btn.dataset.theoretical+' | الفعلي: '+btn.dataset.total+' | الاحتياج: '+btn.dataset.need;
+      detailsBody.innerHTML=equipment.length?'<div class="num-detail-table-wrap"><table class="num-detail-table"><thead><tr><th>الرمز</th><th>رقم التسجيل</th><th>الحالة الفنية</th><th>الوضعية</th><th>التفاصيل</th></tr></thead><tbody>'+equipment.map(e=>'<tr><td>'+esc(e.asset_code)+'</td><td>'+esc(e.registration_number||'—')+'</td><td>'+esc(conditionNames[e.technical_condition]||e.technical_condition||'—')+'</td><td>'+esc(opNames[e.operational_status]||e.operational_status||'—')+'</td><td><a href="/equipment/'+encodeURIComponent(e.id)+'">فتح</a></td></tr>').join('')+'</tbody></table></div>':'<p class="page-hint">لا يوجد عتاد فعلي مسجل لهذا الطراز.</p>';
+      details.hidden=false; details.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  });
+  document.getElementById('closeModelDetails').onclick=()=>details.hidden=true;
 
   table.querySelectorAll('.tree-toggle').forEach(btn=>{
     btn.addEventListener('click',()=>{
