@@ -20,6 +20,8 @@ def upgrade() -> None:
     op.add_column("repairs", sa.Column("workshop_type", sa.String(20), nullable=False, server_default="internal"))
     op.add_column("repairs", sa.Column("repair_document", sa.String(255), nullable=True))
     op.add_column("repairs", sa.Column("external_dispatch_document", sa.String(255), nullable=True))
+    op.add_column("repair_parts", sa.Column("distribution_document", sa.String(255), nullable=True))
+    op.alter_column("repair_parts", "distribution_document", nullable=False)
     op.create_check_constraint(
         "ck_repair_workshop_type", "repairs",
         "workshop_type IN ('internal', 'external')",
@@ -33,6 +35,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_constraint("ck_external_repair_requires_dispatch_document", "repairs", type_="check")
     op.drop_constraint("ck_repair_workshop_type", "repairs", type_="check")
+    op.drop_column("repair_parts", "distribution_document")
     op.drop_column("repairs", "external_dispatch_document")
     op.drop_column("repairs", "repair_document")
     op.drop_column("repairs", "workshop_type")
