@@ -168,6 +168,7 @@ class RepairPart(Base):
         nullable=False, index=True,
     )
     quantity = Column(Numeric(10, 2), nullable=False)
+    distribution_document = Column(String(255), nullable=False)
     notes = Column(Text, nullable=True)
 
     repair = relationship("Repair", back_populates="consumed_parts")
