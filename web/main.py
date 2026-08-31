@@ -11,6 +11,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.equipment.router import router as equipment_router
 from app.modules.equipment_maintenance.router import router as equipment_maintenance_router
 from app.modules.equipment_types.router import router as equipment_types_router
+from app.modules.faults_repairs.router import router as faults_repairs_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
 from app.modules.meter_readings.router import router as meter_readings_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(meter_reading_audit_router, tags=["meter_reading_operations"])
     app.include_router(maintenance_router, tags=["maintenance"])
     app.include_router(equipment_maintenance_router, tags=["equipment_maintenance"])
+    app.include_router(faults_repairs_router, tags=["faults_repairs"])
 
     @app.on_event("startup")
     def on_startup():
