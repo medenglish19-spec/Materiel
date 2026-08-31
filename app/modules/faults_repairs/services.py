@@ -100,8 +100,18 @@ def dashboard_stats(db: Session):
 
 
 def technician_stats(db: Session):
-    rows = db.query(Repair.technician, func.count(Repair.id), func.coalesce(func.sum(Repair.labor_hours),0)).group_by(Repair.technician).order_by(func.count(Repair.id).desc()).all()
-    return [{"technician": n or "غير محدد", "repairs": int(c), "labor_hours": float(h or 0)} for n,c,h in rows]
+    rows = db.query(
+        Technician.id, Technician.full_name, Technician.specialization,
+        func.count(TechnicianIntervention.id),
+        func.coalesce(func.sum(TechnicianIntervention.hours), 0),
+    ).outerjoin(
+        TechnicianIntervention, TechnicianIntervention.technician_id == Technician.id
+    ).group_by(Technician.id).order_by(
+        func.count(TechnicianIntervention.id).desc()
+    ).all()
+    return [{"technician_id": i, "technician": n, "specialization": s,
+             "interventions": int(c or 0), "labor_hours": float(h or 0)}
+            for i,n,s,c,h in rows]
 
 
 def part_usage_stats(db: Session):
