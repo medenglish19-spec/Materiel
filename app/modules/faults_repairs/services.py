@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord
-from .models import Fault, Repair, SparePart, RepairPart
+from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
 from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
 
@@ -112,3 +112,40 @@ def part_usage_stats(db: Session):
 def equipment_fault_stats(db: Session):
     rows = db.query(Equipment.id, Equipment.asset_code, Equipment.registration_number, func.count(Fault.id)).join(Fault, Fault.equipment_id == Equipment.id).group_by(Equipment.id).order_by(func.count(Fault.id).desc()).all()
     return [{"equipment_id": i, "asset_code": a, "registration_number": r, "faults": int(c)} for i,a,r,c in rows]
+
+
+def create_technician(db: Session, data):
+    obj = Technician(**data.model_dump())
+    db.add(obj); db.commit(); db.refresh(obj); return obj
+
+def list_technicians(db: Session, active_only=False):
+    q = db.query(Technician)
+    if active_only: q = q.filter(Technician.is_active == 1)
+    return q.order_by(Technician.full_name).all()
+
+def update_technician(db: Session, obj, data):
+    for k,v in data.model_dump(exclude_unset=True).items(): setattr(obj,k,v)
+    db.commit(); db.refresh(obj); return obj
+
+def add_technician_intervention(db: Session, data):
+    repair = db.query(Repair).filter(Repair.id == data.repair_id).first()
+    tech = db.query(Technician).filter(Technician.id == data.technician_id).first()
+    if not repair: raise ValueError("التصليح غير موجود")
+    if not tech: raise ValueError("الفني غير موجود")
+    if not tech.is_active: raise ValueError("الفني غير نشط")
+    obj = TechnicianIntervention(**data.model_dump())
+    db.add(obj); db.commit(); db.refresh(obj); return obj
+
+def technician_detail_stats(db: Session, technician_id: int):
+    row = db.query(
+        Technician.id, Technician.full_name, Technician.specialization,
+        func.count(TechnicianIntervention.id),
+        func.coalesce(func.sum(TechnicianIntervention.hours), 0),
+        func.coalesce(func.avg(TechnicianIntervention.hours), 0),
+    ).outerjoin(TechnicianIntervention, TechnicianIntervention.technician_id == Technician.id).filter(
+        Technician.id == technician_id
+    ).group_by(Technician.id).first()
+    if not row: return None
+    return {"technician_id": row[0], "full_name": row[1], "specialization": row[2],
+            "interventions": int(row[3] or 0), "labor_hours": float(row[4] or 0),
+            "average_hours_per_intervention": float(row[5] or 0)}
