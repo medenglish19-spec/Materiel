@@ -6,8 +6,8 @@ from app.core.dependencies import get_current_user
 from app.database.session import get_db
 from app.modules.users.models import User
 from . import services
-from .models import SparePart
-from .schemas import FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairOut, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut
+from .models import SparePart, Technician
+from .schemas import (FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairOut, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut, TechnicianCreate, TechnicianUpdate, TechnicianOut, TechnicianInterventionCreate, TechnicianInterventionOut)
 
 router = APIRouter(prefix="/api/faults-repairs")
 
@@ -70,28 +70,34 @@ def analytics(db: Session = Depends(get_db), _: User = Depends(get_current_user)
     return {"summary": services.dashboard_stats(db), "technicians": services.technician_stats(db), "parts": services.part_usage_stats(db), "equipment": services.equipment_fault_stats(db)}
 
 
-@router.get("/technicians", response_model=list[__import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianOut"]).TechnicianOut])
+@router.get("/technicians", response_model=list[TechnicianOut])
 def technicians(active_only: bool = False, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return services.list_technicians(db, active_only)
 
-@router.post("/technicians", response_model=__import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianOut"]).TechnicianOut, status_code=201)
-def create_technician(data: __import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianCreate"]).TechnicianCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try: return services.create_technician(db, data)
-    except Exception as e: raise HTTPException(400, str(e))
+@router.post("/technicians", response_model=TechnicianOut, status_code=201)
+def create_technician(data: TechnicianCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    try:
+        return services.create_technician(db, data)
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
-@router.patch("/technicians/{technician_id}", response_model=__import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianOut"]).TechnicianOut)
-def update_technician(technician_id: int, data: __import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianUpdate"]).TechnicianUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    obj = db.query(services.Technician).filter(services.Technician.id == technician_id).first()
-    if not obj: raise HTTPException(404, "الفني غير موجود")
+@router.patch("/technicians/{technician_id}", response_model=TechnicianOut)
+def update_technician(technician_id: int, data: TechnicianUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(Technician).filter(Technician.id == technician_id).first()
+    if not obj:
+        raise HTTPException(404, "الفني غير موجود")
     return services.update_technician(db, obj, data)
 
-@router.post("/technician-interventions", response_model=__import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianInterventionOut"]).TechnicianInterventionOut, status_code=201)
-def add_intervention(data: __import__("app.modules.faults_repairs.schemas", fromlist=["TechnicianInterventionCreate"]).TechnicianInterventionCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try: return services.add_technician_intervention(db, data)
-    except ValueError as e: raise HTTPException(400, str(e))
+@router.post("/technician-interventions", response_model=TechnicianInterventionOut, status_code=201)
+def add_intervention(data: TechnicianInterventionCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    try:
+        return services.add_technician_intervention(db, data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 @router.get("/technicians/{technician_id}/statistics")
 def technician_statistics(technician_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     result = services.technician_detail_stats(db, technician_id)
-    if not result: raise HTTPException(404, "الفني غير موجود")
+    if not result:
+        raise HTTPException(404, "الفني غير موجود")
     return result
