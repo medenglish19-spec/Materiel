@@ -125,3 +125,33 @@ class RepairPartCreate(BaseModel):
 class RepairPartOut(RepairPartCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
+
+
+class TechnicianCreate(BaseModel):
+    employee_number: str = Field(min_length=1, max_length=50)
+    full_name: str = Field(min_length=1, max_length=160)
+    specialization: Optional[str] = Field(default=None, max_length=120)
+    is_active: bool = True
+    notes: Optional[str] = None
+
+class TechnicianUpdate(BaseModel):
+    full_name: Optional[str] = None
+    specialization: Optional[str] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+class TechnicianOut(TechnicianCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+class TechnicianInterventionCreate(BaseModel):
+    repair_id: int
+    technician_id: int
+    intervention_date: date
+    hours: Decimal = Field(ge=0)
+    work_description: Optional[str] = None
+    notes: Optional[str] = None
+
+class TechnicianInterventionOut(TechnicianInterventionCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
