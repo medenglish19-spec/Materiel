@@ -8,7 +8,6 @@ consumed spare parts belong to a repair.
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean,
     CheckConstraint,
     Column,
     Date,
@@ -146,8 +145,7 @@ class SparePart(Base):
     id = Column(Integer, primary_key=True, index=True)
     part_number = Column(String(80), nullable=False, index=True)
     name = Column(String(160), nullable=False)
-    unit = Column(String(30), nullable=False, default="قطعة", server_default="قطعة")
-    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    receiving_document = Column(String(255), nullable=False)
     notes = Column(Text, nullable=True)
 
 
