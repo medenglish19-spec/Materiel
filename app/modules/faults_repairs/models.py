@@ -111,7 +111,7 @@ class Repair(Base):
     meter_value = Column(Numeric(10, 1), nullable=True)
     diagnosis = Column(Text, nullable=True)
     action_taken = Column(Text, nullable=False)
-    technician = Column(String(120), nullable=True)
+    technician = Column(String(120), nullable=True)  # legacy/display field; detailed work is in technician_interventions
     workshop_type = Column(String(20), nullable=False, default="internal", server_default="internal")
     workshop = Column(String(120), nullable=True)
     repair_document = Column(String(255), nullable=True)
@@ -132,14 +132,49 @@ class Repair(Base):
     created_by = relationship("User", foreign_keys=[created_by_id])
 
 
+class Technician(Base):
+    __tablename__ = "workshop_technicians"
+    __table_args__ = (
+        UniqueConstraint("employee_number", name="uq_workshop_technician_employee_number"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee_number = Column(String(50), nullable=False, index=True)
+    full_name = Column(String(160), nullable=False, index=True)
+    specialization = Column(String(120), nullable=True)
+    is_active = Column(Integer, nullable=False, default=1, server_default="1")
+    notes = Column(Text, nullable=True)
+
+    interventions = relationship(
+        "TechnicianIntervention",
+        back_populates="technician",
+        cascade="all, delete-orphan",
+    )
+
+
+class TechnicianIntervention(Base):
+    __tablename__ = "technician_interventions"
+    __table_args__ = (
+        CheckConstraint("hours >= 0", name="ck_technician_intervention_hours_nonnegative"),
+        UniqueConstraint("repair_id", "technician_id", name="uq_repair_technician"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    repair_id = Column(Integer, ForeignKey("repairs.id", ondelete="CASCADE"), nullable=False, index=True)
+    technician_id = Column(Integer, ForeignKey("workshop_technicians.id", ondelete="RESTRICT"), nullable=False, index=True)
+    intervention_date = Column(Date, nullable=False)
+    hours = Column(Numeric(8, 1), nullable=False, default=0, server_default="0")
+    work_description = Column(Text, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    repair = relationship("Repair", back_populates="technician_interventions")
+    technician = relationship("Technician", back_populates="interventions")
+
+
 class SparePart(Base):
     __tablename__ = "spare_parts"
     __table_args__ = (
         UniqueConstraint("part_number", name="uq_spare_part_number"),
-        CheckConstraint(
-            "is_active IN (0, 1)",
-            name="ck_spare_part_active",
-        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
