@@ -56,6 +56,8 @@ class Fault(Base):
         nullable=True, index=True,
     )
     reported_date = Column(Date, nullable=False)
+    report_number = Column(String(80), nullable=True, index=True)
+    note = Column(Text, nullable=True)
     meter_value = Column(Numeric(10, 1), nullable=True)
     fault_type = Column(String(80), nullable=True)
     description = Column(Text, nullable=False)
@@ -80,6 +82,14 @@ class Repair(Base):
     __tablename__ = "repairs"
     __table_args__ = (
         CheckConstraint(
+            "workshop_type IN ('internal', 'external')",
+            name="ck_repair_workshop_type",
+        ),
+        CheckConstraint(
+            "(workshop_type = 'internal') OR external_dispatch_document IS NOT NULL",
+            name="ck_external_repair_requires_dispatch_document",
+        ),
+        CheckConstraint(
             "status IN ('in_progress', 'completed', 'cancelled')",
             name="ck_repair_status",
         ),
@@ -103,7 +113,10 @@ class Repair(Base):
     diagnosis = Column(Text, nullable=True)
     action_taken = Column(Text, nullable=False)
     technician = Column(String(120), nullable=True)
+    workshop_type = Column(String(20), nullable=False, default="internal", server_default="internal")
     workshop = Column(String(120), nullable=True)
+    repair_document = Column(String(255), nullable=True)
+    external_dispatch_document = Column(String(255), nullable=True)
     labor_hours = Column(Numeric(8, 1), nullable=True)
     status = Column(String(20), nullable=False, default="completed", server_default="completed")
     notes = Column(Text, nullable=True)
