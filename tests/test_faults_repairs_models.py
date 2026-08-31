@@ -24,3 +24,14 @@ def test_fault_statuses_are_explicit():
 def test_repair_part_quantity_must_be_positive():
     checks = {c.name: str(c.sqltext) for c in RepairPart.__table__.constraints if c.name}
     assert checks["ck_repair_part_quantity_positive"] == "quantity > 0"
+
+
+def test_spare_part_has_receiving_document_only():
+    assert "receiving_document" in SparePart.__table__.columns
+    assert "unit" not in SparePart.__table__.columns
+    assert "is_active" not in SparePart.__table__.columns
+
+
+def test_repair_part_requires_distribution_document():
+    assert "distribution_document" in RepairPart.__table__.columns
+    assert RepairPart.__table__.columns["distribution_document"].nullable is False
