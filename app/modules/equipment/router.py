@@ -42,7 +42,7 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
         model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
         theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
-        cg = categories.setdefault(category_name, {"types": {}, "actual": 0, "ready": 0, "broken": 0})
+        cg = categories.setdefault(category_name, {"types": {}, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
         tg = cg["types"].setdefault(type_name, {"models": {}, "actual": 0, "ready": 0, "broken": 0})
         mg = tg["models"].setdefault(model_name, {"theoretical": theoretical, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
         mg["theoretical"] = max(mg["theoretical"], theoretical)
@@ -63,7 +63,7 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
                 mg["need"] = max(0, mg["theoretical"] - mg["actual"])
     totals_theoretical = sum(c["theoretical"] for c in categories.values())
     totals_actual = len(items)
-    return templates.TemplateResponse("equipment_analysis.html", {"request": request, "user": current_user, "categories": categories, "totals": {"theoretical": totals_theoretical, "actual": totals_actual, "need": max(0, totals_theoretical - totals_actual), "ready": ready, "broken": broken, "readiness": round(ready / totals_actual * 100, 1) if totals_actual else 0}})
+    return templates.TemplateResponse("equipment_analysis.html", {"request": request, "user": current_user, "categories": categories, "totals": {"theoretical": totals_theoretical, "actual": totals_actual, "need": max(0, totals_theoretical - totals_actual), "ready": ready, "ready_restricted": ready_restricted, "broken": broken, "readiness": round(ready / totals_actual * 100, 1) if totals_actual else 0}})
 
 
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
@@ -77,7 +77,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         joinedload(EquipmentModel.brand),
     ).order_by(EquipmentModel.id).all()
 
-    keys = ("total", "theoretical", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable", "need", "surplus", "outside_ted")
+    keys = ("total", "theoretical", "ready", "ready_restricted", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable", "need", "surplus", "outside_ted")
     zero = lambda: {k: 0 for k in keys}
     groups = {}
 
