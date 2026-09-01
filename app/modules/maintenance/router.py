@@ -192,7 +192,7 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
     )
     types = db.query(EquipmentType).order_by(EquipmentType.name).all()
     models = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type)).order_by(EquipmentModel.name).all()
-    base_rules = [r for r in rules if r.parent_rule_id is None and r.equipment_model_id is None]
+    base_rules = []
     record_counts = {r.id: db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id == r.id).count() for r in rules}
     edit_rule = None
     edit_id = request.query_params.get("edit")
