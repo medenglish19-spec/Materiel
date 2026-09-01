@@ -191,10 +191,15 @@ def dashboard_stats(db: Session):
     by_status = dict(db.query(Fault.status, func.count(Fault.id)).group_by(Fault.status).all())
     by_severity = dict(db.query(Fault.severity, func.count(Fault.id)).group_by(Fault.severity).all())
     repairs = db.query(Repair).count()
+    internal_open = db.query(Repair).join(Fault).filter(Repair.workshop_type == "internal", Repair.status == "in_progress").count()
+    external_open = db.query(Repair).join(Fault).filter(Repair.workshop_type == "external", Repair.status == "in_progress").count()
+    monthly_faults = db.query(Fault).filter(Fault.reported_date >= date.today().replace(day=1)).count()
     hours = db.query(func.coalesce(func.sum(TechnicianIntervention.hours), 0)).scalar()
     parts = db.query(func.coalesce(func.sum(RepairPart.quantity), 0)).scalar()
     return {"faults_total": total, "faults_by_status": by_status, "faults_by_severity": by_severity,
-            "repairs_total": repairs, "labor_hours": hours, "parts_consumed": parts}
+            "repairs_total": repairs, "labor_hours": hours, "parts_consumed": parts,
+            "internal_repairs_in_progress": internal_open, "external_repairs_in_progress": external_open,
+            "faults_this_month": monthly_faults}
 
 
 def technician_stats(db: Session):
