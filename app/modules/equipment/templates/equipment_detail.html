@@ -21,7 +21,7 @@
         <div class="field"><label>تاريخ الاقتناء</label><div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else "-" }}</div></div>
         <div class="field"><label>عداد الكم</label><div>{{ item.current_odometer or 0 }} كم</div></div>
         <div class="field"><label>عداد الساعات</label><div>{{ item.current_hours or 0 }} س</div></div>
-        <div class="field"><label>الحالة الفنية</label><div>{% if item.technical_condition == "ready" %}جاهز{% else %}عاطل{% endif %}</div></div>
+        <div class="field"><label>الحالة الفنية</label><div>{% if item.technical_condition == "ready" %}جاهز{% elif item.technical_condition == "ready_restricted" %}جاهز مع قيود{% else %}عاطل{% endif %}</div></div>
         <div class="field"><label>الوضعية</label><div>{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</div></div>
         {% if item.notes %}<div class="field"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}
     </div>
