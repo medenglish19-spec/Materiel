@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 FAULT_SEVERITIES = {"low", "medium", "high", "critical"}
 FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired", "closed"}
+FAULT_EXPLOITATION_IMPACTS = {"none", "limited", "prohibited"}
 REPAIR_STATUSES = {"in_progress", "completed", "cancelled"}
 WORKSHOP_TYPES = {"internal", "external"}
 
@@ -19,8 +20,16 @@ class FaultCreate(BaseModel):
     fault_type: Optional[str] = None
     description: str = Field(min_length=1)
     severity: str = "medium"
+    exploitation_impact: str = "none"
     report_number: Optional[str] = None
     note: Optional[str] = None
+
+    @field_validator("exploitation_impact")
+    @classmethod
+    def valid_exploitation_impact(cls, v):
+        if v not in FAULT_EXPLOITATION_IMPACTS:
+            raise ValueError("تأثير العطل على الاستغلال غير صحيح")
+        return v
 
     @field_validator("severity")
     @classmethod
@@ -36,6 +45,7 @@ class FaultUpdate(BaseModel):
     fault_type: Optional[str] = None
     description: Optional[str] = None
     severity: Optional[str] = None
+    exploitation_impact: Optional[str] = None
     report_number: Optional[str] = None
     note: Optional[str] = None
 
