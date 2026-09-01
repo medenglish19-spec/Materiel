@@ -52,7 +52,9 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
     ).filter(Repair.id == repair_id).first()
     if not repair:
         raise HTTPException(status_code=404, detail="التصليح غير موجود")
-    return templates.TemplateResponse("repair_detail.html", {"request": request, "user": user, "repair": repair})
+    technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
+    parts = db.query(SparePart).order_by(SparePart.name).all()
+    return templates.TemplateResponse("repair_detail.html", {"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts})
 
 @router.get("/faults-repairs/technicians", response_class=HTMLResponse)
 def technicians_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
