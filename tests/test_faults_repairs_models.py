@@ -1,4 +1,5 @@
-from app.modules.faults_repairs.models import Fault, Repair, RepairPart, SparePart
+from sqlalchemy import CheckConstraint
+from app.modules.faults_repairs.models import Fault, Repair, RepairPart, SparePart, Technician, TechnicianIntervention
 
 
 def test_fault_repair_part_model_contracts():
@@ -22,7 +23,7 @@ def test_fault_statuses_are_explicit():
 
 
 def test_repair_part_quantity_must_be_positive():
-    checks = {c.name: str(c.sqltext) for c in RepairPart.__table__.constraints if c.name}
+    checks = {c.name: str(c.sqltext) for c in RepairPart.__table__.constraints if isinstance(c, CheckConstraint) and c.name}
     assert checks["ck_repair_part_quantity_positive"] == "quantity > 0"
 
 
@@ -35,3 +36,13 @@ def test_spare_part_has_receiving_document_only():
 def test_repair_part_requires_distribution_document():
     assert "distribution_document" in RepairPart.__table__.columns
     assert RepairPart.__table__.columns["distribution_document"].nullable is False
+
+
+def test_technician_contracts():
+    assert Technician.__tablename__ == "workshop_technicians"
+    assert TechnicianIntervention.__tablename__ == "technician_interventions"
+    assert "employee_number" in Technician.__table__.columns
+    assert "specialization" in Technician.__table__.columns
+    assert "technician_id" in TechnicianIntervention.__table__.columns
+    assert "hours" in TechnicianIntervention.__table__.columns
+    assert "work_description" in TechnicianIntervention.__table__.columns
