@@ -130,6 +130,7 @@ class Repair(Base):
         order_by="RepairPart.id",
     )
     created_by = relationship("User", foreign_keys=[created_by_id])
+    technician_interventions = relationship("TechnicianIntervention", back_populates="repair", cascade="all, delete-orphan", order_by="TechnicianIntervention.intervention_date.desc(), TechnicianIntervention.id.desc()")
 
 
 class Technician(Base):
@@ -156,7 +157,6 @@ class TechnicianIntervention(Base):
     __tablename__ = "technician_interventions"
     __table_args__ = (
         CheckConstraint("hours >= 0", name="ck_technician_intervention_hours_nonnegative"),
-        UniqueConstraint("repair_id", "technician_id", name="uq_repair_technician"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
