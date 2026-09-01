@@ -34,7 +34,28 @@ def _sync_equipment_from_faults(db: Session, equipment_id: int):
         Repair.workshop_type == "internal",
         Repair.status == "in_progress",
     ).first()
-    equipment.technical_condition = "broken" if active_fault else "ready"
+    # A registered fault does not automatically make equipment unusable.
+    # Only a fault explicitly marked as prohibiting exploitation makes it broken.
+    prohibited_fault = db.query(Fault).filter(
+        Fault.equipment_id == equipment_id,
+        Fault.status.in_(ACTIVE_FAULT_STATUSES),
+        Fault.exploitation_impact == "prohibited",
+    ).first()
+    limited_fault = db.query(Fault).filter(
+        Fault.equipment_id == equipment_id,
+        Fault.status.in_(ACTIVE_FAULT_STATUSES),
+        Fault.exploitation_impact == "limited",
+    ).first()
+
+    if prohibited_fault:
+        equipment.technical_condition = "broken"
+    elif limited_fault:
+        equipment.technical_condition = "ready_restricted"
+    else:
+        equipment.technical_condition = "ready"
+
+    # Operational status describes where/how the equipment is being used.
+    # A repair in progress takes precedence over the normal operational status.
     if external_repair:
         equipment.operational_status = "in_external_workshop"
     elif internal_repair:
