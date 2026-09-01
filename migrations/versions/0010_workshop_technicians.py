@@ -32,7 +32,6 @@ def upgrade():
         sa.Column("work_description", sa.Text(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.CheckConstraint("hours >= 0", name="ck_technician_intervention_hours_nonnegative"),
-        sa.UniqueConstraint("repair_id", "technician_id", name="uq_repair_technician"),
     )
     op.create_index("ix_technician_interventions_repair_id", "technician_interventions", ["repair_id"])
     op.create_index("ix_technician_interventions_technician_id", "technician_interventions", ["technician_id"])
