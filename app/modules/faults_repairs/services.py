@@ -45,11 +45,11 @@ def _sync_equipment_from_faults(db: Session, equipment_id: int):
 
 
 FAULT_TRANSITIONS = {
-    "open": {"diagnosing", "repairing", "closed"},
-    "diagnosing": {"repairing", "waiting_parts", "repaired", "closed"},
+    "open": {"diagnosing"},
+    "diagnosing": {"repairing", "waiting_parts"},
     "repairing": {"waiting_parts", "repaired"},
     "waiting_parts": {"repairing", "repaired"},
-    "repaired": {"closed", "repairing"},
+    "repaired": {"closed"},
     "closed": set(),
 }
 
@@ -107,10 +107,14 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
     if data.repair_date > date.today(): raise ValueError("لا يمكن تسجيل إصلاح بتاريخ مستقبلي")
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
+    if fault.status not in {"diagnosing", "repairing", "waiting_parts"}:
+        raise ValueError("لا يمكن تسجيل تصليح قبل أن يكون العطل قيد التشخيص أو الإصلاح أو بانتظار قطع الغيار")
     obj = Repair(**data.model_dump(), created_by_id=user_id)
     db.add(obj)
     db.flush()
-    if obj.status == "completed":
+    if obj.status == "in_progress":
+        fault.status = "repairing"
+    elif obj.status == "completed":
         fault.status = "repaired"
     _sync_equipment_from_faults(db, fault.equipment_id)
     db.commit()
