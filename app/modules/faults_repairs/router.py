@@ -6,8 +6,8 @@ from app.core.dependencies import get_current_user
 from app.database.session import get_db
 from app.modules.users.models import User
 from . import services
-from .models import SparePart, Technician
-from .schemas import (FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairOut, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut, TechnicianCreate, TechnicianUpdate, TechnicianOut, TechnicianInterventionCreate, TechnicianInterventionOut)
+from .models import SparePart, Technician, Repair, TechnicianIntervention
+from .schemas import (FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairOut, RepairStatusUpdate, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut, TechnicianCreate, TechnicianUpdate, TechnicianOut, TechnicianInterventionCreate, TechnicianInterventionOut)
 
 router = APIRouter(prefix="/api/faults-repairs")
 
@@ -69,6 +69,28 @@ def add_part(data: RepairPartCreate, db: Session = Depends(get_db), _: User = De
 def analytics(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return {"summary": services.dashboard_stats(db), "technicians": services.technician_stats(db), "parts": services.part_usage_stats(db), "equipment": services.equipment_fault_stats(db)}
 
+
+
+@router.get("/repairs", response_model=list[RepairOut])
+def repairs(fault_id: int | None = None, workshop_type: str | None = None, status: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    return services.list_repairs(db, fault_id, workshop_type, status)
+
+@router.patch("/repairs/{repair_id}/status", response_model=RepairOut)
+def change_repair_status(repair_id: int, data: RepairStatusUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(Repair).filter(Repair.id == repair_id).first()
+    if not obj:
+        raise HTTPException(404, "التصليح غير موجود")
+    try:
+        return services.change_repair_status(db, obj, data.status)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+@router.get("/repairs/{repair_id}/interventions", response_model=list[TechnicianInterventionOut])
+def repair_interventions(repair_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    repair = db.query(Repair).filter(Repair.id == repair_id).first()
+    if not repair:
+        raise HTTPException(404, "التصليح غير موجود")
+    return db.query(TechnicianIntervention).filter(TechnicianIntervention.repair_id == repair_id).order_by(TechnicianIntervention.intervention_date.desc()).all()
 
 @router.get("/technicians", response_model=list[TechnicianOut])
 def technicians(active_only: bool = False, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
