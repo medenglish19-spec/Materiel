@@ -19,6 +19,7 @@ from app.modules.maintenance import models as maintenance_models  # noqa: F401
 from app.modules.faults_repairs import models as faults_repairs_models  # noqa: F401
 from app.modules.tires import models as tires_models  # noqa: F401
 from app.modules.batteries import models as batteries_models  # noqa: F401
+from app.modules.fuel import models as fuel_models  # noqa: F401
 
 
 def _repair_existing_meter_readings_schema() -> None:
@@ -45,8 +46,7 @@ def _repair_existing_maintenance_schema() -> None:
     columns = {column["name"] for column in inspector.get_columns("maintenance_records")}
     with engine.begin() as connection:
         if "updated_at" in columns:
-            connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at"))
-            columns.remove("updated_at")
+            connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at")); columns.remove("updated_at")
         if "rule_id" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER")); columns.add("rule_id")
         if "maintenance_date" not in columns:
@@ -88,8 +88,7 @@ def _seed_equipment_classification_defaults() -> None:
     db = SessionLocal()
     try:
         for name, code, sort_order in defaults:
-            existing = db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first()
-            if existing is None:
+            if db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first() is None:
                 db.add(EquipmentCategory(name=name, code=code, sort_order=sort_order, is_system=True))
         db.commit()
     finally:
