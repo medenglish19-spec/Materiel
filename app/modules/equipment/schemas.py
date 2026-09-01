@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 TECHNICAL_CONDITIONS = {
     "ready",
+    "ready_restricted",
     "broken",
 }
 
