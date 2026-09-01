@@ -208,3 +208,69 @@ def technician_detail_stats(db: Session, technician_id: int):
     return {"technician_id": row[0], "full_name": row[1], "specialization": row[2],
             "interventions": int(row[3] or 0), "labor_hours": float(row[4] or 0),
             "average_hours_per_intervention": float(row[5] or 0)}
+
+
+def list_repairs(db: Session, fault_id=None, workshop_type=None, status=None):
+    q = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment))
+    if fault_id: q = q.filter(Repair.fault_id == fault_id)
+    if workshop_type: q = q.filter(Repair.workshop_type == workshop_type)
+    if status: q = q.filter(Repair.status == status)
+    return q.order_by(Repair.repair_date.desc(), Repair.id.desc()).all()
+
+
+def change_repair_status(db: Session, repair: Repair, new_status: str):
+    if new_status not in {"in_progress", "completed", "cancelled"}:
+        raise ValueError("حالة الإصلاح غير صحيحة")
+    repair.status = new_status
+    if new_status == "completed":
+        repair.fault.status = "repaired"
+    elif new_status == "in_progress" and repair.fault.status in {"repaired", "closed"}:
+        repair.fault.status = "repairing"
+    _sync_equipment_from_faults(db, repair.fault.equipment_id)
+    db.commit()
+    db.refresh(repair)
+    return repair
+
+
+def technician_detail_analysis(db: Session, technician_id: int):
+    technician = db.query(Technician).filter(Technician.id == technician_id).first()
+    if not technician:
+        return None
+    base = db.query(TechnicianIntervention).filter(
+        TechnicianIntervention.technician_id == technician_id
+    )
+    total_interventions = base.count()
+    total_hours = db.query(func.coalesce(func.sum(TechnicianIntervention.hours), 0)).filter(
+        TechnicianIntervention.technician_id == technician_id
+    ).scalar()
+    equipment_count = db.query(func.count(func.distinct(Fault.equipment_id))).join(
+        Repair, Repair.id == TechnicianIntervention.repair_id
+    ).join(Fault, Fault.id == Repair.fault_id).filter(
+        TechnicianIntervention.technician_id == technician_id
+    ).scalar()
+    completed_repairs = db.query(func.count(func.distinct(Repair.id))).join(
+        TechnicianIntervention, TechnicianIntervention.repair_id == Repair.id
+    ).filter(
+        TechnicianIntervention.technician_id == technician_id,
+        Repair.status == "completed",
+    ).scalar()
+    fault_types = db.query(
+        Fault.fault_type, func.count(func.distinct(Fault.id))
+    ).join(Repair, Repair.fault_id == Fault.id).join(
+        TechnicianIntervention, TechnicianIntervention.repair_id == Repair.id
+    ).filter(
+        TechnicianIntervention.technician_id == technician_id
+    ).group_by(Fault.fault_type).order_by(
+        func.count(func.distinct(Fault.id)).desc()
+    ).all()
+    return {
+        "technician_id": technician.id,
+        "full_name": technician.full_name,
+        "specialization": technician.specialization,
+        "interventions": int(total_interventions),
+        "labor_hours": float(total_hours or 0),
+        "average_hours_per_intervention": float(total_hours or 0) / total_interventions if total_interventions else 0,
+        "equipment_count": int(equipment_count or 0),
+        "completed_repairs": int(completed_repairs or 0),
+        "fault_types": [{"type": t or "غير محدد", "count": int(n)} for t,n in fault_types],
+    }
