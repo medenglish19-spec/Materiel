@@ -35,7 +35,7 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items = db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category), joinedload(Equipment.equipment_model)).order_by(Equipment.id).all()
     categories = {}
-    ready = broken = 0
+    ready = ready_restricted = broken = 0
     for item in items:
         category = item.equipment_type.category if item.equipment_type else None
         category_name = category.name if category else "غير مصنف"
@@ -44,11 +44,13 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
         cg = categories.setdefault(category_name, {"types": {}, "actual": 0, "ready": 0, "broken": 0})
         tg = cg["types"].setdefault(type_name, {"models": {}, "actual": 0, "ready": 0, "broken": 0})
-        mg = tg["models"].setdefault(model_name, {"theoretical": theoretical, "actual": 0, "ready": 0, "broken": 0})
+        mg = tg["models"].setdefault(model_name, {"theoretical": theoretical, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
         mg["theoretical"] = max(mg["theoretical"], theoretical)
         mg["actual"] += 1; tg["actual"] += 1; cg["actual"] += 1
         if item.technical_condition == "ready":
             ready += 1; mg["ready"] += 1; tg["ready"] += 1; cg["ready"] += 1
+        elif item.technical_condition == "ready_restricted":
+            ready_restricted += 1; mg["ready_restricted"] += 1; tg["ready_restricted"] += 1; cg["ready_restricted"] += 1
         else:
             broken += 1; mg["broken"] += 1; tg["broken"] += 1; cg["broken"] += 1
     for cg in categories.values():
@@ -117,7 +119,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
             "technical_condition": item.technical_condition,
             "operational_status": item.operational_status,
         })
-        condition = item.technical_condition if item.technical_condition in ("ready", "broken") else "ready"
+        condition = item.technical_condition if item.technical_condition in ("ready", "ready_restricted", "broken") else "ready"
         mg[condition] += 1
         if item.operational_status in keys:
             mg[item.operational_status] += 1
