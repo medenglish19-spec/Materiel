@@ -13,7 +13,7 @@
 <div class="kv"><span>العداد</span><b>{{ fault.meter_value or '—' }}</b></div>
 <div class="kv"><span>نوع العطل</span><b>{{ fault.fault_type or '—' }}</b></div>
 <div class="kv"><span>درجة الخطورة</span><b>{{ fault.severity }}</b></div>
-<div class="kv"><span>حالة العطل</span><b class="state">{{ fault.status }}</b></div>
+<div class="kv"><span>حالة العطل</span><b class="state">{{ {"open":"مفتوح","diagnosing":"قيد التشخيص","repairing":"قيد الإصلاح","waiting_parts":"بانتظار قطع الغيار","repaired":"تم الإصلاح","closed":"مغلق"}.get(fault.status, fault.status) }}</b></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px"><button type="button" class="faultStatus" data-status="diagnosing">قيد التشخيص</button><button type="button" class="faultStatus" data-status="repairing">قيد الإصلاح</button><button type="button" class="faultStatus" data-status="waiting_parts">بانتظار قطع الغيار</button><button type="button" class="faultStatus" data-status="repaired">تم الإصلاح</button><button type="button" class="faultStatus" data-status="closed">مغلق</button></div>
 <div class="kv"><span>رقم التقرير</span><b>{{ fault.report_number or '—' }}</b></div>
 <div class="kv"><span>سجل صيانة سابق</span><b>{{ fault.maintenance_record_id or 'غير مرتبط' }}</b></div>
 <div class="kv"><span>الوصف</span><b>{{ fault.description }}</b></div>
