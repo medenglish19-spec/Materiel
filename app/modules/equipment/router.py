@@ -140,6 +140,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         stats["need_pct"] = (stats["need"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
         stats["surplus_pct"] = (stats["surplus"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
         stats["ready_pct"] = (stats["ready"] / base * 100) if base else 0.0
+        stats["ready_restricted_pct"] = (stats["ready_restricted"] / base * 100) if base else 0.0
         stats["broken_pct"] = (stats["broken"] / base * 100) if base else 0.0
         stats["available_pct"] = (stats["available"] / base * 100) if base else 0.0
         stats["mission_pct"] = (stats["in_mission"] / base * 100) if base else 0.0
@@ -193,7 +194,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
     add_percentages(totals, totals["total"])
 
     category_analysis = sorted([
-        {"name": c["name"], "total": c["stats"]["total"], "theoretical": c["stats"]["theoretical"], "need": c["stats"]["need"], "surplus": c["stats"]["surplus"], "outside_ted": c["stats"]["outside_ted"], "share": c["stats"]["parent_pct"], "coverage": c["stats"]["coverage_pct"], "ready": c["stats"]["ready_pct"], "broken": c["stats"]["broken_pct"]}
+        {"name": c["name"], "total": c["stats"]["total"], "theoretical": c["stats"]["theoretical"], "need": c["stats"]["need"], "surplus": c["stats"]["surplus"], "outside_ted": c["stats"]["outside_ted"], "share": c["stats"]["parent_pct"], "coverage": c["stats"]["coverage_pct"], "ready": c["stats"]["ready_pct"], "ready_restricted": c["stats"]["ready_restricted_pct"], "broken": c["stats"]["broken_pct"]}
         for c in hierarchy
     ], key=lambda x: x["total"], reverse=True)
 
@@ -201,14 +202,15 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
     model_analysis = []
     for c in hierarchy:
         for t in c["types"]:
-            type_analysis.append({"category": c["name"], "name": t["name"], "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"], "need": t["stats"]["need"], "surplus": t["stats"]["surplus"], "outside_ted": t["stats"]["outside_ted"], "share": t["stats"]["parent_pct"], "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"], "broken": t["stats"]["broken_pct"]})
+            type_analysis.append({"category": c["name"], "name": t["name"], "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"], "need": t["stats"]["need"], "surplus": t["stats"]["surplus"], "outside_ted": t["stats"]["outside_ted"], "share": t["stats"]["parent_pct"], "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"], "ready_restricted": t["stats"]["ready_restricted_pct"], "broken": t["stats"]["broken_pct"]})
             for m in t["models"]:
-                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"], "need": m["stats"]["need"], "surplus": m["stats"]["surplus"], "outside_ted": m["stats"]["outside_ted"], "share": m["stats"]["parent_pct"], "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"], "broken": m["stats"]["broken_pct"]})
+                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"], "need": m["stats"]["need"], "surplus": m["stats"]["surplus"], "outside_ted": m["stats"]["outside_ted"], "share": m["stats"]["parent_pct"], "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"], "ready_restricted": m["stats"]["ready_restricted_pct"], "broken": m["stats"]["broken_pct"]})
 
     type_analysis.sort(key=lambda x: x["total"], reverse=True)
     model_analysis.sort(key=lambda x: (x["need"], -x["coverage"]), reverse=True)
     status_analysis = [
         {"name": "جاهز", "count": totals["ready"], "pct": totals["ready_pct"]},
+        {"name": "جاهز مع قيود", "count": totals["ready_restricted"], "pct": totals["ready_restricted_pct"]},
         {"name": "عاطل", "count": totals["broken"], "pct": totals["broken_pct"]},
         {"name": "متاح", "count": totals["available"], "pct": totals["available_pct"]},
         {"name": "في مهمة", "count": totals["in_mission"], "pct": totals["mission_pct"]},
@@ -224,6 +226,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         "need_pct": totals["need_pct"],
         "surplus_pct": totals["surplus_pct"],
         "ready_pct": totals["ready_pct"],
+        "ready_restricted_pct": totals["ready_restricted_pct"],
         "broken_pct": totals["broken_pct"],
         "operational_availability_pct": totals["available_pct"],
         "maintenance_load_pct": totals["maintenance_pct"],
