@@ -65,7 +65,7 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     tire = services.get_tire(db, tire_id)
     if not tire:
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": services.current_state(db, tire_id), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db)})
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": services.current_state(db, tire_id), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "today": date.today()})
 
 
 @router.post("/tires/{tire_id}/movements")
