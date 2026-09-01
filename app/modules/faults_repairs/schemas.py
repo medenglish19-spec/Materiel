@@ -155,3 +155,14 @@ class TechnicianInterventionCreate(BaseModel):
 class TechnicianInterventionOut(TechnicianInterventionCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
+
+
+class RepairStatusUpdate(BaseModel):
+    status: str
+
+    @field_validator("status")
+    @classmethod
+    def valid_status(cls, v):
+        if v not in REPAIR_STATUSES:
+            raise ValueError("حالة الإصلاح غير صحيحة")
+        return v
