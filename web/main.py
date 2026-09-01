@@ -16,6 +16,7 @@ from app.modules.faults_repairs.routes import router as faults_repairs_pages_rou
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
 from app.modules.meter_readings.router import router as meter_readings_router
+from app.modules.tires.router import router as tires_router
 from app.modules.users.router import router as users_router
 
 
@@ -31,9 +32,7 @@ def create_app() -> FastAPI:
     async def fresh_dynamic_pages(request: Request, call_next):
         response = await call_next(request)
         if not request.url.path.startswith("/static/"):
-            response.headers["Cache-Control"] = (
-                "private, no-cache, max-age=0, must-revalidate"
-            )
+            response.headers["Cache-Control"] = "private, no-cache, max-age=0, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
         return response
@@ -48,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(equipment_maintenance_router, tags=["equipment_maintenance"])
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
+    app.include_router(tires_router, tags=["tires"])
 
     @app.on_event("startup")
     def on_startup():
