@@ -11,6 +11,15 @@ branch_labels = None
 depends_on = None
 
 
+def _audit_columns():
+    return (
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+        sa.Column("updated_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+    )
+
+
 def upgrade():
     op.create_table(
         "tires",
@@ -23,8 +32,7 @@ def upgrade():
         sa.Column("expiry_date", sa.Date(), nullable=True),
         sa.Column("acquisition_document", sa.String(100), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        *_audit_columns(),
         sa.UniqueConstraint("serial_number", name="uq_tires_serial_number"),
     )
     op.create_index("ix_tires_serial_number", "tires", ["serial_number"])
@@ -37,8 +45,7 @@ def upgrade():
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("description", sa.String(250), nullable=True),
         sa.Column("sort_order", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        *_audit_columns(),
         sa.UniqueConstraint("code", name="uq_tire_positions_code"),
     )
     op.create_index("ix_tire_positions_code", "tire_positions", ["code"])
@@ -55,8 +62,7 @@ def upgrade():
         sa.Column("document_number", sa.String(100), nullable=True),
         sa.Column("reason", sa.String(250), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=True),
+        *_audit_columns(),
         sa.CheckConstraint("movement_type IN ('install', 'move', 'remove')", name="ck_tire_movement_type"),
     )
     op.create_index("ix_tire_movements_tire_id", "tire_movements", ["tire_id"])
