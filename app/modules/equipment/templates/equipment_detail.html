@@ -6,6 +6,7 @@
     <h2>تفاصيل العتاد</h2>
     <a href="/equipment" class="btn-outline">العودة إلى العتاد</a>
     <a href="/equipment/{{ item.id }}/meters" class="btn-outline">سجل قراءات العداد</a>
+    <a href="/equipment/{{ item.id }}/tires" class="btn-outline">🛞 إطارات العتاد</a>
     <a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 سجل الصيانة</a>
 </div>
 
@@ -25,6 +26,12 @@
         <div class="field"><label>الوضعية</label><div>{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</div></div>
         {% if item.notes %}<div class="field"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}
     </div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+    <h3>🛞 إطارات هذا العتاد</h3>
+    <p>عرض الإطارات المركبة حاليًا مع مواضعها، مع الاحتفاظ بسجل الحركة التاريخي لكل إطار.</p>
+    <a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات</a>
 </div>
 
 <div class="card" style="margin-top:20px;">
