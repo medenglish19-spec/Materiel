@@ -7,7 +7,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.users.models import User
 from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
-from .services import dashboard_stats, technician_stats, part_usage_stats, list_repairs
+from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, list_repairs
 
 router = APIRouter()
 templates = get_module_templates("app/modules/faults_repairs/templates")
@@ -45,6 +45,13 @@ def technicians_page(request: Request, db: Session = Depends(get_db), user: User
     stats = technician_stats(db)
     stats_by_id = {x["technician_id"]: x for x in stats}
     return templates.TemplateResponse("technicians.html", {"request": request, "user": user, "technicians": technicians, "stats_by_id": stats_by_id})
+
+@router.get("/faults-repairs/technicians/{technician_id}", response_class=HTMLResponse)
+def technician_detail_page(technician_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    analysis = technician_detail_analysis(db, technician_id)
+    if not analysis:
+        return templates.TemplateResponse("not_found.html", {"request": request, "user": user}, status_code=404)
+    return templates.TemplateResponse("technician_detail.html", {"request": request, "user": user, "analysis": analysis})
 
 @router.get("/faults-repairs/spare-parts", response_class=HTMLResponse)
 def spare_parts_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
