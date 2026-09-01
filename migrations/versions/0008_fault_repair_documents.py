@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.add_column("repairs", sa.Column("repair_document", sa.String(255), nullable=True))
     op.add_column("repairs", sa.Column("external_dispatch_document", sa.String(255), nullable=True))
     op.add_column("repair_parts", sa.Column("distribution_document", sa.String(255), nullable=True))
-    op.alter_column("repair_parts", "distribution_document", nullable=False)
+    op.alter_column("repair_parts", "distribution_document", nullable=True)
     op.create_check_constraint(
         "ck_repair_workshop_type", "repairs",
         "workshop_type IN ('internal', 'external')",
