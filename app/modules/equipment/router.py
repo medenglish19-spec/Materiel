@@ -66,14 +66,19 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
 
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
 def equipment_numerical_status_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category), joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand)).order_by(Equipment.id).all()
-    models = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category), joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all()
-    keys = ("total", "theoretical", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable")
+    items = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
+        joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand),
+    ).order_by(Equipment.id).all()
+    models = db.query(EquipmentModel).options(
+        joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),
+        joinedload(EquipmentModel.brand),
+    ).order_by(EquipmentModel.id).all()
+
+    keys = ("total", "theoretical", "ready", "broken", "available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable", "need", "surplus", "outside_ted")
     zero = lambda: {k: 0 for k in keys}
     groups = {}
 
-    # Seed every configured model first. This makes a model with a theoretical
-    # quantity but zero actual equipment visible and therefore gives it a real need.
     for model in models:
         equipment_type = model.equipment_type
         category = equipment_type.category if equipment_type else None
@@ -83,11 +88,12 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         brand_name = model.brand.name if model.brand else "بدون ماركة"
         cg = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
         tg = cg["types"].setdefault(type_name, {"models": {}})
-        model_key = (brand_name, model_name)
-        tg["models"].setdefault(model_key, dict(zero(), theoretical=int(model.theoretical_quantity or 0), brand=brand_name, model=model_name, equipment=[]))
+        key = (brand_name, model_name)
+        tg["models"].setdefault(
+            key,
+            dict(zero(), theoretical=int(model.theoretical_quantity or 0), brand=brand_name, model=model_name, equipment=[]),
+        )
 
-    # Actual equipment only contributes to actual/condition/operational counts.
-    # It never changes the model's theoretical quantity.
     for item in items:
         category = item.equipment_type.category if item.equipment_type else None
         category_name = category.name if category else "غير مصنف"
@@ -97,22 +103,40 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         cg = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
         tg = cg["types"].setdefault(type_name, {"models": {}})
         theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
-        model_key = (brand_name, model_name)
-        mg = tg["models"].setdefault(model_key, dict(zero(), theoretical=theoretical, brand=brand_name, model=model_name, equipment=[]))
+        key = (brand_name, model_name)
+        mg = tg["models"].setdefault(
+            key,
+            dict(zero(), theoretical=theoretical, brand=brand_name, model=model_name, equipment=[]),
+        )
         mg["total"] += 1
         mg["theoretical"] = max(mg["theoretical"], theoretical)
-        mg["equipment"].append({"id": item.id, "asset_code": item.asset_code, "registration_number": item.registration_number, "technical_condition": item.technical_condition, "operational_status": item.operational_status})
+        mg["equipment"].append({
+            "id": item.id,
+            "asset_code": item.asset_code,
+            "registration_number": item.registration_number,
+            "technical_condition": item.technical_condition,
+            "operational_status": item.operational_status,
+        })
         condition = item.technical_condition if item.technical_condition in ("ready", "broken") else "ready"
         mg[condition] += 1
         if item.operational_status in keys:
             mg[item.operational_status] += 1
 
+    def finalize(stats):
+        stats["outside_ted"] = stats["total"] if stats["theoretical"] <= 0 else 0
+        stats["need"] = max(0, stats["theoretical"] - (stats["total"] - stats["outside_ted"])) if stats["theoretical"] > 0 else 0
+        stats["surplus"] = max(0, (stats["total"] - stats["outside_ted"]) - stats["theoretical"]) if stats["theoretical"] > 0 else 0
+        return stats
+
     def add_percentages(stats, parent_total=None):
         base = stats["total"] or 0
         parent = parent_total or 0
+        ted_actual = max(0, base - stats.get("outside_ted", 0))
+        stats["ted_actual"] = ted_actual
         stats["parent_pct"] = (base / parent * 100) if parent else (100.0 if base else 0.0)
-        stats["coverage_pct"] = (stats["total"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
+        stats["coverage_pct"] = (ted_actual / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
         stats["need_pct"] = (stats["need"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
+        stats["surplus_pct"] = (stats["surplus"] / stats["theoretical"] * 100) if stats["theoretical"] else 0.0
         stats["ready_pct"] = (stats["ready"] / base * 100) if base else 0.0
         stats["broken_pct"] = (stats["broken"] / base * 100) if base else 0.0
         stats["available_pct"] = (stats["available"] / base * 100) if base else 0.0
@@ -126,7 +150,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         out = zero()
         for st in stats_list:
             for k in keys:
-                out[k] += st[k]
+                out[k] += st.get(k, 0)
         return out
 
     model_details = {}
@@ -135,22 +159,29 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         type_rows = []
         for type_name, tg in sorted(cg["types"].items()):
             model_rows = []
-            for model_name, st in sorted(tg["models"].items()):
-                st["need"] = max(0, st["theoretical"] - st["total"])
-                model_key = "{}::{}::{}::{}".format(category_name, type_name, model_name[0], model_name[1])
-                display_name = ((st.get("brand") + " — ") if st.get("brand") and st.get("brand") != "بدون ماركة" else "") + st.get("model", model_name[1])
-                model_details[model_key] = {"name": display_name, "theoretical": st["theoretical"], "total": st["total"], "need": st["need"], "equipment": st["equipment"]}
+            for model_key_tuple, st in sorted(tg["models"].items()):
+                finalize(st)
+                model_key = "{}::{}::{}::{}".format(category_name, type_name, model_key_tuple[0], model_key_tuple[1])
+                display_name = ((st.get("brand") + " — ") if st.get("brand") and st.get("brand") != "بدون ماركة" else "") + st.get("model", model_key_tuple[1])
+                model_details[model_key] = {
+                    "name": display_name,
+                    "theoretical": st["theoretical"],
+                    "total": st["total"],
+                    "need": st["need"],
+                    "surplus": st["surplus"],
+                    "outside_ted": st["outside_ted"],
+                    "equipment": st["equipment"],
+                }
                 model_rows.append({"name": display_name, "key": model_key, "stats": st})
             ts = sum_stats([m["stats"] for m in model_rows])
-            ts["need"] = max(0, ts["theoretical"] - ts["total"])
             type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
         cs = sum_stats([t["stats"] for t in type_rows])
-        cs["need"] = max(0, cs["theoretical"] - cs["total"])
         hierarchy.append({"name": category_name, "stats": cs, "types": type_rows})
 
     totals = sum_stats([c["stats"] for c in hierarchy])
-    totals["need"] = max(0, totals["theoretical"] - totals["total"])
     totals["equipment"] = totals["total"]
+    totals["ted_actual"] = max(0, totals["total"] - totals["outside_ted"])
+
     for category in hierarchy:
         add_percentages(category["stats"], totals["total"])
         for type_row in category["types"]:
@@ -159,19 +190,66 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
                 add_percentages(model_row["stats"], type_row["stats"]["total"])
     add_percentages(totals, totals["total"])
 
-    category_analysis = sorted([{"name": c["name"], "total": c["stats"]["total"], "theoretical": c["stats"]["theoretical"], "need": c["stats"]["need"], "share": c["stats"]["parent_pct"], "coverage": c["stats"]["coverage_pct"], "ready": c["stats"]["ready_pct"], "broken": c["stats"]["broken_pct"]} for c in hierarchy], key=lambda x: x["total"], reverse=True)
+    category_analysis = sorted([
+        {"name": c["name"], "total": c["stats"]["total"], "theoretical": c["stats"]["theoretical"], "need": c["stats"]["need"], "surplus": c["stats"]["surplus"], "outside_ted": c["stats"]["outside_ted"], "share": c["stats"]["parent_pct"], "coverage": c["stats"]["coverage_pct"], "ready": c["stats"]["ready_pct"], "broken": c["stats"]["broken_pct"]}
+        for c in hierarchy
+    ], key=lambda x: x["total"], reverse=True)
+
     type_analysis = []
     model_analysis = []
     for c in hierarchy:
         for t in c["types"]:
-            type_analysis.append({"category": c["name"], "name": t["name"], "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"], "need": t["stats"]["need"], "share": t["stats"]["parent_pct"], "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"], "broken": t["stats"]["broken_pct"]})
+            type_analysis.append({"category": c["name"], "name": t["name"], "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"], "need": t["stats"]["need"], "surplus": t["stats"]["surplus"], "outside_ted": t["stats"]["outside_ted"], "share": t["stats"]["parent_pct"], "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"], "broken": t["stats"]["broken_pct"]})
             for m in t["models"]:
-                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"], "need": m["stats"]["need"], "share": m["stats"]["parent_pct"], "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"], "broken": m["stats"]["broken_pct"]})
+                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"], "need": m["stats"]["need"], "surplus": m["stats"]["surplus"], "outside_ted": m["stats"]["outside_ted"], "share": m["stats"]["parent_pct"], "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"], "broken": m["stats"]["broken_pct"]})
+
     type_analysis.sort(key=lambda x: x["total"], reverse=True)
     model_analysis.sort(key=lambda x: (x["need"], -x["coverage"]), reverse=True)
-    status_analysis = [{"name": "جاهز", "count": totals["ready"], "pct": totals["ready_pct"]}, {"name": "عاطل", "count": totals["broken"], "pct": totals["broken_pct"]}, {"name": "متاح", "count": totals["available"], "pct": totals["available_pct"]}, {"name": "في مهمة", "count": totals["in_mission"], "pct": totals["mission_pct"]}, {"name": "في الصيانة", "count": totals["in_maintenance"], "pct": totals["maintenance_pct"]}, {"name": "ورشة خارجية", "count": totals["in_external_workshop"], "pct": totals["external_pct"]}, {"name": "غير متاح", "count": totals["unavailable"], "pct": totals["unavailable_pct"]}]
-    analysis = {"category_count": len(category_analysis), "type_count": len(type_analysis), "model_count": len(model_analysis), "coverage": totals["coverage_pct"], "need_pct": totals["need_pct"], "ready_pct": totals["ready_pct"], "broken_pct": totals["broken_pct"], "operational_availability_pct": totals["available_pct"], "maintenance_load_pct": totals["maintenance_pct"], "mission_load_pct": totals["mission_pct"], "external_workshop_pct": totals["external_pct"], "theoretical_gap": max(0, totals["theoretical"] - totals["total"]), "overstrength": max(0, totals["total"] - totals["theoretical"]), "largest_category": category_analysis[0] if category_analysis else None, "largest_type": type_analysis[0] if type_analysis else None, "highest_need_model": model_analysis[0] if model_analysis and model_analysis[0]["need"] else None}
-    return templates.TemplateResponse("equipment_numerical_status.html", {"request": request, "user": current_user, "hierarchy": hierarchy, "totals": totals, "category_analysis": category_analysis, "type_analysis": type_analysis, "model_analysis": model_analysis, "status_analysis": status_analysis, "analysis": analysis})
+    status_analysis = [
+        {"name": "جاهز", "count": totals["ready"], "pct": totals["ready_pct"]},
+        {"name": "عاطل", "count": totals["broken"], "pct": totals["broken_pct"]},
+        {"name": "متاح", "count": totals["available"], "pct": totals["available_pct"]},
+        {"name": "في مهمة", "count": totals["in_mission"], "pct": totals["mission_pct"]},
+        {"name": "في الصيانة", "count": totals["in_maintenance"], "pct": totals["maintenance_pct"]},
+        {"name": "ورشة خارجية", "count": totals["in_external_workshop"], "pct": totals["external_pct"]},
+        {"name": "غير متاح", "count": totals["unavailable"], "pct": totals["unavailable_pct"]},
+    ]
+    analysis = {
+        "category_count": len(category_analysis),
+        "type_count": len(type_analysis),
+        "model_count": len(model_analysis),
+        "coverage": totals["coverage_pct"],
+        "need_pct": totals["need_pct"],
+        "surplus_pct": totals["surplus_pct"],
+        "ready_pct": totals["ready_pct"],
+        "broken_pct": totals["broken_pct"],
+        "operational_availability_pct": totals["available_pct"],
+        "maintenance_load_pct": totals["maintenance_pct"],
+        "mission_load_pct": totals["mission_pct"],
+        "external_workshop_pct": totals["external_pct"],
+        "theoretical_gap": totals["need"],
+        "overstrength": totals["surplus"],
+        "outside_ted": totals["outside_ted"],
+        "ted_actual": totals["ted_actual"],
+        "largest_category": category_analysis[0] if category_analysis else None,
+        "largest_type": type_analysis[0] if type_analysis else None,
+        "highest_need_model": model_analysis[0] if model_analysis and model_analysis[0]["need"] else None,
+    }
+    return templates.TemplateResponse(
+        "equipment_numerical_status.html",
+        {
+            "request": request,
+            "user": current_user,
+            "hierarchy": hierarchy,
+            "totals": totals,
+            "category_analysis": category_analysis,
+            "type_analysis": type_analysis,
+            "model_analysis": model_analysis,
+            "status_analysis": status_analysis,
+            "analysis": analysis,
+            "model_details": model_details,
+        },
+    )
 
 
 @router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
