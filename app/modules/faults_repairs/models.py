@@ -40,6 +40,10 @@ class Fault(Base):
             name="ck_fault_status",
         ),
         CheckConstraint(
+            "exploitation_impact IN ('none', 'limited', 'prohibited')",
+            name="ck_fault_exploitation_impact",
+        ),
+        CheckConstraint(
             "meter_value IS NULL OR meter_value >= 0",
             name="ck_fault_meter_nonnegative",
         ),
@@ -62,6 +66,7 @@ class Fault(Base):
     description = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False, default="medium", server_default="medium")
     status = Column(String(30), nullable=False, default="open", server_default="open")
+    exploitation_impact = Column(String(20), nullable=False, default="none", server_default="none")
     created_at = Column(DateTime, nullable=False, default=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
