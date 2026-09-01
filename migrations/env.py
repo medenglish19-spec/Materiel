@@ -16,6 +16,7 @@ from app.modules.equipment import models as _equipment_models
 from app.modules.maintenance import models as _maintenance_models
 from app.modules.faults_repairs import models as _faults_repairs_models
 from app.modules.tires import models as _tires_models
+from app.modules.batteries import models as _batteries_models
 
 config = context.config
 
@@ -26,15 +27,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    context.configure(
-        url=settings.DATABASE_URL,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
-        render_as_batch=settings.DATABASE_URL.startswith("sqlite"),
-    )
+    context.configure(url=settings.DATABASE_URL, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"}, compare_type=True, compare_server_default=True, render_as_batch=settings.DATABASE_URL.startswith("sqlite"))
     with context.begin_transaction():
         context.run_migrations()
 
@@ -44,13 +37,7 @@ def run_migrations_online() -> None:
     configuration["sqlalchemy.url"] = settings.DATABASE_URL
     connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-            render_as_batch=settings.DATABASE_URL.startswith("sqlite"),
-        )
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True, compare_server_default=True, render_as_batch=settings.DATABASE_URL.startswith("sqlite"))
         with context.begin_transaction():
             context.run_migrations()
 
