@@ -7,6 +7,7 @@
     <a href="/equipment" class="btn-outline">العودة إلى العتاد</a>
     <a href="/equipment/{{ item.id }}/meters" class="btn-outline">سجل قراءات العداد</a>
     <a href="/equipment/{{ item.id }}/tires" class="btn-outline">🛞 إطارات العتاد</a>
+    <a href="/equipment/{{ item.id }}/batteries" class="btn-outline">🔋 بطارية العتاد</a>
     <a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 سجل الصيانة</a>
 </div>
 
@@ -28,28 +29,10 @@
     </div>
 </div>
 
-<div class="card" style="margin-top:20px;">
-    <h3>🛞 إطارات هذا العتاد</h3>
-    <p>عرض الإطارات المركبة حاليًا مع مواضعها، مع الاحتفاظ بسجل الحركة التاريخي لكل إطار.</p>
-    <a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات</a>
-</div>
+<div class="card" style="margin-top:20px;"><h3>🛞 إطارات هذا العتاد</h3><p>عرض الإطارات المركبة حاليًا مع مواضعها، مع الاحتفاظ بسجل الحركة التاريخي لكل إطار.</p><a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات</a></div>
+<div class="card" style="margin-top:20px;"><h3>🔋 بطارية هذا العتاد</h3><p>عرض البطارية المركبة حاليًا وسجل حركتها.</p><a href="/equipment/{{ item.id }}/batteries" class="btn-outline">فتح سجل البطارية</a></div>
+<div class="card" style="margin-top:20px;"><h3>🛠 سجل صيانة هذا العتاد</h3><p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a></div>
 
-<div class="card" style="margin-top:20px;">
-    <h3>🛠 سجل صيانة هذا العتاد</h3>
-    <p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p>
-    <a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a>
-</div>
-
-<div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-    <a href="/equipment" class="btn-secondary">العودة إلى قائمة العتاد</a>
-    <a href="/equipment/{{ item.id }}/edit" class="btn-primary">تعديل العتاد</a>
-    <form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');">
-        <button type="submit" class="btn-danger">حذف العتاد</button>
-    </form>
-</div>
-
-<div class="card" style="margin-top:20px;">
-    <h3>قراءات عداد الكيلومترات</h3>
-    <a href="/equipment/{{ item.id }}/meters" class="btn-outline">عرض سجل القراءات</a>
-</div>
+<div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><a href="/equipment" class="btn-secondary">العودة إلى قائمة العتاد</a><a href="/equipment/{{ item.id }}/edit" class="btn-primary">تعديل العتاد</a><form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');"><button type="submit" class="btn-danger">حذف العتاد</button></form></div>
+<div class="card" style="margin-top:20px;"><h3>قراءات عداد الكيلومترات</h3><a href="/equipment/{{ item.id }}/meters" class="btn-outline">عرض سجل القراءات</a></div>
 {% endblock %}
