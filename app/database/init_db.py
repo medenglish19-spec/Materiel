@@ -18,10 +18,10 @@ from app.modules.meter_readings import models as meter_readings_models  # noqa: 
 from app.modules.maintenance import models as maintenance_models  # noqa: F401
 from app.modules.faults_repairs import models as faults_repairs_models  # noqa: F401
 from app.modules.tires import models as tires_models  # noqa: F401
+from app.modules.batteries import models as batteries_models  # noqa: F401
 
 
 def _repair_existing_meter_readings_schema() -> None:
-    """إصلاح أعمدة قديمة أثناء bootstrap الأول فقط قبل تثبيت Alembic."""
     if not str(engine.url).startswith("sqlite"):
         return
     inspector = inspect(engine)
@@ -37,7 +37,6 @@ def _repair_existing_meter_readings_schema() -> None:
 
 
 def _repair_existing_maintenance_schema() -> None:
-    """ترحيل أعمدة legacy اللازمة فقط قبل بدء سلسلة Alembic الرسمية."""
     if not str(engine.url).startswith("sqlite"):
         return
     inspector = inspect(engine)
@@ -49,8 +48,7 @@ def _repair_existing_maintenance_schema() -> None:
             connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at"))
             columns.remove("updated_at")
         if "rule_id" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER"))
-            columns.add("rule_id")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER")); columns.add("rule_id")
         if "maintenance_date" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
             if "reported_date" in columns:
@@ -62,35 +60,28 @@ def _repair_existing_maintenance_schema() -> None:
                 connection.execute(text("UPDATE maintenance_records SET meter_value = meter_reading WHERE meter_value IS NULL"))
             columns.add("meter_value")
         if "work_order" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN work_order VARCHAR(80)"))
-            columns.add("work_order")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN work_order VARCHAR(80)")); columns.add("work_order")
         if "workshop" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN workshop VARCHAR(120)"))
             if "location" in columns:
                 connection.execute(text("UPDATE maintenance_records SET workshop = location WHERE workshop IS NULL"))
             columns.add("workshop")
         if "status" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'completed'"))
-            columns.add("status")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'completed'")); columns.add("status")
         if "is_scheduled" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN is_scheduled BOOLEAN NOT NULL DEFAULT 0"))
-            columns.add("is_scheduled")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN is_scheduled BOOLEAN NOT NULL DEFAULT 0")); columns.add("is_scheduled")
         if "description" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN description TEXT"))
-            columns.add("description")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN description TEXT")); columns.add("description")
         if "created_at" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN created_at DATETIME"))
-            connection.execute(text("UPDATE maintenance_records SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL"))
-            columns.add("created_at")
+            connection.execute(text("UPDATE maintenance_records SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")); columns.add("created_at")
         if "reported_date" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN reported_date DATE"))
-            columns.add("reported_date")
+            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN reported_date DATE")); columns.add("reported_date")
         connection.execute(text("UPDATE maintenance_records SET maintenance_date = COALESCE(maintenance_date, reported_date, DATE(created_at), DATE('now')) WHERE maintenance_date IS NULL"))
         connection.execute(text("UPDATE maintenance_records SET reported_date = COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) WHERE reported_date IS NULL"))
 
 
 def _seed_equipment_classification_defaults() -> None:
-    """إضافة الفئات الرئيسية الثابتة بشكل idempotent."""
     from app.modules.equipment_types.models import EquipmentCategory
     from app.database.session import SessionLocal
     defaults = (("المركبات الخفيفة", "LIGHT", 10), ("المركبات الثقيلة", "HEAVY", 20), ("معدات الأشغال", "CONSTRUCTION", 30), ("معدات الدعم", "SUPPORT", 40))
@@ -130,7 +121,6 @@ def _has_model_exception_schema() -> bool:
 
 
 def init_db() -> None:
-    """تهيئة قاعدة البيانات عبر Alembic دون تجاوز migrations أو إعادة إنشاء schema فوقها."""
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
     config = _alembic_config()
