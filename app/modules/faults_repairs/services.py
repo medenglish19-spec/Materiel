@@ -10,6 +10,40 @@ from .models import Fault, Repair, SparePart, RepairPart, Technician, Technician
 from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
 
+
+ACTIVE_FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts"}
+TERMINAL_FAULT_STATUSES = {"repaired", "closed"}
+
+
+def _sync_equipment_from_faults(db: Session, equipment_id: int):
+    """Synchronize equipment technical and operational state with active faults/repairs."""
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return
+    active_fault = db.query(Fault).filter(
+        Fault.equipment_id == equipment_id,
+        Fault.status.in_(ACTIVE_FAULT_STATUSES),
+    ).first()
+    external_repair = db.query(Repair).join(Fault).filter(
+        Fault.equipment_id == equipment_id,
+        Repair.workshop_type == "external",
+        Repair.status == "in_progress",
+    ).first()
+    internal_repair = db.query(Repair).join(Fault).filter(
+        Fault.equipment_id == equipment_id,
+        Repair.workshop_type == "internal",
+        Repair.status == "in_progress",
+    ).first()
+    equipment.technical_condition = "broken" if active_fault else "ready"
+    if external_repair:
+        equipment.operational_status = "in_external_workshop"
+    elif internal_repair:
+        equipment.operational_status = "in_maintenance"
+    elif equipment.operational_status in {"in_maintenance", "in_external_workshop"}:
+        equipment.operational_status = "available"
+    return equipment
+
+
 FAULT_TRANSITIONS = {
     "open": {"diagnosing", "repairing", "closed"},
     "diagnosing": {"repairing", "waiting_parts", "repaired", "closed"},
@@ -42,7 +76,12 @@ def create_fault(db: Session, data: FaultCreate, user_id: Optional[int] = None):
         if not record: raise ValueError("سجل الصيانة غير موجود لهذا العتاد")
     if data.reported_date > date.today(): raise ValueError("لا يمكن تسجيل عطل بتاريخ مستقبلي")
     obj = Fault(**data.model_dump(), status="open", created_by_id=user_id)
-    db.add(obj); db.commit(); db.refresh(obj); return obj
+    db.add(obj)
+    db.flush()
+    _sync_equipment_from_faults(db, obj.equipment_id)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 def update_fault(db: Session, obj: Fault, data: FaultUpdate):
@@ -56,7 +95,10 @@ def change_fault_status(db: Session, obj: Fault, new_status: str):
     if new_status == obj.status: return obj
     if new_status not in allowed: raise ValueError(f"لا يمكن نقل حالة العطل من {obj.status} إلى {new_status}")
     obj.status = new_status
-    db.commit(); db.refresh(obj); return obj
+    _sync_equipment_from_faults(db, obj.equipment_id)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 def create_repair(db: Session, data: RepairCreate, user_id=None):
@@ -66,7 +108,14 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
     obj = Repair(**data.model_dump(), created_by_id=user_id)
-    db.add(obj); db.commit(); db.refresh(obj); return obj
+    db.add(obj)
+    db.flush()
+    if obj.status == "completed":
+        fault.status = "repaired"
+    _sync_equipment_from_faults(db, fault.equipment_id)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 def create_spare_part(db: Session, data: SparePartCreate):
@@ -93,7 +142,7 @@ def dashboard_stats(db: Session):
     by_status = dict(db.query(Fault.status, func.count(Fault.id)).group_by(Fault.status).all())
     by_severity = dict(db.query(Fault.severity, func.count(Fault.id)).group_by(Fault.severity).all())
     repairs = db.query(Repair).count()
-    hours = db.query(func.coalesce(func.sum(Repair.labor_hours), 0)).scalar()
+    hours = db.query(func.coalesce(func.sum(TechnicianIntervention.hours), 0)).scalar()
     parts = db.query(func.coalesce(func.sum(RepairPart.quantity), 0)).scalar()
     return {"faults_total": total, "faults_by_status": by_status, "faults_by_severity": by_severity,
             "repairs_total": repairs, "labor_hours": hours, "parts_consumed": parts}
