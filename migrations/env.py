@@ -14,6 +14,8 @@ from app.modules.users import models as _users_models
 from app.modules.equipment_types import models as _equipment_types_models
 from app.modules.equipment import models as _equipment_models
 from app.modules.maintenance import models as _maintenance_models
+from app.modules.faults_repairs import models as _faults_repairs_models
+from app.modules.tires import models as _tires_models
 
 config = context.config
 
@@ -40,11 +42,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.DATABASE_URL
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
