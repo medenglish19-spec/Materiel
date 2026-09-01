@@ -49,6 +49,13 @@ class FaultUpdate(BaseModel):
     report_number: Optional[str] = None
     note: Optional[str] = None
 
+    @field_validator("exploitation_impact")
+    @classmethod
+    def valid_exploitation_impact(cls, v):
+        if v is not None and v not in FAULT_EXPLOITATION_IMPACTS:
+            raise ValueError("تأثير العطل على الاستغلال غير صحيح")
+        return v
+
 
 class FaultStatusUpdate(BaseModel):
     status: str
