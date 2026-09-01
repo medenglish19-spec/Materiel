@@ -6,7 +6,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.users.models import User
-from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart
+from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
 from .services import dashboard_stats, technician_stats, part_usage_stats, list_repairs
 
 router = APIRouter()
@@ -33,7 +33,7 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
     repair = db.query(Repair).options(
         joinedload(Repair.fault).joinedload(Fault.equipment),
         joinedload(Repair.technician_interventions).joinedload(TechnicianIntervention.technician),
-        joinedload(Repair.consumed_parts).joinedload("spare_part"),
+        joinedload(Repair.consumed_parts).joinedload(RepairPart.spare_part),
     ).filter(Repair.id == repair_id).first()
     if not repair:
         return templates.TemplateResponse("not_found.html", {"request": request, "user": user}, status_code=404)
