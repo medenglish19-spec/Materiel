@@ -25,7 +25,7 @@ def faults_page(request: Request, db: Session = Depends(get_db), user: User = De
 
 @router.get("/faults-repairs/technicians", response_class=HTMLResponse)
 def technicians_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    technicians = list(Technician and db.query(Technician).order_by(Technician.full_name).all())
+    technicians = db.query(Technician).order_by(Technician.full_name).all()
     stats = technician_stats(db)
     stats_by_id = {x["technician_id"]: x for x in stats}
     return templates.TemplateResponse("technicians.html", {"request": request, "user": user, "technicians": technicians, "stats_by_id": stats_by_id})
