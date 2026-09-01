@@ -15,15 +15,32 @@ ACTIVE_FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts"}
 TERMINAL_FAULT_STATUSES = {"repaired", "closed"}
 
 
+def _latest_meter_before(db: Session, equipment_id: int, before_date: date):
+    values = []
+    for query in (
+        db.query(func.max(MaintenanceRecord.meter_value)).filter(MaintenanceRecord.equipment_id == equipment_id, MaintenanceRecord.maintenance_date < before_date, MaintenanceRecord.meter_value.isnot(None)),
+        db.query(func.max(Fault.meter_value)).filter(Fault.equipment_id == equipment_id, Fault.reported_date < before_date, Fault.meter_value.isnot(None)),
+        db.query(func.max(Repair.meter_value)).join(Fault).filter(Fault.equipment_id == equipment_id, Repair.repair_date < before_date, Repair.meter_value.isnot(None)),
+    ):
+        value = query.scalar()
+        if value is not None: values.append(value)
+    return max(values) if values else None
+
+
+def _validate_meter_sequence(db: Session, equipment: Equipment, meter_value, event_date: date):
+    if meter_value is None: return
+    if equipment.current_odometer is not None and meter_value > equipment.current_odometer:
+        raise ValueError("العداد يتجاوز عداد العتاد الحالي")
+    previous = _latest_meter_before(db, equipment.id, event_date)
+    if previous is not None and meter_value < previous:
+        raise ValueError("العداد أقل من قراءة سابقة لنفس العتاد")
+
+
 def _sync_equipment_from_faults(db: Session, equipment_id: int):
     """Synchronize equipment technical and operational state with active faults/repairs."""
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         return
-    active_fault = db.query(Fault).filter(
-        Fault.equipment_id == equipment_id,
-        Fault.status.in_(ACTIVE_FAULT_STATUSES),
-    ).first()
     external_repair = db.query(Repair).join(Fault).filter(
         Fault.equipment_id == equipment_id,
         Repair.workshop_type == "external",
@@ -96,6 +113,7 @@ def create_fault(db: Session, data: FaultCreate, user_id: Optional[int] = None):
         record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == data.maintenance_record_id, MaintenanceRecord.equipment_id == data.equipment_id).first()
         if not record: raise ValueError("سجل الصيانة غير موجود لهذا العتاد")
     if data.reported_date > date.today(): raise ValueError("لا يمكن تسجيل عطل بتاريخ مستقبلي")
+    _validate_meter_sequence(db, equipment, data.meter_value, data.reported_date)
     obj = Fault(**data.model_dump(), status="open", created_by_id=user_id)
     db.add(obj)
     db.flush()
@@ -108,6 +126,9 @@ def create_fault(db: Session, data: FaultCreate, user_id: Optional[int] = None):
 def update_fault(db: Session, obj: Fault, data: FaultUpdate):
     for k, v in data.model_dump(exclude_unset=True).items(): setattr(obj, k, v)
     if obj.reported_date > date.today(): raise ValueError("لا يمكن تسجيل عطل بتاريخ مستقبلي")
+    equipment = db.query(Equipment).filter(Equipment.id == obj.equipment_id).first()
+    _validate_meter_sequence(db, equipment, obj.meter_value, obj.reported_date)
+    _sync_equipment_from_faults(db, obj.equipment_id)
     db.commit(); db.refresh(obj); return obj
 
 
@@ -126,6 +147,9 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
     fault = db.query(Fault).filter(Fault.id == data.fault_id).first()
     if not fault: raise ValueError("العطل غير موجود")
     if data.repair_date > date.today(): raise ValueError("لا يمكن تسجيل إصلاح بتاريخ مستقبلي")
+    equipment = db.query(Equipment).join(Fault, Fault.equipment_id == Equipment.id).filter(Fault.id == data.fault_id).first()
+    if not equipment: raise ValueError("العتاد المرتبط بالعطل غير موجود")
+    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_date)
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
     if fault.status not in {"diagnosing", "repairing", "waiting_parts"}:
