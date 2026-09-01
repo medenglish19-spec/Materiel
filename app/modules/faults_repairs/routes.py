@@ -8,7 +8,7 @@ from app.database.session import get_db
 from app.modules.users.models import User
 from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
 from app.modules.equipment.models import Equipment
-from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, list_repairs
+from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, equipment_fault_stats, list_repairs
 
 router = APIRouter()
 templates = get_module_templates("app/modules/faults_repairs/templates")
@@ -55,6 +55,17 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
     technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
     parts = db.query(SparePart).order_by(SparePart.name).all()
     return templates.TemplateResponse("repair_detail.html", {"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts})
+
+@router.get("/faults-repairs/analytics", response_class=HTMLResponse)
+def analytics_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("analytics.html", {
+        "request": request,
+        "user": user,
+        "stats": dashboard_stats(db),
+        "technicians_stats": technician_stats(db),
+        "parts_stats": part_usage_stats(db),
+        "equipment_stats": equipment_fault_stats(db),
+    })
 
 @router.get("/faults-repairs/technicians", response_class=HTMLResponse)
 def technicians_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
