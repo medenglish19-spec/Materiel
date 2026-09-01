@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}العطل F-{{ fault.id }}{% endblock %}
+{% block content %}
+<style>
+.fd{direction:rtl}.head{display:flex;justify-content:space-between;align-items:end;margin-bottom:15px}.fd h1{margin:0;color:#18283a;font-size:23px}.sub{font-size:11px;color:#718096;margin-top:5px}.grid{display:grid;grid-template-columns:1fr 1.2fr;gap:12px}.panel{background:#fff;border:1px solid #e4e9ef;border-radius:9px}.ph{padding:13px 15px;border-bottom:1px solid #edf0f3;color:#173b63;font-size:12px;font-weight:800}.body{padding:15px}.kv{display:grid;grid-template-columns:125px 1fr;gap:8px;margin-bottom:9px;font-size:10px}.kv span{color:#718096}.state{display:inline-block;padding:5px 9px;border-radius:99px;background:#f1f5f9}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:9px;color:#718096;font-weight:700}.field input,.field select,.field textarea{border:1px solid #dce3e9;border-radius:6px;padding:8px;font:inherit;font-size:10px}.field textarea{min-height:65px;resize:vertical}.btn{border:0;border-radius:7px;padding:9px 13px;background:#0875d1;color:#fff;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.btn.secondary{background:#fff;color:#245d88;border:1px solid #dce3e9}.msg{margin-top:9px;font-size:10px}.error{color:#a04444}.ok{color:#2f735d}.repair-list{display:flex;flex-direction:column;gap:8px}.repair{border:1px solid #e7ecf0;border-radius:7px;padding:10px}.repair-top{display:flex;justify-content:space-between;font-size:10px}.repair-meta{font-size:9px;color:#718096;margin-top:5px}.doc{color:#245d88}.external-fields{display:none}@media(max-width:800px){.grid,.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}}
+</style>
+<div class="fd">
+<div class="head"><div><h1>العطل F-{{ fault.id }}</h1><div class="sub">{{ fault.equipment.registration_number or fault.equipment.asset_code }} — {{ fault.fault_type or 'نوع العطل غير محدد' }}</div></div><a href="/faults-repairs/faults" style="color:#245d88;font-size:11px">← سجل الأعطال</a></div>
+<div class="grid">
+<section class="panel"><div class="ph">بيانات العطل</div><div class="body">
+<div class="kv"><span>العتاد</span><b>{{ fault.equipment.registration_number or fault.equipment.asset_code }}</b></div>
+<div class="kv"><span>تاريخ التسجيل</span><b>{{ fault.reported_date.strftime('%d/%m/%Y') }}</b></div>
+<div class="kv"><span>العداد</span><b>{{ fault.meter_value or '—' }}</b></div>
+<div class="kv"><span>نوع العطل</span><b>{{ fault.fault_type or '—' }}</b></div>
+<div class="kv"><span>درجة الخطورة</span><b>{{ fault.severity }}</b></div>
+<div class="kv"><span>حالة العطل</span><b class="state">{{ fault.status }}</b></div>
+<div class="kv"><span>رقم التقرير</span><b>{{ fault.report_number or '—' }}</b></div>
+<div class="kv"><span>سجل صيانة سابق</span><b>{{ fault.maintenance_record_id or 'غير مرتبط' }}</b></div>
+<div class="kv"><span>الوصف</span><b>{{ fault.description }}</b></div>
+<div class="kv"><span>ملاحظة</span><b>{{ fault.note or '—' }}</b></div>
+</div></section>
+
+<section class="panel"><div class="ph">تسجيل إصلاح جديد</div><div class="body">
+<form id="repairForm">
+<input type="hidden" name="fault_id" value="{{ fault.id }}">
+<div class="form-grid">
+<div class="field"><label>تاريخ الإصلاح *</label><input type="date" name="repair_date" required></div>
+<div class="field"><label>العداد</label><input type="number" min="0" step="0.1" name="meter_value"></div>
+<div class="field"><label>نوع الورشة *</label><select name="workshop_type" id="workshopType"><option value="internal">ورشة داخلية</option><option value="external">ورشة خارجية</option></select></div>
+<div class="field"><label>اسم الورشة</label><input name="workshop"></div>
+<div class="field"><label>حالة الإصلاح *</label><select name="status"><option value="in_progress">قيد الإصلاح</option><option value="completed">تم الإصلاح</option></select></div>
+<div class="field"><label>وثيقة التصليح</label><input name="repair_document" placeholder="رقم/مرجع الوثيقة"></div>
+<div class="field external-fields" id="externalDocument"><label>وثيقة إرسال العتاد للورشة الخارجية *</label><input name="external_dispatch_document"></div>
+<div class="field"><label>ساعات العمل</label><input type="number" min="0" step="0.1" name="labor_hours"></div>
+<div class="field full"><label>التشخيص</label><textarea name="diagnosis"></textarea></div>
+<div class="field full"><label>الإجراء المنفذ *</label><textarea name="action_taken" required></textarea></div>
+<div class="field full"><label>ملاحظات</label><textarea name="notes"></textarea></div>
+</div><button class="btn" type="submit">تسجيل الإصلاح</button><div id="repairMsg" class="msg"></div>
+</form></div></section>
+
+<section class="panel" style="grid-column:1/-1"><div class="ph">سجل الإصلاحات</div><div class="body"><div class="repair-list">{% for r in fault.repairs %}<div class="repair"><div class="repair-top"><strong>R-{{ r.id }}</strong><span>{{ r.status }}</span></div><div class="repair-meta">{{ r.repair_date.strftime('%d/%m/%Y') }} · {{ 'ورشة خارجية' if r.workshop_type=='external' else 'ورشة داخلية' }} · {{ r.action_taken }}</div><div class="repair-meta">وثيقة الإصلاح: <span class="doc">{{ r.repair_document or '—' }}</span>{% if r.external_dispatch_document %} · وثيقة الإرسال: <span class="doc">{{ r.external_dispatch_document }}</span>{% endif %}</div></div>{% else %}<div style="font-size:10px;color:#8794a2">لا توجد إصلاحات مسجلة لهذا العطل.</div>{% endfor %}</div></div></section>
+</div></div>
+<script>
+const wt=document.getElementById('workshopType'), ed=document.getElementById('externalDocument');
+function toggleExternal(){const on=wt.value==='external';ed.style.display=on?'flex':'none';ed.querySelector('input').required=on}
+wt.addEventListener('change',toggleExternal);toggleExternal();
+document.getElementById('repairForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,m=document.getElementById('repairMsg');const data=Object.fromEntries(new FormData(f));data.meter_value=data.meter_value?Number(data.meter_value):null;data.labor_hours=data.labor_hours?Number(data.labor_hours):null;try{const r=await fetch('/api/faults-repairs/repairs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw new Error(j.detail||'تعذر تسجيل الإصلاح');m.className='msg ok';m.textContent='تم تسجيل الإصلاح بنجاح';setTimeout(()=>location.reload(),500)}catch(err){m.className='msg error';m.textContent=err.message}});
+</script>
+{% endblock %}
