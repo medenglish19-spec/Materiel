@@ -17,6 +17,7 @@ from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
 from app.modules.meter_readings.router import router as meter_readings_router
 from app.modules.tires.router import router as tires_router
+from app.modules.batteries.router import router as batteries_router
 from app.modules.users.router import router as users_router
 
 
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
     app.include_router(tires_router, tags=["tires"])
+    app.include_router(batteries_router, tags=["batteries"])
 
     @app.on_event("startup")
     def on_startup():
