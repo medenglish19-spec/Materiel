@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -36,7 +36,7 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
         joinedload(Repair.consumed_parts).joinedload(RepairPart.spare_part),
     ).filter(Repair.id == repair_id).first()
     if not repair:
-        return templates.TemplateResponse("not_found.html", {"request": request, "user": user}, status_code=404)
+        raise HTTPException(status_code=404, detail="التصليح غير موجود")
     return templates.TemplateResponse("repair_detail.html", {"request": request, "user": user, "repair": repair})
 
 @router.get("/faults-repairs/technicians", response_class=HTMLResponse)
@@ -50,7 +50,7 @@ def technicians_page(request: Request, db: Session = Depends(get_db), user: User
 def technician_detail_page(technician_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     analysis = technician_detail_analysis(db, technician_id)
     if not analysis:
-        return templates.TemplateResponse("not_found.html", {"request": request, "user": user}, status_code=404)
+        raise HTTPException(status_code=404, detail="الفني غير موجود")
     return templates.TemplateResponse("technician_detail.html", {"request": request, "user": user, "analysis": analysis})
 
 @router.get("/faults-repairs/spare-parts", response_class=HTMLResponse)
