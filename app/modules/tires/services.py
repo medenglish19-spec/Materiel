@@ -157,13 +157,10 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
         raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
     if db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first():
         raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة جديدة له")
-
     existing = db.query(TireMovement).filter(TireMovement.tire_id == tire.id).order_by(TireMovement.movement_date.asc(), TireMovement.id.asc()).all()
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value)
-    timeline = existing + [candidate]
-    timeline.sort(key=lambda m: (m.movement_date, m.id))
-
+    timeline = sorted(existing + [candidate], key=lambda m: (m.movement_date, m.id))
     state = {"installed": False, "equipment_id": None, "position_id": None}
     for movement in timeline:
         if movement.movement_type == "install":
@@ -221,9 +218,16 @@ def add_model_size(db: Session, equipment_model_id: int, size: str):
 
 def delete_model_size(db: Session, size_id: int):
     obj = db.query(TireModelSize).filter(TireModelSize.id == size_id).first()
-    if obj:
-        db.delete(obj)
-        db.commit()
+    if not obj:
+        return
+    installed = db.query(TireMovement).join(Tire).filter(TireMovement.movement_type.in_(["install", "move"]), TireMovement.tire_id == Tire.id).all()
+    for movement in installed:
+        state = current_state(db, movement.tire_id)
+        if state and state.get("installed") and state.get("equipment") and state["equipment"].equipment_model_id == obj.equipment_model_id and state.get("position"):
+            if state.get("movement") and movement.tire and movement.tire.size and movement.tire.size.strip().lower() == obj.size.strip().lower():
+                raise ValueError("لا يمكن حذف مقاس ما زال مستخدمًا على إطار مركب لهذا الطراز")
+    db.delete(obj)
+    db.commit()
 
 
 def add_position(db: Session, equipment_model_id: int, axle_number: int, side: str, position_type: str, description: str = ""):
@@ -279,8 +283,7 @@ def dispose_tire(db: Session, tire_id: int, disposal_date: date, document: str, 
         raise ValueError("الإطار أُخرج من المخزون مسبقًا")
     if db.query(TireMovement).filter(TireMovement.tire_id == tire_id, TireMovement.movement_date > disposal_date).first():
         raise ValueError("تاريخ الإخراج لا يمكن أن يسبق حركة تاريخية لاحقة")
-    state_at_date = _tire_state_at(db, tire_id, disposal_date)
-    if state_at_date["installed"]:
+    if _tire_state_at(db, tire_id, disposal_date)["installed"]:
         raise ValueError("يجب أن يكون الإطار خارج العتاد في تاريخ الإخراج")
     document = (document or "").strip()
     reason = (reason or "").strip()
@@ -311,8 +314,7 @@ def dashboard_stats(db: Session):
     tires = list_tires(db)
     counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
     for tire in tires:
-        state = current_state(db, tire.id)
-        status = tire_status(tire, state)
+        status = tire_status(tire, current_state(db, tire.id))
         counts[status] = counts.get(status, 0) + 1
     return counts
 
@@ -342,10 +344,7 @@ def equipment_position_view(db: Session, equipment_id: int):
     if not equipment:
         return []
     mounted = {item["state"]["position"].id: item for item in installed_for_equipment(db, equipment_id) if item["state"]["position"]}
-    result = []
-    for position in list_positions(db, equipment.equipment_model_id):
-        result.append({"position": position, "item": mounted.get(position.id)})
-    return result
+    return [{"position": p, "item": mounted.get(p.id)} for p in list_positions(db, equipment.equipment_model_id)]
 
 
 def movement_history(db: Session, tire_id: int):
