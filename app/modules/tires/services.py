@@ -220,12 +220,10 @@ def delete_model_size(db: Session, size_id: int):
     obj = db.query(TireModelSize).filter(TireModelSize.id == size_id).first()
     if not obj:
         return
-    installed = db.query(TireMovement).join(Tire).filter(TireMovement.movement_type.in_(["install", "move"]), TireMovement.tire_id == Tire.id).all()
-    for movement in installed:
-        state = current_state(db, movement.tire_id)
-        if state and state.get("installed") and state.get("equipment") and state["equipment"].equipment_model_id == obj.equipment_model_id and state.get("position"):
-            if state.get("movement") and movement.tire and movement.tire.size and movement.tire.size.strip().lower() == obj.size.strip().lower():
-                raise ValueError("لا يمكن حذف مقاس ما زال مستخدمًا على إطار مركب لهذا الطراز")
+    for tire in list_tires(db):
+        state = current_state(db, tire.id)
+        if state and state.get("installed") and state.get("equipment") and state["equipment"].equipment_model_id == obj.equipment_model_id and tire.size and tire.size.strip().lower() == obj.size.strip().lower():
+            raise ValueError("لا يمكن حذف مقاس ما زال مستخدمًا على إطار مركب لهذا الطراز")
     db.delete(obj)
     db.commit()
 
@@ -343,8 +341,14 @@ def equipment_position_view(db: Session, equipment_id: int):
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         return []
+    configured = list_positions(db, equipment.equipment_model_id)
     mounted = {item["state"]["position"].id: item for item in installed_for_equipment(db, equipment_id) if item["state"]["position"]}
-    return [{"position": p, "item": mounted.get(p.id)} for p in list_positions(db, equipment.equipment_model_id)]
+    result = [{"position": p, "item": mounted.get(p.id)} for p in configured]
+    configured_ids = {p.id for p in configured}
+    for item in mounted.values():
+        if item["state"]["position"].id not in configured_ids:
+            result.append({"position": item["state"]["position"], "item": item})
+    return sorted(result, key=lambda x: (x["position"].axle_number or 9999, x["position"].sort_order, x["position"].id))
 
 
 def movement_history(db: Session, tire_id: int):
