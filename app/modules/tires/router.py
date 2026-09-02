@@ -51,9 +51,9 @@ def create_position(code: str = Form(...), name: str = Form(...), description: s
 
 
 @router.post("/tires")
-def create_tire(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), size: str = Form(""), manufacture_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_tire(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), size: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_tire(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "size": size.strip() or None, "manufacture_date": manufacture_date, "expiry_date": expiry_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
+        services.add_tire(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "size": size.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "expiry_date": expiry_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"تعذر إنشاء الإطار: {exc}")
