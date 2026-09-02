@@ -107,10 +107,12 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
     position = db.query(TirePosition).filter(TirePosition.id == position_id).first()
     if not equipment or not position:
         raise ValueError("العتاد أو موضع الإطار غير موجود")
-    if position.equipment_model_id != equipment.model_id:
+    if position.equipment_model_id != equipment.equipment_model_id:
         raise ValueError("موضع الإطار لا ينتمي إلى طراز العتاد المحدد")
-    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.model_id).all()}
-    if sizes and (not tire.size or tire.size.strip().lower() not in sizes):
+    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all()}
+    if not sizes:
+        raise ValueError("لم تُعرّف مقاسات إطارات معتمدة لهذا الطراز")
+    if not tire.size or tire.size.strip().lower() not in sizes:
         raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")
     return equipment, position
 
