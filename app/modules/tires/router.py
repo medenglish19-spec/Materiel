@@ -32,7 +32,9 @@ def _error(exc: Exception):
 
 @router.get("/tires", response_class=HTMLResponse)
 def tires_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": services.list_tires(db), "stats": services.dashboard_stats(db), "validity_years": services.get_validity_years(db)})
+    tires = services.list_tires(db)
+    statuses = {t.id: services.tire_status(t, services.current_state(db, t.id)) for t in tires}
+    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": services.dashboard_stats(db), "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
 @router.get("/tires/settings", response_class=HTMLResponse)
