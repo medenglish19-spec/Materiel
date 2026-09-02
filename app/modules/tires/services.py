@@ -191,12 +191,6 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")
             state = {"installed": False, "equipment_id": None, "position_id": None}
 
-    if movement_type == "remove":
-        equipment_id = None
-        position_id = None
-    if equipment_id and meter_value is not None:
-        _validate_equipment_meter(db, equipment_id, movement_date, meter_value)
-
 
 def add_tire(db: Session, data: dict):
     data = dict(data)
@@ -336,14 +330,22 @@ def inventory(db: Session):
 
 def installed_for_equipment(db: Session, equipment_id: int):
     rows = []
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    if not equipment:
-        return rows
     for tire in list_tires(db):
         state = current_state(db, tire.id)
         if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
             rows.append({"tire": tire, "state": state})
     return sorted(rows, key=lambda x: x["state"]["position"].sort_order if x["state"]["position"] else 9999)
+
+
+def equipment_position_view(db: Session, equipment_id: int):
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return []
+    mounted = {item["state"]["position"].id: item for item in installed_for_equipment(db, equipment_id) if item["state"]["position"]}
+    result = []
+    for position in list_positions(db, equipment.equipment_model_id):
+        result.append({"position": position, "item": mounted.get(position.id)})
+    return result
 
 
 def movement_history(db: Session, tire_id: int):
