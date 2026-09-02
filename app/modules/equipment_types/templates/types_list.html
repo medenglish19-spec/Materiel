@@ -8,9 +8,7 @@
 <div class="card">
     <h3>الفئات الرئيسية</h3>
     <div class="model-chips">
-        {% for c in categories %}
-        <span class="chip">{{ c.name }}</span>
-        {% endfor %}
+        {% for c in categories %}<span class="chip">{{ c.name }}</span>{% endfor %}
     </div>
 </div>
 
@@ -26,17 +24,8 @@
     <h3>إضافة نوع عتاد جديد</h3>
     <form method="post" action="/equipment-types/create" class="inline-form">
         <input type="text" name="name" placeholder="مثال: شاحنات" required>
-        <select name="category_id" required>
-            <option value="">الفئة الرئيسية *</option>
-            {% for c in categories %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
-            {% endfor %}
-        </select>
-        <select name="measurement_unit" required>
-            <option value="">وحدة القياس *</option>
-            <option value="km">كيلومترات (عداد المسافة)</option>
-            <option value="hours">ساعات التشغيل</option>
-        </select>
+        <select name="category_id" required><option value="">الفئة الرئيسية *</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+        <select name="measurement_unit" required><option value="">وحدة القياس *</option><option value="km">كيلومترات (عداد المسافة)</option><option value="hours">ساعات التشغيل</option></select>
         <button type="submit">إضافة النوع</button>
     </form>
 </div>
@@ -45,62 +34,27 @@
 <div class="card type-card">
     <div class="type-card-header">
         <div>
-            <h3>{{ t.name }}
-                <span class="badge badge-status-in_mission">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span>
-            </h3>
-            <form method="post" action="/equipment-types/{{ t.id }}/category" class="inline-form">
-                <label>الفئة:</label>
-                <select name="category_id" onchange="this.form.submit()">
-                    <option value="">غير مصنف</option>
-                    {% for c in categories %}
-                    <option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
+            <h3>{{ t.name }} <span class="badge badge-status-in_mission">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span></h3>
+            <form method="post" action="/equipment-types/{{ t.id }}/category" class="inline-form"><label>الفئة:</label><select name="category_id" onchange="this.form.submit()"><option value="">غير مصنف</option>{% for c in categories %}<option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></form>
         </div>
-        <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف هذا النوع سيحذف كل طُرزه المرتبطة، متأكد؟');">
-            <button type="submit" class="btn-danger">حذف النوع</button>
-        </form>
+        <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف هذا النوع سيحذف كل طُرزه المرتبطة، متأكد؟');"><button type="submit" class="btn-danger">حذف النوع</button></form>
     </div>
 
     <form method="post" action="/equipment-types/models/create" class="inline-form">
-        <input type="hidden" name="equipment_type_id" value="{{ t.id }}">
-        <input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required>
-        <input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري">
-        <select name="brand_id">
-            <option value="">علامة غير محددة</option>
-            {% for b in brands %}
-            <option value="{{ b.id }}">{{ b.name }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit">إضافة طراز</button>
+        <input type="hidden" name="equipment_type_id" value="{{ t.id }}"><input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required><input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري"><select name="brand_id"><option value="">علامة غير محددة</option>{% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select><button type="submit">إضافة طراز</button>
     </form>
 
     <div class="model-chips">
         {% for m in t.models %}
         <span class="chip">
             <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }} <small>({{ m.theoretical_quantity }} نظري)</small></span>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity" class="chip-delete-form">
-                <input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()" style="width:72px">
-            </form>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form">
-                <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
-                    <option value="">بدون علامة</option>
-                    {% for b in brands %}
-                    <option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form">
-                <button type="submit" title="حذف">×</button>
-            </form>
+            <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity" class="chip-delete-form"><input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()" style="width:72px"></form>
+            <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form"><select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()"><option value="">بدون علامة</option>{% for b in brands %}<option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></form>
+            <a href="/tires/models/{{ m.id }}/configuration" class="chip">إعداد الإطارات</a>
+            <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form"><button type="submit" title="حذف">×</button></form>
         </span>
-        {% else %}
-        <span class="empty-inline">لا توجد طُرز بعد لهذا النوع</span>
-        {% endfor %}
+        {% else %}<span class="empty-inline">لا توجد طُرز بعد لهذا النوع</span>{% endfor %}
     </div>
 </div>
-{% else %}
-<div class="card"><p class="empty">لا توجد أنواع عتاد مسجّلة بعد. أضف أول نوع بالأعلى.</p></div>
-{% endfor %}
+{% else %}<div class="card"><p class="empty">لا توجد أنواع عتاد مسجّلة بعد. أضف أول نوع بالأعلى.</p></div>{% endfor %}
 {% endblock %}
