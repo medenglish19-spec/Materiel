@@ -124,10 +124,8 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
     equipment = db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all()
-    model = None
-    if state and state.get("equipment"):
-        model = db.query(EquipmentModel).filter(EquipmentModel.id == state["equipment"].model_id).first()
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "history": services.movement_history(db, tire_id), "equipment": equipment, "positions": services.list_positions(db, model.id if model else None), "today": date.today(), "validity_years": services.get_validity_years(db)})
+    all_positions = services.list_positions(db)
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "history": services.movement_history(db, tire_id), "equipment": equipment, "positions": all_positions, "today": date.today(), "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/tires/{tire_id}/movements")
