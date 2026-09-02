@@ -41,12 +41,19 @@ def current_state(db: Session, tire_id: int):
     if not movement:
         return None
     if movement.movement_type == "remove":
-        return {"movement": movement, "installed": False, "equipment": None, "position": None}
+        disposition = "stock"
+        reason = (movement.reason or "").strip().lower()
+        if reason in {"تالف", "damaged", "تلف"}:
+            disposition = "damaged"
+        elif reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
+            disposition = "expired"
+        return {"movement": movement, "installed": False, "equipment": None, "position": None, "disposition": disposition}
     return {
         "movement": movement,
         "installed": movement.equipment_id is not None,
         "equipment": movement.equipment,
         "position": movement.position,
+        "disposition": "installed",
     }
 
 
@@ -146,6 +153,8 @@ def add_movement(db: Session, tire_id: int, data: dict):
 
 
 def tire_status(tire: Tire, state):
+    if state and state.get("disposition") in {"damaged", "expired"}:
+        return state["disposition"]
     if tire.expiry_date and tire.expiry_date < date.today():
         return "expired"
     if state and state["installed"]:
@@ -157,7 +166,7 @@ def tire_status(tire: Tire, state):
 
 def dashboard_stats(db: Session):
     tires = list_tires(db)
-    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "unassigned": 0}
+    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
     for tire in tires:
         state = current_state(db, tire.id)
         status = tire_status(tire, state)
