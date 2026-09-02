@@ -125,6 +125,15 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
 
 
 def add_tire(db: Session, data: dict):
+    data = dict(data)
+    if data.get("expiry_date") is None:
+        base = data.get("manufacture_date") or data.get("receipt_date")
+        if base:
+            try:
+                from dateutil.relativedelta import relativedelta
+                data["expiry_date"] = base + relativedelta(years=3)
+            except Exception:
+                data["expiry_date"] = date(base.year + 3, base.month, base.day)
     tire = Tire(**data)
     db.add(tire)
     db.commit()
