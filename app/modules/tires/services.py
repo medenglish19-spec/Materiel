@@ -57,6 +57,10 @@ def set_validity_years(db: Session, years: int):
         db.add(setting)
     else:
         setting.validity_years = years
+    for tire in db.query(Tire).all():
+        base = tire.manufacture_date or tire.receipt_date
+        if base:
+            tire.expiry_date = _add_years(base, years)
     db.commit()
     db.refresh(setting)
     return setting
