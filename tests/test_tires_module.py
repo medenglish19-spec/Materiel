@@ -1,7 +1,5 @@
 from datetime import date, timedelta
 
-import pytest
-
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
 from app.modules.tires.services import MOVEMENT_TYPES, POSITION_TYPES, SIDES, _add_years, _remove_disposition, _state_from_history, tire_status
 
@@ -50,20 +48,11 @@ def test_historical_movement_replay_keeps_chronological_state():
         TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 6), movement_type="move", equipment_id=10, position_id=101),
         TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 9), movement_type="remove"),
     ]
-    state = _state_from_history(movements)
-    assert state["installed"] is False
-    assert state["equipment_id"] is None
-    assert state["position_id"] is None
-
-    retroactive = TireMovement(id=4, tire_id=1, movement_date=date(2026, 1, 4), movement_type="move", equipment_id=11, position_id=200)
-    with pytest.raises(ValueError):
-        # A move inserted before the first recorded installation must never be accepted.
-        from app.modules.tires.services import validate_movement
-        class FakeDB:
-            pass
-        # The actual DB validation is exercised by the integration path; this assertion
-        # documents the required chronological rule without changing production behavior.
-        raise ValueError("historical move before installation")
+    assert _state_from_history(movements[:1])["installed"] is True
+    assert _state_from_history(movements[:1])["position_id"] == 100
+    assert _state_from_history(movements[:2])["installed"] is True
+    assert _state_from_history(movements[:2])["position_id"] == 101
+    assert _state_from_history(movements)["installed"] is False
 
 
 def test_same_day_history_uses_movement_id_as_deterministic_order():
