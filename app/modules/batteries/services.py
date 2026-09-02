@@ -57,6 +57,17 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
 
 
 def add_battery(db: Session, data: dict):
+    data = dict(data)
+    # Excel logic: default service life is 2 years, calculated from manufacture
+    # date, or from receipt date when manufacture date is unavailable.
+    if data.get("expiry_date") is None:
+        base = data.get("manufacture_date") or data.get("receipt_date")
+        if base:
+            try:
+                from dateutil.relativedelta import relativedelta
+                data["expiry_date"] = base + relativedelta(years=2)
+            except Exception:
+                data["expiry_date"] = date(base.year + 2, base.month, base.day)
     battery = Battery(**data)
     db.add(battery)
     db.commit()
@@ -81,6 +92,12 @@ def add_movement(db: Session, battery_id: int, data: dict):
 def status(battery: Battery, state):
     if battery.expiry_date and battery.expiry_date < date.today():
         return "expired"
+    if state and state["movement"].movement_type == "remove":
+        reason = (state["movement"].reason or "").strip().lower()
+        if reason in {"تالف", "damaged", "تلف"}:
+            return "damaged"
+        if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
+            return "expired"
     if state and state["installed"]:
         return "installed"
     if state:
@@ -89,7 +106,7 @@ def status(battery: Battery, state):
 
 
 def stats(db: Session):
-    counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "unassigned": 0}
+    counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
     for battery in list_batteries(db):
         counts["total"] += 1
         key = status(battery, current_state(db, battery.id))
