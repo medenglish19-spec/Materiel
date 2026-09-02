@@ -15,6 +15,7 @@ class Battery(Base, AuditMixin):
     brand = Column(String(80), nullable=True)
     model = Column(String(80), nullable=True)
     manufacture_date = Column(Date, nullable=True)
+    receipt_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
