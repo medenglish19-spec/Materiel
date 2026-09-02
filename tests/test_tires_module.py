@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
-from app.modules.tires.services import MOVEMENT_TYPES, tire_status, _add_years
+from app.modules.tires.services import MOVEMENT_TYPES, POSITION_TYPES, SIDES, _add_years, _remove_disposition, tire_status
 
 
 def test_tire_models_are_registered_with_expected_tables():
@@ -12,6 +12,8 @@ def test_tire_models_are_registered_with_expected_tables():
     assert TireSystemSetting.__tablename__ == "tire_system_settings"
     assert TireDisposal.__tablename__ == "tire_disposals"
     assert {"install", "move", "remove"} == MOVEMENT_TYPES
+    assert SIDES == {"left", "right"}
+    assert POSITION_TYPES == {"single", "inner", "outer"}
 
 
 def test_tire_status_is_derived_from_expiry_and_last_movement():
@@ -29,3 +31,12 @@ def test_tire_status_is_derived_from_expiry_and_last_movement():
 def test_validity_years_is_not_hardcoded_to_three():
     assert _add_years(date(2024, 2, 29), 1) == date(2025, 2, 28)
     assert _add_years(date(2024, 1, 15), 5) == date(2029, 1, 15)
+
+
+def test_remove_disposition_preserves_inventory_categories():
+    damaged = TireMovement(tire_id=1, movement_date=date(2026, 1, 1), movement_type="remove", reason="تالف")
+    expired = TireMovement(tire_id=2, movement_date=date(2026, 1, 1), movement_type="remove", reason="انتهاء الصلاحية")
+    returned = TireMovement(tire_id=3, movement_date=date(2026, 1, 1), movement_type="remove", reason="استبدال")
+    assert _remove_disposition(damaged) == "damaged"
+    assert _remove_disposition(expired) == "expired"
+    assert _remove_disposition(returned) == "stock"
