@@ -79,17 +79,37 @@ def test_movement_type_rules_are_explicit_and_disposal_is_terminal():
     assert _remove_disposition(TireMovement(movement_type="remove", reason="استبدال")) == "stock"
 
 
-def test_tire_meter_history_cannot_go_backwards():
+def test_tire_meter_history_cannot_go_backwards_on_same_equipment():
     movements = [
-        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", meter_value=100),
-        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 10), movement_type="move", meter_value=120),
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", equipment_id=10, meter_value=100),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 10), movement_type="move", equipment_id=10, meter_value=120),
+        TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 15), movement_type="remove", equipment_id=None, meter_value=None),
     ]
     _validate_tire_meter_history(movements)
 
-    movements.append(TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 15), movement_type="remove", meter_value=110))
+    movements.insert(2, TireMovement(id=4, tire_id=1, movement_date=date(2026, 1, 12), movement_type="move", equipment_id=10, meter_value=110))
     try:
         _validate_tire_meter_history(movements)
     except ValueError:
         pass
     else:
-        raise AssertionError("Expected decreasing historical meter value to be rejected")
+        raise AssertionError("Expected decreasing historical meter value on the same equipment to be rejected")
+
+
+def test_tire_meter_history_allows_lower_meter_after_cross_equipment_transfer():
+    movements = [
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", equipment_id=10, meter_value=100),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 10), movement_type="move", equipment_id=10, meter_value=120),
+        TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 11), movement_type="move", equipment_id=20, meter_value=35),
+        TireMovement(id=4, tire_id=1, movement_date=date(2026, 1, 20), movement_type="move", equipment_id=20, meter_value=50),
+    ]
+    _validate_tire_meter_history(movements)
+
+
+def test_tire_meter_history_resets_after_removal():
+    movements = [
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", equipment_id=10, meter_value=100),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 10), movement_type="remove", equipment_id=None, meter_value=None),
+        TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 11), movement_type="install", equipment_id=20, meter_value=20),
+    ]
+    _validate_tire_meter_history(movements)
