@@ -155,14 +155,20 @@ def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: dat
 
 
 def _validate_tire_meter_history(movements):
-    """Ensure recorded tire movement meter values follow the equipment timeline."""
+    """Ensure tire movement meter values never go backwards while the tire stays on one equipment."""
+    previous_equipment_id = None
     previous = None
     for movement in sorted(movements, key=lambda m: (m.movement_date, m.id)):
-        if movement.meter_value is None:
+        if movement.movement_type == "remove":
+            previous_equipment_id = None
+            previous = None
+            continue
+        if movement.meter_value is None or movement.equipment_id is None:
             continue
         value = Decimal(str(movement.meter_value))
-        if previous is not None and value < previous:
-            raise ValueError("قراءات عداد حركات الإطار غير متوافقة مع التسلسل الزمني")
+        if previous_equipment_id == movement.equipment_id and previous is not None and value < previous:
+            raise ValueError("قراءات عداد حركات الإطار غير متوافقة مع التسلسل الزمني للعتاد")
+        previous_equipment_id = movement.equipment_id
         previous = value
 
 
