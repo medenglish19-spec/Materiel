@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
-from app.modules.tires.services import MOVEMENT_TYPES, POSITION_TYPES, SIDES, _add_years, _remove_disposition, _state_from_history, tire_status
+from app.modules.tires.services import MOVEMENT_TYPES, POSITION_TYPES, SIDES, _add_years, _remove_disposition, _state_from_history, _validate_tire_meter_history, tire_status
 
 
 def test_tire_models_are_registered_with_expected_tables():
@@ -77,3 +77,19 @@ def test_movement_type_rules_are_explicit_and_disposal_is_terminal():
     assert _remove_disposition(TireMovement(movement_type="remove", reason="تالف")) == "damaged"
     assert _remove_disposition(TireMovement(movement_type="remove", reason="انتهاء الصلاحية")) == "expired"
     assert _remove_disposition(TireMovement(movement_type="remove", reason="استبدال")) == "stock"
+
+
+def test_tire_meter_history_cannot_go_backwards():
+    movements = [
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", meter_value=100),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 10), movement_type="move", meter_value=120),
+    ]
+    _validate_tire_meter_history(movements)
+
+    movements.append(TireMovement(id=3, tire_id=1, movement_date=date(2026, 1, 15), movement_type="remove", meter_value=110))
+    try:
+        _validate_tire_meter_history(movements)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Expected decreasing historical meter value to be rejected")
