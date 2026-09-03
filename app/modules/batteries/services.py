@@ -92,8 +92,9 @@ def add_movement(db: Session, battery_id: int, data: dict):
 def status(battery: Battery, state):
     if battery.expiry_date and battery.expiry_date < date.today():
         return "expired"
-    if state and state["movement"].movement_type == "remove":
-        reason = (state["movement"].reason or "").strip().lower()
+    movement = state.get("movement") if state else None
+    if movement and movement.movement_type == "remove":
+        reason = (movement.reason or "").strip().lower()
         if reason in {"تالف", "damaged", "تلف"}:
             return "damaged"
         if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:

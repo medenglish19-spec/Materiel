@@ -1,1 +1,29 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>إطارات العتاد</title><style>body{font-family:Arial;background:#f5f7fb}.wrap{max-width:1000px;margin:30px auto;padding:0 18px}.panel{background:#fff;border-radius:16px;padding:18px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #eee;text-align:right}a{color:#175cd3}</style></head><body><div class="wrap"><p><a href="/equipment">← العتاد</a></p><div class="panel"><h1>إطارات {{ equipment.registration_number or equipment.asset_code }}</h1><table><tr><th>الموضع</th><th>الرقم التسلسلي</th><th>الماركة</th><th>المقاس</th><th>الصلاحية</th></tr>{% for item in items %}<tr><td>{{ item.state.position.name if item.state.position else '-' }}</td><td><a href="/tires/{{ item.tire.id }}">{{ item.tire.serial_number }}</a></td><td>{{ item.tire.brand or '-' }}</td><td>{{ item.tire.size or '-' }}</td><td>{{ item.tire.expiry_date or '-' }}</td></tr>{% endfor %}</table></div></div></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إطارات العتاد</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;color:#172033}.wrap{max-width:1050px;margin:28px auto;padding:0 16px}
+.panel{background:#fff;border:1px solid #e5e9f0;border-radius:18px;padding:20px;box-shadow:0 6px 24px rgba(20,30,50,.05)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.muted{color:#64748b}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.box{background:#f8fafc;border-radius:14px;padding:13px;text-align:center}.box b{font-size:22px}
+.vehicle{display:flex;flex-direction:column;align-items:center;gap:18px;margin:24px auto;max-width:620px}.axle{display:flex;justify-content:center;gap:28px;width:100%;position:relative}.axle:before{content:"";position:absolute;top:50%;left:8%;right:8%;border-top:3px solid #cbd5e1;z-index:0}.wheel{position:relative;z-index:1;width:104px;min-height:76px;border:2px solid #94a3b8;border-radius:16px;background:#fff;padding:8px;text-align:center;text-decoration:none;color:inherit;box-sizing:border-box}.wheel.empty{border-style:dashed;color:#9a3412;background:#fffaf5}.wheel .pos{font-size:12px;color:#64748b}.wheel .serial{font-weight:700;margin-top:5px}.wheel .size{font-size:12px;margin-top:3px}.front{font-weight:700;color:#475569}.details{margin-top:20px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #eee;text-align:right}a.back{color:#175cd3;text-decoration:none}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.wheel{width:82px;min-height:70px;padding:6px}.axle{gap:10px}}
+</style>
+</head>
+<body><div class="wrap">
+<p><a class="back" href="/equipment">← العتاد</a></p>
+<div class="panel">
+<div class="head"><div><h1>🛞 إطارات {{ equipment.registration_number or equipment.asset_code }}</h1><div class="muted">الطراز: <b>{{ model.name if model else '-' }}</b></div></div></div>
+<div class="stats"><div class="box">إجمالي المواضع<br><b>{{ positions|length }}</b></div><div class="box">المركب<br><b>{{ items|length }}</b></div><div class="box">الفارغ<br><b>{{ positions|length - items|length }}</b></div></div>
+<div class="vehicle"><div class="front">الأمام</div>
+{% for axle in positions|groupby('position.axle_number') %}
+<div class="axle">
+{% for row in axle.list %}
+{% if row.item %}<a class="wheel" href="/tires/{{ row.item.tire.id }}"><div class="pos">محور {{ row.position.axle_number }} · {{ row.position.name }}</div><div class="serial">{{ row.item.tire.serial_number }}</div><div class="size">{{ row.item.tire.size or '-' }}</div></a>
+{% else %}<div class="wheel empty"><div class="pos">محور {{ row.position.axle_number }} · {{ row.position.name }}</div><div class="serial">فارغ</div><div class="size">مقاس: {{ model.name if false else '-' }}</div></div>{% endif %}
+{% endfor %}
+</div>{% endfor %}<div class="front">الخلف</div></div>
+<div class="details"><h3>السجل التفصيلي</h3><table><tr><th>المحور</th><th>الموضع</th><th>الإطار</th><th>المقاس</th><th>الحالة</th></tr>
+{% for row in positions %}<tr><td>{{ row.position.axle_number }}</td><td>{{ row.position.name }}</td>{% if row.item %}<td><a href="/tires/{{ row.item.tire.id }}">{{ row.item.tire.serial_number }}</a></td><td>{{ row.item.tire.size or '-' }}</td><td>مركب</td>{% else %}<td>-</td><td>-</td><td class="empty">فارغ</td>{% endif %}</tr>{% else %}<tr><td colspan="5">لم يتم تعريف مواضع إطارات لهذا الطراز بعد.</td></tr>{% endfor %}</table></div>
+</div></div></body></html>
