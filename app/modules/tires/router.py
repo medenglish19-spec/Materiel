@@ -129,7 +129,7 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     if current_equipment_id:
         current_equipment = db.query(Equipment).filter(Equipment.id == current_equipment_id).first()
         position_model_id = current_equipment.equipment_model_id if current_equipment else None
-    positions = services.list_positions(db, position_model_id) if position_model_id else []
+    positions = services.list_positions(db)
     return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "history": services.movement_history(db, tire_id), "equipment": equipment, "positions": positions, "today": date.today(), "validity_years": services.get_validity_years(db)})
 
 
