@@ -75,6 +75,11 @@ def _remove_disposition(movement: TireMovement) -> str:
     return "stock"
 
 
+def _is_damaged_reason(reason: str | None) -> bool:
+    value = (reason or "").strip().lower()
+    return any(token in value for token in ("damaged", "damage", "تالف", "ضرر", "غير صالح"))
+
+
 def current_state(db: Session, tire_id: int):
     movements = db.query(TireMovement).filter(TireMovement.tire_id == tire_id).order_by(TireMovement.movement_date.asc(), TireMovement.id.asc()).all()
     state = None
