@@ -70,3 +70,10 @@ def test_cross_equipment_transfer_requires_target_model_and_size_rules():
     assert MOVEMENT_TYPES == {"install", "move", "remove"}
     assert POSITION_TYPES == {"single", "inner", "outer"}
     assert SIDES == {"left", "right"}
+
+
+def test_movement_type_rules_are_explicit_and_disposal_is_terminal():
+    assert MOVEMENT_TYPES == {"install", "move", "remove"}
+    assert _remove_disposition(TireMovement(movement_type="remove", reason="تالف")) == "damaged"
+    assert _remove_disposition(TireMovement(movement_type="remove", reason="انتهاء الصلاحية")) == "expired"
+    assert _remove_disposition(TireMovement(movement_type="remove", reason="استبدال")) == "stock"
