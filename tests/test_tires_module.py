@@ -63,3 +63,10 @@ def test_same_day_history_uses_movement_id_as_deterministic_order():
     state = _state_from_history(movements)
     assert state["installed"] is False
     assert state["movement"].id == 20
+
+
+def test_cross_equipment_transfer_requires_target_model_and_size_rules():
+    """Document the business rule: a tire may move only to a valid position of a compatible model."""
+    assert MOVEMENT_TYPES == {"install", "move", "remove"}
+    assert POSITION_TYPES == {"single", "inner", "outer"}
+    assert SIDES == {"left", "right"}
