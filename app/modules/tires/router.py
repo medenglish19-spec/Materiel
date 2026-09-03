@@ -124,8 +124,13 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
     equipment = db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all()
-    all_positions = services.list_positions(db)
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "history": services.movement_history(db, tire_id), "equipment": equipment, "positions": all_positions, "today": date.today(), "validity_years": services.get_validity_years(db)})
+    current_equipment_id = state["equipment"].id if state and state.get("equipment") else None
+    position_model_id = None
+    if current_equipment_id:
+        current_equipment = db.query(Equipment).filter(Equipment.id == current_equipment_id).first()
+        position_model_id = current_equipment.equipment_model_id if current_equipment else None
+    positions = services.list_positions(db, position_model_id) if position_model_id else []
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "history": services.movement_history(db, tire_id), "equipment": equipment, "positions": positions, "today": date.today(), "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/tires/{tire_id}/movements")
