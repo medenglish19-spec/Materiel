@@ -154,6 +154,18 @@ def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: dat
         raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
 
 
+def _validate_tire_meter_history(movements):
+    """Ensure recorded tire movement meter values follow the equipment timeline."""
+    previous = None
+    for movement in sorted(movements, key=lambda m: (m.movement_date, m.id)):
+        if movement.meter_value is None:
+            continue
+        value = Decimal(str(movement.meter_value))
+        if previous is not None and value < previous:
+            raise ValueError("قراءات عداد حركات الإطار غير متوافقة مع التسلسل الزمني")
+        previous = value
+
+
 def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date: date, equipment_id: int | None, position_id: int | None, meter_value: Decimal | None):
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة الإطار غير صالح")
@@ -165,6 +177,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value)
     timeline = sorted(existing + [candidate], key=lambda m: (m.movement_date, m.id))
+    _validate_tire_meter_history(timeline)
     state = {"installed": False, "equipment_id": None, "position_id": None}
     for movement in timeline:
         if movement.movement_type == "install":
