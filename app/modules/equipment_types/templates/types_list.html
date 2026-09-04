@@ -1,107 +1,198 @@
 {% extends "base.html" %}
-{% block title %}تصنيف أنواع العتاد{% endblock %}
+{% block title %}تصنيف العتاد{% endblock %}
 
 {% block content %}
-<h2>تصنيف أنواع العتاد والطُرز</h2>
-<p class="page-hint">الترتيب المعتمد: الفئة الرئيسية ← نوع العتاد ← العلامة التجارية ← الطراز ← العتاد الفعلي.</p>
+<style>
+    .classification-page { direction: rtl; max-width: 1180px; margin: 0 auto; padding: 8px 0 36px; }
+    .classification-hero { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:22px; }
+    .classification-hero h2 { margin:0 0 8px; font-size:28px; }
+    .page-hint { margin:0; color:#667085; line-height:1.8; }
+    .classification-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .card { border:1px solid #e4e7ec; border-radius:16px; padding:18px; margin-bottom:16px; background:#fff; box-shadow:0 4px 14px rgba(16,24,40,.04); }
+    .card h3 { margin:0 0 12px; }
+    .helper { color:#667085; font-size:14px; line-height:1.7; margin:0 0 14px; }
+    .inline-form { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .inline-form input, .inline-form select { min-height:42px; border:1px solid #d0d5dd; border-radius:10px; padding:8px 11px; background:#fff; box-sizing:border-box; }
+    .inline-form input[type="text"] { flex:1 1 220px; }
+    .inline-form input[type="number"] { width:130px; }
+    .inline-form select { min-width:170px; }
+    button, .button-link { min-height:42px; border:0; border-radius:10px; padding:8px 14px; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; font-weight:600; }
+    .button-primary { background:#101828; color:#fff; }
+    .button-secondary { background:#f2f4f7; color:#344054; }
+    .btn-danger { background:#fff1f3; color:#b42318; }
+    .category-grid { display:flex; gap:10px; flex-wrap:wrap; }
+    .category-item { display:flex; align-items:center; gap:7px; border:1px solid #e4e7ec; border-radius:12px; padding:8px 10px; background:#f9fafb; }
+    .category-item small { color:#667085; }
+    .category-delete { min-height:30px; width:30px; padding:0; border-radius:8px; background:transparent; color:#98a2b3; }
+    .type-card { overflow:hidden; }
+    .type-card-header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; padding-bottom:14px; border-bottom:1px solid #eaecf0; }
+    .type-title { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+    .type-title h3 { margin:0; }
+    .badge { display:inline-flex; align-items:center; padding:4px 9px; border-radius:999px; background:#eef4ff; color:#175cd3; font-size:12px; }
+    .muted-badge { background:#f2f4f7; color:#475467; }
+    .model-chips { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+    .chip { display:flex; align-items:center; gap:8px; border:1px solid #e4e7ec; border-radius:12px; padding:7px 9px; background:#f9fafb; }
+    .chip small { color:#667085; }
+    .chip form { margin:0; }
+    .chip input, .chip select { min-height:32px; border:1px solid #d0d5dd; border-radius:8px; padding:4px 7px; }
+    .chip .chip-link { color:#175cd3; text-decoration:none; font-size:13px; font-weight:600; }
+    .chip-delete-form button { min-height:30px; width:30px; padding:0; background:transparent; color:#98a2b3; font-size:18px; }
+    .empty { color:#667085; text-align:center; padding:18px; }
+    .example-note { border:1px dashed #98a2b3; background:#fcfcfd; }
+    .example-path { font-weight:700; line-height:2; }
+    @media (max-width: 720px) {
+        .classification-hero, .type-card-header { flex-direction:column; }
+        .classification-actions, .classification-actions > * { width:100%; }
+        .classification-actions .button-link, .classification-actions button { width:100%; }
+        .inline-form input, .inline-form select, .inline-form button { width:100%; flex-basis:100%; }
+        .chip { width:100%; flex-wrap:wrap; }
+    }
+</style>
 
-<div class="card">
-    <h3>الفئات الرئيسية</h3>
-    <div class="model-chips">
-        {% for c in categories %}
-        <span class="chip">{{ c.name }}</span>
-        {% endfor %}
-    </div>
-</div>
-
-<div class="card">
-    <h3>إضافة علامة تجارية</h3>
-    <form method="post" action="/equipment-types/brands/create" class="inline-form">
-        <input type="text" name="name" placeholder="مثال: Mercedes-Benz" required>
-        <button type="submit">إضافة العلامة</button>
-    </form>
-</div>
-
-<div class="card">
-    <h3>إضافة نوع عتاد جديد</h3>
-    <form method="post" action="/equipment-types/create" class="inline-form">
-        <input type="text" name="name" placeholder="مثال: شاحنات" required>
-        <select name="category_id" required>
-            <option value="">الفئة الرئيسية *</option>
-            {% for c in categories %}
-            <option value="{{ c.id }}">{{ c.name }}</option>
-            {% endfor %}
-        </select>
-        <select name="measurement_unit" required>
-            <option value="">وحدة القياس *</option>
-            <option value="km">كيلومترات (عداد المسافة)</option>
-            <option value="hours">ساعات التشغيل</option>
-        </select>
-        <button type="submit">إضافة النوع</button>
-    </form>
-</div>
-
-{% for t in types %}
-<div class="card type-card">
-    <div class="type-card-header">
+<div class="classification-page">
+    <div class="classification-hero">
         <div>
-            <h3>{{ t.name }}
-                <span class="badge badge-status-in_mission">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span>
-            </h3>
-            <form method="post" action="/equipment-types/{{ t.id }}/category" class="inline-form">
-                <label>الفئة:</label>
-                <select name="category_id" onchange="this.form.submit()">
-                    <option value="">غير مصنف</option>
-                    {% for c in categories %}
-                    <option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-                    {% endfor %}
-                </select>
+            <h2>تصنيف العتاد</h2>
+            <p class="page-hint">ابنِ التصنيف الذي يناسب مؤسستك. لا توجد أصناف مفروضة؛ يمكنك ترك أي مستوى غير مصنف أو تغييره لاحقًا.</p>
+        </div>
+        <div class="classification-actions">
+            <form method="post" action="/equipment-types/demo">
+                <button type="submit" class="button-secondary">إضافة مثال توضيحي</button>
             </form>
         </div>
-        <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف هذا النوع سيحذف كل طُرزه المرتبطة، متأكد؟');">
-            <button type="submit" class="btn-danger">حذف النوع</button>
+    </div>
+
+    <div class="card example-note">
+        <h3>كيف تستخدم الصفحة؟</h3>
+        <p class="helper">التسلسل المقترح فقط هو: <strong>الفئة الرئيسية ← نوع العتاد ← العلامة التجارية ← الطراز ← العتاد الفعلي</strong>. هذه بنية إرشادية وليست قائمة إلزامية.</p>
+        <div class="example-path">مثال: مركبات ← مركبات خفيفة ← Toyota ← Land Cruiser ← LC-001</div>
+        <p class="helper" style="margin:8px 0 0;">اضغط «إضافة مثال توضيحي» إذا أردت رؤية نموذج عملي. المثال بيانات عادية ويمكن حذف عناصره بعد إضافته.</p>
+    </div>
+
+    <div class="card">
+        <h3>الفئات الرئيسية</h3>
+        <p class="helper">أنشئ الفئات التي تستخدمها أنت. الفئة اختيارية عند إنشاء نوع العتاد.</p>
+        <form method="post" action="/equipment-types/categories/create" class="inline-form" style="margin-bottom:14px;">
+            <input type="text" name="name" placeholder="مثال: المركبات" required>
+            <input type="text" name="code" placeholder="رمز اختياري">
+            <button type="submit" class="button-primary">+ إضافة فئة</button>
+        </form>
+        <div class="category-grid">
+            {% for c in categories %}
+            <div class="category-item">
+                <strong>{{ c.name }}</strong>
+                <small>{{ c.code }}</small>
+                {% if not c.is_system %}
+                <form method="post" action="/equipment-types/categories/{{ c.id }}/delete" onsubmit="return confirm('حذف هذه الفئة سيترك الأنواع المرتبطة بها بدون فئة. هل تريد المتابعة؟');">
+                    <button type="submit" class="category-delete" title="حذف الفئة">×</button>
+                </form>
+                {% else %}
+                <small>أساسية</small>
+                {% endif %}
+            </div>
+            {% else %}
+            <span class="empty-inline">لا توجد فئات. وهذا طبيعي؛ يمكنك العمل بدون فئات.</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>إضافة نوع عتاد</h3>
+        <p class="helper">الفئة الرئيسية اختيارية. إذا لم تكن بحاجة إليها الآن، اختر «بدون فئة».</p>
+        <form method="post" action="/equipment-types/create" class="inline-form">
+            <input type="text" name="name" placeholder="مثال: شاحنات" required>
+            <select name="category_id">
+                <option value="">بدون فئة</option>
+                {% for c in categories %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+            </select>
+            <select name="measurement_unit" required>
+                <option value="">وحدة القياس *</option>
+                <option value="km">كيلومترات (عداد المسافة)</option>
+                <option value="hours">ساعات التشغيل</option>
+            </select>
+            <button type="submit" class="button-primary">+ إضافة النوع</button>
         </form>
     </div>
 
-    <form method="post" action="/equipment-types/models/create" class="inline-form">
-        <input type="hidden" name="equipment_type_id" value="{{ t.id }}">
-        <input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required>
-        <input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري">
-        <select name="brand_id">
-            <option value="">علامة غير محددة</option>
-            {% for b in brands %}
-            <option value="{{ b.id }}">{{ b.name }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit">إضافة طراز</button>
-    </form>
-
-    <div class="model-chips">
-        {% for m in t.models %}
-        <span class="chip">
-            <span>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }} <small>({{ m.theoretical_quantity }} نظري)</small></span>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity" class="chip-delete-form">
-                <input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()" style="width:72px">
-            </form>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/brand" class="chip-delete-form">
-                <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
-                    <option value="">بدون علامة</option>
-                    {% for b in brands %}
-                    <option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-                    {% endfor %}
-                </select>
-            </form>
-            <a href="/tires/models/{{ m.id }}/configuration" class="chip">إعداد الإطارات</a>
-            <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form">
-                <button type="submit" title="حذف">×</button>
-            </form>
-        </span>
-        {% else %}
-        <span class="empty-inline">لا توجد طُرز بعد لهذا النوع</span>
-        {% endfor %}
+    <div class="card">
+        <h3>إضافة علامة تجارية</h3>
+        <p class="helper">العلامة التجارية مستقلة ويمكن استخدامها مع أكثر من نوع وطراز.</p>
+        <form method="post" action="/equipment-types/brands/create" class="inline-form">
+            <input type="text" name="name" placeholder="مثال: Mercedes-Benz" required>
+            <button type="submit" class="button-primary">+ إضافة العلامة</button>
+        </form>
     </div>
+
+    {% for t in types %}
+    <div class="card type-card">
+        <div class="type-card-header">
+            <div>
+                <div class="type-title">
+                    <h3>{{ t.name }}</h3>
+                    <span class="badge">{{ "كيلومترات" if t.measurement_unit == "km" else "ساعات" }}</span>
+                    {% if t.category %}
+                    <span class="badge muted-badge">{{ t.category.name }}</span>
+                    {% else %}
+                    <span class="badge muted-badge">بدون فئة</span>
+                    {% endif %}
+                </div>
+                <form method="post" action="/equipment-types/{{ t.id }}/category" class="inline-form" style="margin-top:10px;">
+                    <label>الفئة الحالية:</label>
+                    <select name="category_id" onchange="this.form.submit()">
+                        <option value="">بدون فئة</option>
+                        {% for c in categories %}
+                        <option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+            <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف هذا النوع سيحذف طُرزه المرتبطة. هل أنت متأكد؟');">
+                <button type="submit" class="btn-danger">حذف النوع</button>
+            </form>
+        </div>
+
+        <form method="post" action="/equipment-types/models/create" class="inline-form" style="margin-top:16px;">
+            <input type="hidden" name="equipment_type_id" value="{{ t.id }}">
+            <input type="text" name="name" placeholder="اسم طراز جديد تحت {{ t.name }}" required>
+            <input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري">
+            <select name="brand_id">
+                <option value="">علامة غير محددة</option>
+                {% for b in brands %}
+                <option value="{{ b.id }}">{{ b.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="button-primary">+ إضافة طراز</button>
+        </form>
+
+        <div class="model-chips">
+            {% for m in t.models %}
+            <span class="chip">
+                <span><strong>{{ m.brand.name ~ " — " if m.brand else "" }}{{ m.name }}</strong> <small>({{ m.theoretical_quantity }} نظري)</small></span>
+                <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity">
+                    <input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()">
+                </form>
+                <form method="post" action="/equipment-types/models/{{ m.id }}/brand">
+                    <select name="brand_id" title="تغيير العلامة التجارية" onchange="this.form.submit()">
+                        <option value="">بدون علامة</option>
+                        {% for b in brands %}
+                        <option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <a href="/tires/models/{{ m.id }}/configuration" class="chip-link">إعداد الإطارات</a>
+                <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form" onsubmit="return confirm('حذف هذا الطراز؟');">
+                    <button type="submit" title="حذف الطراز">×</button>
+                </form>
+            </span>
+            {% else %}
+            <span class="empty-inline">لا توجد طُرز بعد لهذا النوع.</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="card"><p class="empty">لا توجد أنواع عتاد مسجلة بعد. يمكنك البدء من أي مستوى يناسبك، أو إضافة المثال التوضيحي بالأعلى.</p></div>
+    {% endfor %}
 </div>
-{% else %}
-<div class="card"><p class="empty">لا توجد أنواع عتاد مسجّلة بعد. أضف أول نوع بالأعلى.</p></div>
-{% endfor %}
 {% endblock %}
