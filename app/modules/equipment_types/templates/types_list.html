@@ -91,6 +91,7 @@
                     {% endfor %}
                 </select>
             </form>
+            <a href="/tires/models/{{ m.id }}/configuration" class="chip">إعداد الإطارات</a>
             <form method="post" action="/equipment-types/models/{{ m.id }}/delete" class="chip-delete-form">
                 <button type="submit" title="حذف">×</button>
             </form>
