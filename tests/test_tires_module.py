@@ -1,7 +1,9 @@
 from datetime import date, timedelta
 
+import pytest
+
 from app.modules.tires.models import Tire, TireMovement, TirePosition
-from app.modules.tires.services import MOVEMENT_TYPES, tire_condition, tire_location, tire_status
+from app.modules.tires.services import MOVEMENT_TYPES, tire_condition, tire_location, tire_status, validate_movement
 
 
 def test_tire_models_are_registered_with_expected_tables():
@@ -46,3 +48,25 @@ def test_removed_tire_keeps_explicit_expired_disposition():
     assert tire_condition(tire, state) == "expired"
     assert tire_location(state) == "stock"
     assert tire_status(tire, state) == "expired"
+
+
+def test_expired_tire_cannot_be_installed(monkeypatch):
+    tire = Tire(serial_number="T-5", expiry_date=date.today() - timedelta(days=1))
+    monkeypatch.setattr(
+        "app.modules.tires.services.current_state",
+        lambda db, tire_id: {"installed": False, "disposition": "stock"},
+    )
+
+    with pytest.raises(ValueError, match="منتهي الصلاحية"):
+        validate_movement(None, tire, "install", date.today(), 1, 1, None)
+
+
+def test_damaged_tire_cannot_be_installed(monkeypatch):
+    tire = Tire(serial_number="T-6", expiry_date=date.today() + timedelta(days=30))
+    monkeypatch.setattr(
+        "app.modules.tires.services.current_state",
+        lambda db, tire_id: {"installed": False, "disposition": "damaged"},
+    )
+
+    with pytest.raises(ValueError, match="تالف"):
+        validate_movement(None, tire, "install", date.today(), 1, 1, None)
