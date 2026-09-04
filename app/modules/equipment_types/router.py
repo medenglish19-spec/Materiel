@@ -10,6 +10,8 @@ from app.modules.equipment_types import services
 from app.modules.equipment_types.schemas import (
     EquipmentBrandCreate,
     EquipmentBrandOut,
+    EquipmentCategoryCreate,
+    EquipmentCategoryOut,
     EquipmentModelCreate,
     EquipmentModelOut,
     EquipmentTypeCreate,
@@ -42,6 +44,35 @@ def types_page(
     )
 
 
+@router.post("/equipment-types/categories/create")
+def create_category_form(
+    name: str = Form(...),
+    code: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    try:
+        services.create_category(db, EquipmentCategoryCreate(name=name, code=code or None))
+    except ValueError:
+        pass
+    return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/equipment-types/categories/{category_id}/delete")
+def delete_category_form(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    obj = services.get_category(db, category_id)
+    if obj:
+        try:
+            services.delete_category(db, obj)
+        except ValueError:
+            pass
+    return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
+
+
 @router.post("/equipment-types/create")
 def create_type_form(
     request: Request,
@@ -60,7 +91,7 @@ def create_type_form(
                 category_id=int(category_id) if category_id else None,
             ),
         )
-    except ValueError:
+    except (ValueError, TypeError):
         pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
@@ -76,7 +107,7 @@ def set_type_category_form(
     if obj:
         try:
             services.set_type_category(db, obj, int(category_id) if category_id else None)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
@@ -126,7 +157,7 @@ def create_model_form(
                 theoretical_quantity=max(0, theoretical_quantity),
             ),
         )
-    except ValueError:
+    except (ValueError, TypeError):
         pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
@@ -142,7 +173,7 @@ def set_model_brand_form(
     if obj:
         try:
             services.set_model_brand(db, obj, int(brand_id) if brand_id else None)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
@@ -192,7 +223,7 @@ def api_list_models(
     return services.list_models(db, type_id=type_id)
 
 
-@router.get("/api/equipment-categories")
+@router.get("/api/equipment-categories", response_model=list[EquipmentCategoryOut])
 def api_list_categories(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
