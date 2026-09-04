@@ -1,15 +1,23 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مواضع الإطارات | Materiel</title>
+{% extends "base.html" %}
+{% block title %}إعداد مواضع الإطارات{% endblock %}
+{% block content %}
 <style>
-:root{--bg:#f4f7fb;--surface:#fff;--ink:#142033;--muted:#6b7280;--line:#e6ebf2;--soft:#f8fafc;--radius:18px;--shadow:0 10px 30px rgba(15,23,42,.06)}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f8fafc,#f4f7fb);color:var(--ink);font-family:Arial,"Tahoma",sans-serif}.wrap{max-width:1050px;margin:0 auto;padding:28px 20px 50px}.back{display:inline-flex;margin-bottom:18px;color:var(--ink);text-decoration:none;font-weight:700}.hero{margin-bottom:20px}.eyebrow{font-size:12px;color:#667085;font-weight:700;margin-bottom:7px}.hero h1{margin:0 0 6px;font-size:30px}.muted{color:var(--muted)}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);margin-top:16px}.panel h2{font-size:18px;margin:0 0 6px}.hint{font-size:13px;color:var(--muted);margin-bottom:16px}form{display:grid;grid-template-columns:1fr 1fr 1fr 110px;gap:11px}label{display:grid;gap:6px;font-size:12px;font-weight:700;color:#667085}input,button{width:100%;padding:11px 12px;border:1px solid #d8dee8;border-radius:11px;background:#fff;color:var(--ink);font:inherit}button{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:700;cursor:pointer}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:separate;border-spacing:0;min-width:680px}th,td{padding:13px 12px;text-align:right;border-bottom:1px solid var(--line)}th{font-size:12px;color:#667085;background:var(--soft)}tbody tr:hover{background:#fbfcfe}.code{font-family:monospace;font-weight:700;background:var(--soft);padding:5px 8px;border-radius:8px}.order{font-weight:700;color:#667085}
-@media(max-width:720px){form{grid-template-columns:1fr 1fr}.hero h1{font-size:25px}}@media(max-width:480px){.wrap{padding:20px 14px 36px}.panel{padding:16px}form{grid-template-columns:1fr}}
+.position-page{display:grid;gap:18px}.position-hero{padding:24px;border-radius:20px;background:linear-gradient(135deg,#172033,#334b70);color:#fff}.position-hero h2{margin:0 0 7px}.position-hero p{margin:0;opacity:.82}.model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}.model-card{background:#fff;border:1px solid #e5e9f0;border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(23,32,51,.06)}.model-card h3{margin:0 0 6px}.model-card p{color:#687386;font-size:13px;min-height:38px}.model-card a{display:inline-flex;padding:10px 14px;border-radius:10px;background:#172033;color:#fff;text-decoration:none;font-weight:700}.empty{padding:30px;text-align:center;color:#687386;background:#fff;border:1px dashed #cfd6e2;border-radius:16px}@media(max-width:600px){.position-hero{padding:18px}}
 </style>
-</head>
-<body><div class="wrap">
-<a class="back" href="/tires">← العودة إلى إدارة الإطارات</a>
-<header class="hero"><div class="eyebrow">MATERIEL · CONFIGURATION</div><h1>مواضع الإطارات</h1><div class="muted">مرجع موحد لترتيب مواضع الإطارات المستخدمة في العتاد.</div></header>
-<section class="panel"><h2>إضافة موضع</h2><div class="hint">استخدم رمزًا ثابتًا واسمًا واضحًا ليسهل اختيار الموضع أثناء التركيب أو النقل.</div><form method="post" action="/tires/positions"><label>رمز الموضع<input name="code" placeholder="FL" required></label><label>اسم الموضع<input name="name" placeholder="أمام يسار" required></label><label>الوصف<input name="description" placeholder="وصف اختياري"></label><label>الترتيب<input name="sort_order" type="number" value="0"></label><button>إضافة الموضع</button></form></section>
-<section class="panel"><h2>مرجع المواضع</h2><div class="table-wrap"><table><thead><tr><th>الرمز</th><th>الموضع</th><th>الوصف</th><th>الترتيب</th></tr></thead><tbody>{% for p in positions %}<tr><td><span class="code">{{ p.code }}</span></td><td><b>{{ p.name }}</b></td><td>{{ p.description or '-' }}</td><td class="order">{{ p.sort_order }}</td></tr>{% else %}<tr><td colspan="4" style="text-align:center;padding:34px;color:#6b7280">لا توجد مواضع معرفة بعد.</td></tr>{% endfor %}</tbody></table></div></section>
-</div></body></html>
+<div class="position-page">
+  <section class="position-hero"><h2>إعداد مواضع الإطارات حسب الطراز</h2><p>عرّف المواضع مرة واحدة لكل طراز، وستُستخدم تلقائيًا مع جميع العتاد التابع لذلك الطراز.</p></section>
+  {% if models %}
+  <div class="model-grid">
+    {% for model in models %}
+    <article class="model-card">
+      <h3>{{ model.brand.name ~ ' — ' if model.brand else '' }}{{ model.name }}</h3>
+      <p>{{ model.equipment_type.name if model.equipment_type else 'نوع العتاد غير محدد' }}</p>
+      <a href="/tires/models/{{ model.id }}/configuration">فتح إعداد الإطارات</a>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">لا توجد طُرز عتاد بعد. أنشئ طرازًا أولًا من صفحة تعريف الأنواع والطُرز.</div>
+  {% endif %}
+</div>
+{% endblock %}
