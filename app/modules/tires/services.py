@@ -1,13 +1,14 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import and_, func
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
 from app.modules.tires.models import Tire, TireMovement, TirePosition
 
 MOVEMENT_TYPES = {"install", "move", "remove"}
+DAMAGED_REASONS = {"تالف", "damaged", "تلف"}
+EXPIRED_REASONS = {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}
 
 
 def list_tires(db: Session):
@@ -43,11 +44,17 @@ def current_state(db: Session, tire_id: int):
     if movement.movement_type == "remove":
         disposition = "stock"
         reason = (movement.reason or "").strip().lower()
-        if reason in {"تالف", "damaged", "تلف"}:
+        if reason in DAMAGED_REASONS:
             disposition = "damaged"
-        elif reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
+        elif reason in EXPIRED_REASONS:
             disposition = "expired"
-        return {"movement": movement, "installed": False, "equipment": None, "position": None, "disposition": disposition}
+        return {
+            "movement": movement,
+            "installed": False,
+            "equipment": None,
+            "position": None,
+            "disposition": disposition,
+        }
     return {
         "movement": movement,
         "installed": movement.equipment_id is not None,
@@ -57,12 +64,36 @@ def current_state(db: Session, tire_id: int):
     }
 
 
-def _equipment_position_occupied(db: Session, equipment_id: int, position_id: int, exclude_tire_id: int | None = None):
-    q = db.query(TireMovement.tire_id).join(
-        Tire,
-        Tire.id == TireMovement.tire_id,
+def tire_condition(tire: Tire, state):
+    """Return the physical condition independently from the tire's location."""
+    if state and state.get("disposition") in {"damaged", "expired"}:
+        return state["disposition"]
+    if tire.expiry_date and tire.expiry_date < date.today():
+        return "expired"
+    return "good"
+
+
+def tire_location(state):
+    """Return the current location independently from condition."""
+    if not state:
+        return "unassigned"
+    return "installed" if state.get("installed") else "stock"
+
+
+def _equipment_position_occupied(
+    db: Session,
+    equipment_id: int,
+    position_id: int,
+    exclude_tire_id: int | None = None,
+):
+    rows = (
+        db.query(TireMovement.tire_id)
+        .filter(
+            TireMovement.equipment_id == equipment_id,
+            TireMovement.position_id == position_id,
+        )
+        .all()
     )
-    rows = q.filter(TireMovement.equipment_id == equipment_id, TireMovement.position_id == position_id).all()
     for (tire_id,) in rows:
         if exclude_tire_id and tire_id == exclude_tire_id:
             continue
@@ -73,9 +104,15 @@ def _equipment_position_occupied(db: Session, equipment_id: int, position_id: in
     return None
 
 
-def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date: date,
-                      equipment_id: int | None, position_id: int | None,
-                      meter_value: Decimal | None):
+def validate_movement(
+    db: Session,
+    tire: Tire,
+    movement_type: str,
+    movement_date: date,
+    equipment_id: int | None,
+    position_id: int | None,
+    meter_value: Decimal | None,
+):
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة الإطار غير صالح")
     if movement_date > date.today():
@@ -83,6 +120,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
 
     state = current_state(db, tire.id)
     installed = bool(state and state["installed"])
+    condition = tire_condition(tire, state)
 
     if movement_type == "install" and installed:
         raise ValueError("الإطار مركب بالفعل؛ استخدم نقلًا أو فكًا")
@@ -90,6 +128,12 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
         raise ValueError("لا يمكن نقل إطار غير مركب")
     if movement_type == "remove" and not installed:
         raise ValueError("لا يمكن فك إطار غير مركب")
+
+    # A tire that is expired or explicitly marked damaged must not be installed
+    # or moved. Removal remains allowed so it can be taken out of service.
+    if movement_type in {"install", "move"} and condition in {"expired", "damaged"}:
+        label = "منتهي الصلاحية" if condition == "expired" else "تالف"
+        raise ValueError(f"لا يمكن {('تركيب' if movement_type == 'install' else 'نقل')} إطار {label}")
 
     if movement_type in {"install", "move"}:
         if not equipment_id or not position_id:
@@ -126,14 +170,28 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
 
 def add_tire(db: Session, data: dict):
     data = dict(data)
-    if data.get("expiry_date") is None:
-        base = data.get("manufacture_date") or data.get("receipt_date")
-        if base:
-            try:
-                from dateutil.relativedelta import relativedelta
-                data["expiry_date"] = base + relativedelta(years=3)
-            except Exception:
-                data["expiry_date"] = date(base.year + 3, base.month, base.day)
+    serial_number = (data.get("serial_number") or "").strip()
+    if not serial_number:
+        raise ValueError("الرقم التسلسلي للإطار مطلوب")
+    if db.query(Tire.id).filter(Tire.serial_number == serial_number).first():
+        raise ValueError("الرقم التسلسلي للإطار مستخدم مسبقًا")
+    data["serial_number"] = serial_number
+
+    manufacture_date = data.get("manufacture_date")
+    receipt_date = data.get("receipt_date")
+    expiry_date = data.get("expiry_date")
+    base = manufacture_date or receipt_date
+    if expiry_date is None and base:
+        try:
+            from dateutil.relativedelta import relativedelta
+            data["expiry_date"] = base + relativedelta(years=3)
+        except Exception:
+            data["expiry_date"] = date(base.year + 3, base.month, base.day)
+    elif expiry_date and manufacture_date and expiry_date < manufacture_date:
+        raise ValueError("تاريخ انتهاء الصلاحية لا يمكن أن يسبق تاريخ التصنيع")
+    elif expiry_date and receipt_date and expiry_date < receipt_date:
+        raise ValueError("تاريخ انتهاء الصلاحية لا يمكن أن يسبق تاريخ الاستلام")
+
     tire = Tire(**data)
     db.add(tire)
     db.commit()
@@ -153,7 +211,15 @@ def add_movement(db: Session, tire_id: int, data: dict):
     tire = db.query(Tire).filter(Tire.id == tire_id).first()
     if not tire:
         raise ValueError("الإطار غير موجود")
-    validate_movement(db, tire, data["movement_type"], data["movement_date"], data.get("equipment_id"), data.get("position_id"), data.get("meter_value"))
+    validate_movement(
+        db,
+        tire,
+        data["movement_type"],
+        data["movement_date"],
+        data.get("equipment_id"),
+        data.get("position_id"),
+        data.get("meter_value"),
+    )
     movement = TireMovement(tire_id=tire_id, **data)
     db.add(movement)
     db.commit()
@@ -162,15 +228,12 @@ def add_movement(db: Session, tire_id: int, data: dict):
 
 
 def tire_status(tire: Tire, state):
-    if state and state.get("disposition") in {"damaged", "expired"}:
-        return state["disposition"]
-    if tire.expiry_date and tire.expiry_date < date.today():
-        return "expired"
-    if state and state["installed"]:
-        return "installed"
-    if state:
-        return "stock"
-    return "unassigned"
+    """Backward-compatible aggregate status used by existing dashboard code."""
+    condition = tire_condition(tire, state)
+    if condition in {"damaged", "expired"}:
+        return condition
+    location = tire_location(state)
+    return location
 
 
 def dashboard_stats(db: Session):
@@ -188,7 +251,13 @@ def inventory(db: Session):
     for tire in list_tires(db):
         state = current_state(db, tire.id)
         if not state or not state["installed"]:
-            result.append({"tire": tire, "state": state, "status": tire_status(tire, state)})
+            result.append({
+                "tire": tire,
+                "state": state,
+                "status": tire_status(tire, state),
+                "condition": tire_condition(tire, state),
+                "location": tire_location(state),
+            })
     return result
 
 
@@ -197,7 +266,12 @@ def installed_for_equipment(db: Session, equipment_id: int):
     for tire in list_tires(db):
         state = current_state(db, tire.id)
         if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
-            rows.append({"tire": tire, "state": state})
+            rows.append({
+                "tire": tire,
+                "state": state,
+                "condition": tire_condition(tire, state),
+                "location": tire_location(state),
+            })
     return sorted(rows, key=lambda x: x["state"]["position"].sort_order if x["state"]["position"] else 9999)
 
 
