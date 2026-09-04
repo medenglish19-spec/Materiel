@@ -1,1 +1,117 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>إطارات العتاد</title><style>body{font-family:Arial;background:#f5f7fb}.wrap{max-width:1000px;margin:30px auto;padding:0 18px}.panel{background:#fff;border-radius:16px;padding:18px}table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #eee;text-align:right}a{color:#175cd3}</style></head><body><div class="wrap"><p><a href="/equipment">← العتاد</a></p><div class="panel"><h1>إطارات {{ equipment.registration_number or equipment.asset_code }}</h1><table><tr><th>الموضع</th><th>الرقم التسلسلي</th><th>الماركة</th><th>المقاس</th><th>الصلاحية</th></tr>{% for item in items %}<tr><td>{{ item.state.position.name if item.state.position else '-' }}</td><td><a href="/tires/{{ item.tire.id }}">{{ item.tire.serial_number }}</a></td><td>{{ item.tire.brand or '-' }}</td><td>{{ item.tire.size or '-' }}</td><td>{{ item.tire.expiry_date or '-' }}</td></tr>{% endfor %}</table></div></div></body></html>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>إطارات العتاد</title>
+  <style>
+    :root{font-family:"Segoe UI",Tahoma,Arial,sans-serif;color:#172033;background:#f4f7fb;line-height:1.5}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(circle at top right,#eef4ff 0,#f4f7fb 38%,#f7f9fc 100%)}
+    .wrap{max-width:1240px;margin:0 auto;padding:28px 18px 44px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+    .back{display:inline-flex;align-items:center;gap:8px;color:#40516f;text-decoration:none;font-weight:700;padding:9px 13px;border:1px solid #dfe6f1;background:#fff;border-radius:12px;box-shadow:0 4px 14px rgba(31,45,75,.05)}
+    .back:hover{border-color:#b9c8df;background:#fbfcff}
+    .eyebrow{margin:0 0 3px;color:#71809a;font-size:13px;font-weight:700}
+    h1{margin:0;font-size:30px;letter-spacing:-.5px;color:#13213a}
+    .subtitle{margin:5px 0 0;color:#6d7b92;font-size:14px}
+    .hero{background:linear-gradient(135deg,#fff 0,#f8fbff 100%);border:1px solid #e2e9f3;border-radius:22px;padding:22px;box-shadow:0 14px 38px rgba(35,52,82,.08);margin-bottom:18px}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .stat{background:#fff;border:1px solid #e6ebf3;border-radius:16px;padding:15px 16px;min-height:88px}
+    .stat-label{color:#71809a;font-size:13px;font-weight:700}
+    .stat-value{font-size:25px;font-weight:800;margin-top:5px;color:#16233b}
+    .panel{background:#fff;border:1px solid #e2e8f1;border-radius:20px;overflow:hidden;box-shadow:0 12px 32px rgba(35,52,82,.07)}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:19px 21px;border-bottom:1px solid #edf0f5}
+    .panel-head h2{font-size:18px;margin:0;color:#1a2740}
+    .count{font-size:12px;font-weight:800;color:#62718a;background:#f1f4f9;border-radius:999px;padding:6px 10px}
+    .table-wrap{overflow:auto}
+    table{width:100%;border-collapse:separate;border-spacing:0;min-width:820px}
+    th{background:#f8fafc;color:#66758e;font-size:12px;font-weight:800;white-space:nowrap;padding:13px 16px;border-bottom:1px solid #e9edf4;text-align:right}
+    td{padding:15px 16px;border-bottom:1px solid #eef1f5;color:#27354c;font-size:14px;vertical-align:middle}
+    tbody tr:last-child td{border-bottom:0}
+    tbody tr:hover{background:#fbfcfe}
+    .serial{font-weight:800;color:#1b4f9c;text-decoration:none}
+    .serial:hover{text-decoration:underline}
+    .muted{color:#8a96a9}
+    .primary{font-weight:700;color:#202e45}
+    .secondary{display:block;color:#8793a6;font-size:12px;margin-top:2px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+    .badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+    .good{color:#16704a;background:#eaf8f1}
+    .expired{color:#b45309;background:#fff4df}
+    .damaged{color:#b42318;background:#fff0ee}
+    .meter{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+    .empty{padding:48px 20px;text-align:center;color:#7a879b}
+    .empty strong{display:block;color:#34425a;font-size:16px;margin-bottom:5px}
+    @media(max-width:800px){.wrap{padding:18px 12px 30px}.topbar{align-items:flex-start;flex-direction:column}h1{font-size:25px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{padding:16px;border-radius:18px}.panel{border-radius:17px}}
+    @media(max-width:430px){.stats{grid-template-columns:1fr 1fr}.stat{padding:12px}.stat-value{font-size:21px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="topbar">
+      <div>
+        <p class="eyebrow">إدارة الإطارات</p>
+        <h1>إطارات {{ equipment.registration_number or equipment.asset_code }}</h1>
+        <p class="subtitle">الحالة الحالية للإطارات المركبة على هذا العتاد</p>
+      </div>
+      <a class="back" href="/equipment">← العتاد</a>
+    </div>
+
+    <section class="hero">
+      <div class="stats">
+        <div class="stat"><div class="stat-label">الإطارات المركبة</div><div class="stat-value">{{ items|length }}</div></div>
+        <div class="stat"><div class="stat-label">سليمة</div><div class="stat-value">{{ items|selectattr('condition','equalto','good')|list|length }}</div></div>
+        <div class="stat"><div class="stat-label">منتهية الصلاحية</div><div class="stat-value">{{ items|selectattr('condition','equalto','expired')|list|length }}</div></div>
+        <div class="stat"><div class="stat-label">تحتاج مراجعة</div><div class="stat-value">{{ items|selectattr('condition','equalto','damaged')|list|length }}</div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>التوزيع الحالي للإطارات</h2>
+        <span class="count">{{ items|length }} إطار</span>
+      </div>
+      {% if items %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الموضع</th>
+              <th>الإطار</th>
+              <th>الماركة / الطراز</th>
+              <th>المقاس</th>
+              <th>الحالة الفنية</th>
+              <th>الصلاحية</th>
+              <th>آخر عداد</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for item in items %}
+            <tr>
+              <td><span class="primary">{{ item.state.position.name if item.state.position else '-' }}</span></td>
+              <td><a class="serial" href="/tires/{{ item.tire.id }}">{{ item.tire.serial_number }}</a></td>
+              <td>
+                <span class="primary">{{ item.tire.brand or '-' }}</span>
+                {% if item.tire.model %}<span class="secondary">{{ item.tire.model }}</span>{% endif %}
+              </td>
+              <td>{{ item.tire.size or '-' }}</td>
+              <td>
+                {% if item.condition == 'expired' %}<span class="badge expired">منتهي الصلاحية</span>
+                {% elif item.condition == 'damaged' %}<span class="badge damaged">تالف</span>
+                {% else %}<span class="badge good">سليم</span>{% endif %}
+              </td>
+              <td>{{ item.tire.expiry_date or '-' }}</td>
+              <td class="meter">{{ item.state.movement.meter_value if item.state.movement and item.state.movement.meter_value is not none else '-' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><strong>لا توجد إطارات مركبة حاليًا</strong>يمكنك تركيب إطار من صفحة تفاصيل الإطار.</div>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
