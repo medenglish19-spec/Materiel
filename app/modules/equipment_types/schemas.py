@@ -4,6 +4,11 @@ from pydantic import BaseModel, ConfigDict, field_validator
 MEASUREMENT_UNITS = {"km", "hours"}
 
 
+class EquipmentCategoryCreate(BaseModel):
+    name: str
+    code: Optional[str] = None
+
+
 class EquipmentCategoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
