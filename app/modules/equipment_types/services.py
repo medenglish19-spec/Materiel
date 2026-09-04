@@ -9,6 +9,7 @@ from app.modules.equipment_types.models import (
 )
 from app.modules.equipment_types.schemas import (
     EquipmentBrandCreate,
+    EquipmentCategoryCreate,
     EquipmentModelCreate,
     EquipmentTypeCreate,
 )
@@ -20,6 +21,31 @@ def list_categories(db: Session) -> list[EquipmentCategory]:
 
 def get_category(db: Session, category_id: int) -> Optional[EquipmentCategory]:
     return db.query(EquipmentCategory).filter(EquipmentCategory.id == category_id).first()
+
+
+def create_category(db: Session, data: EquipmentCategoryCreate) -> EquipmentCategory:
+    name = data.name.strip()
+    if not name:
+        raise ValueError("اسم الفئة مطلوب")
+    if db.query(EquipmentCategory).filter(EquipmentCategory.name == name).first():
+        raise ValueError("الفئة موجودة مسبقًا")
+    code = (data.code or name).strip().lower().replace(" ", "-")[:30]
+    if not code:
+        code = f"category-{db.query(EquipmentCategory).count() + 1}"
+    if db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first():
+        code = f"{code}-{db.query(EquipmentCategory).count() + 1}"[:30]
+    obj = EquipmentCategory(name=name, code=code, is_system=False)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def delete_category(db: Session, obj: EquipmentCategory) -> None:
+    if obj.is_system:
+        raise ValueError("الفئات الأساسية للنظام لا يمكن حذفها")
+    db.delete(obj)
+    db.commit()
 
 
 def list_brands(db: Session, active_only: bool = True) -> list[EquipmentBrand]:
@@ -73,6 +99,8 @@ def get_type_by_name(db: Session, name: str) -> Optional[EquipmentType]:
 
 def create_type(db: Session, data: EquipmentTypeCreate) -> EquipmentType:
     name = data.name.strip()
+    if not name:
+        raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db, name):
         raise ValueError("نوع العتاد موجود مسبقًا")
     if data.category_id is not None and get_category(db, data.category_id) is None:
