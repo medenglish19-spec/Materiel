@@ -92,17 +92,23 @@ def add_movement(db: Session, battery_id: int, data: dict):
 def status(battery: Battery, state):
     if battery.expiry_date and battery.expiry_date < date.today():
         return "expired"
-    if state and state["movement"].movement_type == "remove":
-        reason = (state["movement"].reason or "").strip().lower()
+    if not state:
+        return "unassigned"
+
+    # current_state() supplies the movement object, while lightweight callers
+    # and existing tests may provide only the derived installed flag. Support
+    # both representations without changing the source-of-truth model.
+    movement = state.get("movement") if isinstance(state, dict) else None
+    if movement and movement.movement_type == "remove":
+        reason = (movement.reason or "").strip().lower()
         if reason in {"تالف", "damaged", "تلف"}:
             return "damaged"
         if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
             return "expired"
-    if state and state["installed"]:
+
+    if state.get("installed"):
         return "installed"
-    if state:
-        return "stock"
-    return "unassigned"
+    return "stock"
 
 
 def stats(db: Session):
