@@ -34,17 +34,7 @@ def _error(exc: Exception):
 def tires_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     tires = services.list_tires(db)
     statuses = {t.id: services.tire_status(t, services.current_state(db, t.id)) for t in tires}
-    return templates.TemplateResponse(
-        "tires.html",
-        {
-            "request": request,
-            "user": current_user,
-            "tires": tires,
-            "stats": services.dashboard_stats(db),
-            "validity_years": services.get_validity_years(db),
-            "tire_statuses": statuses,
-        },
-    )
+    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": services.dashboard_stats(db), "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
 @router.get("/tires/settings", response_class=HTMLResponse)
@@ -121,17 +111,6 @@ def delete_model_size(size_id: int, model_id: int = Form(...), db: Session = Dep
     return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
-@router.post("/tires/positions")
-def create_legacy_position(code: str = Form(...), name: str = Form(...), description: str = Form(""), sort_order: int = Form(0), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Keep the old endpoint usable for existing deployments/data."""
-    try:
-        services.add_legacy_position(db, {"code": code.strip(), "name": name.strip(), "description": description.strip() or None, "sort_order": sort_order})
-    except Exception as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse("/tires/positions", status_code=303)
-
-
 @router.post("/tires")
 def create_tire(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), size: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
@@ -148,21 +127,7 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     if not tire:
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
-    return templates.TemplateResponse(
-        "tire_detail.html",
-        {
-            "request": request,
-            "user": current_user,
-            "tire": tire,
-            "state": state,
-            "condition": services.tire_condition(tire, state),
-            "history": services.movement_history(db, tire_id),
-            "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(),
-            "positions": services.list_positions(db),
-            "today": date.today(),
-            "validity_years": services.get_validity_years(db),
-        },
-    )
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "today": date.today(), "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/tires/{tire_id}/movements")
@@ -193,13 +158,4 @@ def equipment_tires_page(request: Request, equipment_id: int, db: Session = Depe
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse(
-        "equipment_tires.html",
-        {
-            "request": request,
-            "user": current_user,
-            "equipment": equipment,
-            "items": services.installed_for_equipment(db, equipment_id),
-            "position_view": services.equipment_position_view(db, equipment_id),
-        },
-    )
+    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": services.installed_for_equipment(db, equipment_id), "position_view": services.equipment_position_view(db, equipment_id)})
