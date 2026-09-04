@@ -1,2 +1,32 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الإطارات</title><style>body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;color:#172033}.wrap{max-width:1200px;margin:30px auto;padding:0 18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:20px 0}.card,.panel{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:16px;box-shadow:0 4px 18px #00000008}.card b{font-size:25px;display:block;margin-top:7px}form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}input,select,textarea,button{padding:10px;border:1px solid #d7dce5;border-radius:10px;font:inherit}button{background:#172033;color:#fff;cursor:pointer}.wide{grid-column:1/-1}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:right}a{color:#175cd3;text-decoration:none}.muted{color:#6b7280}@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}form{grid-template-columns:1fr 1fr}}</style></head><body><div class="wrap"><div class="top"><div><h1>إدارة الإطارات</h1><div class="muted">السجل الأساسي + الحركة + الوضع الحالي</div></div><div><a href="/tires/inventory">المخزون</a> · <a href="/tires/positions">المواضع</a></div></div><div class="cards"><div class="card">الإجمالي<b>{{ stats.total }}</b></div><div class="card">مركبة<b>{{ stats.installed }}</b></div><div class="card">في المخزون<b>{{ stats.stock }}</b></div><div class="card">منتهية الصلاحية<b>{{ stats.expired }}</b></div><div class="card">غير مخصصة<b>{{ stats.unassigned }}</b></div></div><div class="panel"><h2>إضافة إطار</h2><form method="post" action="/tires"><input name="serial_number" placeholder="الرقم التسلسلي" required><input name="brand" placeholder="الماركة"><input name="model" placeholder="الطراز"><input name="size" placeholder="المقاس"><input type="date" name="manufacture_date"><input type="date" name="expiry_date"><input name="acquisition_document" placeholder="وثيقة الاقتناء"><input name="notes" placeholder="ملاحظات"><button class="wide">حفظ الإطار</button></form></div><div class="panel" style="margin-top:16px"><h2>سجل الإطارات</h2><table><tr><th>الرقم</th><th>الماركة</th><th>المقاس</th><th>الصلاحية</th><th>التفاصيل</th></tr>{% for tire in tires %}<tr><td>{{ tire.serial_number }}</td><td>{{ tire.brand or '-' }}</td><td>{{ tire.size or '-' }}</td><td>{{ tire.expiry_date or '-' }}</td><td><a href="/tires/{{ tire.id }}">فتح السجل</a></td></tr>{% endfor %}</table></div></div></body></html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إدارة الإطارات</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f5f7fb;margin:0;color:#172033}.wrap{max-width:1200px;margin:30px auto;padding:0 18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:20px 0}.card,.panel{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:16px;box-shadow:0 4px 18px #00000008}.card b{font-size:25px;display:block;margin-top:7px}form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}input,select,textarea,button{padding:10px;border:1px solid #d7dce5;border-radius:10px;font:inherit}button{background:#172033;color:#fff;cursor:pointer}.wide{grid-column:1/-1}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #edf0f4;text-align:right}a{color:#175cd3;text-decoration:none}.muted{color:#6b7280}.nav{display:flex;gap:12px;flex-wrap:wrap}.note{font-size:13px;color:#6b7280;margin-top:8px}@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}form{grid-template-columns:1fr 1fr}}@media(max-width:520px){.cards{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}form{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1>إدارة الإطارات</h1><div class="muted">السجل الأساسي + الحركة + الوضع الحالي</div></div>
+    <div class="nav"><a href="/tires/inventory">المخزون</a><a href="/tires/positions">المواضع</a></div>
+  </div>
+  <div class="cards">
+    <div class="card">الإجمالي<b>{{ stats.total }}</b></div><div class="card">مركبة<b>{{ stats.installed }}</b></div><div class="card">في المخزون<b>{{ stats.stock }}</b></div><div class="card">منتهية الصلاحية<b>{{ stats.expired }}</b></div><div class="card">غير مخصصة<b>{{ stats.unassigned }}</b></div>
+  </div>
+  <div class="panel">
+    <h2>إضافة إطار</h2>
+    <form method="post" action="/tires">
+      <input name="serial_number" placeholder="الرقم التسلسلي" required><input name="brand" placeholder="الماركة"><input name="model" placeholder="الطراز"><input name="size" placeholder="المقاس">
+      <label>تاريخ التصنيع<input type="date" name="manufacture_date"></label><label>تاريخ الاستلام<input type="date" name="receipt_date"></label><label>تاريخ انتهاء الصلاحية<input type="date" name="expiry_date"></label><input name="acquisition_document" placeholder="وثيقة الاقتناء">
+      <input class="wide" name="notes" placeholder="ملاحظات"><button class="wide">حفظ الإطار</button>
+    </form>
+    <div class="note">إذا لم يُدخل تاريخ انتهاء الصلاحية، يحسب النظام افتراضيًا 3 سنوات من تاريخ التصنيع، أو من تاريخ الاستلام عند غياب تاريخ التصنيع.</div>
+  </div>
+  <div class="panel" style="margin-top:16px"><h2>سجل الإطارات</h2><table><tr><th>الرقم</th><th>الماركة</th><th>المقاس</th><th>الصلاحية</th><th>التفاصيل</th></tr>{% for tire in tires %}<tr><td><b>{{ tire.serial_number }}</b></td><td>{{ tire.brand or '-' }}</td><td>{{ tire.size or '-' }}</td><td>{{ tire.expiry_date or '-' }}</td><td><a href="/tires/{{ tire.id }}">فتح السجل</a></td></tr>{% endfor %}</table></div>
+</div>
+</body>
+</html>
