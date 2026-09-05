@@ -32,7 +32,7 @@ class EquipmentBrandOut(BaseModel):
 class EquipmentTypeCreate(BaseModel):
     name: str
     measurement_unit: str
-    category_id: Optional[int] = None
+    category_id: int
 
     @field_validator("measurement_unit")
     @classmethod
@@ -47,13 +47,13 @@ class EquipmentTypeOut(BaseModel):
     id: int
     name: str
     measurement_unit: str
-    category_id: Optional[int] = None
+    category_id: int
 
 
 class EquipmentModelCreate(BaseModel):
     name: str
     equipment_type_id: int
-    brand_id: Optional[int] = None
+    brand_id: int
     theoretical_quantity: int = 0
 
 
@@ -62,5 +62,5 @@ class EquipmentModelOut(BaseModel):
     id: int
     name: str
     equipment_type_id: int
-    brand_id: Optional[int] = None
+    brand_id: int
     theoretical_quantity: int = 0
