@@ -17,8 +17,12 @@ def _client(monkeypatch):
 
 
 def _route_matches(path: str, registered_paths: set[str]) -> bool:
-    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0]
-    return any(re.fullmatch(re.sub(r"\{[^/{}]+\}", r"[^/]+", route), candidate) for route in registered_paths)
+    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0].rstrip("/") or "/"
+    for route in registered_paths:
+        route_pattern = re.sub(r"\{[^/{}]+\}", r"[^/]+", route).rstrip("/") or "/"
+        if re.fullmatch(route_pattern, candidate):
+            return True
+    return False
 
 
 def _template_files():
