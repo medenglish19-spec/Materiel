@@ -17,12 +17,19 @@ def _client(monkeypatch):
 
 
 def _route_matches(path: str, registered_paths: set[str]) -> bool:
-    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0].rstrip("/") or "/"
+    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0]
+    candidate_parts = [part for part in candidate.split("/") if part]
     for route in registered_paths:
-        route_pattern = re.sub(r"\{[^/{}]+\}", r"[^/]+", route).rstrip("/") or "/"
-        if re.fullmatch(route_pattern, candidate):
+        route_parts = [part for part in route.split("/") if part]
+        if len(route_parts) != len(candidate_parts):
+            continue
+        if all(
+            route_part.startswith("{") and route_part.endswith("}")
+            or route_part == candidate_part
+            for route_part, candidate_part in zip(route_parts, candidate_parts)
+        ):
             return True
-    return False
+    return not candidate_parts and "/" in registered_paths
 
 
 def _template_files():
