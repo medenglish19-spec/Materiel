@@ -6,38 +6,23 @@ from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 
 from web import main
 
-
-NAVIGATION_PATHS = {
-    "/dashboard",
-    "/equipment",
-    "/equipment/numerical-status",
-    "/meter-readings",
-    "/meter-readings/operations",
-    "/equipment-types",
-    "/maintenance",
-    "/faults-repairs",
-    "/tires",
-    "/batteries",
-    "/fuel",
-    "/missions",
-    "/users",
-    "/logout",
-}
-
-PAGE_PATHS = {
-    *NAVIGATION_PATHS,
-    "/maintenance/periodic",
-    "/maintenance/rules",
-    "/tires/settings",
-    "/tires/inventory",
-    "/tires/positions",
-}
+NAVIGATION_PATHS = {"/dashboard", "/equipment", "/equipment/numerical-status", "/meter-readings", "/meter-readings/operations", "/equipment-types", "/maintenance", "/faults-repairs", "/tires", "/batteries", "/fuel", "/missions", "/users", "/logout"}
+PAGE_PATHS = {*NAVIGATION_PATHS, "/maintenance/periodic", "/maintenance/rules", "/tires/settings", "/tires/inventory", "/tires/positions"}
 
 
 def _client(monkeypatch):
     monkeypatch.setattr(main, "init_db", lambda: None)
     monkeypatch.setattr(main, "create_default_admin", lambda: None)
     return TestClient(main.create_app())
+
+
+def _route_matches(path: str, registered_paths: set[str]) -> bool:
+    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0]
+    return any(re.fullmatch(re.sub(r"\{[^/{}]+\}", r"[^/]+", route), candidate) for route in registered_paths)
+
+
+def _template_files():
+    return [Path("web/templates/base.html"), *Path("app").glob("modules/**/templates/*.html")]
 
 
 def test_registered_navigation_routes_are_real(monkeypatch):
@@ -49,13 +34,8 @@ def test_registered_navigation_routes_are_real(monkeypatch):
 def test_base_navigation_contains_only_registered_internal_paths():
     html = Path("web/templates/base.html").read_text(encoding="utf-8")
     hrefs = re.findall(r'href=[\"\']([^\"\']+)[\"\']', html)
-    internal_paths = {
-        href.split("?", 1)[0].split("#", 1)[0]
-        for href in hrefs
-        if href.startswith("/") and not href.startswith("//") and not href.startswith("/static/")
-    }
+    internal_paths = {href.split("?", 1)[0].split("#", 1)[0] for href in hrefs if href.startswith("/") and not href.startswith("//") and not href.startswith("/static/")}
     registered_paths = {route.path for route in main.app.routes}
-
     assert "#" not in hrefs
     assert internal_paths <= registered_paths
 
@@ -89,11 +69,21 @@ def test_all_html_templates_have_valid_jinja_syntax():
 
 
 def test_no_placeholder_links_or_actions_exist_in_html_templates():
-    paths = [Path("web/templates/base.html"), *Path("app").glob("modules/**/templates/*.html")]
-    for path in paths:
+    for path in _template_files():
         html = path.read_text(encoding="utf-8")
         assert not re.search(r'href=[\"\']#[\"\']', html), path
         assert not re.search(r'action=[\"\']#[\"\']', html), path
+
+
+def test_template_internal_links_and_form_actions_match_registered_routes():
+    registered_paths = {route.path for route in main.app.routes}
+    for path in _template_files():
+        html = path.read_text(encoding="utf-8")
+        targets = re.findall(r'(?:href|action)=[\"\']([^\"\']+)[\"\']', html)
+        for target in targets:
+            if not target.startswith("/") or target.startswith("//") or target.startswith("/static/"):
+                continue
+            assert _route_matches(target, registered_paths), f"{path}: {target}"
 
 
 def test_login_page_remains_public(monkeypatch):
