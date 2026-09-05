@@ -17,10 +17,10 @@ def _client(monkeypatch):
 
 
 def _route_matches(path: str, registered_paths: set[str]) -> bool:
-    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0]
+    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0].rstrip("/")
     candidate_parts = [part for part in candidate.split("/") if part]
     for route in registered_paths:
-        route_parts = [part for part in route.split("/") if part]
+        route_parts = [part for part in route.rstrip("/").split("/") if part]
         if len(route_parts) != len(candidate_parts):
             continue
         if all(
