@@ -11,7 +11,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
-from app.modules.maintenance.router import (
+from app.modules.maintenance.services import (
     chronology_error,
     effective_rules_for_equipment,
     get_effective_rule_for_equipment,
