@@ -40,6 +40,8 @@
     .empty { color:#667085; text-align:center; padding:18px; }
     .example-note { border:1px dashed #98a2b3; background:#fcfcfd; }
     .example-path { font-weight:700; line-height:2; }
+    .example-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    .example-actions form { margin:0; }
     @media (max-width: 720px) {
         .classification-hero, .type-card-header { flex-direction:column; }
         .classification-actions, .classification-actions > * { width:100%; }
@@ -66,7 +68,15 @@
         <h3>كيف تستخدم الصفحة؟</h3>
         <p class="helper">التسلسل المقترح فقط هو: <strong>الفئة الرئيسية ← نوع العتاد ← العلامة التجارية ← الطراز ← العتاد الفعلي</strong>. هذه بنية إرشادية وليست قائمة إلزامية.</p>
         <div class="example-path">مثال: مركبات ← مركبات خفيفة ← Toyota ← Land Cruiser ← LC-001</div>
-        <p class="helper" style="margin:8px 0 0;">اضغط «إضافة مثال توضيحي» إذا أردت رؤية نموذج عملي. المثال بيانات عادية ويمكن حذف عناصره بعد إضافته.</p>
+        <p class="helper" style="margin:8px 0 0;">اضغط «إضافة مثال توضيحي» إذا أردت رؤية نموذج عملي. المثال مستقل عن بياناتك ويمكن حذفه بالكامل ما لم تكن قد استخدمت بياناته في عتاد أو سجلات حقيقية.</p>
+        <div class="example-actions">
+            <form method="post" action="/equipment-types/demo">
+                <button type="submit" class="button-secondary">إضافة المثال</button>
+            </form>
+            <form method="post" action="/equipment-types/demo/delete" onsubmit="return confirm('سيتم حذف بيانات المثال فقط. إذا ارتبط المثال بعتاد أو سجلات صيانة حقيقية فلن يتم الحذف. هل تريد المتابعة؟');">
+                <button type="submit" class="btn-danger">حذف المثال</button>
+            </form>
+        </div>
     </div>
 
     <div class="card">
