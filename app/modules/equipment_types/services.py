@@ -81,7 +81,6 @@ def create_demo_classification(db: Session) -> None:
         db.add(equipment_type)
         db.flush()
     elif equipment_type.category_id != category.id:
-        # A real object happens to use the demo name. Never reclassify it or attach demo data to it.
         db.rollback()
         return
 
@@ -103,7 +102,6 @@ def create_demo_classification(db: Session) -> None:
             )
         )
     elif model.brand_id != brand.id:
-        # Never change an existing model merely because its name matches the example.
         db.rollback()
         return
 
@@ -189,7 +187,10 @@ def delete_type(db: Session, obj: EquipmentType) -> None:
 
 
 def list_models(db: Session, type_id: Optional[int] = None) -> list[EquipmentModel]:
-    query = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand))
+    query = db.query(EquipmentModel).options(
+        joinedload(EquipmentModel.brand),
+        joinedload(EquipmentModel.equipment_type),
+    )
     if type_id:
         query = query.filter(EquipmentModel.equipment_type_id == type_id)
     return query.order_by(EquipmentModel.name).all()
@@ -221,8 +222,13 @@ def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
     else:
         query = query.filter(EquipmentModel.brand_id == data.brand_id)
     if query.first():
-        raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة التجارية")
-    obj = EquipmentModel(name=name, equipment_type_id=data.equipment_type_id, brand_id=data.brand_id, theoretical_quantity=max(0, data.theoretical_quantity))
+        raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
+    obj = EquipmentModel(
+        name=name,
+        equipment_type_id=data.equipment_type_id,
+        brand_id=data.brand_id,
+        theoretical_quantity=max(0, data.theoretical_quantity),
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -238,10 +244,10 @@ def set_model_brand(db: Session, obj: EquipmentModel, brand_id: Optional[int]) -
     return obj
 
 
-def set_model_theoretical_quantity(db: Session, obj: EquipmentModel, theoretical_quantity: int) -> EquipmentModel:
-    if theoretical_quantity < 0:
+def set_model_theoretical_quantity(db: Session, obj: EquipmentModel, quantity: int) -> EquipmentModel:
+    if quantity < 0:
         raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
-    obj.theoretical_quantity = theoretical_quantity
+    obj.theoretical_quantity = quantity
     db.commit()
     db.refresh(obj)
     return obj
