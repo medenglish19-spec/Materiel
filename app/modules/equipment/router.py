@@ -41,11 +41,11 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         category_name = category.name if category else "غير مصنف"
         type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
         model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
-        theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
+        theoretical = int(item.equipment_type.theoretical_quantity or 0) if item.equipment_type else 0
         cg = categories.setdefault(category_name, {"types": {}, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
-        tg = cg["types"].setdefault(type_name, {"models": {}, "actual": 0, "ready": 0, "broken": 0})
-        mg = tg["models"].setdefault(model_name, {"theoretical": theoretical, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
-        mg["theoretical"] = max(mg["theoretical"], theoretical)
+        tg = cg["types"].setdefault(type_name, {"models": {}, "actual": 0, "ready": 0, "broken": 0, "theoretical": theoretical})
+        tg["theoretical"] = theoretical
+        mg = tg["models"].setdefault(model_name, {"theoretical": 0, "actual": 0, "ready": 0, "ready_restricted": 0, "broken": 0})
         mg["actual"] += 1; tg["actual"] += 1; cg["actual"] += 1
         if item.technical_condition == "ready":
             ready += 1; mg["ready"] += 1; tg["ready"] += 1; cg["ready"] += 1
@@ -54,13 +54,12 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         else:
             broken += 1; mg["broken"] += 1; tg["broken"] += 1; cg["broken"] += 1
     for cg in categories.values():
-        cg["theoretical"] = sum(m["theoretical"] for t in cg["types"].values() for m in t["models"].values())
+        cg["theoretical"] = sum(t["theoretical"] for t in cg["types"].values())
         cg["need"] = max(0, cg["theoretical"] - cg["actual"])
         for tg in cg["types"].values():
-            tg["theoretical"] = sum(m["theoretical"] for m in tg["models"].values())
             tg["need"] = max(0, tg["theoretical"] - tg["actual"])
             for mg in tg["models"].values():
-                mg["need"] = max(0, mg["theoretical"] - mg["actual"])
+                mg["need"] = 0
     totals_theoretical = sum(c["theoretical"] for c in categories.values())
     totals_actual = len(items)
     return templates.TemplateResponse("equipment_analysis.html", {"request": request, "user": current_user, "categories": categories, "totals": {"theoretical": totals_theoretical, "actual": totals_actual, "need": max(0, totals_theoretical - totals_actual), "ready": ready, "ready_restricted": ready_restricted, "broken": broken, "readiness": round(ready / totals_actual * 100, 1) if totals_actual else 0}})
@@ -89,11 +88,11 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         model_name = model.name or "بدون طراز"
         brand_name = model.brand.name if model.brand else "بدون ماركة"
         cg = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
-        tg = cg["types"].setdefault(type_name, {"models": {}})
+        tg = cg["types"].setdefault(type_name, {"models": {}, "theoretical": int(equipment_type.theoretical_quantity or 0) if equipment_type else 0})
         key = (brand_name, model_name)
         tg["models"].setdefault(
             key,
-            dict(zero(), theoretical=int(model.theoretical_quantity or 0), brand=brand_name, model=model_name, equipment=[]),
+            dict(zero(), theoretical=0, brand=brand_name, model=model_name, equipment=[]),
         )
 
     for item in items:
@@ -103,15 +102,15 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         model_name = item.equipment_model.name if item.equipment_model else "بدون طراز"
         brand_name = item.equipment_model.brand.name if item.equipment_model and item.equipment_model.brand else "بدون ماركة"
         cg = groups.setdefault(category_name, {"types": {}, "sort": category.sort_order if category else 9999})
-        tg = cg["types"].setdefault(type_name, {"models": {}})
-        theoretical = int(item.equipment_model.theoretical_quantity or 0) if item.equipment_model else 0
+        type_theoretical = int(item.equipment_type.theoretical_quantity or 0) if item.equipment_type else 0
+        tg = cg["types"].setdefault(type_name, {"models": {}, "theoretical": type_theoretical})
+        tg["theoretical"] = type_theoretical
         key = (brand_name, model_name)
         mg = tg["models"].setdefault(
             key,
-            dict(zero(), theoretical=theoretical, brand=brand_name, model=model_name, equipment=[]),
+            dict(zero(), theoretical=0, brand=brand_name, model=model_name, equipment=[]),
         )
         mg["total"] += 1
-        mg["theoretical"] = max(mg["theoretical"], theoretical)
         mg["equipment"].append({
             "id": item.id,
             "asset_code": item.asset_code,
@@ -168,20 +167,24 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
                 display_name = ((st.get("brand") + " — ") if st.get("brand") and st.get("brand") != "بدون ماركة" else "") + st.get("model", model_key_tuple[1])
                 model_details[model_key] = {
                     "name": display_name,
-                    "theoretical": st["theoretical"],
+                    "theoretical": 0,
                     "total": st["total"],
-                    "need": st["need"],
-                    "surplus": st["surplus"],
+                    "need": 0,
+                    "surplus": 0,
                     "outside_ted": st["outside_ted"],
                     "equipment": st["equipment"],
                 }
                 model_rows.append({"name": display_name, "key": model_key, "stats": st})
             ts = sum_stats([m["stats"] for m in model_rows])
+            ts["theoretical"] = int(tg.get("theoretical", 0))
+            finalize(ts)
             type_rows.append({"name": type_name, "stats": ts, "models": model_rows})
         cs = sum_stats([t["stats"] for t in type_rows])
+        finalize(cs)
         hierarchy.append({"name": category_name, "stats": cs, "types": type_rows})
 
     totals = sum_stats([c["stats"] for c in hierarchy])
+    finalize(totals)
     totals["equipment"] = totals["total"]
     totals["ted_actual"] = max(0, totals["total"] - totals["outside_ted"])
 
@@ -204,7 +207,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         for t in c["types"]:
             type_analysis.append({"category": c["name"], "name": t["name"], "total": t["stats"]["total"], "theoretical": t["stats"]["theoretical"], "need": t["stats"]["need"], "surplus": t["stats"]["surplus"], "outside_ted": t["stats"]["outside_ted"], "share": t["stats"]["parent_pct"], "coverage": t["stats"]["coverage_pct"], "ready": t["stats"]["ready_pct"], "ready_restricted": t["stats"]["ready_restricted_pct"], "broken": t["stats"]["broken_pct"]})
             for m in t["models"]:
-                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": m["stats"]["theoretical"], "need": m["stats"]["need"], "surplus": m["stats"]["surplus"], "outside_ted": m["stats"]["outside_ted"], "share": m["stats"]["parent_pct"], "coverage": m["stats"]["coverage_pct"], "ready": m["stats"]["ready_pct"], "ready_restricted": m["stats"]["ready_restricted_pct"], "broken": m["stats"]["broken_pct"]})
+                model_analysis.append({"category": c["name"], "type": t["name"], "name": ((m["stats"].get("brand") + " — ") if m["stats"].get("brand") and m["stats"].get("brand") != "بدون ماركة" else "") + m["stats"].get("model", m["name"]), "total": m["stats"]["total"], "theoretical": 0, "need": 0, "surplus": 0, "outside_ted": m["stats"]["outside_ted"], "share": m["stats"]["parent_pct"], "coverage": 0, "ready": m["stats"]["ready_pct"], "ready_restricted": m["stats"]["ready_restricted_pct"], "broken": m["stats"]["broken_pct"]})
 
     type_analysis.sort(key=lambda x: x["total"], reverse=True)
     model_analysis.sort(key=lambda x: (x["need"], -x["coverage"]), reverse=True)
