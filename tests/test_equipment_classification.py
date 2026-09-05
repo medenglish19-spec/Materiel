@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -52,9 +53,8 @@ def test_equipment_classification_hierarchy_and_model_brand():
         assert model.brand_id == brand.id
         assert model.equipment_type_id == equipment_type.id
 
-        services.set_type_category(db, equipment_type, None)
-        assert equipment_type.category_id is None
-        services.set_type_category(db, equipment_type, category.id)
+        with pytest.raises(ValueError, match="فئة العتاد مطلوبة"):
+            services.set_type_category(db, equipment_type, None)
         assert equipment_type.category_id == category.id
     finally:
         db.close()
