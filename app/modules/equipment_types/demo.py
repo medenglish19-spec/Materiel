@@ -17,22 +17,37 @@ DEMO_MODEL_NAME = "مثال: Land Cruiser"
 
 
 def delete_demo_classification(db: Session) -> None:
-    """Remove only the built-in example, while preserving any real user data."""
+    """Remove only the complete built-in example, while preserving real user data."""
     category = db.query(EquipmentCategory).filter(EquipmentCategory.name == DEMO_CATEGORY_NAME).first()
-    equipment_type = db.query(EquipmentType).filter(EquipmentType.name == DEMO_TYPE_NAME).first()
     brand = db.query(EquipmentBrand).filter(EquipmentBrand.name == DEMO_BRAND_NAME).first()
 
-    model = None
-    if equipment_type is not None:
-        model = (
-            db.query(EquipmentModel)
+    # The demo type is safe to consider only when it is attached to the demo category.
+    # If a user has independently reused the same name, leave it untouched.
+    equipment_type = None
+    if category is not None:
+        equipment_type = (
+            db.query(EquipmentType)
             .filter(
-                EquipmentModel.equipment_type_id == equipment_type.id,
-                EquipmentModel.name == DEMO_MODEL_NAME,
-                EquipmentModel.brand_id == (brand.id if brand is not None else None),
+                EquipmentType.name == DEMO_TYPE_NAME,
+                EquipmentType.category_id == category.id,
             )
             .first()
         )
+
+    # Without the complete identifying chain, do nothing. This is intentionally
+    # conservative: a cleanup button must never guess which real object to delete.
+    if category is None or brand is None or equipment_type is None:
+        return
+
+    model = (
+        db.query(EquipmentModel)
+        .filter(
+            EquipmentModel.equipment_type_id == equipment_type.id,
+            EquipmentModel.name == DEMO_MODEL_NAME,
+            EquipmentModel.brand_id == brand.id,
+        )
+        .first()
+    )
 
     try:
         if model is not None:
@@ -47,16 +62,17 @@ def delete_demo_classification(db: Session) -> None:
             db.delete(model)
             db.flush()
 
-        # Never remove a type/category/brand that the user has reused elsewhere.
-        if equipment_type is not None and db.query(EquipmentModel).filter(EquipmentModel.equipment_type_id == equipment_type.id).first() is None:
+        # Remove only objects that are still part of the exact demo chain and
+        # have not been reused by other user-defined data.
+        if db.query(EquipmentModel).filter(EquipmentModel.equipment_type_id == equipment_type.id).first() is None:
             db.delete(equipment_type)
             db.flush()
 
-        if category is not None and db.query(EquipmentType).filter(EquipmentType.category_id == category.id).first() is None:
+        if db.query(EquipmentType).filter(EquipmentType.category_id == category.id).first() is None:
             db.delete(category)
             db.flush()
 
-        if brand is not None and db.query(EquipmentModel).filter(EquipmentModel.brand_id == brand.id).first() is None:
+        if db.query(EquipmentModel).filter(EquipmentModel.brand_id == brand.id).first() is None:
             db.delete(brand)
 
         db.commit()
