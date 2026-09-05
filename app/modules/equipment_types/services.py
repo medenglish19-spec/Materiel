@@ -76,6 +76,7 @@ def create_demo_classification(db: Session) -> None:
         equipment_type = EquipmentType(
             name=type_name,
             measurement_unit="km",
+            theoretical_quantity=1,
             category_id=category.id,
         )
         db.add(equipment_type)
@@ -83,6 +84,8 @@ def create_demo_classification(db: Session) -> None:
     elif equipment_type.category_id != category.id:
         db.rollback()
         return
+    elif equipment_type.theoretical_quantity == 0:
+        equipment_type.theoretical_quantity = 1
 
     model = (
         db.query(EquipmentModel)
@@ -98,7 +101,6 @@ def create_demo_classification(db: Session) -> None:
                 name=model_name,
                 equipment_type_id=equipment_type.id,
                 brand_id=brand.id,
-                theoretical_quantity=1,
             )
         )
     elif model.brand_id != brand.id:
@@ -165,7 +167,14 @@ def create_type(db: Session, data: EquipmentTypeCreate) -> EquipmentType:
         raise ValueError("نوع العتاد موجود مسبقًا")
     if get_category(db, data.category_id) is None:
         raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
-    obj = EquipmentType(name=name, measurement_unit=data.measurement_unit, category_id=data.category_id)
+    if data.theoretical_quantity < 0:
+        raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+    obj = EquipmentType(
+        name=name,
+        measurement_unit=data.measurement_unit,
+        theoretical_quantity=data.theoretical_quantity,
+        category_id=data.category_id,
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -176,6 +185,15 @@ def set_type_category(db: Session, obj: EquipmentType, category_id: int) -> Equi
     if get_category(db, category_id) is None:
         raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id = category_id
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+def set_type_theoretical_quantity(db: Session, obj: EquipmentType, quantity: int) -> EquipmentType:
+    if quantity < 0:
+        raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+    obj.theoretical_quantity = quantity
     db.commit()
     db.refresh(obj)
     return obj
@@ -223,12 +241,7 @@ def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
     )
     if query.first():
         raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
-    obj = EquipmentModel(
-        name=name,
-        equipment_type_id=data.equipment_type_id,
-        brand_id=data.brand_id,
-        theoretical_quantity=max(0, data.theoretical_quantity),
-    )
+    obj = EquipmentModel(name=name, equipment_type_id=data.equipment_type_id, brand_id=data.brand_id)
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -251,15 +264,6 @@ def set_model_brand(db: Session, obj: EquipmentModel, brand_id: int) -> Equipmen
     if duplicate:
         raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id = brand_id
-    db.commit()
-    db.refresh(obj)
-    return obj
-
-
-def set_model_theoretical_quantity(db: Session, obj: EquipmentModel, quantity: int) -> EquipmentModel:
-    if quantity < 0:
-        raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
-    obj.theoretical_quantity = quantity
     db.commit()
     db.refresh(obj)
     return obj
