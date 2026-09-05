@@ -33,6 +33,7 @@ class EquipmentTypeCreate(BaseModel):
     name: str
     measurement_unit: str
     category_id: int
+    theoretical_quantity: int = 0
 
     @field_validator("measurement_unit")
     @classmethod
@@ -41,12 +42,20 @@ class EquipmentTypeCreate(BaseModel):
             raise ValueError(f"وحدة القياس يجب أن تكون أحد: {MEASUREMENT_UNITS}")
         return v
 
+    @field_validator("theoretical_quantity")
+    @classmethod
+    def theoretical_quantity_valid(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+        return v
+
 
 class EquipmentTypeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
     measurement_unit: str
+    theoretical_quantity: int = 0
     category_id: int
 
 
@@ -54,7 +63,6 @@ class EquipmentModelCreate(BaseModel):
     name: str
     equipment_type_id: int
     brand_id: int
-    theoretical_quantity: int = 0
 
 
 class EquipmentModelOut(BaseModel):
@@ -63,4 +71,3 @@ class EquipmentModelOut(BaseModel):
     name: str
     equipment_type_id: int
     brand_id: int
-    theoretical_quantity: int = 0
