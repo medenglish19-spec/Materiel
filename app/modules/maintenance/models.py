@@ -129,6 +129,15 @@ def _validate_record(connection, target, exclude_id=None):
             raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أقل من قراءة أحدث زمنيًا قبلها ({previous_meter:g}).")
         if previous_date > target.maintenance_date and target.meter_value > previous_meter:
             raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أكبر من قراءة سجل أحدث ({previous_meter:g}).")
+        if previous_date == target.maintenance_date:
+            if exclude_id is None:
+                # A new record is appended after existing same-day records.
+                if target.meter_value < previous_meter:
+                    raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أقل من قراءة سجل سابق في اليوم نفسه ({previous_meter:g}).")
+            elif previous_id < target.id and target.meter_value < previous_meter:
+                raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أقل من سجل سابق ({previous_meter:g}).")
+            elif previous_id > target.id and target.meter_value > previous_meter:
+                raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أكبر من سجل لاحق ({previous_meter:g}).")
 
     reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
     reading_query = select(MeterReading.reading_date, reading_column).where(
