@@ -27,7 +27,14 @@ templates = get_module_templates("app/modules/equipment_types/templates")
 def types_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     return templates.TemplateResponse(
         "types_list.html",
-        {"request": request, "types": services.list_types(db), "categories": services.list_categories(db), "brands": services.list_brands(db), "user": current_user},
+        {
+            "request": request,
+            "types": services.list_types(db),
+            "categories": services.list_categories(db),
+            "brands": services.list_brands(db),
+            "models": services.list_models(db),
+            "user": current_user,
+        },
     )
 
 
