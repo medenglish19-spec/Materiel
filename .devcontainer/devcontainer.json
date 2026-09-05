@@ -8,5 +8,5 @@
       "protocol": "http"
     }
   },
-  "postStartCommand": "bash -lc 'nohup python run_web.py > /tmp/materiel-web.log 2>&1 &'"
+  "postStartCommand": "bash .devcontainer/start_materiel.sh"
 }
