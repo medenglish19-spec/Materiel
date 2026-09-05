@@ -21,6 +21,22 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install pytest
 
+      - name: Check repository filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=()
+          while IFS= read -r -d '' path; do
+            name="${path##*/}"
+            if [[ "$name" =~ ^[0-9]+$ || "$name" == *" "* || "$name" == *'"'* || "$name" == *"'"* ]]; then
+              bad+=("$path")
+            fi
+          done < <(git ls-files -z)
+          if ((${#bad[@]})); then
+            printf 'أسماء ملفات غير مسموحة:\n%s\n' "${bad[@]}"
+            exit 1
+          fi
+
       - name: Syntax check
         run: python -m compileall -q app web run_web.py
 

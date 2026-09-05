@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}المستخدمون{% endblock %}
+{% block content %}
+<section class="page-header">
+  <h1>المستخدمون</h1>
+  <p>إدارة حسابات مستخدمي النظام وصلاحياتهم.</p>
+</section>
+<div class="card" style="overflow:auto">
+  <table>
+    <thead><tr><th>اسم المستخدم</th><th>الاسم الكامل</th><th>الدور</th><th>الحالة</th></tr></thead>
+    <tbody>
+    {% for item in users %}
+      <tr><td>{{ item.username }}</td><td>{{ item.full_name }}</td><td>{{ item.role }}</td><td>{{ 'نشط' if item.is_active else 'غير نشط' }}</td></tr>
+    {% else %}
+      <tr><td colspan="4">لا يوجد مستخدمون.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
