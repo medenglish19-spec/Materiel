@@ -163,8 +163,8 @@ def create_type(db: Session, data: EquipmentTypeCreate) -> EquipmentType:
         raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db, name):
         raise ValueError("نوع العتاد موجود مسبقًا")
-    if data.category_id is not None and get_category(db, data.category_id) is None:
-        raise ValueError("فئة العتاد المحددة غير موجودة")
+    if get_category(db, data.category_id) is None:
+        raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj = EquipmentType(name=name, measurement_unit=data.measurement_unit, category_id=data.category_id)
     db.add(obj)
     db.commit()
@@ -172,9 +172,9 @@ def create_type(db: Session, data: EquipmentTypeCreate) -> EquipmentType:
     return obj
 
 
-def set_type_category(db: Session, obj: EquipmentType, category_id: Optional[int]) -> EquipmentType:
-    if category_id is not None and get_category(db, category_id) is None:
-        raise ValueError("فئة العتاد المحددة غير موجودة")
+def set_type_category(db: Session, obj: EquipmentType, category_id: int) -> EquipmentType:
+    if get_category(db, category_id) is None:
+        raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id = category_id
     db.commit()
     db.refresh(obj)
@@ -189,7 +189,7 @@ def delete_type(db: Session, obj: EquipmentType) -> None:
 def list_models(db: Session, type_id: Optional[int] = None) -> list[EquipmentModel]:
     query = db.query(EquipmentModel).options(
         joinedload(EquipmentModel.brand),
-        joinedload(EquipmentModel.equipment_type),
+        joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),
     )
     if type_id:
         query = query.filter(EquipmentModel.equipment_type_id == type_id)
@@ -199,28 +199,28 @@ def list_models(db: Session, type_id: Optional[int] = None) -> list[EquipmentMod
 def get_model(db: Session, model_id: int) -> Optional[EquipmentModel]:
     return (
         db.query(EquipmentModel)
-        .options(joinedload(EquipmentModel.brand))
+        .options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category))
         .filter(EquipmentModel.id == model_id)
         .first()
     )
 
 
 def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
-    if get_type(db, data.equipment_type_id) is None:
+    equipment_type = get_type(db, data.equipment_type_id)
+    if equipment_type is None:
         raise ValueError("نوع العتاد المحدد غير موجود")
-    if data.brand_id is not None and get_brand(db, data.brand_id) is None:
-        raise ValueError("العلامة التجارية المحددة غير موجودة")
+    if equipment_type.category_id is None:
+        raise ValueError("لا يمكن إضافة طراز قبل ربط النوع بفئة")
+    if get_brand(db, data.brand_id) is None:
+        raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
     name = data.name.strip()
     if not name:
         raise ValueError("اسم الطراز مطلوب")
     query = db.query(EquipmentModel).filter(
         EquipmentModel.equipment_type_id == data.equipment_type_id,
         EquipmentModel.name == name,
+        EquipmentModel.brand_id == data.brand_id,
     )
-    if data.brand_id is None:
-        query = query.filter(EquipmentModel.brand_id.is_(None))
-    else:
-        query = query.filter(EquipmentModel.brand_id == data.brand_id)
     if query.first():
         raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
     obj = EquipmentModel(
@@ -235,9 +235,21 @@ def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
     return obj
 
 
-def set_model_brand(db: Session, obj: EquipmentModel, brand_id: Optional[int]) -> EquipmentModel:
-    if brand_id is not None and get_brand(db, brand_id) is None:
-        raise ValueError("العلامة التجارية المحددة غير موجودة")
+def set_model_brand(db: Session, obj: EquipmentModel, brand_id: int) -> EquipmentModel:
+    if get_brand(db, brand_id) is None:
+        raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
+    duplicate = (
+        db.query(EquipmentModel)
+        .filter(
+            EquipmentModel.id != obj.id,
+            EquipmentModel.equipment_type_id == obj.equipment_type_id,
+            EquipmentModel.brand_id == brand_id,
+            EquipmentModel.name == obj.name,
+        )
+        .first()
+    )
+    if duplicate:
+        raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id = brand_id
     db.commit()
     db.refresh(obj)
