@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 
 from web import main
 
@@ -21,6 +22,15 @@ NAVIGATION_PATHS = {
     "/missions",
     "/users",
     "/logout",
+}
+
+PAGE_PATHS = {
+    *NAVIGATION_PATHS,
+    "/maintenance/periodic",
+    "/maintenance/rules",
+    "/tires/settings",
+    "/tires/inventory",
+    "/tires/positions",
 }
 
 
@@ -50,17 +60,45 @@ def test_base_navigation_contains_only_registered_internal_paths():
     assert internal_paths <= registered_paths
 
 
-def test_protected_navigation_pages_reject_or_redirect_unauthenticated_requests(monkeypatch):
+def test_main_page_routes_exist_and_are_protected(monkeypatch):
     with _client(monkeypatch) as client:
-        for path in sorted(NAVIGATION_PATHS - {"/logout"}):
+        registered_paths = {route.path for route in main.app.routes}
+        for path in sorted(PAGE_PATHS):
+            assert path in registered_paths, path
             response = client.get(path, follow_redirects=False)
             assert response.status_code in {302, 303, 401, 403}, path
             if response.status_code in {302, 303}:
                 assert response.headers.get("location", "").startswith("/login"), path
 
 
+def test_logout_remains_public_and_redirects_to_login(monkeypatch):
+    with _client(monkeypatch) as client:
+        response = client.get("/logout", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["location"] == "/login"
+
+
+def test_all_html_templates_have_valid_jinja_syntax():
+    root = Path("app")
+    env = Environment(loader=FileSystemLoader(str(root)))
+    for path in sorted(root.glob("modules/**/templates/*.html")):
+        try:
+            env.parse(path.read_text(encoding="utf-8"))
+        except TemplateSyntaxError as exc:
+            raise AssertionError(f"Invalid Jinja template: {path}: {exc}") from exc
+
+
+def test_no_placeholder_links_or_actions_exist_in_html_templates():
+    paths = [Path("web/templates/base.html"), *Path("app").glob("modules/**/templates/*.html")]
+    for path in paths:
+        html = path.read_text(encoding="utf-8")
+        assert not re.search(r'href=[\"\']#[\"\']', html), path
+        assert not re.search(r'action=[\"\']#[\"\']', html), path
+
+
 def test_login_page_remains_public(monkeypatch):
     with _client(monkeypatch) as client:
         response = client.get("/login")
         assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
         assert 'action="/login"' in response.text
