@@ -74,20 +74,20 @@ def delete_category_form(category_id: int, db: Session = Depends(get_db), curren
 
 
 @router.post("/equipment-types/create")
-def create_type_form(name: str = Form(...), measurement_unit: str = Form(...), category_id: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+def create_type_form(name: str = Form(...), measurement_unit: str = Form(...), category_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     try:
-        services.create_type(db, EquipmentTypeCreate(name=name, measurement_unit=measurement_unit, category_id=int(category_id) if category_id else None))
+        services.create_type(db, EquipmentTypeCreate(name=name, measurement_unit=measurement_unit, category_id=category_id))
     except (ValueError, TypeError):
         pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
 
 @router.post("/equipment-types/{type_id}/category")
-def set_type_category_form(type_id: int, category_id: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+def set_type_category_form(type_id: int, category_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     obj = services.get_type(db, type_id)
     if obj:
         try:
-            services.set_type_category(db, obj, int(category_id) if category_id else None)
+            services.set_type_category(db, obj, category_id)
         except (ValueError, TypeError):
             pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
@@ -111,20 +111,20 @@ def create_brand_form(name: str = Form(...), db: Session = Depends(get_db), curr
 
 
 @router.post("/equipment-types/models/create")
-def create_model_form(name: str = Form(...), equipment_type_id: int = Form(...), brand_id: str = Form(""), theoretical_quantity: int = Form(0), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+def create_model_form(name: str = Form(...), equipment_type_id: int = Form(...), brand_id: int = Form(...), theoretical_quantity: int = Form(0), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     try:
-        services.create_model(db, EquipmentModelCreate(name=name, equipment_type_id=equipment_type_id, brand_id=int(brand_id) if brand_id else None, theoretical_quantity=max(0, theoretical_quantity)))
+        services.create_model(db, EquipmentModelCreate(name=name, equipment_type_id=equipment_type_id, brand_id=brand_id, theoretical_quantity=max(0, theoretical_quantity)))
     except (ValueError, TypeError):
         pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
 
 @router.post("/equipment-types/models/{model_id}/brand")
-def set_model_brand_form(model_id: int, brand_id: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+def set_model_brand_form(model_id: int, brand_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     obj = services.get_model(db, model_id)
     if obj:
         try:
-            services.set_model_brand(db, obj, int(brand_id) if brand_id else None)
+            services.set_model_brand(db, obj, brand_id)
         except (ValueError, TypeError):
             pass
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
