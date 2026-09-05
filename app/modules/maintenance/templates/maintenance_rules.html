@@ -28,15 +28,17 @@
   {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل شرط الصيانة بنجاح.{% elif saved == 'exception' %}تم إنشاء قاعدة الطراز بنجاح.{% elif saved == 'exception_updated' %}تم تعديل قاعدة الطراز بنجاح.{% else %}تم حفظ شرط الصيانة بنجاح.{% endif %}</div>{% endif %}
 
   <section class="panel">
-    <div class="panel-head"><div><h3>قواعد الصيانة حسب الطراز</h3><p>كل قاعدة فعّالة مرتبطة بطراز محدد. التصنيف والعلامة التجارية ونوع العتاد لا تحدد قاعدة الصيانة.</p></div><span class="badge info">{{ rules|length }} سجل</span></div>
-    <div class="table-wrap"><table class="m-table" id="rulesTable"><thead><tr><th>#</th><th>الطراز</th><th>نوع العتاد</th><th>نوع الصيانة</th><th>الأيام</th><th>الكيلومترات</th><th>الساعات</th><th>إنذار كم</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
+    <div class="panel-head"><div><h3>قواعد الصيانة حسب الطراز</h3><p>كل قاعدة فعّالة مرتبطة بطراز محدد. وحدة العداد تتبع نوع العتاد؛ لا يظهر في القاعدة إلا العداد المناسب لها.</p></div><span class="badge info">{{ rules|length }} سجل</span></div>
+    <div class="table-wrap"><table class="m-table" id="rulesTable"><thead><tr><th>#</th><th>الطراز</th><th>نوع العتاد</th><th>نوع الصيانة</th><th>الأيام</th><th>فترة العداد</th><th>إنذار العداد</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
       {% for r in rules %}
       <tr data-model="{{ r.equipment_model_id or '' }}" data-legacy="{{ '1' if not r.equipment_model_id else '0' }}">
         <td>{{ loop.index }}</td>
         <td class="vehicle">{% if r.equipment_model %}{{ r.equipment_model.name }}{% if r.equipment_model.brand %} — {{ r.equipment_model.brand.name }}{% endif %}{% else %}<span class="badge neutral">قديم بلا طراز</span>{% endif %}</td>
         <td>{{ r.equipment_type.name if r.equipment_type else '—' }}</td>
         <td>{{ r.name }}</td>
-        <td class="num">{{ r.interval_days or '—' }}</td><td class="num">{{ '{:,.0f}'.format(r.interval_km) if r.interval_km is not none else '—' }}</td><td class="num">{{ '{:,.0f}'.format(r.interval_hours) if r.interval_hours is not none else '—' }}</td><td class="num">{{ '{:,.0f}'.format(r.warning_km) if r.warning_km is not none else '—' }}</td>
+        <td class="num">{{ r.interval_days or '—' }}</td>
+        <td class="num">{% if r.equipment_type and r.equipment_type.measurement_unit == 'hours' %}{% if r.interval_hours is not none %}{{ '{:,.0f}'.format(r.interval_hours) }} س{% else %}—{% endif %}{% elif r.interval_km is not none %}{{ '{:,.0f}'.format(r.interval_km) }} كم{% else %}—{% endif %}</td>
+        <td class="num">{% if r.equipment_type and r.equipment_type.measurement_unit == 'km' and r.warning_km is not none %}{{ '{:,.0f}'.format(r.warning_km) }} كم{% else %}—{% endif %}</td>
         <td><span class="badge {{ 'success' if r.is_active else 'neutral' }}">{{ 'مفعلة' if r.is_active else 'متوقفة' }}</span></td>
         <td style="white-space:nowrap">
           {% if r.equipment_model_id %}
@@ -49,7 +51,7 @@
           {% if record_counts.get(r.id, 0) == 0 %}<form method="post" action="/maintenance/rules/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف الشرط نهائيًا لأنه غير مستخدم. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>{% else %}<form method="post" action="/maintenance/rules/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('هذا الشرط مستخدم في {{ record_counts.get(r.id, 0) }} سجلًا. سيتم تعطيله فقط ولن تُحذف السجلات. هل تريد المتابعة؟');"><button class="m-btn" type="submit">🗑 تعطيل</button></form>{% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="10" class="muted">لا توجد شروط صيانة بعد.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="9" class="muted">لا توجد شروط صيانة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 
@@ -57,11 +59,11 @@
   <section class="panel" id="editRule" style="margin-top:16px"><div class="panel-head"><div><h3>تعديل شرط الصيانة</h3><p>الطراز: {{ edit_rule.equipment_model.name }}. تعديل هذه القاعدة يؤثر على هذا الطراز فقط.</p></div></div>
     <form method="post" action="/maintenance/rules/{{ edit_rule.id }}/update" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <input class="m-input" name="name" required value="{{ edit_rule.name }}" placeholder="نوع الصيانة">
-      <select class="m-select" name="equipment_model_id" required>{% for m in models %}<option value="{{ m.id }}" {% if m.id == edit_rule.equipment_model_id %}selected{% endif %}>{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-      <input class="m-input" name="interval_km" type="number" step="0.1" value="{{ edit_rule.interval_km or '' }}" placeholder="الفترة كم">
-      <input class="m-input" name="interval_hours" type="number" step="0.1" value="{{ edit_rule.interval_hours or '' }}" placeholder="الفترة ساعات">
+      <select class="m-select" name="equipment_model_id" id="editRuleModel" required>{% for m in models %}<option value="{{ m.id }}" data-unit="{{ m.equipment_type.measurement_unit if m.equipment_type else '' }}" {% if m.id == edit_rule.equipment_model_id %}selected{% endif %}>{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
+      <input class="m-input meter-km-field" name="interval_km" type="number" step="0.1" value="{{ edit_rule.interval_km or '' }}" placeholder="الفترة كم">
+      <input class="m-input meter-hours-field" name="interval_hours" type="number" step="0.1" value="{{ edit_rule.interval_hours or '' }}" placeholder="الفترة ساعات">
       <input class="m-input" name="interval_days" type="number" value="{{ edit_rule.interval_days or '' }}" placeholder="الفترة أيام">
-      <input class="m-input" name="warning_km" type="number" step="0.1" value="{{ edit_rule.warning_km if edit_rule.warning_km is not none else '' }}" placeholder="إنذار كم">
+      <input class="m-input meter-km-field" name="warning_km" type="number" step="0.1" value="{{ edit_rule.warning_km if edit_rule.warning_km is not none else '' }}" placeholder="إنذار العداد كم">
       <input class="m-input" name="warning_days" type="number" value="{{ edit_rule.warning_days if edit_rule.warning_days is not none else '' }}" placeholder="إنذار أيام">
       <input class="m-input" name="description" value="{{ edit_rule.description or '' }}" placeholder="الوصف">
       <button class="m-btn primary" type="submit">حفظ التعديل</button><a class="m-btn" href="/maintenance/rules">إلغاء</a>
@@ -69,28 +71,28 @@
   </section>
   {% endif %}
 
-  <section class="panel" id="newRule" style="margin-top:16px"><div class="panel-head"><div><h3>إضافة شرط صيانة لطراز</h3><p>اختر الطراز مباشرة. بعد الحفظ، تصبح القاعدة مرتبطة بهذا الطراز فقط.</p></div></div>
-    <form method="post" action="/maintenance/rules/create" class="toolbar" style="padding:18px;flex-wrap:wrap">
+  <section class="panel" id="newRule" style="margin-top:16px"><div class="panel-head"><div><h3>إضافة شرط صيانة لطراز</h3><p>اختر الطراز مباشرة. بعد الحفظ، تصبح القاعدة مرتبطة بهذا الطراز فقط، ويُستخدم عداد نوع العتاد تلقائيًا.</p></div></div>
+    <form method="post" action="/maintenance/rules/create" class="toolbar" style="padding:18px;flex-wrap:wrap" id="newRuleForm">
       <input class="m-input" name="name" required placeholder="نوع الصيانة">
-      <select class="m-select" name="equipment_model_id" required><option value="">الطراز *</option>{% for m in models %}<option value="{{ m.id }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-      <input class="m-input" name="interval_km" type="number" step="0.1" placeholder="الفترة كم">
-      <input class="m-input" name="interval_hours" type="number" step="0.1" placeholder="الفترة ساعات">
+      <select class="m-select" name="equipment_model_id" id="newRuleModel" required><option value="">الطراز *</option>{% for m in models %}<option value="{{ m.id }}" data-unit="{{ m.equipment_type.measurement_unit if m.equipment_type else '' }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
+      <input class="m-input meter-km-field" name="interval_km" type="number" step="0.1" placeholder="الفترة كم">
+      <input class="m-input meter-hours-field" name="interval_hours" type="number" step="0.1" placeholder="الفترة ساعات">
       <input class="m-input" name="interval_days" type="number" placeholder="الفترة أيام">
-      <input class="m-input" name="warning_km" type="number" step="0.1" value="500" placeholder="إنذار كم">
+      <input class="m-input meter-km-field" name="warning_km" type="number" step="0.1" value="500" placeholder="إنذار العداد كم">
       <input class="m-input" name="warning_days" type="number" value="7" placeholder="إنذار أيام">
       <input class="m-input" name="description" placeholder="الوصف">
       <button class="m-btn primary" type="submit">حفظ الشرط</button>
     </form>
   </section>
 
-  <section class="panel" id="newException" style="margin-top:16px"><div class="panel-head"><div><h3>إضافة قاعدة لطراز — المسار القديم</h3><p>هذا النموذج محفوظ للتوافق مع الرابط السابق. القاعدة الناتجة تكون مرتبطة بالطراز مباشرة، ولا تستخدم نوع العتاد أو التصنيف لتحديد تطبيقها.</p></div></div>
+  <section class="panel" id="newException" style="margin-top:16px"><div class="panel-head"><div><h3>إضافة قاعدة لطراز — المسار القديم</h3><p>هذا النموذج محفوظ للتوافق مع الرابط السابق. القاعدة الناتجة تكون مرتبطة بالطراز مباشرة.</p></div></div>
     <form method="post" action="/maintenance/rules/0/exceptions/create" id="exceptionForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <select class="m-select" id="exceptionParent" required><option value="">قالب القاعدة القديمة</option>{% for r in base_rules %}<option value="{{ r.id }}" data-km="{{ r.interval_km or '' }}" data-hours="{{ r.interval_hours or '' }}" data-days="{{ r.interval_days or '' }}" data-warning-km="{{ r.warning_km if r.warning_km is not none else '' }}" data-warning-days="{{ r.warning_days if r.warning_days is not none else '' }}">{{ r.name }}{% if r.equipment_model %} — {{ r.equipment_model.name }}{% endif %}</option>{% endfor %}</select>
-      <select class="m-select" name="equipment_model_id" id="exceptionModel" required><option value="">الطراز *</option>{% for m in models %}<option value="{{ m.id }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-      <input class="m-input" name="interval_km" id="exceptionKm" type="number" step="0.1" placeholder="الفترة كم">
-      <input class="m-input" name="interval_hours" id="exceptionHours" type="number" step="0.1" placeholder="الفترة ساعات">
+      <select class="m-select" name="equipment_model_id" id="exceptionModel" required><option value="">الطراز *</option>{% for m in models %}<option value="{{ m.id }}" data-unit="{{ m.equipment_type.measurement_unit if m.equipment_type else '' }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
+      <input class="m-input meter-km-field" name="interval_km" id="exceptionKm" type="number" step="0.1" placeholder="الفترة كم">
+      <input class="m-input meter-hours-field" name="interval_hours" id="exceptionHours" type="number" step="0.1" placeholder="الفترة ساعات">
       <input class="m-input" name="interval_days" id="exceptionDays" type="number" placeholder="الفترة أيام">
-      <input class="m-input" name="warning_km" id="exceptionWarningKm" type="number" step="0.1" placeholder="إنذار كم">
+      <input class="m-input meter-km-field" name="warning_km" id="exceptionWarningKm" type="number" step="0.1" placeholder="إنذار العداد كم">
       <input class="m-input" name="warning_days" id="exceptionWarningDays" type="number" placeholder="إنذار أيام">
       <input class="m-input" name="description" placeholder="الوصف"><button class="m-btn primary" id="exceptionSave" type="submit">حفظ القاعدة</button>
     </form>
@@ -101,6 +103,21 @@
   const q=document.getElementById('rulesSearch'), model=document.getElementById('rulesModel');
   function filter(){const x=q.value.toLowerCase().trim(),m=model.value;document.querySelectorAll('#rulesTable tbody tr').forEach(r=>{r.style.display=(!x||r.innerText.toLowerCase().includes(x))&&(!m||r.dataset.model===m)?'':'none'});}
   q.addEventListener('input',filter);model.addEventListener('change',filter);
+  function syncMeterFields(select, form){
+    if(!select||!form)return;
+    const unit=select.selectedOptions[0]?.dataset.unit||'';
+    form.querySelectorAll('.meter-km-field').forEach(el=>{const show=unit==='km';el.style.display=show?'':'none';el.disabled=!show;});
+    form.querySelectorAll('.meter-hours-field').forEach(el=>{const show=unit==='hours';el.style.display=show?'':'none';el.disabled=!show;});
+  }
+  const editModel=document.getElementById('editRuleModel');
+  if(editModel)syncMeterFields(editModel,editModel.closest('form'));
+  editModel?.addEventListener('change',()=>syncMeterFields(editModel,editModel.closest('form')));
+  const newModel=document.getElementById('newRuleModel');
+  if(newModel)syncMeterFields(newModel,newModel.closest('form'));
+  newModel?.addEventListener('change',()=>syncMeterFields(newModel,newModel.closest('form')));
+  const exceptionModel=document.getElementById('exceptionModel');
+  if(exceptionModel)syncMeterFields(exceptionModel,exceptionModel.closest('form'));
+  exceptionModel?.addEventListener('change',()=>syncMeterFields(exceptionModel,exceptionModel.closest('form')));
   const parent=document.getElementById('exceptionParent');
   if(parent){
     parent.addEventListener('change',()=>{
@@ -111,7 +128,8 @@
       document.getElementById('exceptionDays').value=p.dataset.days||'';
       document.getElementById('exceptionWarningKm').value=p.dataset.warningKm||'';
       document.getElementById('exceptionWarningDays').value=p.dataset.warningDays||'';
-      document.getElementById('exceptionSave').disabled=!document.getElementById('exceptionModel').value;
+      syncMeterFields(exceptionModel,exceptionModel.closest('form'));
+      document.getElementById('exceptionSave').disabled=!exceptionModel.value;
     });
     document.getElementById('exceptionModel').addEventListener('change',()=>document.getElementById('exceptionSave').disabled=!document.getElementById('exceptionModel').value);
     document.getElementById('exceptionForm').addEventListener('submit',function(){this.action='/maintenance/rules/'+parent.value+'/exceptions/create'});

@@ -21,8 +21,7 @@
         <div class="field"><label>رقم التسجيل</label><div>{{ item.registration_number or "-" }}</div></div>
         <div class="field"><label>رقم الهيكل</label><div>{{ item.vin or "-" }}</div></div>
         <div class="field"><label>تاريخ الاقتناء</label><div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else "-" }}</div></div>
-        <div class="field"><label>عداد الكم</label><div>{{ item.current_odometer or 0 }} كم</div></div>
-        <div class="field"><label>عداد الساعات</label><div>{{ item.current_hours or 0 }} س</div></div>
+        <div class="field"><label>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</label><div>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</div></div>
         <div class="field"><label>الحالة الفنية</label><div>{% if item.technical_condition == "ready" %}جاهز{% elif item.technical_condition == "ready_restricted" %}جاهز مع قيود{% else %}عاطل{% endif %}</div></div>
         <div class="field"><label>الوضعية</label><div>{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</div></div>
         {% if item.notes %}<div class="field"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}
@@ -34,5 +33,5 @@
 <div class="card" style="margin-top:20px;"><h3>🛠 سجل صيانة هذا العتاد</h3><p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a></div>
 
 <div style="margin-top:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><a href="/equipment" class="btn-secondary">العودة إلى قائمة العتاد</a><a href="/equipment/{{ item.id }}/edit" class="btn-primary">تعديل العتاد</a><form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');"><button type="submit" class="btn-danger">حذف العتاد</button></form></div>
-<div class="card" style="margin-top:20px;"><h3>قراءات عداد الكيلومترات</h3><a href="/equipment/{{ item.id }}/meters" class="btn-outline">عرض سجل القراءات</a></div>
+<div class="card" style="margin-top:20px;"><h3>قراءات العداد</h3><a href="/equipment/{{ item.id }}/meters" class="btn-outline">عرض سجل القراءات</a></div>
 {% endblock %}

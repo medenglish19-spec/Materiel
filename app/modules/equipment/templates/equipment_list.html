@@ -35,15 +35,14 @@
     <select id="filter-type"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select>
     <select id="filter-status"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select>
     <select id="filter-condition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select>
-    <div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="odo" checked> عداد الكم</label><label><input type="checkbox" data-col="hours" checked> عداد الساعات</label></div></div>
+    <div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="meter" checked> العداد</label></div></div>
 </div>
 
 <style>
 .equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}
 #equipment-table tbody tr.data-row{transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}
-/* الجدول عريض بطبيعته، لذلك يسمح بالتمرير يمينًا ويسارًا دون ضغط الأعمدة. */
 #equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
-#equipment-table{min-width:1050px;}
+#equipment-table{min-width:950px;}
 #equipment-table tbody tr.data-row{cursor:pointer;}
 #equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2;}
 #equipment-table tbody tr.data-row.meter-not-working .badge{color:#991b1b;border-color:#fecaca;background:#fee2e2;}
@@ -51,7 +50,7 @@
 
 <div class="table-wrap" id="equipment-table-wrap">
 <table class="data-table modern-table" id="equipment-table">
-    <thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-odo">عداد الكم</th><th class="col-hours">عداد الساعات</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead>
+    <thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-meter">العداد</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead>
     <tbody>
         {% for item in items %}
         <tr class="data-row{% if item.operational_status == 'unavailable' %} meter-not-working{% endif %}" onclick="openEquipment({{ item.id }})"
@@ -59,11 +58,11 @@
             data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}"
             data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}"
             data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
-            <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-odo">{{ item.current_odometer or 0 }} كم</td><td class="col-hours">{{ item.current_hours or 0 }} س</td>
+            <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td>
             <td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td>
             <td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td>
         </tr>
-        {% else %}<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="9" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}
     </tbody>
 </table>
 </div>
