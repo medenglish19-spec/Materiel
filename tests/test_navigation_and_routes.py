@@ -17,7 +17,8 @@ def _client(monkeypatch):
 
 
 def _route_matches(path: str, registered_paths: set[str]) -> bool:
-    candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0].rstrip("/")
+    raw_candidate = re.sub(r"{{.*?}}", "1", path).split("?", 1)[0].split("#", 1)[0]
+    candidate = raw_candidate.rstrip("/") or "/"
     candidate_parts = [part for part in candidate.split("/") if part]
     for route in registered_paths:
         route_parts = [part for part in route.rstrip("/").split("/") if part]
@@ -29,6 +30,20 @@ def _route_matches(path: str, registered_paths: set[str]) -> bool:
             for route_part, candidate_part in zip(route_parts, candidate_parts)
         ):
             return True
+
+    # A Jinja template may expose a base URL ending with '/' while the
+    # rendered value supplies the final dynamic path parameter.
+    if raw_candidate.endswith("/") and candidate_parts:
+        for route in registered_paths:
+            route_parts = [part for part in route.rstrip("/").split("/") if part]
+            if (
+                len(route_parts) == len(candidate_parts) + 1
+                and route_parts[:-1] == candidate_parts
+                and route_parts[-1].startswith("{")
+                and route_parts[-1].endswith("}")
+            ):
+                return True
+
     return not candidate_parts and "/" in registered_paths
 
 
