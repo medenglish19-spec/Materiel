@@ -196,7 +196,6 @@ def init_db() -> None:
         else:
             _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); command.upgrade(config, "head")
     else: command.upgrade(config, "head")
-    _repair_equipment_current_meters()
     _normalize_equipment_classification_defaults()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
@@ -205,6 +204,7 @@ def init_db() -> None:
         removed = cleanup_legacy_readings(db)
         if removed: print(f"[init_db] تم حذف {removed} قراءة قديمة مخالفة لقواعد التاريخ/القيمة.")
     finally: db.close()
+    _repair_equipment_current_meters()
 
 
 def create_default_admin() -> None:
