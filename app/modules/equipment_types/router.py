@@ -6,7 +6,7 @@ from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
-from app.modules.equipment_types import services
+from app.modules.equipment_types import demo, services
 from app.modules.equipment_types.schemas import (
     EquipmentBrandCreate,
     EquipmentBrandOut,
@@ -34,6 +34,15 @@ def types_page(request: Request, db: Session = Depends(get_db), current_user: Us
 @router.post("/equipment-types/demo")
 def create_demo_form(db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
     services.create_demo_classification(db)
+    return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/equipment-types/demo/delete")
+def delete_demo_form(db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+    try:
+        demo.delete_demo_classification(db)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types", status_code=status.HTTP_302_FOUND)
 
 
