@@ -49,7 +49,7 @@ def delete_category(db: Session, obj: EquipmentCategory) -> None:
 
 
 def create_demo_classification(db: Session) -> None:
-    """Create a small optional example; never replaces or modifies user data."""
+    """Create the optional example only when its names are not colliding with unrelated user data."""
     category_name = "مثال: مركبات"
     type_name = "مثال: مركبات خفيفة"
     brand_name = "مثال: Toyota"
@@ -80,13 +80,16 @@ def create_demo_classification(db: Session) -> None:
         )
         db.add(equipment_type)
         db.flush()
+    elif equipment_type.category_id != category.id:
+        # A real object happens to use the demo name. Never reclassify it or attach demo data to it.
+        db.rollback()
+        return
 
     model = (
         db.query(EquipmentModel)
         .filter(
             EquipmentModel.equipment_type_id == equipment_type.id,
             EquipmentModel.name == model_name,
-            EquipmentModel.brand_id == brand.id,
         )
         .first()
     )
@@ -99,6 +102,11 @@ def create_demo_classification(db: Session) -> None:
                 theoretical_quantity=1,
             )
         )
+    elif model.brand_id != brand.id:
+        # Never change an existing model merely because its name matches the example.
+        db.rollback()
+        return
+
     db.commit()
 
 
@@ -224,14 +232,6 @@ def create_model(db: Session, data: EquipmentModelCreate) -> EquipmentModel:
 def set_model_brand(db: Session, obj: EquipmentModel, brand_id: Optional[int]) -> EquipmentModel:
     if brand_id is not None and get_brand(db, brand_id) is None:
         raise ValueError("العلامة التجارية المحددة غير موجودة")
-    duplicate = db.query(EquipmentModel).filter(
-        EquipmentModel.equipment_type_id == obj.equipment_type_id,
-        EquipmentModel.brand_id == brand_id,
-        EquipmentModel.name == obj.name,
-        EquipmentModel.id != obj.id,
-    ).first()
-    if duplicate:
-        raise ValueError("يوجد طراز بنفس الاسم لنوع العتاد والعلامة التجارية المحددين")
     obj.brand_id = brand_id
     db.commit()
     db.refresh(obj)
