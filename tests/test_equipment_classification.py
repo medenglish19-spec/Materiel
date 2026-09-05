@@ -38,6 +38,7 @@ def test_equipment_classification_hierarchy_and_model_brand():
                 name="شاحنات",
                 measurement_unit="km",
                 category_id=category.id,
+                theoretical_quantity=12,
             ),
         )
         model = services.create_model(
@@ -50,8 +51,13 @@ def test_equipment_classification_hierarchy_and_model_brand():
         )
 
         assert equipment_type.category_id == category.id
+        assert equipment_type.theoretical_quantity == 12
         assert model.brand_id == brand.id
         assert model.equipment_type_id == equipment_type.id
+        assert not hasattr(model, "theoretical_quantity")
+
+        services.set_type_theoretical_quantity(db, equipment_type, 15)
+        assert equipment_type.theoretical_quantity == 15
 
         with pytest.raises(ValueError, match="فئة العتاد مطلوبة"):
             services.set_type_category(db, equipment_type, None)
