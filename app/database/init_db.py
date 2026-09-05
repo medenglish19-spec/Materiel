@@ -73,17 +73,31 @@ def _repair_existing_maintenance_schema() -> None:
         connection.execute(text("UPDATE maintenance_records SET reported_date = COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) WHERE reported_date IS NULL"))
 
 
-def _seed_equipment_classification_defaults() -> None:
-    from app.modules.equipment_types.models import EquipmentCategory
+def _normalize_equipment_classification_defaults() -> None:
+    """Remove unused built-in categories so classification is fully user-defined.
+
+    If an old built-in category is already used by real types, keep it as a normal
+    user category instead of changing or deleting existing classification data.
+    """
+    from app.modules.equipment_types.models import EquipmentCategory, EquipmentType
     from app.database.session import SessionLocal
-    defaults = (("المركبات الخفيفة", "LIGHT", 10), ("المركبات الثقيلة", "HEAVY", 20), ("معدات الأشغال", "CONSTRUCTION", 30), ("معدات الدعم", "SUPPORT", 40))
+
+    default_codes = {"LIGHT", "HEAVY", "CONSTRUCTION", "SUPPORT"}
     db = SessionLocal()
     try:
-        for name, code, sort_order in defaults:
-            if db.query(EquipmentCategory).filter(EquipmentCategory.code == code).first() is None:
-                db.add(EquipmentCategory(name=name, code=code, sort_order=sort_order, is_system=True))
-        db.commit()
-    finally: db.close()
+        categories = db.query(EquipmentCategory).filter(EquipmentCategory.code.in_(default_codes)).all()
+        changed = False
+        for category in categories:
+            linked = db.query(EquipmentType).filter(EquipmentType.category_id == category.id).first()
+            if linked is None:
+                db.delete(category)
+            elif category.is_system:
+                category.is_system = False
+            changed = True
+        if changed:
+            db.commit()
+    finally:
+        db.close()
 
 
 def _alembic_config() -> Config:
@@ -116,7 +130,7 @@ def init_db() -> None:
         else:
             _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); command.upgrade(config, "head")
     else: command.upgrade(config, "head")
-    _seed_equipment_classification_defaults()
+    _normalize_equipment_classification_defaults()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
     db = SessionLocal()
