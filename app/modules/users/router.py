@@ -36,7 +36,7 @@ templates = get_module_templates("app/modules/users/templates")
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        "login.html", {"request": request, "error": None}
+        request=request, name="login.html", context={"error": None}
     )
 
 
@@ -49,8 +49,9 @@ async def login_submit(request: Request, db: Session = Depends(get_db)):
     user = services.authenticate_user(db, username, password)
     if not user:
         return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
+            request=request,
+            name="login.html",
+            context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -79,7 +80,7 @@ def users_page(
     _: User = Depends(require_role(Role.ADMIN)),
 ):
     return templates.TemplateResponse(
-        "users.html", {"request": request, "users": services.list_users(db)}
+        request=request, name="users.html", context={"users": services.list_users(db)}
     )
 
 
