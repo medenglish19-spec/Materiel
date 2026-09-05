@@ -4,7 +4,7 @@
 {% block content %}
 <style>
     .types-page { direction:rtl; max-width:1200px; margin:0 auto; padding:8px 0 40px; }
-    .page-head { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; margin-bottom:22px; }
+    .page-head { margin-bottom:22px; }
     .page-head h2 { margin:0 0 7px; font-size:28px; letter-spacing:-.3px; }
     .page-head p { margin:0; color:#667085; line-height:1.8; }
     .classification-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
@@ -20,7 +20,6 @@
     input, select { width:100%; min-height:42px; box-sizing:border-box; border:1px solid #d0d5dd; border-radius:10px; padding:8px 11px; background:#fff; color:#101828; font:inherit; }
     input:focus, select:focus { outline:2px solid rgba(23,92,211,.12); border-color:#84adf8; }
     .primary { min-height:42px; border:0; border-radius:10px; padding:8px 15px; background:#101828; color:#fff; cursor:pointer; font-weight:700; white-space:nowrap; }
-    .secondary { min-height:38px; border:1px solid #d0d5dd; border-radius:9px; padding:7px 12px; background:#fff; color:#344054; cursor:pointer; font-weight:600; }
     .danger { min-height:32px; border:0; border-radius:8px; padding:5px 9px; background:#fff1f3; color:#b42318; cursor:pointer; font-weight:600; }
     .hint { margin:0; color:#98a2b3; font-size:12px; line-height:1.6; }
     .items { margin-top:15px; display:grid; gap:8px; max-height:330px; overflow:auto; padding-left:2px; }
@@ -37,15 +36,7 @@
     .example-card p { margin:0; color:#98a2b3; font-size:13px; line-height:1.8; }
     .example-path { margin-top:5px !important; color:#7b8492 !important; font-weight:600; }
     .example-note { margin-top:2px !important; font-size:12px !important; }
-    .example-actions { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
-    .example-actions form { margin:0; }
-    .top-actions { display:flex; gap:8px; }
-    @media (max-width:800px) {
-        .classification-grid { grid-template-columns:1fr; }
-        .page-head { flex-direction:column; }
-        .top-actions, .top-actions form { width:100%; }
-        .top-actions button { width:100%; }
-    }
+    @media (max-width:800px) { .classification-grid { grid-template-columns:1fr; } }
     @media (max-width:520px) {
         .add-row { flex-direction:column; align-items:stretch; }
         .add-row .primary { width:100%; }
@@ -56,16 +47,10 @@
 
 <div class="types-page">
     <div class="page-head">
-        <div>
-            <h2>أنواع العتاد</h2>
-            <p>عرّف المستويات الأربعة التي تعتمدها مؤسستك: <strong>الفئة → النوع → العلامة → الطراز</strong>.</p>
-            <p>رقم التسجيل ورقم الهيكل (VIN) يخصان العتاد الفعلي ويُسجلان لاحقًا، أما ID النظام فينشئه النظام تلقائيًا.</p>
-        </div>
-        <div class="top-actions">
-            <form method="post" action="/equipment-types/demo">
-                <button type="submit" class="secondary">إضافة مثال توضيحي</button>
-            </form>
-        </div>
+        <h2>أنواع العتاد</h2>
+        <p>عرّف تصنيف مؤسستك بهذا التسلسل: <strong>الفئة → النوع → العلامة → الطراز</strong>.</p>
+        <p>العلامة مرجع مستقل ويمكن أن تتكرر مع أنواع وفئات متعددة. أما الطراز فلا يُنشأ إلا بربطه بالعلامة والنوع، والفئة تُعرف تلقائيًا من النوع.</p>
+        <p>رقم التسجيل ورقم الهيكل (VIN) يخصان العتاد الفعلي ويُسجلان لاحقًا، أما ID النظام فينشئه النظام تلقائيًا.</p>
     </div>
 
     <div class="classification-grid">
@@ -83,20 +68,15 @@
                         <input type="text" name="name" placeholder="أدخل اسم الفئة" required>
                         <button type="submit" class="primary">+ إضافة الفئة</button>
                     </div>
-                    <p class="hint">مثال: المركبات، معدات الأشغال، معدات الدعم.</p>
+                    <p class="hint">مثال خفيف: المركبات، معدات الأشغال، معدات الدعم.</p>
                 </form>
                 <div class="items">
                     {% for c in categories %}
                     <div class="item">
-                        <div class="item-main">
-                            <div class="item-title">{{ c.name }}</div>
-                            {% if c.is_system %}<div class="item-meta">فئة أساسية</div>{% endif %}
-                        </div>
-                        {% if not c.is_system %}
-                        <form method="post" action="/equipment-types/categories/{{ c.id }}/delete" onsubmit="return confirm('حذف الفئة؟ ستبقى الأنواع المرتبطة بها بدون فئة.');">
+                        <div class="item-main"><div class="item-title">{{ c.name }}</div></div>
+                        <form method="post" action="/equipment-types/categories/{{ c.id }}/delete" onsubmit="return confirm('حذف الفئة؟');">
                             <button type="submit" class="danger">حذف</button>
                         </form>
-                        {% endif %}
                     </div>
                     {% else %}
                     <p class="empty">لم تتم إضافة أي فئة بعد.</p>
@@ -110,20 +90,16 @@
             <div class="card-head">
                 <div>
                     <h3><span class="field-number">2</span>نوع العتاد</h3>
-                    <p>نوع العتاد داخل الفئة، مثل مركبات خفيفة.</p>
+                    <p>يرتبط دائمًا بفئة، ومنه يعرف النظام الفئة تلقائيًا عند إنشاء الطراز.</p>
                 </div>
             </div>
             <div class="card-body">
                 <form method="post" action="/equipment-types/create" class="add-form">
                     <div class="add-row">
                         <input type="text" name="name" placeholder="أدخل اسم نوع العتاد" required>
-                    </div>
-                    <div class="add-row">
-                        <select name="category_id">
-                            <option value="">بدون فئة</option>
-                            {% for c in categories %}
-                            <option value="{{ c.id }}">{{ c.name }}</option>
-                            {% endfor %}
+                        <select name="category_id" required>
+                            <option value="">اختر الفئة</option>
+                            {% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
                         </select>
                         <select name="measurement_unit" required>
                             <option value="">وحدة العداد</option>
@@ -132,22 +108,19 @@
                         </select>
                         <button type="submit" class="primary">+ إضافة النوع</button>
                     </div>
-                    <p class="hint">وحدة العداد بيانات تشغيلية لازمة للصيانة، وليست مستوى تصنيف إضافيًا.</p>
+                    <p class="hint">لا يوجد «بدون فئة»: النوع جزء من التسلسل التصنيفي، ووحدة العداد معلومة تشغيلية للصيانة.</p>
                 </form>
                 <div class="items">
                     {% for t in types %}
                     <div class="item">
                         <div class="item-main">
                             <div class="item-title">{{ t.name }}</div>
-                            <div class="item-meta">{{ t.category.name if t.category else "بدون فئة" }} · {{ "كيلومترات" if t.measurement_unit == "km" else "ساعات تشغيل" }}</div>
+                            <div class="item-meta">الفئة: {{ t.category.name if t.category else "غير محددة" }} · {{ "كيلومترات" if t.measurement_unit == "km" else "ساعات تشغيل" }}</div>
                         </div>
                         <div class="item-actions">
                             <form method="post" action="/equipment-types/{{ t.id }}/category">
-                                <select name="category_id" title="الفئة" onchange="this.form.submit()">
-                                    <option value="">بدون فئة</option>
-                                    {% for c in categories %}
-                                    <option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-                                    {% endfor %}
+                                <select name="category_id" title="الفئة" onchange="this.form.submit()" required>
+                                    {% for c in categories %}<option value="{{ c.id }}" {% if t.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
                                 </select>
                             </form>
                             <form method="post" action="/equipment-types/{{ t.id }}/delete" onsubmit="return confirm('حذف النوع سيحذف طُرزه المرتبطة. هل تريد المتابعة؟');">
@@ -155,9 +128,7 @@
                             </form>
                         </div>
                     </div>
-                    {% else %}
-                    <p class="empty">لم تتم إضافة أي نوع بعد.</p>
-                    {% endfor %}
+                    {% else %}<p class="empty">لم تتم إضافة أي نوع بعد.</p>{% endfor %}
                 </div>
             </div>
         </section>
@@ -167,7 +138,7 @@
             <div class="card-head">
                 <div>
                     <h3><span class="field-number">3</span>العلامة</h3>
-                    <p>علامة/صانع العتاد، ويمكن استخدامها مع عدة طُرز.</p>
+                    <p>مرجع مستقل يمكن استخدامه في فئات وأنواع متعددة.</p>
                 </div>
             </div>
             <div class="card-body">
@@ -180,14 +151,8 @@
                 </form>
                 <div class="items">
                     {% for b in brands %}
-                    <div class="item">
-                        <div class="item-main">
-                            <div class="item-title">{{ b.name }}</div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <p class="empty">لم تتم إضافة أي علامة بعد.</p>
-                    {% endfor %}
+                    <div class="item"><div class="item-main"><div class="item-title">{{ b.name }}</div></div></div>
+                    {% else %}<p class="empty">لم تتم إضافة أي علامة بعد.</p>{% endfor %}
                 </div>
             </div>
         </section>
@@ -197,62 +162,51 @@
             <div class="card-head">
                 <div>
                     <h3><span class="field-number">4</span>الطراز</h3>
-                    <p>الطراز الذي ستُبنى عليه قواعد الصيانة والتعداد النظري.</p>
+                    <p>لا يُنشأ الطراز إلا بربطه بالعلامة والنوع؛ والفئة تُستنتج تلقائيًا من النوع.</p>
                 </div>
             </div>
             <div class="card-body">
                 <form method="post" action="/equipment-types/models/create" class="add-form">
                     <div class="add-row">
                         <input type="text" name="name" placeholder="أدخل اسم الطراز" required>
-                    </div>
-                    <div class="add-row">
                         <select name="equipment_type_id" required>
-                            <option value="">اختر نوع العتاد</option>
+                            <option value="">اختر النوع</option>
                             {% for t in types %}
-                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            <option value="{{ t.id }}">{{ t.category.name if t.category else "غير محددة" }} ← {{ t.name }}</option>
                             {% endfor %}
                         </select>
-                        <select name="brand_id">
-                            <option value="">علامة غير محددة</option>
-                            {% for b in brands %}
-                            <option value="{{ b.id }}">{{ b.name }}</option>
-                            {% endfor %}
+                        <select name="brand_id" required>
+                            <option value="">اختر العلامة</option>
+                            {% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
                         </select>
-                    </div>
-                    <div class="add-row">
                         <input type="number" name="theoretical_quantity" min="0" step="1" value="0" placeholder="التعداد النظري">
                         <button type="submit" class="primary">+ إضافة الطراز</button>
                     </div>
-                    <p class="hint">التعداد النظري يُستخدم في الحالة العددية والاحتياج، وليس هو عدد الأعطال.</p>
+                    <p class="hint">اختيار النوع يحدد الفئة تلقائيًا؛ لا توجد خانة فئة مستقلة للطراز.</p>
                 </form>
                 <div class="items">
                     {% for m in models %}
                     <div class="item">
                         <div class="item-main">
                             <div class="item-title">{{ m.name }}</div>
-                            <div class="item-meta">{{ m.equipment_type.name if m.equipment_type else "نوع غير محدد" }} · {{ m.brand.name if m.brand else "علامة غير محددة" }}</div>
+                            <div class="item-meta">{{ m.equipment_type.category.name if m.equipment_type and m.equipment_type.category else "فئة غير محددة" }} · {{ m.equipment_type.name if m.equipment_type else "نوع غير محدد" }} · {{ m.brand.name if m.brand else "علامة غير محددة" }}</div>
                         </div>
                         <div class="item-actions">
                             <form method="post" action="/equipment-types/models/{{ m.id }}/theoretical-quantity">
                                 <input type="number" name="theoretical_quantity" min="0" step="1" value="{{ m.theoretical_quantity }}" title="التعداد النظري" onchange="this.form.submit()">
                             </form>
                             <form method="post" action="/equipment-types/models/{{ m.id }}/brand">
-                                <select name="brand_id" title="العلامة" onchange="this.form.submit()">
-                                    <option value="">بدون علامة</option>
-                                    {% for b in brands %}
-                                    <option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-                                    {% endfor %}
+                                <select name="brand_id" title="العلامة" onchange="this.form.submit()" required>
+                                    {% for b in brands %}<option value="{{ b.id }}" {% if m.brand_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
                                 </select>
                             </form>
-                            <a href="/tires/models/{{ m.id }}/configuration" class="secondary" style="min-height:32px;padding:5px 9px;font-size:12px;">إعداد الإطارات</a>
+                            <a href="/tires/models/{{ m.id }}/configuration" class="danger" style="text-decoration:none;">إعداد الإطارات</a>
                             <form method="post" action="/equipment-types/models/{{ m.id }}/delete" onsubmit="return confirm('حذف الطراز؟');">
                                 <button type="submit" class="danger">حذف</button>
                             </form>
                         </div>
                     </div>
-                    {% else %}
-                    <p class="empty">لم تتم إضافة أي طراز بعد.</p>
-                    {% endfor %}
+                    {% else %}<p class="empty">لم تتم إضافة أي طراز بعد.</p>{% endfor %}
                 </div>
             </div>
         </section>
@@ -261,15 +215,7 @@
     <div class="example-card">
         <h3>مثال توضيحي فقط</h3>
         <p class="example-path">مركبات ← مركبات خفيفة ← Toyota ← Land Cruiser</p>
-        <p class="example-note">وعند تسجيل العتاد الفعلي من هذا الطراز: رقم التسجيل ورقم الهيكل (VIN) يميزان العتاد، أما ID النظام فيُنشئه النظام تلقائيًا ولا يدخله المستخدم.</p>
-        <div class="example-actions">
-            <form method="post" action="/equipment-types/demo">
-                <button type="submit" class="secondary">إضافة المثال إلى القائمة</button>
-            </form>
-            <form method="post" action="/equipment-types/demo/delete" onsubmit="return confirm('حذف بيانات المثال فقط؟ لن يُحذف أي عتاد أو سجل حقيقي مرتبط به.');">
-                <button type="submit" class="danger">حذف المثال</button>
-            </form>
-        </div>
+        <p class="example-note">عند تسجيل العتاد الفعلي من هذا الطراز: رقم التسجيل + رقم الهيكل (VIN) يميزان العتاد، وID النظام يُنشئه النظام تلقائيًا.</p>
     </div>
 </div>
 {% endblock %}
