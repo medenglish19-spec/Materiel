@@ -82,6 +82,8 @@ def _validate_record(connection, target, exclude_id=None):
 
     from app.modules.equipment.models import Equipment
     from app.modules.equipment_types.models import EquipmentType
+    from app.modules.meter_readings.models import MeterReading
+
     unit = connection.execute(
         select(EquipmentType.measurement_unit)
         .join(Equipment, Equipment.equipment_type_id == EquipmentType.id)
@@ -111,17 +113,80 @@ def _validate_record(connection, target, exclude_id=None):
     if target.meter_value is None:
         return
 
-    query = select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value, MaintenanceRecord.id).where(
+    maintenance_query = select(
+        MaintenanceRecord.maintenance_date,
+        MaintenanceRecord.meter_value,
+        MaintenanceRecord.id,
+    ).where(
         MaintenanceRecord.equipment_id == target.equipment_id,
         MaintenanceRecord.meter_value.is_not(None),
     ).order_by(MaintenanceRecord.maintenance_date, MaintenanceRecord.id)
-    for previous_date, previous_meter, previous_id in connection.execute(query).all():
+    for previous_date, previous_meter, previous_id in connection.execute(maintenance_query).all():
         if exclude_id is not None and previous_id == exclude_id:
             continue
         if previous_date < target.maintenance_date and target.meter_value < previous_meter:
             raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أقل من قراءة أحدث زمنيًا قبلها ({previous_meter:g}).")
         if previous_date > target.maintenance_date and target.meter_value > previous_meter:
             raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أكبر من قراءة سجل أحدث ({previous_meter:g}).")
+
+    reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
+    reading_query = select(MeterReading.reading_date, reading_column).where(
+        MeterReading.equipment_id == target.equipment_id,
+        reading_column.is_not(None),
+    ).order_by(MeterReading.reading_date, MeterReading.id)
+    for reading_date, reading_meter in connection.execute(reading_query).all():
+        reading_day = reading_date.date() if hasattr(reading_date, "date") else reading_date
+        reading_meter = Decimal(str(reading_meter))
+        if reading_day < target.maintenance_date and target.meter_value < reading_meter:
+            raise ValueError(f"⚠ تناقض بين الصيانة وقراءة العداد: قراءة الصيانة ({target.meter_value:g}) أقل من قراءة عداد أقدم ({reading_meter:g}).")
+        if reading_day > target.maintenance_date and target.meter_value > reading_meter:
+            raise ValueError(f"⚠ تناقض بين الصيانة وقراءة العداد: قراءة الصيانة ({target.meter_value:g}) أكبر من قراءة عداد أحدث ({reading_meter:g}).")
+
+
+def _sync_equipment_current(connection, equipment_id):
+    """Keep Equipment.current_* synchronized with the latest trusted meter observation."""
+    from app.modules.equipment.models import Equipment
+    from app.modules.equipment_types.models import EquipmentType
+    from app.modules.meter_readings.models import MeterReading
+
+    unit = connection.execute(
+        select(EquipmentType.measurement_unit)
+        .join(Equipment, Equipment.equipment_type_id == EquipmentType.id)
+        .where(Equipment.id == equipment_id)
+    ).scalar_one_or_none()
+    unit = (unit or "").strip().lower()
+    if unit not in ("km", "hours"):
+        return
+
+    reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
+    latest_reading = connection.execute(
+        select(MeterReading.reading_date, reading_column)
+        .where(MeterReading.equipment_id == equipment_id, reading_column.is_not(None))
+        .order_by(desc(MeterReading.reading_date), desc(MeterReading.id))
+        .limit(1)
+    ).first()
+    latest_maintenance = connection.execute(
+        select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value)
+        .where(MaintenanceRecord.equipment_id == equipment_id, MaintenanceRecord.meter_value.is_not(None))
+        .order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id))
+        .limit(1)
+    ).first()
+
+    candidates = []
+    if latest_reading is not None:
+        reading_date = latest_reading[0].date() if hasattr(latest_reading[0], "date") else latest_reading[0]
+        candidates.append((reading_date, Decimal(str(latest_reading[1]))))
+    if latest_maintenance is not None:
+        candidates.append((latest_maintenance[0], Decimal(str(latest_maintenance[1]))))
+    if not candidates:
+        return
+
+    latest_date = max(item[0] for item in candidates)
+    current_value = max(value for item_date, value in candidates if item_date == latest_date)
+    values = {"current_odometer": current_value} if unit == "km" else {"current_hours": current_value}
+    connection.execute(
+        Equipment.__table__.update().where(Equipment.id == equipment_id).values(**values)
+    )
 
 
 @event.listens_for(MaintenanceRecord, "before_insert")
@@ -130,9 +195,29 @@ def _validate_maintenance_record_insert(mapper, connection, target):
     _validate_record(connection, target)
 
 
+@event.listens_for(MaintenanceRecord, "after_insert")
+def _sync_maintenance_record_insert(mapper, connection, target):
+    _sync_equipment_current(connection, target.equipment_id)
+
+
 @event.listens_for(MaintenanceRecord, "before_update")
 def _validate_maintenance_record_update(mapper, connection, target):
     target.reported_date = target.maintenance_date
     state = inspect(target)
     if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "rule_id", "maintenance_date", "meter_value")):
         _validate_record(connection, target, exclude_id=target.id)
+
+
+@event.listens_for(MaintenanceRecord, "after_update")
+def _sync_maintenance_record_update(mapper, connection, target):
+    state = inspect(target)
+    equipment_ids = {target.equipment_id}
+    equipment_ids.update(state.attrs.equipment_id.history.deleted)
+    for equipment_id in equipment_ids:
+        if equipment_id is not None:
+            _sync_equipment_current(connection, equipment_id)
+
+
+@event.listens_for(MaintenanceRecord, "after_delete")
+def _sync_maintenance_record_delete(mapper, connection, target):
+    _sync_equipment_current(connection, target.equipment_id)

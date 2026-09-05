@@ -73,6 +73,72 @@ def _repair_existing_maintenance_schema() -> None:
         connection.execute(text("UPDATE maintenance_records SET reported_date = COALESCE(reported_date, maintenance_date, DATE(created_at), DATE('now')) WHERE reported_date IS NULL"))
 
 
+def _repair_equipment_current_meters() -> None:
+    """Reconcile stored current meters with the newest maintenance/meter observation.
+
+    This is intentionally idempotent and runs at startup so older data such as a
+    current odometer of 500 with a later maintenance meter of 581 is corrected
+    without requiring the user to edit the old record manually.
+    """
+    from app.modules.equipment.models import Equipment
+    from app.modules.equipment_types.models import EquipmentType
+    from app.modules.meter_readings.models import MeterReading
+    from app.modules.maintenance.models import MaintenanceRecord
+    from app.database.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        equipment_list = db.query(Equipment).join(EquipmentType, Equipment.equipment_type_id == EquipmentType.id).all()
+        changed = 0
+        for equipment in equipment_list:
+            unit = (equipment.equipment_type.measurement_unit or "").strip().lower()
+            if unit not in ("km", "hours"):
+                continue
+            if unit == "km":
+                latest_reading = db.query(MeterReading).filter(
+                    MeterReading.equipment_id == equipment.id,
+                    MeterReading.odometer.is_not(None),
+                ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
+            else:
+                latest_reading = db.query(MeterReading).filter(
+                    MeterReading.equipment_id == equipment.id,
+                    MeterReading.hours.is_not(None),
+                ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
+            latest_maintenance = db.query(MaintenanceRecord).filter(
+                MaintenanceRecord.equipment_id == equipment.id,
+                MaintenanceRecord.meter_value.is_not(None),
+            ).order_by(MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()).first()
+
+            candidates = []
+            if latest_reading is not None:
+                value = latest_reading.odometer if unit == "km" else latest_reading.hours
+                candidates.append((latest_reading.reading_date.date(), value) if hasattr(latest_reading.reading_date, "date") else (latest_reading.reading_date, value))
+            if latest_maintenance is not None:
+                candidates.append((latest_maintenance.maintenance_date, latest_maintenance.meter_value))
+            if not candidates:
+                continue
+            latest_date = max(item[0] for item in candidates)
+            current_value = max(item[1] for item in candidates if item[0] == latest_date)
+            current_value = float(current_value) if current_value is not None else None
+            if current_value is None:
+                continue
+            if unit == "km":
+                old_value = float(equipment.current_odometer) if equipment.current_odometer is not None else None
+                if old_value != current_value:
+                    equipment.current_odometer = current_value
+                    changed += 1
+            else:
+                old_value = float(equipment.current_hours) if equipment.current_hours is not None else None
+                if old_value != current_value:
+                    equipment.current_hours = current_value
+                    changed += 1
+        if changed:
+            db.commit()
+            print(f"[init_db] تمت مزامنة العداد الحالي لـ {changed} عتاد/مركبة.")
+    finally:
+        db.close()
+
+
 def _normalize_equipment_classification_defaults() -> None:
     """Remove unused built-in categories so classification is fully user-defined.
 
@@ -130,6 +196,7 @@ def init_db() -> None:
         else:
             _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); command.upgrade(config, "head")
     else: command.upgrade(config, "head")
+    _repair_equipment_current_meters()
     _normalize_equipment_classification_defaults()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
