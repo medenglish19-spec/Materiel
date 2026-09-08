@@ -6,7 +6,7 @@ down_revision: 0017_tire_receipt_date
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0018_tire_model_configuration"
+revision = "0018_tire_model_configuration_and_disposal"
 down_revision = "0017_tire_receipt_date"
 branch_labels = None
 depends_on = None
