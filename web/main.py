@@ -1,7 +1,10 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.database.init_db import create_default_admin, init_db
@@ -25,7 +28,13 @@ STATIC_DIR = PROJECT_ROOT / "static"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        init_db()
+        create_default_admin()
+        yield
+
+    app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.middleware("http")
@@ -51,11 +60,6 @@ def create_app() -> FastAPI:
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])
     app.include_router(missions_router, tags=["missions"])
-
-    @app.on_event("startup")
-    def on_startup():
-        init_db()
-        create_default_admin()
 
     @app.get("/health")
     def health():

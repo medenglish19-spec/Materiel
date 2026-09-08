@@ -7,5 +7,6 @@
       "onAutoForward": "openBrowser",
       "protocol": "http"
     }
-  }
+  },
+  "postStartCommand": "bash .devcontainer/start_materiel.sh"
 }

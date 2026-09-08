@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, Request, status
@@ -11,151 +11,23 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.meter_readings.models import MeterReading
-from app.modules.users.models import User
 from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
+from app.modules.maintenance.services import (
+    chronology_error,
+    contradiction_for,
+    current_meter_value,
+    effective_rules_for_equipment,
+    get_effective_rule_for_equipment,
+    latest_readings,
+    latest_records,
+    measurement_unit,
+    priority_for,
+    status_for,
+)
+from app.modules.users.models import User
 
 router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
-
-
-def latest_readings(db: Session):
-    readings = {}
-    rows = db.query(MeterReading).order_by(MeterReading.equipment_id, desc(MeterReading.reading_date), desc(MeterReading.id)).all()
-    for row in rows:
-        if row.equipment_id not in readings:
-            readings[row.equipment_id] = row
-    return readings
-
-
-def latest_records(db: Session):
-    result = {}
-    rows = db.query(MaintenanceRecord).order_by(MaintenanceRecord.equipment_id, MaintenanceRecord.rule_id, desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
-    for row in rows:
-        key = (row.equipment_id, row.rule_id)
-        if key not in result:
-            result[key] = row
-    return result
-
-
-def measurement_unit(equipment):
-    return (equipment.equipment_type.measurement_unit or "").strip().lower()
-
-
-def current_meter_value(equipment, reading):
-    unit = measurement_unit(equipment)
-    if unit == "hours":
-        return equipment.current_hours if equipment.current_hours is not None else (reading.hours if reading else None)
-    return equipment.current_odometer if equipment.current_odometer is not None else (reading.odometer if reading else None)
-
-
-def chronology_error(db: Session, equipment_id: int, maintenance_date: date, meter: Decimal | None, exclude_id=None):
-    if meter is None:
-        return None
-    records = db.query(MaintenanceRecord).filter(
-        MaintenanceRecord.equipment_id == equipment_id,
-        MaintenanceRecord.meter_value.is_not(None),
-    ).order_by(MaintenanceRecord.maintenance_date, MaintenanceRecord.id).all()
-    for row in records:
-        if exclude_id is not None and row.id == exclude_id:
-            continue
-        if row.maintenance_date < maintenance_date and meter < Decimal(str(row.meter_value)):
-            return "قراءة العداد أقل من قراءة سجل صيانة أقدم"
-        if row.maintenance_date > maintenance_date and meter > Decimal(str(row.meter_value)):
-            return "قراءة العداد أكبر من قراءة سجل صيانة أحدث"
-    return None
-
-
-def contradiction_for(equipment, record, current_value, db):
-    if record is None or record.meter_value is None:
-        return None
-    error = chronology_error(db, equipment.id, record.maintenance_date, Decimal(str(record.meter_value)), exclude_id=record.id)
-    if error:
-        return f"⚠ {error}"
-    if current_value is not None and record.meter_value > current_value:
-        return "⚠ آخر صيانة تحمل عدادًا أكبر من العداد الحالي"
-    return None
-
-
-def status_for(rule, equipment, record, current_value):
-    if record is None:
-        return "بلا سجل", "neutral", None, {"remaining_days": None, "next_meter": None, "next_date": None}
-    unit = measurement_unit(equipment)
-    interval = rule.interval_hours if unit == "hours" else rule.interval_km
-    warning_meter = rule.warning_km if unit == "km" else None
-    remaining_meter = None
-    remaining_days = None
-    next_meter = None
-    next_date = None
-    if interval is not None and current_value is not None and record.meter_value is not None:
-        next_meter = Decimal(str(record.meter_value)) + Decimal(str(interval))
-        remaining_meter = next_meter - Decimal(str(current_value))
-    if rule.interval_days is not None:
-        next_date = record.maintenance_date + timedelta(days=int(rule.interval_days))
-        remaining_days = (next_date - date.today()).days
-    overdue_meter = remaining_meter is not None and remaining_meter <= 0
-    overdue_days = remaining_days is not None and remaining_days <= 0
-    near_meter = warning_meter is not None and remaining_meter is not None and remaining_meter <= Decimal(str(warning_meter))
-    near_days = rule.warning_days is not None and remaining_days is not None and remaining_days <= int(rule.warning_days)
-    if overdue_meter or overdue_days:
-        return "مستحقة الآن", "danger", remaining_meter, {"remaining_days": remaining_days, "next_meter": next_meter, "next_date": next_date}
-    if near_meter or near_days:
-        return "تقترب", "warning", remaining_meter, {"remaining_days": remaining_days, "next_meter": next_meter, "next_date": next_date}
-    return "ضمن الموعد", "success", remaining_meter, {"remaining_days": remaining_days, "next_meter": next_meter, "next_date": next_date}
-
-
-def priority_for(state, remaining_meter, meta):
-    if state == "مستحقة الآن": return 1
-    if state == "تقترب": return 2
-    if state == "بلا سجل": return 3
-    candidates = [x for x in (remaining_meter, meta.get("remaining_days")) if x is not None]
-    return 4 if candidates else 5
-
-
-def effective_rules_for_equipment(db: Session, equipment, include_rule_id=None):
-    """Return only maintenance rules assigned to the equipment's model.
-
-    Classification, brand, and equipment type never select a maintenance rule.
-    The type is used only to determine the meter unit through the equipment itself.
-    """
-    model_id = getattr(equipment, "equipment_model_id", None)
-    if model_id is None:
-        return []
-
-    query = (
-        db.query(MaintenanceRule)
-        .options(joinedload(MaintenanceRule.equipment_type), joinedload(MaintenanceRule.equipment_model))
-        .filter(
-            MaintenanceRule.equipment_model_id == model_id,
-            MaintenanceRule.is_active.is_(True),
-        )
-        .order_by(MaintenanceRule.name, MaintenanceRule.id)
-    )
-    result = query.all()
-
-    if include_rule_id is not None and not any(rule.id == include_rule_id for rule in result):
-        historical = (
-            db.query(MaintenanceRule)
-            .options(joinedload(MaintenanceRule.equipment_type), joinedload(MaintenanceRule.equipment_model))
-            .filter(
-                MaintenanceRule.id == include_rule_id,
-                MaintenanceRule.equipment_model_id == model_id,
-            )
-            .first()
-        )
-        if historical is not None:
-            result.append(historical)
-
-    return sorted(result, key=lambda rule: (rule.name, rule.id))
-
-
-def get_effective_rule_for_equipment(db: Session, equipment, rule_id: int, include_historical: bool = False):
-    rules = effective_rules_for_equipment(
-        db,
-        equipment,
-        include_rule_id=rule_id if include_historical else None,
-    )
-    return next((rule for rule in rules if rule.id == rule_id), None)
 
 
 @router.get("/maintenance", response_class=HTMLResponse)
@@ -226,10 +98,7 @@ def maintenance_rule_exception_create(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    parent = db.query(MaintenanceRule).filter(
-        MaintenanceRule.id == rule_id,
-        MaintenanceRule.parent_rule_id.is_(None),
-    ).first()
+    parent = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id, MaintenanceRule.parent_rule_id.is_(None)).first()
     model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
     if parent is None or model is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
@@ -347,12 +216,7 @@ def maintenance_rule_create(
         except (InvalidOperation, ValueError):
             return None
 
-    model = (
-        db.query(EquipmentModel)
-        .options(joinedload(EquipmentModel.equipment_type))
-        .filter(EquipmentModel.id == equipment_model_id)
-        .first()
-    )
+    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id == equipment_model_id).first()
     if model is None:
         return RedirectResponse("/maintenance/rules?error=equipment_model", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -399,12 +263,7 @@ def maintenance_rule_update(
     current_user: User = Depends(get_current_user),
 ):
     rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
-    model = (
-        db.query(EquipmentModel)
-        .options(joinedload(EquipmentModel.equipment_type))
-        .filter(EquipmentModel.id == equipment_model_id)
-        .first()
-    )
+    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id == equipment_model_id).first()
     if rule is None or model is None:
         return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
     if rule.parent_rule_id is not None:
@@ -479,22 +338,8 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
     for eq in equipment:
         for rule in effective_rules_for_equipment(db, eq):
             effective_rule_equipment_ids.setdefault(rule.id, set()).add(eq.id)
-    effective_rule_equipment_ids = {
-        rule_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids))
-        for rule_id, equipment_ids in effective_rule_equipment_ids.items()
-    }
-    return templates.TemplateResponse(
-        "maintenance_records.html",
-        {
-            "request": request,
-            "user": current_user,
-            "records": records,
-            "equipment": equipment,
-            "rules": rules,
-            "effective_rule_equipment_ids": effective_rule_equipment_ids,
-            "edit_record": edit_record,
-        },
-    )
+    effective_rule_equipment_ids = {rule_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids)) for rule_id, equipment_ids in effective_rule_equipment_ids.items()}
+    return templates.TemplateResponse("maintenance_records.html", {"request": request, "user": current_user, "records": records, "equipment": equipment, "rules": rules, "effective_rule_equipment_ids": effective_rule_equipment_ids, "edit_record": edit_record})
 
 
 @router.post("/maintenance/records/create")

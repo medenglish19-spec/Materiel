@@ -28,19 +28,14 @@
         @media(max-width:600px){.app-sidebar{position:relative;width:100%;height:auto;bottom:auto}.app-menu{display:grid;grid-template-columns:repeat(2,1fr);max-height:none}.sidebar-spacer,.sidebar-user{display:none}.sidebar-logout{margin:4px 8px 8px!important}.app-main{margin-right:0}.app-topbar{height:44px}}
         .meter-import-error{display:flex;align-items:flex-start;gap:13px;margin:12px 0;padding:15px 16px;border:2px solid #f1aeb5;border-radius:12px;background:#fff5f6;color:#7f1d1d;box-shadow:0 2px 8px rgba(127,29,29,.08)}
         .meter-import-error .error-icon{flex:0 0 42px;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fee2e2;font-size:25px}
-        .meter-import-error .error-title{font-size:16px;font-weight:800;margin-bottom:5px}
-        .meter-import-error .error-message{font-size:13px;line-height:1.8}
-        .meter-import-errors{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
-        .meter-import-errors li{padding:9px 11px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#991b1b;font-size:13px;line-height:1.7}
+        .meter-import-error .error-title{font-size:16px;font-weight:800;margin-bottom:5px}.meter-import-error .error-message{font-size:13px;line-height:1.8}
+        .meter-import-errors{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}.meter-import-errors li{padding:9px 11px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#991b1b;font-size:13px;line-height:1.7}
         .meter-import-ok{display:flex;align-items:center;gap:9px;margin:12px 0;padding:12px 14px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#166534;font-size:13px;font-weight:700}
     </style>
 </head>
 <body>
     <aside class="app-sidebar">
-        <div class="app-brand">
-            <span class="app-brand-icon">⚙</span>
-            <span>نظام إدارة العتاد</span>
-        </div>
+        <div class="app-brand"><span class="app-brand-icon">⚙</span><span>نظام إدارة العتاد</span></div>
         <nav class="app-menu">
             <a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a>
             <a href="/equipment" class="{% if request.url.path.startswith('/equipment') and not request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">▣</span><span>العتاد</span></a>
@@ -49,64 +44,30 @@
             <a href="/meter-readings/operations" class="{% if request.url.path.startswith('/meter-readings/operations') %}active{% endif %}"><span class="menu-icon">▤</span><span>سجل عمليات الإدخال</span></a>
             <a href="/equipment-types" class="{% if request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">⌘</span><span>أنواع العتاد</span></a>
             <a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a>
-            <a href="#"><span class="menu-icon">▤</span><span>التقارير</span></a>
-            <a href="#"><span class="menu-icon">♢</span><span>التنبيهات</span></a>
+            <a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a>
+            <a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a>
+            <a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a>
+            <a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a>
+            <a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a>
             <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a>
-            <a href="#"><span class="menu-icon">⚙</span><span>الإعدادات</span></a>
         </nav>
         <div class="sidebar-spacer"></div>
         <div class="sidebar-user">النظام المحلي<br>إدارة الأسطول والعتاد</div>
         <a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a>
     </aside>
     <div class="app-main">
-        <header class="app-topbar">
-            <span class="app-topbar-title">إدارة الأسطول والعتاد</span>
-            <span class="app-topbar-date" id="systemDate"></span>
-        </header>
-        <main class="container">
-            {% block content %}{% endblock %}
-        </main>
+        <header class="app-topbar"><span class="app-topbar-title">إدارة الأسطول والعتاد</span><span class="app-topbar-date" id="systemDate"></span></header>
+        <main class="container">{% block content %}{% endblock %}</main>
     </div>
     <script>
         (function(){
             const el=document.getElementById('systemDate');
-            if(el){
-                const now=new Date();
-                el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(now);
-            }
-
-            // النوافذ الخاصة بالإضافة لا تحتفظ بمدخلات قديمة عند الرجوع إليها.
-            // نستخدم sessionStorage فقط كإشارة إلى أن عملية POST تمت قبل الانتقال.
+            if(el){const now=new Date();el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(now);}
             const mutationKey='materiel:mutation-completed';
-            document.querySelectorAll('form[method="post"]').forEach(form=>{
-                form.setAttribute('autocomplete','off');
-                form.addEventListener('submit',()=>{
-                    sessionStorage.setItem(mutationKey,'1');
-                });
-            });
-
-            function resetEntryForms(){
-                document.querySelectorAll('form[method="post"]').forEach(form=>{
-                    // لا نمسح نموذج البحث أو أي نموذج موسوم صراحةً بالحفاظ على حالته.
-                    if(form.dataset.preserveForm==='true') return;
-                    form.reset();
-                    form.querySelectorAll('select').forEach(select=>{
-                        if(select.dataset.resetDisabled==='true') select.disabled=true;
-                    });
-                });
-            }
-
-            if(sessionStorage.getItem(mutationKey)==='1'){
-                sessionStorage.removeItem(mutationKey);
-                resetEntryForms();
-            }
-
-            // عند استرجاع الصفحة من Back/Forward قد يعيد المتصفح حالة قديمة كاملة.
-            window.addEventListener('pageshow',function(event){
-                if(event.persisted){
-                    window.location.reload();
-                }
-            });
+            document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>{sessionStorage.setItem(mutationKey,'1');});});
+            function resetEntryForms(){document.querySelectorAll('form[method="post"]').forEach(form=>{if(form.dataset.preserveForm==='true')return;form.reset();form.querySelectorAll('select').forEach(select=>{if(select.dataset.resetDisabled==='true')select.disabled=true;});});}
+            if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey);resetEntryForms();}
+            window.addEventListener('pageshow',function(event){if(event.persisted){window.location.reload();}});
         })();
     </script>
 </body>

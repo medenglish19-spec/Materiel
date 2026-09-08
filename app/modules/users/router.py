@@ -7,6 +7,7 @@ modules/users/router.py
 يحتوي:
 - صفحة/نقطة تسجيل الدخول (تضع كوكي الجلسة)
 - تسجيل الخروج
+- صفحة إدارة المستخدمين
 - API لإدارة المستخدمين (خاص بالـ admin فقط)
 """
 
@@ -28,14 +29,14 @@ router = APIRouter()
 templates = get_module_templates("app/modules/users/templates")
 
 # ---------------------------------------------------------------
-# صفحات الواجهة (تسجيل الدخول / الخروج)
+# صفحات الواجهة (تسجيل الدخول / الخروج / المستخدمون)
 # ---------------------------------------------------------------
 
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        "login.html", {"request": request, "error": None}
+        request=request, name="login.html", context={"error": None}
     )
 
 
@@ -48,8 +49,9 @@ async def login_submit(request: Request, db: Session = Depends(get_db)):
     user = services.authenticate_user(db, username, password)
     if not user:
         return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
+            request=request,
+            name="login.html",
+            context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -69,6 +71,17 @@ def logout():
     response = RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
     response.delete_cookie(settings.SESSION_COOKIE_NAME)
     return response
+
+
+@router.get("/users", response_class=HTMLResponse)
+def users_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_role(Role.ADMIN)),
+):
+    return templates.TemplateResponse(
+        request=request, name="users.html", context={"users": services.list_users(db)}
+    )
 
 
 # ---------------------------------------------------------------
