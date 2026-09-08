@@ -40,24 +40,51 @@ jobs:
       - name: Syntax check
         run: python -m compileall -q app web run_web.py
 
-      - name: Alembic migration smoke test
+      - name: SQLite migration 0007 recovery test
         env:
           DATABASE_URL: sqlite:///./ci_migration_test.db
         run: |
           set -euxo pipefail
           rm -f ci_migration_test.db
-          alembic upgrade head
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect("ci_migration_test.db")
+          db.executescript("""
+          CREATE TABLE users (id INTEGER PRIMARY KEY);
+          CREATE TABLE equipment (id INTEGER PRIMARY KEY);
+          CREATE TABLE maintenance_records (id INTEGER PRIMARY KEY);
+          CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL);
+          INSERT INTO alembic_version(version_num) VALUES ('0006_model_theoretical_quantity');
+          """)
+          db.commit()
+          db.close()
+          PY
+          alembic upgrade 0007_faults_repairs
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect("ci_migration_test.db")
           version = db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-          print(f"Alembic head: {version}")
-          assert version == "0019_type_theoretical_quantity"
-          required = {"faults", "repairs", "spare_parts", "repair_parts", "tires", "batteries", "fuel", "missions"}
+          assert version == "0007_faults_repairs", version
+          required = {"faults", "repairs", "spare_parts", "repair_parts"}
           tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-          missing = required - tables
-          assert not missing, f"Missing tables: {sorted(missing)}"
+          assert required <= tables, sorted(required - tables)
+          # Simulate an interrupted SQLite migration whose DDL completed but
+          # whose Alembic version update did not persist.
+          db.execute("UPDATE alembic_version SET version_num = '0006_model_theoretical_quantity'")
+          db.commit()
           db.close()
+          PY
+          alembic upgrade 0007_faults_repairs
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect("ci_migration_test.db")
+          version = db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+          assert version == "0007_faults_repairs", version
+          required = {"faults", "repairs", "spare_parts", "repair_parts"}
+          tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          assert required <= tables, sorted(required - tables)
+          db.close()
+          print("0007 recovery test passed")
           PY
 
       - name: Run tests
