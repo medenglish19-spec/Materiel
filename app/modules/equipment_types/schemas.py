@@ -48,11 +48,10 @@ class EquipmentModelCreate(BaseModel):
     def counts_valid(cls, v: int) -> int:
         if v < 0: raise ValueError("عدد التجهيزات لا يمكن أن يكون سالبًا")
         return v
-    @field_validator("tire_size", "mobility_type")
+    @field_validator("tire_size")
     @classmethod
-    def strings_valid(cls, v: Optional[str]) -> Optional[str]:
-        if v is None: return v
-        return v.strip()
+    def tire_size_valid(cls, v: Optional[str]) -> Optional[str]:
+        return v.strip() if v is not None else None
     @field_validator("battery_capacity_ah", "battery_voltage_v")
     @classmethod
     def positive_specs(cls, v: Optional[float]) -> Optional[float]:
