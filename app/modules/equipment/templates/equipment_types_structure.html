@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}هيكلة أنواع العتاد{% endblock %}
+{% block content %}
+<div dir="rtl" style="max-width:1400px;margin:auto">
+  <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px">
+    <div><div style="font-size:11px;color:#718096;font-weight:700">MATERIEL · EQUIPMENT STRUCTURE</div><h1 style="margin:5px 0;color:#18283a">هيكلة أنواع العتاد</h1><p style="margin:0;color:#718096;font-size:12px">جدول مستقل لتفصيل تكوين الأنواع والطرازات التابعة لها.</p></div>
+    <a href="/equipment-types" style="border:1px solid #d8e0e8;background:#fff;color:#173b63;padding:8px 12px;border-radius:6px;text-decoration:none;font-size:11px;font-weight:700">إدارة الأنواع</a>
+  </div>
+  <div style="background:#fff;border:1px solid #e4e9ef;border-radius:9px;overflow:auto">
+    <table style="width:100%;min-width:950px;border-collapse:collapse" id="typeStructureTable">
+      <thead><tr style="background:#fafbfc;color:#718096;font-size:10px"><th style="padding:11px;text-align:right">التصنيف</th><th style="padding:11px;text-align:right">نوع العتاد</th><th style="padding:11px;text-align:right">الطراز</th><th style="padding:11px;text-align:center">المحقق</th><th style="padding:11px;text-align:center">النظري</th><th style="padding:11px;text-align:center">الحركة</th><th style="padding:11px;text-align:center">السائق</th><th style="padding:11px;text-align:center">الإطارات</th><th style="padding:11px;text-align:center">البطاريات</th></tr></thead>
+      <tbody>
+      {% for category in hierarchy %}
+        {% for type in category.types %}
+          {% for model in type.models %}
+          <tr style="border-top:1px solid #edf0f3;color:#465668;font-size:10px">
+            <td style="padding:10px">{{ category.name }}</td><td style="padding:10px;font-weight:700;color:#31465a">{{ type.name }}</td><td style="padding:10px;color:#245d88;font-weight:700">{{ model.name }}</td>
+            <td style="padding:10px;text-align:center">{{ model.stats.total }}</td><td style="padding:10px;text-align:center">{% if model.stats.theoretical %}{{ model.stats.theoretical }}{% else %}—{% endif %}</td>
+            <td style="padding:10px;text-align:center">يُحدد في إعداد الطراز</td><td style="padding:10px;text-align:center">يُحدد في إعداد الطراز</td><td style="padding:10px;text-align:center">يُحدد في إعداد الطراز</td><td style="padding:10px;text-align:center">يُحدد في إعداد الطراز</td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+      {% else %}<tr><td colspan="9" style="padding:35px;text-align:center;color:#8794a2">لا توجد أنواع أو طرازات مسجلة.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:12px;padding:11px 13px;border-right:3px solid #9aa7b4;background:#fafbfc;color:#6d7a88;font-size:10px;line-height:1.8">هذه الصفحة مخصصة للهيكلة والتكوين، وليست بديلًا عن جدول الحالة العددية. تفاصيل الإطارات والبطاريات والحركة والسائق تُؤخذ من إعداد الطراز.</div>
+</div>
+{% endblock %}
