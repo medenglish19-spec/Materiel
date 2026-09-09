@@ -9,119 +9,24 @@
 
 <div class="card">
     <h3>{{ item.asset_code }}</h3>
-
-    <form method="post" action="/equipment/{{ item.id }}/edit" class="grid-form">
-        <div class="field">
-            <label>الوثيقة</label>
-            <input type="text" name="acquisition_document" value="{{ item.acquisition_document or '' }}">
-        </div>
-
-        <div class="field">
-            <label>نوع العتاد *</label>
-            <select name="equipment_type_id" id="edit-type-select" required onchange="onEditTypeChange()">
-                {% for t in types %}
-                <option value="{{ t.id }}" {% if t.id == item.equipment_type_id %}selected{% endif %}>
-                    {{ t.name }}
-                </option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="field">
-            <label>الطراز</label>
-            <select name="equipment_model_id" id="edit-model-select">
-                <option value="">بدون طراز محدد</option>
-                {% for t in types %}
-                    {% for m in t.models %}
-                    <option value="{{ m.id }}" data-type-id="{{ t.id }}"
-                            {% if m.id == item.equipment_model_id %}selected{% endif %}
-                            {% if t.id != item.equipment_type_id %}hidden{% endif %}>
-                        {{ m.name }}
-                    </option>
-                    {% endfor %}
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="field">
-            <label>رقم التسجيل</label>
-            <input type="text" name="registration_number" value="{{ item.registration_number or '' }}">
-        </div>
-
-        <div class="field">
-            <label>رقم الهيكل</label>
-            <input type="text" name="vin" value="{{ item.vin or '' }}">
-        </div>
-
-        <div class="field">
-            <label>تاريخ الاقتناء</label>
-            <input type="date" name="acquisition_date"
-                   value="{{ item.acquisition_date.strftime('%Y-%m-%d') if item.acquisition_date else '' }}">
-        </div>
-
-        <div class="field">
-            <label>الحالة الفنية</label>
-            <select name="technical_condition">
-                <option value="ready" {% if item.technical_condition == 'ready' %}selected{% endif %}>جاهز</option>
-                <option value="broken" {% if item.technical_condition == 'broken' %}selected{% endif %}>عاطل</option>
-            </select>
-        </div>
-
-        <div class="field">
-            <label>الوضعية</label>
-            <select name="operational_status">
-                <option value="available" {% if item.operational_status == 'available' %}selected{% endif %}>متاح</option>
-                <option value="in_mission" {% if item.operational_status == 'in_mission' %}selected{% endif %}>في مهمة</option>
-                <option value="in_maintenance" {% if item.operational_status == 'in_maintenance' %}selected{% endif %}>في الصيانة</option>
-                <option value="in_external_workshop" {% if item.operational_status == 'in_external_workshop' %}selected{% endif %}>في ورشة خارجية</option>
-                <option value="unavailable" {% if item.operational_status == 'unavailable' %}selected{% endif %}>غير متاح</option>
-            </select>
-        </div>
-
-        <div class="field" style="grid-column:1 / -1;">
-            <label>ملاحظات</label>
-            <textarea name="notes" rows="4" maxlength="500">{{ item.notes or '' }}</textarea>
-        </div>
-
-        <div class="field field-submit" style="grid-column:1 / -1; display:flex; gap:10px; align-items:center;">
-            <button type="submit" class="btn-primary">حفظ التعديلات</button>
-            <a href="/equipment/{{ item.id }}" class="btn-secondary">إلغاء</a>
-        </div>
+    <div class="alert-warning" style="margin-bottom:14px;">الحالة الفنية والوضعية لا تُعدلان من شاشة بيانات العتاد. يتم تحديثهما من الإجراءات التشغيلية المخصصة.</div>
+    <form method="post" action="/equipment/{{ item.id }}/edit" class="grid-form" id="equipmentEditForm" onsubmit="return confirm('هل تؤكد تثبيت جميع تعديلات بيانات العتاد؟');">
+        <div class="field"><label>الوثيقة</label><input type="text" name="acquisition_document" value="{{ item.acquisition_document or '' }}"></div>
+        <div class="field"><label>نوع العتاد *</label><select name="equipment_type_id" id="edit-type-select" required onchange="onEditTypeChange()">{% for t in types %}<option value="{{ t.id }}" {% if t.id == item.equipment_type_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+        <div class="field"><label>الطراز</label><select name="equipment_model_id" id="edit-model-select"><option value="">بدون طراز محدد</option>{% for t in types %}{% for m in t.models %}<option value="{{ m.id }}" data-type-id="{{ t.id }}" {% if m.id == item.equipment_model_id %}selected{% endif %} {% if t.id != item.equipment_type_id %}hidden{% endif %}>{{ m.name }}</option>{% endfor %}{% endfor %}</select></div>
+        <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number" value="{{ item.registration_number or '' }}"></div>
+        <div class="field"><label>رقم الهيكل</label><input type="text" name="vin" value="{{ item.vin or '' }}"></div>
+        <div class="field"><label>تاريخ الاقتناء</label><input type="date" name="acquisition_date" value="{{ item.acquisition_date.strftime('%Y-%m-%d') if item.acquisition_date else '' }}"></div>
+        <input type="hidden" name="technical_condition" value="{{ item.technical_condition }}">
+        <input type="hidden" name="operational_status" value="{{ item.operational_status }}">
+        <div class="field" style="grid-column:1 / -1;"><label>ملاحظات</label><textarea name="notes" rows="4" maxlength="500">{{ item.notes or '' }}</textarea></div>
+        <div class="field field-submit" style="grid-column:1 / -1;display:flex;gap:10px;align-items:center;"><button type="submit" class="btn-primary">تثبيت التعديلات</button><a href="/equipment/{{ item.id }}" class="btn-secondary">إلغاء</a></div>
     </form>
 </div>
 
 <script>
-function showEditServerModels(typeId, selectedModelId = '') {
-    const modelSelect = document.getElementById('edit-model-select');
-    if (!modelSelect) return;
-
-    const modelOptions = modelSelect.querySelectorAll('option[data-type-id]');
-    modelOptions.forEach(option => {
-        const visible = option.dataset.typeId === String(typeId);
-        option.hidden = !visible;
-        option.style.display = visible ? '' : 'none';
-    });
-
-    const matchingOption = Array.from(modelOptions).find(
-        option => option.dataset.typeId === String(typeId) && String(option.value) === String(selectedModelId)
-    );
-
-    modelSelect.value = matchingOption ? matchingOption.value : '';
-}
-
-async function onEditTypeChange() {
-    const typeSelect = document.getElementById('edit-type-select');
-    const modelSelect = document.getElementById('edit-model-select');
-    if (!typeSelect || !modelSelect) return;
-
-    const typeId = typeSelect.value;
-    showEditServerModels(typeId);
-    modelSelect.disabled = false;
-}
-
-showEditServerModels(
-    document.getElementById('edit-type-select')?.value,
-    '{{ item.equipment_model_id or "" }}'
-);
+function showEditServerModels(typeId,selectedModelId=''){const modelSelect=document.getElementById('edit-model-select');if(!modelSelect)return;const options=modelSelect.querySelectorAll('option[data-type-id]');options.forEach(option=>{const visible=option.dataset.typeId===String(typeId);option.hidden=!visible;option.style.display=visible?'':'none'});const matching=Array.from(options).find(option=>option.dataset.typeId===String(typeId)&&String(option.value)===String(selectedModelId));modelSelect.value=matching?matching.value:''}
+function onEditTypeChange(){const typeSelect=document.getElementById('edit-type-select'),modelSelect=document.getElementById('edit-model-select');if(!typeSelect||!modelSelect)return;showEditServerModels(typeSelect.value);modelSelect.disabled=false}
+showEditServerModels(document.getElementById('edit-type-select')?.value,'{{ item.equipment_model_id or "" }}');
 </script>
 {% endblock %}
