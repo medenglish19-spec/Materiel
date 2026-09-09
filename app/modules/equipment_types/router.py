@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
@@ -31,10 +31,8 @@ def delete_category_form(category_id:int,db:Session=Depends(get_db),current_user
         except ValueError:pass
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/create")
-def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),theoretical_quantity: str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:
-        quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)
-        services.create_type(db,EquipmentTypeCreate(name=name,measurement_unit=measurement_unit,category_id=category_id,theoretical_quantity=quantity))
+def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:services.create_type(db,EquipmentTypeCreate(name=name,measurement_unit=measurement_unit,category_id=category_id,theoretical_quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)))
     except (ValueError,TypeError):pass
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/{type_id}/category")
@@ -62,7 +60,7 @@ def create_brand_form(name:str=Form(...),db:Session=Depends(get_db),current_user
     except ValueError:pass
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/create")
-def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),has_batteries:bool=Form(False),battery_count_required:int=Form(0),mobility_type:str=Form(...),requires_driver:bool=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),has_batteries:bool=Form(False),battery_count_required:int=Form(0),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,has_batteries=has_batteries,battery_count_required=battery_count_required,mobility_type=mobility_type,requires_driver=requires_driver))
     except (ValueError,TypeError):pass
     return RedirectResponse(url="/equipment-types",status_code=302)
