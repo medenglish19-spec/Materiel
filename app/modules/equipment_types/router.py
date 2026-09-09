@@ -11,6 +11,9 @@ from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):return templates.TemplateResponse("types_list.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":services.list_models(db),"user":current_user})
+@router.get("/equipment-types/structure",response_class=HTMLResponse)
+def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":services.list_models(db),"user":current_user})
 @router.post("/equipment-types/demo")
 def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/demo/delete")
