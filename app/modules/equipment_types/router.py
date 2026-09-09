@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
-from app.modules.equipment_types import demo, services
+from app.modules.equipment import demo, services as equipment_services
+from app.modules.equipment.models import Equipment
+from app.modules.equipment_types import services
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -13,7 +16,9 @@ router=APIRouter();templates=get_module_templates("app/modules/equipment_types/t
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):return templates.TemplateResponse("types_list.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":services.list_models(db),"user":current_user})
 @router.get("/equipment-types/structure",response_class=HTMLResponse)
 def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":services.list_models(db),"user":current_user})
+    models=services.list_models(db)
+    counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
+    return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
 @router.post("/equipment-types/demo")
 def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/demo/delete")
