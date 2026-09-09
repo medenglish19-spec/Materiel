@@ -7,15 +7,16 @@
     <a href="/equipment-types" style="border:1px solid #d8e0e8;background:#fff;color:#173b63;padding:8px 12px;border-radius:6px;text-decoration:none;font-size:11px;font-weight:700">إدارة الأنواع</a>
   </div>
   <div style="background:#fff;border:1px solid #e4e9ef;border-radius:9px;overflow:auto">
-    <table style="width:100%;min-width:950px;border-collapse:collapse" id="typeStructureTable">
-      <thead><tr style="background:#fafbfc;color:#718096;font-size:10px"><th style="padding:11px;text-align:right">التصنيف</th><th style="padding:11px;text-align:right">نوع العتاد</th><th style="padding:11px;text-align:right">الطراز</th><th style="padding:11px;text-align:center">المحقق</th><th style="padding:11px;text-align:center">النظري</th><th style="padding:11px;text-align:center">الحركة</th><th style="padding:11px;text-align:center">السائق</th><th style="padding:11px;text-align:center">الإطارات</th><th style="padding:11px;text-align:center">البطاريات</th></tr></thead>
+    <table style="width:100%;min-width:1080px;border-collapse:collapse" id="typeStructureTable">
+      <thead><tr style="background:#fafbfc;color:#718096;font-size:10px"><th style="padding:11px;text-align:right">التصنيف</th><th style="padding:11px;text-align:right">نوع العتاد</th><th style="padding:11px;text-align:right">الطراز</th><th style="padding:11px;text-align:center">العدد الفعلي</th><th style="padding:11px;text-align:center">النظري</th><th style="padding:11px;text-align:center">الحركة</th><th style="padding:11px;text-align:center">السائق</th><th style="padding:11px;text-align:center">الإطارات</th><th style="padding:11px;text-align:center">البطاريات</th></tr></thead>
       <tbody>
       {% for model in models %}
         <tr style="border-top:1px solid #edf0f3;color:#465668;font-size:10px">
           <td style="padding:10px">{{ model.equipment_type.category.name if model.equipment_type and model.equipment_type.category else 'غير مصنف' }}</td>
           <td style="padding:10px;font-weight:700;color:#31465a">{{ model.equipment_type.name if model.equipment_type else 'بدون نوع' }}</td>
           <td style="padding:10px;color:#245d88;font-weight:700">{{ model.name }}</td>
-          <td style="padding:10px;text-align:center">—</td><td style="padding:10px;text-align:center">{{ model.equipment_type.theoretical_quantity if model.equipment_type and model.equipment_type.theoretical_quantity is not none else '—' }}</td>
+          <td style="padding:10px;text-align:center;font-weight:800;color:#173b63">{{ actual_counts.get(model.id, 0) }}</td>
+          <td style="padding:10px;text-align:center">{{ model.equipment_type.theoretical_quantity if model.equipment_type and model.equipment_type.theoretical_quantity is not none else '—' }}</td>
           <td style="padding:10px;text-align:center">{{ 'مجرور' if model.mobility_type == 'towed' else 'متحرك' }}</td>
           <td style="padding:10px;text-align:center">{{ 'نعم' if model.requires_driver else 'لا' }}</td>
           <td style="padding:10px;text-align:center">{% if model.has_tires %}نعم · {{ model.tire_positions_required }} موضع · {{ model.tire_size or '—' }}{% else %}لا{% endif %}</td>
@@ -25,6 +26,6 @@
       </tbody>
     </table>
   </div>
-  <div style="margin-top:12px;padding:11px 13px;border-right:3px solid #9aa7b4;background:#fafbfc;color:#6d7a88;font-size:10px;line-height:1.8">هذه الصفحة مخصصة للهيكلة والتكوين. الحالة العددية تبقى مخصصة للأعداد والحالات والنسب، بينما إعداد الطراز يحدد الحركة والسائق والإطارات والبطاريات.</div>
+  <div style="margin-top:12px;padding:11px 13px;border-right:3px solid #9aa7b4;background:#fafbfc;color:#6d7a88;font-size:10px;line-height:1.8">هذه الصفحة مخصصة للهيكلة والتكوين. الحالة العددية مخصصة للأعداد والحالات والنسب، بينما إعداد الطراز يحدد الحركة والسائق والإطارات والبطاريات.</div>
 </div>
 {% endblock %}
