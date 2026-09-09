@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
@@ -19,6 +20,23 @@ from app.modules.tires import models as tires_models  # noqa: F401
 from app.modules.batteries import models as batteries_models  # noqa: F401
 from app.modules.fuel import models as fuel_models  # noqa: F401
 from app.modules.missions import models as missions_models  # noqa: F401
+
+logger = logging.getLogger(__name__)
+
+
+def _run_alembic_upgrade(config: Config) -> None:
+    """Run migrations and expose the real database failure instead of a bare exit code."""
+    try:
+        command.upgrade(config, "head")
+    except Exception:
+        inspector = inspect(engine)
+        tables = sorted(inspector.get_table_names())
+        logger.exception(
+            "Alembic upgrade failed. database=%s tables=%s",
+            settings.DATABASE_URL,
+            tables,
+        )
+        raise
 
 
 def _repair_existing_meter_readings_schema() -> None:
@@ -190,12 +208,13 @@ def _has_model_exception_schema() -> bool:
 
 def init_db() -> None:
     inspector = inspect(engine); tables = set(inspector.get_table_names()); config = _alembic_config()
+    logger.info("Database startup: url=%s tables=%s", settings.DATABASE_URL, sorted(tables))
     if "alembic_version" not in tables:
         if not tables:
             Base.metadata.create_all(bind=engine); command.stamp(config, "head")
         else:
-            _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); command.upgrade(config, "head")
-    else: command.upgrade(config, "head")
+            _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); _run_alembic_upgrade(config)
+    else: _run_alembic_upgrade(config)
     _normalize_equipment_classification_defaults()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
