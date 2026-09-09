@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 from app.shared.mixins import TimestampMixin
@@ -30,7 +30,7 @@ class EquipmentType(Base, TimestampMixin):
     measurement_unit = Column(String(10), nullable=False)
     theoretical_quantity = Column(Integer, nullable=True, default=None)
     category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
-    category = relationship("EquipmentCategory", back_populates="equipment_types")
+    category = relationship("EquipmentCategory", back_populates="category")
     models = relationship("EquipmentModel", back_populates="equipment_type", cascade="all, delete-orphan")
 
 
@@ -43,8 +43,11 @@ class EquipmentModel(Base, TimestampMixin):
     brand_id = Column(Integer, ForeignKey("equipment_brands.id", ondelete="SET NULL"), nullable=True, index=True)
     has_tires = Column(Boolean, nullable=False, default=False)
     tire_positions_required = Column(Integer, nullable=False, default=0)
+    tire_size = Column(String(50), nullable=True)
     has_batteries = Column(Boolean, nullable=False, default=False)
     battery_count_required = Column(Integer, nullable=False, default=0)
+    battery_capacity_ah = Column(Float, nullable=True)
+    battery_voltage_v = Column(Float, nullable=True)
     mobility_type = Column(String(20), nullable=False, default="mobile")
     requires_driver = Column(Boolean, nullable=False, default=True)
     equipment_type = relationship("EquipmentType", back_populates="models")
