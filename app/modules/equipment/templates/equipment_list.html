@@ -5,14 +5,13 @@
 <div class="page-header">
     <div><h2>العتاد</h2><p class="page-hint">إدارة الحضيرة ومتابعة تركيبها وحالتها التشغيلية.</p></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <a href="/equipment/numerical-status" class="btn-outline">الحالة العددية</a>
         <button type="button" class="btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button>
     </div>
 </div>
 <div class="equipment-nav">
     <a class="active" href="/equipment">قائمة العتاد</a>
-    <a href="/equipment/numerical-status">الحالة العددية</a><a href="/equipment/analysis">التحليل</a>
-    <a href="/equipment-types">الطرازات</a>
+    <a href="/equipment/analysis">التحليل</a>
+    <a href="/equipment-types">أنواع العتاد</a>
 </div>
 
 <div class="card" id="add-form-card" style="display:none;">
@@ -24,6 +23,7 @@
         <div class="field"><label>الطراز</label><select name="equipment_model_id" id="model-select"><option value="">اختر النوع أولاً</option>{% for t in types %}{% for m in t.models %}<option value="{{ m.id }}" data-type-id="{{ t.id }}" hidden>{{ m.name }}</option>{% endfor %}{% endfor %}</select></div>
         <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number"></div>
         <div class="field"><label>رقم الهيكل</label><input type="text" name="vin"></div>
+        <div class="field"><label>الانتماء للتعداد</label><select name="outside_ted"><option value="0">داخل TED</option><option value="1">خارج TED</option></select></div>
         <div class="field field-submit"><button type="submit">حفظ العتاد</button></div>
     </form>
 </div>
@@ -41,11 +41,9 @@
 <style>
 .equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}
 #equipment-table tbody tr.data-row{transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}
-#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}
-#equipment-table{min-width:950px;}
-#equipment-table tbody tr.data-row{cursor:pointer;}
-#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2;}
-#equipment-table tbody tr.data-row.meter-not-working .badge{color:#991b1b;border-color:#fecaca;background:#fee2e2;}
+#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;}#equipment-table{min-width:950px;}#equipment-table tbody tr.data-row{cursor:pointer;}
+#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2;}#equipment-table tbody tr.data-row.meter-not-working .badge{color:#991b1b;border-color:#fecaca;background:#fee2e2}
+.model-cell-link{display:inline-flex;align-items:center;gap:5px;color:#245d88;font-weight:750;text-decoration:none;border-bottom:1px dashed #9db6ca}.model-cell-link:hover{color:#173b63;border-bottom-style:solid}
 </style>
 
 <div class="table-wrap" id="equipment-table-wrap">
@@ -58,7 +56,7 @@
             data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}"
             data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}"
             data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
-            <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{{ item.equipment_model.name if item.equipment_model else "-" }}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td>
+            <td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{% if item.equipment_model %}<a class="model-cell-link" href="/equipment/{{ item.id }}" onclick="event.stopPropagation()">{{ item.equipment_model.name }} ↗</a>{% else %}-{% endif %}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td>
             <td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td>
             <td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td>
         </tr>
@@ -74,7 +72,7 @@ function toggleAddForm(){const card=document.getElementById('add-form-card');car
 function showServerModels(typeId){const modelSelect=document.getElementById('model-select');if(!modelSelect)return false;const options=modelSelect.querySelectorAll('option[data-type-id]');options.forEach(option=>{option.hidden=option.dataset.typeId!==String(typeId);option.style.display=option.hidden?'none':'';});const hasModels=Array.from(options).some(option=>option.dataset.typeId===String(typeId));options.forEach(option=>{if(!option.hidden)option.disabled=false;});modelSelect.value='';return hasModels;}
 async function onTypeChange(){const typeSelect=document.getElementById('type-select');const modelSelect=document.getElementById('model-select');if(!typeSelect||!modelSelect)return;const typeId=typeSelect.value;if(!typeId){modelSelect.innerHTML='<option value="">اختر النوع أولاً</option>';return;}if(showServerModels(typeId)){modelSelect.disabled=false;return;}modelSelect.innerHTML='<option value="">جاري تحميل الطرازات...</option>';modelSelect.disabled=true;try{const response=await fetch('/api/equipment-types/'+encodeURIComponent(typeId)+'/models',{headers:{'Accept':'application/json'},credentials:'same-origin'});if(!response.ok)throw new Error('HTTP '+response.status);const models=await response.json();modelSelect.innerHTML='<option value="">بدون طراز محدد</option>';if(Array.isArray(models))models.forEach(model=>{const option=document.createElement('option');option.value=model.id;option.textContent=model.name;modelSelect.appendChild(option);});}catch(error){console.error('خطأ في تحميل الطرازات:',error);modelSelect.innerHTML='<option value="">لا توجد طرازات لهذا النوع</option>';}finally{modelSelect.disabled=false;}}
 function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value;const rows=document.querySelectorAll('#equipment-table tbody tr.data-row');let visibleCount=0;rows.forEach(row=>{const visible=(!search||row.dataset.search.toLowerCase().includes(search))&&(!type||row.dataset.type===type)&&(!status||row.dataset.status===status)&&(!condition||row.dataset.condition===condition);row.style.display=visible?'':'none';if(visible)visibleCount++;});document.getElementById('results-count').textContent=visibleCount+' نتيجة';}
-['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',applyFilters);});
+['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters);}});
 function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none';}
 function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>{el.style.display=visible?'':'none';});localStorage.setItem('equipment-col-'+col,visible?'1':'0');});}
 document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility);});
