@@ -36,14 +36,27 @@ class EquipmentModelCreate(BaseModel):
     brand_id: int
     has_tires: bool = False
     tire_positions_required: int = 0
+    tire_size: Optional[str] = None
     has_batteries: bool = False
     battery_count_required: int = 0
+    battery_capacity_ah: Optional[float] = None
+    battery_voltage_v: Optional[float] = None
     mobility_type: str = "mobile"
     requires_driver: bool = True
     @field_validator("tire_positions_required", "battery_count_required")
     @classmethod
     def counts_valid(cls, v: int) -> int:
         if v < 0: raise ValueError("عدد التجهيزات لا يمكن أن يكون سالبًا")
+        return v
+    @field_validator("tire_size", "mobility_type")
+    @classmethod
+    def strings_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v is None: return v
+        return v.strip()
+    @field_validator("battery_capacity_ah", "battery_voltage_v")
+    @classmethod
+    def positive_specs(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v <= 0: raise ValueError("قيمة البطارية يجب أن تكون أكبر من صفر")
         return v
     @field_validator("mobility_type")
     @classmethod
@@ -52,4 +65,4 @@ class EquipmentModelCreate(BaseModel):
         return v
 class EquipmentModelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; name: str; equipment_type_id: int; brand_id: int; has_tires: bool; tire_positions_required: int; has_batteries: bool; battery_count_required: int; mobility_type: str; requires_driver: bool
+    id: int; name: str; equipment_type_id: int; brand_id: int; has_tires: bool; tire_positions_required: int; tire_size: Optional[str]; has_batteries: bool; battery_count_required: int; battery_capacity_ah: Optional[float]; battery_voltage_v: Optional[float]; mobility_type: str; requires_driver: bool
