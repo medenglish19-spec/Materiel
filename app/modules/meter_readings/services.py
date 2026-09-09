@@ -137,7 +137,6 @@ def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, re
     _ensure_not_duplicate_reading(db, equipment_id, date_value, value, unit_code)
     _validate_reading_position(db, equipment_id, date_value, value, unit_code)
     captured_status = normalize_equipment_status(equipment_status) if equipment_status is not None else normalize_equipment_status(equipment.operational_status)
-    equipment.operational_status = captured_status
     reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source="manual", equipment_status=captured_status, notes=(notes or "").strip()[:300] or None)
     db.add(reading); db.flush(); _refresh_equipment_current(db, equipment, unit_code); db.commit(); db.refresh(reading); return reading
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
@@ -207,7 +206,7 @@ def create_bulk_readings(db: Session, rows: Iterable[dict]):
             else: accepted_for_equipment.append(item); accepted.append(item)
     reading_ids: list[int] = []; affected: dict[int, Equipment] = {}
     for item in accepted:
-        equipment = item["equipment"]; unit_code = _unit(equipment); equipment.operational_status = item["equipment_status"]
+        equipment = item["equipment"]; unit_code = _unit(equipment)
         reading = MeterReading(equipment_id=equipment.id, reading_date=item["reading_date"], odometer=item["value"] if unit_code == "km" else None, hours=item["value"] if unit_code == "hours" else None, source="import", equipment_status=item["equipment_status"], notes=None)
         db.add(reading); db.flush(); reading_ids.append(reading.id); affected[equipment.id] = equipment
     if accepted:
