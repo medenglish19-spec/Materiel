@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}هيكلة أنواع العتاد{% endblock %}
+{% block content %}
+<div dir="rtl" style="padding:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px">
+    <div><h1 style="margin:0;color:#173b63">هيكلة أنواع العتاد</h1><p style="margin:6px 0;color:#64748b;font-size:12px">تفاصيل تركيب كل نوع حسب الطراز، الحركة، السائق، الإطارات والبطاريات.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><a href="/equipment-types" style="padding:8px 12px;border:1px solid #d8e0e8;border-radius:7px;text-decoration:none;color:#173b63;background:#fff">أنواع العتاد</a><a href="/equipment" style="padding:8px 12px;border:1px solid #d8e0e8;border-radius:7px;text-decoration:none;color:#173b63;background:#fff">قائمة العتاد</a></div>
+  </div>
+  <div style="overflow:auto;background:#fff;border:1px solid #e1e7ed;border-radius:9px">
+    <table style="width:100%;min-width:1250px;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:#173b63;color:#fff"><th style="padding:10px">التصنيف</th><th style="padding:10px">نوع العتاد</th><th style="padding:10px">الطراز / الماركة</th><th style="padding:10px">المحقق</th><th style="padding:10px">الحركة</th><th style="padding:10px">السائق</th><th style="padding:10px">الإطارات</th><th style="padding:10px">مقاس الإطار</th><th style="padding:10px">البطاريات</th><th style="padding:10px">عدد البطاريات</th><th style="padding:10px">السعة Ah</th><th style="padding:10px">الجهد V</th></tr></thead>
+      <tbody>
+      {% for model in models %}
+        <tr style="border-bottom:1px solid #edf0f3">
+          <td style="padding:9px">{{ model.equipment_type.category.name if model.equipment_type and model.equipment_type.category else 'غير مصنف' }}</td>
+          <td style="padding:9px">{{ model.equipment_type.name if model.equipment_type else '—' }}</td>
+          <td style="padding:9px"><strong>{{ model.brand.name + ' — ' if model.brand else '' }}{{ model.name }}</strong></td>
+          <td style="padding:9px;text-align:center">{{ actual_counts.get(model.id, 0) }}</td>
+          <td style="padding:9px;text-align:center">{{ 'متحرك' if model.mobility_type == 'mobile' else 'مجرور' }}</td>
+          <td style="padding:9px;text-align:center">{{ 'نعم' if model.requires_driver else 'لا' }}</td>
+          <td style="padding:9px;text-align:center">{{ 'نعم' if model.has_tires else 'لا' }}</td>
+          <td style="padding:9px;text-align:center">{{ model.tire_size or '—' }}</td>
+          <td style="padding:9px;text-align:center">{{ 'نعم' if model.has_batteries else 'لا' }}</td>
+          <td style="padding:9px;text-align:center">{{ model.battery_count_required if model.has_batteries else '—' }}</td>
+          <td style="padding:9px;text-align:center">{{ model.battery_capacity_ah or '—' }}</td>
+          <td style="padding:9px;text-align:center">{{ model.battery_voltage_v or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="12" style="padding:30px;text-align:center;color:#8794a2">لا توجد طرازات مسجلة.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
