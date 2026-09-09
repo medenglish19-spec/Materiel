@@ -30,7 +30,7 @@ class EquipmentType(Base, TimestampMixin):
     measurement_unit = Column(String(10), nullable=False)
     theoretical_quantity = Column(Integer, nullable=True, default=None)
     category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
-    category = relationship("EquipmentCategory", back_populates="category")
+    category = relationship("EquipmentCategory", back_populates="equipment_types")
     models = relationship("EquipmentModel", back_populates="equipment_type", cascade="all, delete-orphan")
 
 
