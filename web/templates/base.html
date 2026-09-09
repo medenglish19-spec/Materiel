@@ -48,7 +48,7 @@
             <a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a>
             <a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a>
             <a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a>
-            <a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a>
+            <a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %"><span class="menu-icon">◆</span><span>المهمات</span></a>
             <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a>
         </nav>
         <div class="sidebar-spacer"></div>
@@ -68,6 +68,35 @@
             function resetEntryForms(){document.querySelectorAll('form[method="post"]').forEach(form=>{if(form.dataset.preserveForm==='true')return;form.reset();form.querySelectorAll('select').forEach(select=>{if(select.dataset.resetDisabled==='true')select.disabled=true;});});}
             if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey);resetEntryForms();}
             window.addEventListener('pageshow',function(event){if(event.persisted){window.location.reload();}});
+
+            /* Numerical-status controls: keep them functional even if page-level JS is interrupted. */
+            const table=document.getElementById('numericalStatusTable');
+            const expandAll=document.getElementById('expandAll');
+            const collapseAll=document.getElementById('collapseAll');
+            if(table&&expandAll&&collapseAll){
+                const setTree=(expanded)=>{
+                    table.querySelectorAll('.type-row,.model-row').forEach(row=>{row.style.display=expanded?'':'none';});
+                    table.querySelectorAll('.tree-toggle').forEach(btn=>{btn.setAttribute('aria-expanded',String(expanded));btn.textContent=expanded?'−':'+';});
+                };
+                expandAll.addEventListener('click',function(){setTree(true);});
+                collapseAll.addEventListener('click',function(){setTree(false);});
+            }
+
+            const brandSelect=document.getElementById('statusBrand');
+            if(brandSelect){
+                const current=brandSelect.value;
+                fetch('/api/equipment-brands',{headers:{'Accept':'application/json'},credentials:'same-origin'})
+                    .then(response=>response.ok?response.json():[])
+                    .then(brands=>{
+                        const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+                        const seen=new Set();
+                        brandSelect.innerHTML='<option value="">كل الماركات</option>';
+                        names.forEach(name=>{if(seen.has(name))return;seen.add(name);const option=document.createElement('option');option.value=name;option.textContent=name;brandSelect.appendChild(option);});
+                        brandSelect.value=names.includes(current)?current:'';
+                        brandSelect.dispatchEvent(new Event('change',{bubbles:true}));
+                    })
+                    .catch(()=>{});
+            }
         })();
     </script>
 </body>
