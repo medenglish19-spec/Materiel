@@ -15,7 +15,7 @@
   <div class="stat-card"><div class="stat-number">{{ totals.readiness }}%</div><div class="stat-label">نسبة الجاهزية</div></div>
 </div>
 <div class="analysis-grid">
-  <div class="card"><h3>الجاهزية</h3><div class="bar-row"><span>جاهز</span><div class="bar"><i style="width:{{ totals.readiness }}%"></i></div><b>{{ totals.ready }}</b></div><div class="bar-row"><span>عاطل</span><div class="bar"><i style="width:{{ 100-totals.readiness }}%"></i></div><b>{{ totals.broken }}</b></div></div>
+  <div class="card"><h3>الجاهزية</h3><div class="bar-row"><span>جاهز</span><div class="bar"><i style="width:{{ totals.readiness }}%"></i></div><b>{{ totals.ready }}</b></div><div class="bar-row"><span>عاطل</span><div class="bar"><i style="width:{{ ((totals.broken / totals.actual * 100) if totals.actual else 0) }}%"></i></div><b>{{ totals.broken }}</b></div><div class="analysis-note">نسبة العطل تُحسب من عدد العتاد المصنف صراحةً «عاطل» فقط، ولا تُستنتج من انخفاض الجاهزية.</div></div>
   <div class="card"><h3>التعداد والاحتياج</h3><div class="bar-row"><span>محقق</span><div class="bar"><i style="width:{{ (totals.actual/totals.theoretical*100 if totals.theoretical else 0) if totals.theoretical else 0 }}%"></i></div><b>{{ totals.actual }}</b></div><div class="analysis-note">الاحتياج يحسب من التعداد النظري الواجب تحقيقه مطروحًا منه التعداد الفعلي.</div></div>
 </div>
 <div class="card">
