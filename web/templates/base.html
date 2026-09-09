@@ -31,6 +31,7 @@
         .meter-import-error .error-title{font-size:16px;font-weight:800;margin-bottom:5px}.meter-import-error .error-message{font-size:13px;line-height:1.8}
         .meter-import-errors{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}.meter-import-errors li{padding:9px 11px;border:1px solid #fecaca;border-radius:8px;background:#fff;color:#991b1b;font-size:13px;line-height:1.7}
         .meter-import-ok{display:flex;align-items:center;gap:9px;margin:12px 0;padding:12px 14px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#166534;font-size:13px;font-weight:700}
+        .global-search-wrap{display:inline-flex;align-items:center;gap:6px;min-width:0}.global-search-wrap>input{flex:1}.global-search-btn,.global-clear-btn{height:34px;border:1px solid #dce3e9;background:#fff;border-radius:6px;padding:0 10px;cursor:pointer;font:inherit;font-size:11px;font-weight:700;color:#173b63;white-space:nowrap}.global-clear-btn{color:#8b3f46}.global-clear-btn[hidden]{display:none}
     </style>
 </head>
 <body>
@@ -38,17 +39,12 @@
         <div class="app-brand"><span class="app-brand-icon">⚙</span><span>نظام إدارة العتاد</span></div>
         <nav class="app-menu">
             <a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a>
-            <a href="/equipment" class="{% if request.url.path.startswith('/equipment') and not request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">▣</span><span>العتاد</span></a>
-            <a href="/equipment/numerical-status" class="{% if request.url.path.startswith('/equipment/numerical-status') %}active{% endif %}"><span class="menu-icon">▥</span><span>الحالة العددية للعتاد</span></a>
-            <a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>قراءات العداد</span></a>
-            <a href="/meter-readings/operations" class="{% if request.url.path.startswith('/meter-readings/operations') %}active{% endif %}"><span class="menu-icon">▤</span><span>سجل عمليات الإدخال</span></a>
-            <a href="/equipment-types" class="{% if request.url.path.startswith('/equipment-types') %}active{% endif %}"><span class="menu-icon">⌘</span><span>أنواع العتاد</span></a>
             <a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a>
             <a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a>
             <a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a>
             <a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a>
             <a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a>
-            <a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %"><span class="menu-icon">◆</span><span>المهمات</span></a>
+            <a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a>
             <a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a>
         </nav>
         <div class="sidebar-spacer"></div>
@@ -69,33 +65,65 @@
             if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey);resetEntryForms();}
             window.addEventListener('pageshow',function(event){if(event.persisted){window.location.reload();}});
 
-            /* Numerical-status controls: keep them functional even if page-level JS is interrupted. */
+            /* Equipment is a module; its internal screens are intentionally absent from the global module sidebar. */
+            document.querySelectorAll('.app-menu a').forEach(a=>{
+                const p=a.getAttribute('href')||'';
+                if(p.startsWith('/equipment')||p.startsWith('/meter-readings'))a.remove();
+            });
+
+            /* Shared search controls: every search input gets explicit Search and Cancel actions. */
+            document.querySelectorAll('input.search-box, input[id*="search" i], input[id*="Search"]').forEach(input=>{
+                if(input.closest('.global-search-wrap')||input.type==='hidden')return;
+                const parent=input.parentElement;
+                if(!parent)return;
+                const wrap=document.createElement('span');wrap.className='global-search-wrap';
+                parent.insertBefore(wrap,input);wrap.appendChild(input);
+                const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='بحث';search.title='تنفيذ البحث';
+                const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.title='إلغاء البحث والفلترة';clear.hidden=!input.value;
+                wrap.append(search,clear);
+                const fire=()=>input.dispatchEvent(new Event(input.tagName==='SELECT'?'change':'input',{bubbles:true}));
+                search.addEventListener('click',fire);
+                clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}));});
+                input.addEventListener('input',()=>{clear.hidden=!input.value;});
+            });
+
+            /* A blank theoretical field is intentional for newly-created equipment types. */
+            document.querySelectorAll('input[name="theoretical_quantity"]').forEach(input=>{
+                if(input.value==='0' && !input.dataset.userEdited)input.value='';
+                input.addEventListener('input',()=>input.dataset.userEdited='true');
+                const form=input.closest('form');
+                if(form&&/\/theoretical-quantity$/.test(form.action||''))form.addEventListener('submit',e=>{if(!confirm('سيتم تغيير التعداد النظري لهذا النوع. هل تؤكد تثبيت التعديل؟'))e.preventDefault();});
+            });
+
+            /* Numerical status: the original table had one missing body cell. Insert the restricted-ready column before broken. */
             const table=document.getElementById('numericalStatusTable');
-            const expandAll=document.getElementById('expandAll');
-            const collapseAll=document.getElementById('collapseAll');
+            if(table){
+                table.querySelectorAll('tbody tr.searchable').forEach(row=>{
+                    const cells=row.children;
+                    if(cells.length===13){
+                        const ready=Number(row.dataset.readyPct||0),broken=Number(row.dataset.brokenPct||0);
+                        const td=document.createElement('td');td.textContent=Math.max(0,100-ready-broken).toFixed(1)+'%';
+                        row.insertBefore(td,cells[11]);
+                    }
+                });
+            }
+
+            /* Numerical-status tree controls remain reliable even if page-level handlers fail. */
+            const expandAll=document.getElementById('expandAll'),collapseAll=document.getElementById('collapseAll');
             if(table&&expandAll&&collapseAll){
-                const setTree=(expanded)=>{
-                    table.querySelectorAll('.type-row,.model-row').forEach(row=>{row.style.display=expanded?'':'none';});
-                    table.querySelectorAll('.tree-toggle').forEach(btn=>{btn.setAttribute('aria-expanded',String(expanded));btn.textContent=expanded?'−':'+';});
-                };
-                expandAll.addEventListener('click',function(){setTree(true);});
-                collapseAll.addEventListener('click',function(){setTree(false);});
+                expandAll.addEventListener('click',function(){table.querySelectorAll('.type-row,.model-row').forEach(r=>r.style.display='');table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','true');b.textContent='−';});});
+                collapseAll.addEventListener('click',function(){table.querySelectorAll('.type-row,.model-row').forEach(r=>r.style.display='none');table.querySelectorAll('.tree-toggle').forEach(b=>{b.setAttribute('aria-expanded','false');b.textContent='+';});});
             }
 
             const brandSelect=document.getElementById('statusBrand');
             if(brandSelect){
                 const current=brandSelect.value;
-                fetch('/api/equipment-brands',{headers:{'Accept':'application/json'},credentials:'same-origin'})
-                    .then(response=>response.ok?response.json():[])
-                    .then(brands=>{
-                        const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
-                        const seen=new Set();
-                        brandSelect.innerHTML='<option value="">كل الماركات</option>';
-                        names.forEach(name=>{if(seen.has(name))return;seen.add(name);const option=document.createElement('option');option.value=name;option.textContent=name;brandSelect.appendChild(option);});
-                        brandSelect.value=names.includes(current)?current:'';
-                        brandSelect.dispatchEvent(new Event('change',{bubbles:true}));
-                    })
-                    .catch(()=>{});
+                fetch('/api/equipment-brands',{headers:{'Accept':'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():[]).then(brands=>{
+                    const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+                    brandSelect.innerHTML='<option value="">كل الماركات</option>';
+                    names.forEach(name=>{const o=document.createElement('option');o.value=name;o.textContent=name;brandSelect.appendChild(o);});
+                    brandSelect.value=names.includes(current)?current:'';brandSelect.dispatchEvent(new Event('change',{bubbles:true}));
+                }).catch(()=>{});
             }
         })();
     </script>
