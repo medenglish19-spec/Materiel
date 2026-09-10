@@ -52,8 +52,8 @@ def create_type(db: Session,data:EquipmentTypeCreate)->EquipmentType:
 def set_type_category(db:Session,obj:EquipmentType,category_id:int)->EquipmentType:
     if get_category(db,category_id) is None: raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id=category_id;db.commit();db.refresh(obj);return obj
-def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:int)->EquipmentType:
-    if quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:Optional[int])->EquipmentType:
+    if quantity is not None and quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
     obj.theoretical_quantity=quantity;db.commit();db.refresh(obj);return obj
 def delete_type(db:Session,obj:EquipmentType)->None: db.delete(obj);db.commit()
 def list_models(db:Session,type_id:Optional[int]=None)->list[EquipmentModel]:
