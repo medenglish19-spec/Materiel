@@ -53,8 +53,8 @@ def set_type_category_form(type_id:int,category_id:int=Form(...),db:Session=Depe
 @router.post("/equipment-types/{type_id}/theoretical-quantity")
 def set_type_theoretical_quantity_form(type_id:int,theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
-    if obj and theoretical_quantity.strip():
-        try:services.set_type_theoretical_quantity(db,obj,int(theoretical_quantity))
+    if obj:
+        try:services.set_type_theoretical_quantity(db,obj,None if not theoretical_quantity.strip() else int(theoretical_quantity))
         except (ValueError,TypeError):pass
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/{type_id}/delete")
