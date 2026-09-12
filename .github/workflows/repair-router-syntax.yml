@@ -17,13 +17,14 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           path = Path('app/modules/equipment/router.py')
           text = path.read_text(encoding='utf-8')
-          old = 'display_name=((st.get("brand")+ " — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]));'
-          new = 'display_name=((st.get("brand")+ " — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]);'
-          if old not in text:
-              raise SystemExit('Expected syntax-error expression was not found; no change made.')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          pattern = r'(display_name=.*?st\.get\("model",model_key_tuple\[1\]\))\);'
+          new_text, count = re.subn(pattern, r'\1;', text, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one router expression to repair; found {count}. No change made.')
+          path.write_text(new_text, encoding='utf-8')
           PY
           python -m py_compile app/modules/equipment/router.py
       - name: Commit minimal repair and remove temporary workflow
