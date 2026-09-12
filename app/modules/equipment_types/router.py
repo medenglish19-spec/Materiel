@@ -28,61 +28,65 @@ def delete_demo_form(db:Session=Depends(get_db),current_user:User=Depends(requir
 @router.post("/equipment-types/categories/create")
 def create_category_form(name:str=Form(...),code:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_category(db,EquipmentCategoryCreate(name=name,code=code or None))
-    except ValueError:pass
+    except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/categories/{category_id}/delete")
 def delete_category_form(category_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_category(db,category_id)
     if obj:
         try:services.delete_category(db,obj)
-        except ValueError:pass
+        except ValueError as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/create")
 def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_type(db,EquipmentTypeCreate(name=name,measurement_unit=measurement_unit,category_id=category_id,theoretical_quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)))
-    except (ValueError,TypeError):pass
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/{type_id}/category")
 def set_type_category_form(type_id:int,category_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
     if obj:
         try:services.set_type_category(db,obj,category_id)
-        except (ValueError,TypeError):pass
+        except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/{type_id}/theoretical-quantity")
 def set_type_theoretical_quantity_form(type_id:int,theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
     if obj:
         try:services.set_type_theoretical_quantity(db,obj,None if not theoretical_quantity.strip() else int(theoretical_quantity))
-        except (ValueError,TypeError):pass
+        except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/{type_id}/delete")
 def delete_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
-    if obj:services.delete_type(db,obj)
+    if obj:
+        try:services.delete_type(db,obj)
+        except (ValueError,TypeError) as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/brands/create")
 def create_brand_form(name:str=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_brand(db,EquipmentBrandCreate(name=name))
-    except ValueError:pass
+    except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/create")
 def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:
         services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
-    except (ValueError,TypeError):pass
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/{model_id}/brand")
 def set_model_brand_form(model_id:int,brand_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj:
         try:services.set_model_brand(db,obj,brand_id)
-        except (ValueError,TypeError):pass
+        except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/{model_id}/delete")
 def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
-    if obj:services.delete_model(db,obj)
+    if obj:
+        try:services.delete_model(db,obj)
+        except (ValueError,TypeError) as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.get("/api/equipment-types",response_model=list[EquipmentTypeOut])
 def api_list_types(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_types(db)
