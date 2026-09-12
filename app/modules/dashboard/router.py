@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
+from app.modules.batteries import services as battery_services
 from app.modules.equipment import services as equipment_services
 from app.modules.tires import services as tire_services
 from app.modules.users.models import User
@@ -31,7 +32,7 @@ def dashboard_page(
     broken_count = equipment_services.count_broken(db)
 
     # Dashboard display uses the current state only. Historical validation is
-    # handled by the tire service at the operation date.
+    # handled by the tire and battery services at the operation date.
     expired_tires = []
     for tire in tire_services.list_tires(db):
         state = tire_services.current_state(db, tire.id)
@@ -53,6 +54,23 @@ def dashboard_page(
         )
     )
 
+    expired_batteries = []
+    for battery in battery_services.list_batteries(db):
+        state = battery_services.current_state(db, battery.id)
+        if state and state.get("installed") and battery_services.status(battery, state) == "expired":
+            expired_batteries.append(
+                {
+                    "battery": battery,
+                    "equipment": state.get("equipment"),
+                }
+            )
+    expired_batteries.sort(
+        key=lambda item: (
+            item["equipment"].registration_number if item["equipment"] else "",
+            item["battery"].serial_number,
+        )
+    )
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -62,5 +80,6 @@ def dashboard_page(
             "status_counts": status_counts,
             "broken_count": broken_count,
             "expired_tires": expired_tires,
+            "expired_batteries": expired_batteries,
         },
     )
