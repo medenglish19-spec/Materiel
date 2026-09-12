@@ -2,32 +2,53 @@
 {% block title %}إعداد إطارات {{ model.name }}{% endblock %}
 {% block content %}
 <style>
-.tire-config{display:grid;gap:18px}.tire-config .hero{padding:24px;border-radius:20px;background:linear-gradient(135deg,#172033,#2d405f);color:#fff}.tire-config .hero h2{margin:0 0 6px}.tire-config .hero p{margin:0;opacity:.82}.config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.config-panel{background:#fff;border:1px solid #e6eaf0;border-radius:18px;padding:20px;box-shadow:0 8px 24px rgba(23,32,51,.06)}.config-panel h3{margin-top:0}.config-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.config-form input,.config-form select,.config-form button{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d8dee8;border-radius:10px;font:inherit}.config-form button{grid-column:1/-1;cursor:pointer;background:#172033;color:#fff;border-color:#172033}.config-table{width:100%;border-collapse:collapse;margin-top:14px}.config-table th,.config-table td{padding:11px 8px;border-bottom:1px solid #edf0f4;text-align:right}.config-table th{font-size:13px;color:#657084}.delete-btn{padding:7px 10px;border:0;border-radius:8px;background:#fee2e2;color:#991b1b;cursor:pointer}.back-link{display:inline-block;margin-bottom:14px}@media(max-width:800px){.config-grid{grid-template-columns:1fr}.config-form{grid-template-columns:1fr}}
+.tire-config{display:grid;gap:18px}.tire-config .hero{padding:24px;border-radius:20px;background:linear-gradient(135deg,#172033,#2d405f);color:#fff}.tire-config .hero h2{margin:0 0 6px}.tire-config .hero p{margin:0;opacity:.82}.config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.config-panel{background:#fff;border:1px solid #e6eaf0;border-radius:18px;padding:20px;box-shadow:0 8px 24px rgba(23,32,51,.06)}.config-panel h3{margin-top:0}.config-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.config-form input,.config-form select,.config-form button{width:100%;box-sizing:border-box;padding:11px;border:1px solid #d8dee8;border-radius:10px;font:inherit}.config-form button{grid-column:1/-1;cursor:pointer;background:#172033;color:#fff;border-color:#172033}.config-table{width:100%;border-collapse:collapse;margin-top:14px}.config-table th,.config-table td{padding:11px 8px;border-bottom:1px solid #edf0f4;text-align:right}.config-table th{font-size:13px;color:#657084}.delete-btn{padding:7px 10px;border:0;border-radius:8px;background:#fee2e2;color:#991b1b;cursor:pointer}.back-link{display:inline-block;margin-bottom:14px}.model-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px}.summary-item{padding:12px;border-radius:12px;background:rgba(255,255,255,.09)}.summary-label{font-size:12px;opacity:.72}.summary-value{font-weight:700;margin-top:3px}.settings-note{padding:12px;border-radius:12px;background:#f7f9fc;color:#536074;margin-bottom:14px}.danger-note{padding:12px;border-radius:12px;background:#fff7ed;color:#9a3412;margin-top:12px}.tire-toggle{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #d8dee8;border-radius:10px;grid-column:1/-1}.tire-toggle input{width:auto}.config-form .wide{grid-column:1/-1}@media(max-width:800px){.config-grid{grid-template-columns:1fr}.config-form{grid-template-columns:1fr}.model-summary{grid-template-columns:1fr}.tire-toggle{grid-column:auto}.config-form .wide{grid-column:auto}}
 </style>
 <div class="tire-config">
   <a class="back-link" href="/equipment-types">← العودة إلى تعريف الطرازات</a>
   <section class="hero">
     <h2>إعداد الإطارات: {{ model.name }}</h2>
     <p>{{ model.brand.name ~ ' — ' if model.brand else '' }}{{ model.equipment_type.name }}</p>
+    <div class="model-summary">
+      <div class="summary-item"><div class="summary-label">الإطارات</div><div class="summary-value">{{ 'مزود بالإطارات' if model.has_tires else 'لا توجد إطارات' }}</div></div>
+      <div class="summary-item"><div class="summary-label">العدد المطلوب</div><div class="summary-value">{{ model.tire_positions_required or 0 }}</div></div>
+      <div class="summary-item"><div class="summary-label">المقاس الافتراضي</div><div class="summary-value">{{ model.tire_size or 'غير محدد' }}</div></div>
+    </div>
+  </section>
+
+  <section class="config-panel">
+    <h3>⚙️ إعدادات الطراز الأساسية</h3>
+    <div class="settings-note">هذه البيانات محفوظة على <strong>الطراز في Master Data</strong>، لذلك تُطبّق تلقائيًا على جميع العتاد المرتبط بهذا الطراز. لا تُكرر هذه المعلومات داخل سجل كل مركبة.</div>
+    <form method="post" action="/tires/models/{{ model.id }}/configuration" class="config-form">
+      <label class="tire-toggle"><input type="checkbox" name="has_tires" value="true" {% if model.has_tires %}checked{% endif %} onchange="toggleTireFields(this.checked)"> هذا الطراز مزود بإطارات</label>
+      <label>عدد مواضع الإطارات المطلوبة
+        <input id="tire_positions_required" type="number" name="tire_positions_required" min="0" value="{{ model.tire_positions_required or 0 }}" required>
+      </label>
+      <label>المقاس الافتراضي
+        <input id="tire_size" name="tire_size" value="{{ model.tire_size or '' }}" placeholder="مثال: 265/70R16">
+      </label>
+      <button type="submit">حفظ إعدادات الطراز</button>
+    </form>
+    <div class="danger-note">إلغاء الإطارات لطراز مستخدم لا يحذف السجل التاريخي أو المواضع المعرفة؛ بل يمنع اعتبار الطراز مزودًا بالإطارات في الإعداد الحالي.</div>
   </section>
 
   <div class="config-grid">
     <section class="config-panel">
       <h3>المقاسات المعتمدة</h3>
-      <p class="page-hint">عند تعريف مقاس واحد أو أكثر، يمنع النظام تركيب مقاس غير معتمد لهذا الطراز.</p>
+      <p class="page-hint">يمكن تعريف مقاس واحد أو عدة مقاسات مسموحة. عند وجود قائمة هنا، يمنع النظام تركيب مقاس غير موجود فيها لهذا الطراز. المقاس الافتراضي أعلاه يبقى جزءًا من بيانات Master Data الأساسية.</p>
       <form method="post" action="/tires/models/{{ model.id }}/sizes" class="config-form">
         <input name="size" placeholder="مثال: 265/70R16" required>
         <button type="submit">إضافة المقاس</button>
       </form>
       <table class="config-table"><thead><tr><th>المقاس</th><th>إجراء</th></tr></thead><tbody>
       {% for s in sizes %}<tr><td>{{ s.size }}</td><td><form method="post" action="/tires/model-sizes/{{ s.id }}/delete"><input type="hidden" name="model_id" value="{{ model.id }}"><button class="delete-btn" type="submit">حذف</button></form></td></tr>
-      {% else %}<tr><td colspan="2">لا توجد مقاسات محددة؛ سيبقى النظام متوافقًا مع البيانات القديمة.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="2">لا توجد قائمة مقاسات إضافية؛ سيبقى التحقق متوافقًا مع البيانات القديمة.</td></tr>{% endfor %}
       </tbody></table>
     </section>
 
     <section class="config-panel">
       <h3>مواضع الإطارات</h3>
-      <p class="page-hint">تُعرّف المواضع مرة واحدة للطراز وتظهر تلقائيًا لكل عتاد من هذا الطراز.</p>
+      <p class="page-hint">تُعرّف المواضع مرة واحدة للطراز وتظهر تلقائيًا لكل عتاد من هذا الطراز. السجل التاريخي لا يعتمد على إعادة إنشاء المواضع.</p>
       <form method="post" action="/tires/models/{{ model.id }}/positions" class="config-form">
         <input type="number" name="axle_number" min="1" placeholder="رقم المحور" required>
         <select name="side" required><option value="">الجهة</option><option value="left">يسار</option><option value="right">يمين</option></select>
@@ -42,4 +63,14 @@
     </section>
   </div>
 </div>
+<script>
+function toggleTireFields(enabled){
+  const count=document.getElementById('tire_positions_required');
+  const size=document.getElementById('tire_size');
+  count.disabled=!enabled;
+  size.disabled=!enabled;
+  if(!enabled){count.value=0;size.value='';}
+}
+toggleTireFields({% if model.has_tires %}true{% else %}false{% endif %});
+</script>
 {% endblock %}
