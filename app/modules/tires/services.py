@@ -118,9 +118,17 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
     model = equipment.equipment_model
     if model is None:
         raise ValueError("لا يمكن تركيب الإطار على عتاد لا يرتبط بطراز")
-    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all()}
-    if sizes and (not tire.size or tire.size.strip().lower() not in sizes):
-        raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")
+    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all() if s.size and s.size.strip()}
+    model_size = (model.tire_size or "").strip().lower() if getattr(model, "tire_size", None) else ""
+    tire_size = (tire.size or "").strip().lower() if tire.size else ""
+    if sizes:
+        if not tire_size or tire_size not in sizes:
+            raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")
+    elif model_size:
+        if not tire_size or tire_size != model_size:
+            raise ValueError("مقاس الإطار غير مطابق للمقاس المعتمد لهذا الطراز")
+    else:
+        raise ValueError("لا يمكن تركيب الإطار: لم يتم تحديد أي مقاس إطار معتمد لهذا الطراز في Master Data. يرجى إضافة المقاس المعتمد للطراز قبل إجراء عملية التركيب.")
     return equipment, position
 
 
@@ -204,57 +212,53 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
         raise ValueError("نوع حركة الإطار غير صالح")
     if movement_date > date.today():
         raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
-    state = current_state(db, tire.id)
-    installed = bool(state and state.get("installed"))
-    condition = tire_condition(tire, state)
-    if movement_type == "install" and installed:
-        raise ValueError("الإطار مركب بالفعل؛ استخدم نقلًا أو فكًا")
-    if movement_type == "move" and not installed:
-        raise ValueError("لا يمكن نقل إطار غير مركب")
-    if movement_type == "remove" and not installed:
-        raise ValueError("لا يمكن فك إطار غير مركب")
-    if movement_type in {"install", "move"} and condition in {"expired", "damaged"}:
-        label = "منتهي الصلاحية" if condition == "expired" else "تالف"
-        raise ValueError(f"لا يمكن {('تركيب' if movement_type == 'install' else 'نقل')} إطار {label}")
     if db is None:
         if movement_type in {"install", "move"} and (not equipment_id or not position_id):
             raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب أو النقل")
         return
-    if db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first():
-        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة جديدة له")
+    disposal = db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first()
+    if disposal and disposal.disposal_date <= movement_date:
+        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة بتاريخ الإخراج أو بعده")
     existing = db.query(TireMovement).filter(TireMovement.tire_id == tire.id).order_by(TireMovement.movement_date.asc(), TireMovement.id.asc()).all()
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value)
     timeline = sorted(existing + [candidate], key=lambda m: (m.movement_date, m.id))
     _validate_tire_meter_history(timeline)
-    state_at = {"installed": False, "equipment_id": None, "position_id": None}
+    state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": "stock"}
     for movement in timeline:
         if movement.movement_type == "install":
             if state_at["installed"]:
                 raise ValueError("التسلسل التاريخي غير صالح: الإطار مركب بالفعل قبل عملية التركيب")
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")
+            if state_at["disposition"] in {"damaged", "expired"}:
+                label = "تالف" if state_at["disposition"] == "damaged" else "منتهي الصلاحية"
+                raise ValueError(f"لا يمكن تركيب إطار {label} بعد تسجيل إخراجه بهذه الحالة")
+            if tire.expiry_date and movement.movement_date > tire.expiry_date:
+                raise ValueError("لا يمكن تركيب إطار منتهي الصلاحية في تاريخ الحركة المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "install", movement.movement_date)
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
             if _position_occupied_at(db, equipment.id, movement.position_id, movement.movement_date, tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار مشغول بإطار آخر في التاريخ المحدد")
-            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id}
+            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}
         elif movement.movement_type == "move":
             if not state_at["installed"]:
                 raise ValueError("لا يمكن نقل إطار غير مركب في التاريخ المحدد")
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند النقل")
+            if tire.expiry_date and movement.movement_date > tire.expiry_date:
+                raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في تاريخ الحركة المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "move", movement.movement_date)
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
             if _position_occupied_at(db, equipment.id, movement.position_id, movement.movement_date, tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار الهدف مشغول بإطار آخر في التاريخ المحدد")
-            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id}
+            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}
         elif movement.movement_type == "remove":
             if not state_at["installed"]:
                 raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")
-            state_at = {"installed": False, "equipment_id": None, "position_id": None}
+            state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": _remove_disposition(movement)}
 
 
 def add_tire(db: Session, data: dict):
