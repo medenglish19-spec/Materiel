@@ -45,6 +45,7 @@
         </div>
         <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number" value="{{ item.registration_number or '' }}"></div>
         <div class="field"><label>رقم الهيكل</label><input type="text" name="vin" value="{{ item.vin or '' }}"></div>
+        <div class="field"><label>تاريخ أول سير / بدء الاستغلال *</label><input type="date" name="first_service_date" value="{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else '' }}" required></div>
         <div class="field"><label>تاريخ الاقتناء</label><input type="date" name="acquisition_date" value="{{ item.acquisition_date.strftime('%Y-%m-%d') if item.acquisition_date else '' }}"></div>
         <input type="hidden" name="technical_condition" value="{{ item.technical_condition }}">
         <input type="hidden" name="operational_status" value="{{ item.operational_status }}">
