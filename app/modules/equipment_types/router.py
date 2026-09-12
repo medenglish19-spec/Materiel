@@ -6,7 +6,6 @@ from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
-from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.master_data_import import import_master_data
@@ -60,13 +59,6 @@ async def master_data_import_form(request:Request,file:UploadFile=File(...),db:S
         db.rollback()
         raise
     return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"result":result})
-@router.post("/equipment-types/demo")
-def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
-@router.post("/equipment-types/demo/delete")
-def delete_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:demo.delete_demo_classification(db)
-    except ValueError as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/categories/create")
 def create_category_form(name:str=Form(...),code:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_category(db,EquipmentCategoryCreate(name=name,code=code or None))
