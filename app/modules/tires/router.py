@@ -10,6 +10,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
+from app.modules.equipment_types import services as equipment_type_services
 from app.modules.tires import services
 from app.modules.tires.models import TireModelSize
 from app.modules.users.models import User
@@ -98,6 +99,19 @@ def tire_model_configuration(request: Request, model_id: int, db: Session = Depe
     if not configuration:
         raise HTTPException(status_code=404, detail="الطراز غير موجود")
     return templates.TemplateResponse("tire_model_configuration.html", {"request": request, "user": current_user, **configuration})
+
+
+@router.post("/tires/models/{model_id}/configuration")
+def update_tire_model_configuration(model_id: int, has_tires: bool = Form(False), tire_positions_required: int = Form(0), tire_size: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    model = equipment_type_services.get_model(db, model_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="الطراز غير موجود")
+    try:
+        equipment_type_services.update_model_tire_configuration(db, model, has_tires, tire_positions_required, tire_size)
+    except ValueError as exc:
+        db.rollback()
+        raise _error(exc)
+    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
 @router.post("/tires/models/{model_id}/sizes")
