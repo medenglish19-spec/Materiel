@@ -26,11 +26,7 @@ def _rows(ws) -> list[dict[str, Any]]:
     if not values:
         return []
     headers = [str(v).strip() if v is not None else "" for v in values[0]]
-    return [
-        {headers[i]: row[i] if i < len(row) else None for i in range(len(headers)) if headers[i]}
-        for row in values[1:]
-        if any(v is not None and str(v).strip() for v in row)
-    ]
+    return [{headers[i]: row[i] if i < len(row) else None for i in range(len(headers)) if headers[i]} for row in values[1:] if any(v is not None and str(v).strip() for v in row)]
 
 
 def _require(row: dict[str, Any], field: str, sheet: str, row_no: int) -> Any:
@@ -108,21 +104,25 @@ def _config_item(db: Session, config_id: int, data: dict[str, Any]) -> None:
 
 
 def _sync_model_configuration_fields(db: Session) -> None:
+    # Only models explicitly connected to a Master Data configuration are synchronized.
+    # Existing manually configured models without a configuration are left untouched.
     db.execute(text("""
         UPDATE equipment_models
-        SET has_tires = CASE WHEN tire_configuration_id IS NOT NULL THEN 1 ELSE 0 END,
-            tire_positions_required = CASE WHEN tire_configuration_id IS NOT NULL THEN COALESCE((
+        SET has_tires = 1,
+            tire_positions_required = COALESCE((
                 SELECT COUNT(*) FROM master_data_configuration_items i
                 WHERE i.configuration_id = equipment_models.tire_configuration_id
-            ), 0) ELSE 0 END
+            ), 0)
+        WHERE tire_configuration_id IS NOT NULL
     """))
     db.execute(text("""
         UPDATE equipment_models
-        SET has_batteries = CASE WHEN battery_configuration_id IS NOT NULL THEN 1 ELSE 0 END,
-            battery_count_required = CASE WHEN battery_configuration_id IS NOT NULL THEN COALESCE((
+        SET has_batteries = 1,
+            battery_count_required = COALESCE((
                 SELECT COUNT(*) FROM master_data_configuration_items i
                 WHERE i.configuration_id = equipment_models.battery_configuration_id
-            ), 0) ELSE 0 END
+            ), 0)
+        WHERE battery_configuration_id IS NOT NULL
     """))
     _materialize_tire_positions(db)
 
@@ -185,7 +185,7 @@ def import_master_data(db: Session, content: bytes) -> dict[str, int]:
             _upsert_by_name(db, "equipment_types", name, {"measurement_unit": unit, "category_id": category_ids[category_code], "theoretical_quantity": quantity})
             counts["types"] += 1
 
-        # Import configurations before Models so all references are resolved atomically.
+        # Configurations are imported before Models so all references are resolved atomically.
         for sheet, config_type in (("TirePositions", "TIRES"), ("BatteryConfigurations", "BATTERY")):
             if sheet not in sheets:
                 continue
