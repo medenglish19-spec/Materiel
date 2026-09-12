@@ -57,7 +57,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
         for type_name,tg in sorted(cg["types"].items()):
             model_rows=[]
             for model_key_tuple,st in sorted(tg["models"].items()):
-                finalize(st); model_key="{}::{}::{}::{}".format(category_name,type_name,model_key_tuple[0],model_key_tuple[1]); display_name=((st.get("brand")+" — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1])); model_details[model_key]={"name":display_name,"theoretical":0,"total":st["total"],"need":0,"surplus":0,"outside_ted":st["outside_ted"],"equipment":st["equipment"]}; model_rows.append({"name":display_name,"key":model_key,"stats":st})
+                finalize(st); model_key="{}::{}::{}::{}".format(category_name,type_name,model_key_tuple[0],model_key_tuple[1]); display_name=((st.get("brand")+" — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]); model_details[model_key]={"name":display_name,"theoretical":0,"total":st["total"],"need":0,"surplus":0,"outside_ted":st["outside_ted"],"equipment":st["equipment"]}; model_rows.append({"name":display_name,"key":model_key,"stats":st})
             ts=sum_stats([m["stats"] for m in model_rows]); ts["theoretical"]=int(tg.get("theoretical",0)); finalize(ts); type_rows.append({"name":type_name,"stats":ts,"models":model_rows})
         cs=sum_stats([t["stats"] for t in type_rows]); finalize(cs); hierarchy.append({"name":category_name,"stats":cs,"types":type_rows})
     totals=sum_stats([c["stats"] for c in hierarchy]); finalize(totals); totals["equipment"]=totals["total"]; totals["ted_actual"]=max(0,totals["total"]-totals["outside_ted"])
