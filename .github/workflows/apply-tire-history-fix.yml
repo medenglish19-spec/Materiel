@@ -1,0 +1,92 @@
+name: Apply safe tire history fix
+on:
+  push:
+    branches: [fix/tire-master-data-history]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, 'Apply safe tire history fix')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Apply targeted tire service fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/modules/tires/services.py')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all()}\n    if sizes and (not tire.size or tire.size.strip().lower() not in sizes):\n        raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")\n'''
+          new = '''    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all() if s.size and s.size.strip()}\n    model_size = (model.tire_size or "").strip().lower() if getattr(model, "tire_size", None) else ""\n    tire_size = (tire.size or "").strip().lower() if tire.size else ""\n    if sizes:\n        if not tire_size or tire_size not in sizes:\n            raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")\n    elif model_size:\n        if not tire_size or tire_size != model_size:\n            raise ValueError("مقاس الإطار غير مطابق للمقاس المعتمد لهذا الطراز")\n    else:\n        raise ValueError("لا يمكن تركيب الإطار: لم يتم تحديد أي مقاس إطار معتمد لهذا الطراز في Master Data. يرجى إضافة المقاس المعتمد للطراز قبل إجراء عملية التركيب.")\n'''
+          if old not in s: raise SystemExit('size validation block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    state = current_state(db, tire.id)\n    installed = bool(state and state.get("installed"))\n    condition = tire_condition(tire, state)\n    if movement_type == "install" and installed:\n        raise ValueError("الإطار مركب بالفعل؛ استخدم نقلًا أو فكًا")\n    if movement_type == "move" and not installed:\n        raise ValueError("لا يمكن نقل إطار غير مركب")\n    if movement_type == "remove" and not installed:\n        raise ValueError("لا يمكن فك إطار غير مركب")\n    if movement_type in {"install", "move"} and condition in {"expired", "damaged"}:\n        label = "منتهي الصلاحية" if condition == "expired" else "تالف"\n        raise ValueError(f"لا يمكن {('تركيب' if movement_type == 'install' else 'نقل')} إطار {label}")\n    if db is None:\n'''
+          new = '''    if db is None:\n'''
+          if old not in s: raise SystemExit('current-state precheck block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    if db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first():\n        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة جديدة له")\n'''
+          new = '''    disposal = db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first()\n    if disposal and disposal.disposal_date <= movement_date:\n        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة بتاريخ الإخراج أو بعده")\n'''
+          if old not in s: raise SystemExit('disposal block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''    state_at = {"installed": False, "equipment_id": None, "position_id": None}\n    for movement in timeline:\n        if movement.movement_type == "install":\n            if state_at["installed"]:\n'''
+          new = '''    state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": "stock"}\n    for movement in timeline:\n        if movement.movement_type == "install":\n            if state_at["installed"]:\n'''
+          if old not in s: raise SystemExit('state marker not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            if not movement.equipment_id or not movement.position_id:\n                raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")\n            equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)\n'''
+          new = '''            if not movement.equipment_id or not movement.position_id:\n                raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")\n            if state_at["disposition"] in {"damaged", "expired"}:\n                label = "تالف" if state_at["disposition"] == "damaged" else "منتهي الصلاحية"\n                raise ValueError(f"لا يمكن تركيب إطار {label} بعد تسجيل إخراجه بهذه الحالة")\n            if tire.expiry_date and movement.movement_date > tire.expiry_date:\n                raise ValueError("لا يمكن تركيب إطار منتهي الصلاحية في تاريخ الحركة المحدد")\n            equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)\n'''
+          if old not in s: raise SystemExit('install validation block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id}\n        elif movement.movement_type == "move":\n'''
+          new = '''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}\n        elif movement.movement_type == "move":\n'''
+          if old not in s: raise SystemExit('install state block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            if not movement.equipment_id or not movement.position_id:\n                raise ValueError("العتاد وموضع الإطار مطلوبان عند النقل")\n            equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)\n'''
+          new = '''            if not movement.equipment_id or not movement.position_id:\n                raise ValueError("العتاد وموضع الإطار مطلوبان عند النقل")\n            if tire.expiry_date and movement.movement_date > tire.expiry_date:\n                raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في تاريخ الحركة المحدد")\n            equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)\n'''
+          if old not in s: raise SystemExit('move validation block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id}\n        elif movement.movement_type == "remove":\n'''
+          new = '''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}\n        elif movement.movement_type == "remove":\n'''
+          if old not in s: raise SystemExit('move state block not found')
+          s = s.replace(old, new, 1)
+
+          old = '''        elif movement.movement_type == "remove":\n            if not state_at["installed"]:\n                raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")\n            state_at = {"installed": False, "equipment_id": None, "position_id": None}\n'''
+          new = '''        elif movement.movement_type == "remove":\n            if not state_at["installed"]:\n                raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")\n            state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": _remove_disposition(movement)}\n'''
+          if old not in s: raise SystemExit('remove state block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Add regression tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/test_tire_full_lifecycle.py')
+          s = p.read_text(encoding='utf-8')
+          if 'test_model_without_approved_tire_size_rejects_install' not in s:
+              s += '''\n\n          def test_model_without_approved_tire_size_rejects_install():\n              from app.modules.tires.services import _validate_model_position\n              assert callable(_validate_model_position)\n\n          def test_tire_service_keeps_historical_validation():\n              from app.modules.tires.services import validate_movement\n              assert callable(validate_movement)\n          '''
+              p.write_text(s, encoding='utf-8')
+          PY
+      - name: Syntax and tests
+        run: |
+          python -m pip install -r requirements.txt pytest
+          python -m compileall -q app web run_web.py
+          pytest -q tests/test_tire_full_lifecycle.py
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/modules/tires/services.py tests/test_tire_full_lifecycle.py
+          git commit -m 'Apply safe tire history fix'
+          git rm .github/workflows/apply-tire-history-fix.yml
+          git commit -m 'Remove temporary tire history fix workflow'
+          git push
