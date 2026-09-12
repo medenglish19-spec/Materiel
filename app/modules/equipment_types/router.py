@@ -10,8 +10,7 @@ from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.master_data_import import import_master_data
-from app.modules.equipment_types.master_data_editor import get_editor_data
-from app.modules.equipment_types.master_data_editor_transaction import save_editor_data
+from app.modules.equipment_types.master_data_editor_transaction import get_editor_data_safe, save_editor_data
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -28,7 +27,7 @@ def master_data_page(request:Request,db:Session=Depends(get_db),current_user:Use
     return templates.TemplateResponse("master_data_editor.html",{"request":request,"models":models,"selected_model_id":models[0].id if models else None,"user":current_user})
 @router.get("/equipment-types/master-data/{model_id}/data")
 def master_data_editor_data(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:return JSONResponse(get_editor_data(db,model_id))
+    try:return JSONResponse(get_editor_data_safe(db,model_id))
     except ValueError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
 @router.post("/equipment-types/master-data/{model_id}/data")
 async def master_data_editor_save(model_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
