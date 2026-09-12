@@ -183,11 +183,12 @@ def _save_tire_items(db: Session, model_id: int, rows):
                 "position_type": _clean(row.get("position_type")) or None,
             }.items())
             if changed_identity:
+                materialized_code = f"MD-{model_id}-{code}"[:40]
                 movements = db.execute(text("""
                     SELECT COUNT(*) FROM tire_movements tm
                     JOIN tire_positions tp ON tp.id=tm.position_id
                     WHERE tp.code=:code
-                """), {"code": code}).scalar_one()
+                """), {"code": materialized_code}).scalar_one()
                 if movements:
                     raise ValueError(f"لا يمكن تغيير تعريف موضع الإطار {code} لأن له حركات تاريخية. أنشئ موضعًا جديدًا بدل إعادة تعريفه.")
             db.execute(text("""
@@ -209,11 +210,12 @@ def _save_tire_items(db: Session, model_id: int, rows):
                    "created_at": _now(), "updated_at": _now()})
     for code, old in existing.items():
         if code not in seen:
+            materialized_code = f"MD-{model_id}-{code}"[:40]
             movements = db.execute(text("""
                 SELECT COUNT(*) FROM tire_movements tm
                 JOIN tire_positions tp ON tp.id=tm.position_id
                 WHERE tp.code=:code
-            """), {"code": code}).scalar_one()
+            """), {"code": materialized_code}).scalar_one()
             if movements:
                 raise ValueError(f"لا يمكن حذف موضع الإطار {code} لأن له حركات تاريخية.")
             db.execute(text("DELETE FROM master_data_configuration_items WHERE id=:id"), {"id": old["id"]})
