@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,18 @@ from app.modules.equipment_types.master_data_editor import (
     get_editor_data,
 )
 from app.modules.equipment_types.master_data_sync import sync_model_configuration_fields
+
+
+def _json_safe(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def _cleanup_removed_tire_positions(db: Session, model_id: int) -> None:
@@ -47,4 +61,4 @@ def save_editor_data(db: Session, model_id: int, payload: dict):
     _cleanup_removed_tire_positions(db, model_id)
     sync_model_configuration_fields(db)
     db.commit()
-    return get_editor_data(db, model_id)
+    return _json_safe(get_editor_data(db, model_id))
