@@ -62,14 +62,16 @@ def _validate_reading_position(db: Session, equipment_id: int, reading_date: dat
         existing_value = _value(existing, unit)
         if existing_value is None: continue
         existing_value = Decimal(existing_value)
-        if existing.reading_date < reading_date and existing_value > value:
-            raise ValueError(f"لا يمكن حفظ القراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
-        if existing.reading_date > reading_date and existing_value < value:
-            raise ValueError(f"لا يمكن إدخال قراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أكبر من القراءة اللاحقة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
+        if existing.reading_date < reading_date:
+            if existing_value > value: raise ValueError(f"لا يمكن حفظ القراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
+        if existing.reading_date > reading_date:
+            if existing_value < value: raise ValueError(f"لا يمكن إدخال قراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أكبر من القراءة اللاحقة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
 def _refresh_equipment_current(db: Session, equipment: Equipment, unit: str):
     latest = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
     if unit == "km": equipment.current_odometer = _value(latest, unit)
     else: equipment.current_hours = _value(latest, unit)
+    if latest is not None and latest.equipment_status:
+        equipment.operational_status = normalize_equipment_status(latest.equipment_status)
 def cleanup_invalid_readings(db: Session):
     today = datetime.now(timezone.utc).date(); cutoff = datetime.combine(today, datetime.max.time())
     invalid = db.query(MeterReading).filter(MeterReading.reading_date > cutoff).all(); invalid += db.query(MeterReading).filter((MeterReading.odometer < 0) | (MeterReading.hours < 0)).all()
