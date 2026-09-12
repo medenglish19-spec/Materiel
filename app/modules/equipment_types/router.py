@@ -10,6 +10,8 @@ from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.master_data_import import import_master_data
+from app.modules.equipment_types.master_data_link import link_models_to_configurations
+from app.modules.equipment_types.master_data_sync import sync_model_configuration_fields
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -32,6 +34,9 @@ async def master_data_import_form(request:Request,file:UploadFile=File(...),db:S
         return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"الملف فارغ"},status_code=400)
     try:
         result=import_master_data(db,content)
+        link_models_to_configurations(db,content)
+        sync_model_configuration_fields(db)
+        db.commit()
     except ValueError as exc:
         db.rollback()
         return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":str(exc)},status_code=400)
