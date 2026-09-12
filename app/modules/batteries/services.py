@@ -130,21 +130,18 @@ def _general_expiry_date(battery: Battery, years: int) -> date | None:
 
 def _expired_at(db: Session, battery: Battery, equipment: Equipment | None, when: date) -> bool:
     years = get_validity_years(db)
-    # Exceptional new/zero-km equipment rule: while the equipment has not yet
-    # reached the configured battery life from its first service date, age alone
-    # cannot authorize battery replacement.
-    if _equipment_age_below_limit(equipment, when, years):
-        return False
+    # For the exceptional new/zero-km equipment case, the replacement threshold
+    # is anchored to the equipment first-service date rather than battery receipt.
+    if equipment and getattr(equipment, "first_service_date", None):
+        return when >= _add_years(equipment.first_service_date, years)
     expiry = _general_expiry_date(battery, years)
-    return bool(expiry and when > expiry)
+    return bool(expiry and when >= expiry)
 
 
 def replacement_due_date(db: Session, battery: Battery, equipment: Equipment | None = None) -> date | None:
     years = get_validity_years(db)
     if equipment and getattr(equipment, "first_service_date", None):
-        first_service_due = _add_years(equipment.first_service_date, years)
-        if date.today() < first_service_due:
-            return first_service_due
+        return _add_years(equipment.first_service_date, years)
     return _general_expiry_date(battery, years)
 
 
@@ -175,7 +172,7 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             if not equipment:
                 raise ValueError("العتاد غير موجود")
             if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن تركيب بطارية انتهت مدة صلاحيتها وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
+                raise ValueError("لا يمكن تركيب بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count:
@@ -193,7 +190,7 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             if not equipment:
                 raise ValueError("العتاد غير موجود")
             if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن نقل بطارية انتهت مدة صلاحيتها وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
+                raise ValueError("لا يمكن نقل بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
