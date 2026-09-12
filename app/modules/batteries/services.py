@@ -20,6 +20,23 @@ def current_state(db: Session, battery_id: int):
     return {"movement": movement, "installed": movement.movement_type in {"install", "move"} and movement.equipment_id is not None, "equipment": movement.equipment}
 
 
+def _installed_battery_count(db: Session, equipment_id: int, exclude_battery_id: int | None = None) -> int:
+    """Count batteries currently installed on an equipment item.
+
+    The allowed quantity comes from the equipment model in Master Data.
+    This keeps battery capacity rules centralized at model level instead of
+    asking the user to configure the same quantity for every vehicle.
+    """
+    count = 0
+    for battery in db.query(Battery).all():
+        if exclude_battery_id is not None and battery.id == exclude_battery_id:
+            continue
+        state = current_state(db, battery.id)
+        if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
+            count += 1
+    return count
+
+
 def validate_movement(db: Session, battery: Battery, movement_type: str, movement_date: date, equipment_id: int | None, meter_value: Decimal | None):
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة البطارية غير صالح")
@@ -34,15 +51,19 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
     if movement_type in {"install", "move"}:
         if not equipment_id:
             raise ValueError("العتاد مطلوب عند تركيب أو نقل البطارية")
-        if not db.query(Equipment).filter(Equipment.id == equipment_id).first():
+        equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+        if not equipment:
             raise ValueError("العتاد غير موجود")
-        occupied = db.query(BatteryMovement).filter(BatteryMovement.equipment_id == equipment_id).all()
-        for row in occupied:
-            if row.battery_id == battery.id:
-                continue
-            other = current_state(db, row.battery_id)
-            if other and other["installed"] and other["equipment"] and other["equipment"].id == equipment_id:
+
+        # Master Data rule: a model defines how many batteries its equipment
+        # is designed to carry. Keep legacy models without a configured count
+        # at the existing one-battery limit.
+        required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
+        installed_count = _installed_battery_count(db, equipment_id, exclude_battery_id=battery.id)
+        if installed_count >= required_count:
+            if required_count == 1:
                 raise ValueError("العتاد لديه بطارية مركبة بالفعل")
+            raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count})")
     else:
         equipment_id = None
     last = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery.id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).first()
