@@ -57,11 +57,13 @@ def dashboard_page(
     expired_batteries = []
     for battery in battery_services.list_batteries(db):
         state = battery_services.current_state(db, battery.id)
-        if state and state.get("installed") and battery_services.status(battery, state) == "expired":
+        if state and state.get("installed") and battery_services.status(battery, state, db=db) == "expired":
+            equipment = state.get("equipment")
             expired_batteries.append(
                 {
                     "battery": battery,
-                    "equipment": state.get("equipment"),
+                    "equipment": equipment,
+                    "due_date": battery_services.replacement_due_date(db, battery, equipment),
                 }
             )
     expired_batteries.sort(
