@@ -29,6 +29,7 @@ class EquipmentBase(BaseModel):
     equipment_model_id: Optional[int] = None
 
     acquisition_date: Optional[date] = None
+    first_service_date: Optional[date] = None
 
     technical_condition: str = "ready"
     operational_status: str = "available"
@@ -52,7 +53,6 @@ class EquipmentBase(BaseModel):
             raise ValueError(
                 f"الحالة الفنية يجب أن تكون أحد: {TECHNICAL_CONDITIONS}"
             )
-
         return v
 
     @field_validator("operational_status")
@@ -62,7 +62,6 @@ class EquipmentBase(BaseModel):
             raise ValueError(
                 f"الوضعية يجب أن تكون أحد: {OPERATIONAL_STATUSES}"
             )
-
         return v
 
 
@@ -79,6 +78,7 @@ class EquipmentUpdate(BaseModel):
     equipment_model_id: Optional[int] = None
 
     acquisition_date: Optional[date] = None
+    first_service_date: Optional[date] = None
 
     technical_condition: Optional[str] = None
     operational_status: Optional[str] = None
@@ -101,15 +101,10 @@ class EquipmentUpdate(BaseModel):
         cls,
         v: Optional[str],
     ) -> Optional[str]:
-
-        if (
-            v is not None
-            and v not in TECHNICAL_CONDITIONS
-        ):
+        if v is not None and v not in TECHNICAL_CONDITIONS:
             raise ValueError(
                 f"الحالة الفنية يجب أن تكون أحد: {TECHNICAL_CONDITIONS}"
             )
-
         return v
 
     @field_validator("operational_status")
@@ -118,22 +113,15 @@ class EquipmentUpdate(BaseModel):
         cls,
         v: Optional[str],
     ) -> Optional[str]:
-
-        if (
-            v is not None
-            and v not in OPERATIONAL_STATUSES
-        ):
+        if v is not None and v not in OPERATIONAL_STATUSES:
             raise ValueError(
                 f"الوضعية يجب أن تكون أحد: {OPERATIONAL_STATUSES}"
             )
-
         return v
 
 
 class EquipmentOut(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     asset_code: str
@@ -144,6 +132,9 @@ class EquipmentOut(BaseModel):
 
     equipment_type_id: int
     equipment_model_id: Optional[int] = None
+
+    acquisition_date: Optional[date] = None
+    first_service_date: Optional[date] = None
 
     technical_condition: str
     operational_status: str
