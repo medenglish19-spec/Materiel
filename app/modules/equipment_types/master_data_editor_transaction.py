@@ -51,14 +51,66 @@ def _cleanup_removed_tire_positions(db: Session, model_id: int) -> None:
         db.execute(text("DELETE FROM tire_positions WHERE id=:id"), {"id": position_id})
 
 
+def _sync_tire_sizes(db: Session, model_id: int, rows) -> None:
+    sizes=[]
+    seen=set()
+    for row in rows or []:
+        size=str(row.get("size") or "").strip()
+        if size and size.lower() not in seen:
+            seen.add(size.lower()); sizes.append(size)
+    if sizes:
+        placeholders=",".join(f":s{i}" for i in range(len(sizes)))
+        params={f"s{i}": size for i,size in enumerate(sizes)}
+        params["model_id"]=model_id
+        db.execute(text(f"DELETE FROM tire_model_sizes WHERE equipment_model_id=:model_id AND lower(size) NOT IN ({placeholders.lower()})"), params)
+    else:
+        db.execute(text("DELETE FROM tire_model_sizes WHERE equipment_model_id=:model_id"), {"model_id": model_id})
+    existing={str(x[0]).strip().lower() for x in db.execute(text("SELECT size FROM tire_model_sizes WHERE equipment_model_id=:model_id"), {"model_id": model_id}).all()}
+    for size in sizes:
+        if size.lower() not in existing:
+            db.execute(text("INSERT INTO tire_model_sizes (equipment_model_id,size) VALUES (:model_id,:size)"), {"model_id": model_id,"size":size})
+    db.execute(text("""
+        UPDATE equipment_models SET tire_size=(
+            SELECT size FROM tire_model_sizes WHERE equipment_model_id=:model_id ORDER BY id LIMIT 1
+        ) WHERE id=:model_id
+    """), {"model_id": model_id})
+
+
+def _sync_model_counts_and_defaults(db: Session, model_id: int) -> None:
+    db.execute(text("""
+        UPDATE equipment_models SET
+            has_tires=CASE WHEN EXISTS (
+                SELECT 1 FROM master_data_configuration_items i
+                JOIN master_data_configurations c ON c.id=i.configuration_id
+                WHERE c.id=equipment_models.tire_configuration_id
+            ) THEN 1 ELSE 0 END,
+            tire_positions_required=(SELECT COUNT(*) FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.tire_configuration_id),
+            has_batteries=CASE WHEN EXISTS (
+                SELECT 1 FROM master_data_configuration_items i
+                JOIN master_data_configurations c ON c.id=i.configuration_id
+                WHERE c.id=equipment_models.battery_configuration_id
+            ) THEN 1 ELSE 0 END,
+            battery_count_required=COALESCE((SELECT SUM(COALESCE(CAST(json_extract(i.extra_json,'$.count') AS INTEGER),0)) FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.battery_configuration_id),0),
+            battery_capacity_ah=(SELECT value_number FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.battery_configuration_id ORDER BY i.sort_order,i.id LIMIT 1),
+            battery_voltage_v=CAST((SELECT json_extract(i.extra_json,'$.voltage') FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.battery_configuration_id ORDER BY i.sort_order,i.id LIMIT 1) AS FLOAT)
+        WHERE id=:model_id
+    """), {"model_id": model_id})
+
+
 def save_editor_data(db: Session, model_id: int, payload: dict):
     """Apply all Master Data sections in one transaction and synchronize safe references."""
     model = _get_model(db, model_id)
-    _save_properties(db, model_id, payload.get("properties", []))
-    _save_tire_items(db, model_id, payload.get("tires", []))
-    _save_battery_items(db, model_id, payload.get("batteries", []))
-    _save_maintenance(db, model, payload.get("maintenance", []))
+    properties=payload.get("properties",[])
+    tires=payload.get("tires",[])
+    batteries=payload.get("batteries",[])
+    maintenance=payload.get("maintenance",[])
+    _save_properties(db, model_id, properties)
+    _save_tire_items(db, model_id, tires)
+    _sync_tire_sizes(db, model_id, tires)
+    _save_battery_items(db, model_id, batteries)
+    _save_maintenance(db, model, maintenance)
     _cleanup_removed_tire_positions(db, model_id)
     sync_model_configuration_fields(db)
+    _sync_model_counts_and_defaults(db, model_id)
     db.commit()
     return _json_safe(get_editor_data(db, model_id))
