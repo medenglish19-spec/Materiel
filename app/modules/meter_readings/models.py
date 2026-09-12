@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, String, event, func, select, insert
+from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, String, event, func, select, insert, update
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -112,6 +112,15 @@ def _prevent_invalid_meter_update(mapper, connection, target):
 
 @event.listens_for(MeterReading, "after_insert")
 def _audit_meter_insert(mapper, connection, target):
+    # Keep the denormalized current equipment status synchronized with the
+    # status recorded on every reading, including bulk/import paths.
+    if target.equipment_status:
+        connection.execute(
+            update(Equipment)
+            .where(Equipment.id == target.equipment_id)
+            .values(operational_status=target.equipment_status)
+        )
+
     unit = "km" if target.odometer is not None else "hours"
     value = target.odometer if unit == "km" else target.hours
     connection.execute(insert(MeterReadingChange.__table__).values(
