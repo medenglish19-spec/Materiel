@@ -28,13 +28,30 @@ def dec(v):
 
 @router.get("/batteries", response_class=HTMLResponse)
 def batteries_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": services.list_batteries(db), "stats": services.stats(db)})
+    batteries = services.list_batteries(db)
+    statuses = {b.id: services.status(b, services.current_state(db, b.id), db=db) for b in batteries}
+    return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses})
+
+
+@router.get("/batteries/settings", response_class=HTMLResponse)
+def battery_settings_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("battery_settings.html", {"request": request, "user": current_user, "validity_years": services.get_validity_years(db)})
+
+
+@router.post("/batteries/settings")
+def update_battery_settings(validity_years: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        services.set_validity_years(db, validity_years)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return RedirectResponse("/batteries", 303)
 
 
 @router.post("/batteries")
-def create_battery(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_battery(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_battery(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "expiry_date": expiry_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
+        services.add_battery(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
     except Exception as exc:
         db.rollback()
         raise HTTPException(400, f"تعذر إنشاء البطارية: {exc}")
@@ -47,7 +64,9 @@ def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_
     if not battery:
         raise HTTPException(404, "البطارية غير موجودة")
     history = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery_id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).all()
-    return templates.TemplateResponse("battery_detail.html", {"request": request, "user": current_user, "battery": battery, "state": services.current_state(db, battery_id), "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "today": date.today()})
+    state = services.current_state(db, battery_id)
+    equipment = state.get("equipment") if state else None
+    return templates.TemplateResponse("battery_detail.html", {"request": request, "user": current_user, "battery": battery, "state": state, "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "current_equipment": equipment, "replacement_due_date": services.replacement_due_date(db, battery, equipment), "validity_years": services.get_validity_years(db), "today": date.today()})
 
 
 @router.post("/batteries/{battery_id}/movements")
@@ -73,4 +92,4 @@ def equipment_battery_page(request: Request, equipment_id: int, db: Session = De
         state = services.current_state(db, battery.id)
         if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
             items.append(battery)
-    return templates.TemplateResponse("equipment_batteries.html", {"request": request, "user": current_user, "equipment": equipment, "items": items})
+    return templates.TemplateResponse("equipment_batteries.html", {"request": request, "user": current_user, "equipment": equipment, "items": items, "validity_years": services.get_validity_years(db)})
