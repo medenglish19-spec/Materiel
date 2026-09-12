@@ -26,6 +26,20 @@ def _json_safe(value):
     return value
 
 
+def get_editor_data_safe(db: Session, model_id: int):
+    data = get_editor_data(db, model_id)
+    if data["batteries"]["id"]:
+        rows = db.execute(text("""
+            SELECT item_code, extra_json
+            FROM master_data_configuration_items
+            WHERE configuration_id=:configuration_id
+        """), {"configuration_id": data["batteries"]["id"]}).mappings().all()
+        extras = {row["item_code"]: row["extra_json"] for row in rows}
+        for item in data["batteries"]["items"]:
+            item["extra_json"] = extras.get(item["item_code"])
+    return _json_safe(data)
+
+
 def _cleanup_removed_tire_positions(db: Session, model_id: int) -> None:
     """Remove unused materialized positions after a catalog deletion, never history."""
     prefix = f"MD-{model_id}-"
@@ -60,9 +74,9 @@ def _sync_tire_sizes(db: Session, model_id: int, rows) -> None:
             seen.add(size.lower()); sizes.append(size)
     if sizes:
         placeholders=",".join(f":s{i}" for i in range(len(sizes)))
-        params={f"s{i}": size for i,size in enumerate(sizes)}
+        params={f"s{i}": size.lower() for i,size in enumerate(sizes)}
         params["model_id"]=model_id
-        db.execute(text(f"DELETE FROM tire_model_sizes WHERE equipment_model_id=:model_id AND lower(size) NOT IN ({placeholders.lower()})"), params)
+        db.execute(text(f"DELETE FROM tire_model_sizes WHERE equipment_model_id=:model_id AND lower(size) NOT IN ({placeholders})"), params)
     else:
         db.execute(text("DELETE FROM tire_model_sizes WHERE equipment_model_id=:model_id"), {"model_id": model_id})
     existing={str(x[0]).strip().lower() for x in db.execute(text("SELECT size FROM tire_model_sizes WHERE equipment_model_id=:model_id"), {"model_id": model_id}).all()}
@@ -81,14 +95,12 @@ def _sync_model_counts_and_defaults(db: Session, model_id: int) -> None:
         UPDATE equipment_models SET
             has_tires=CASE WHEN EXISTS (
                 SELECT 1 FROM master_data_configuration_items i
-                JOIN master_data_configurations c ON c.id=i.configuration_id
-                WHERE c.id=equipment_models.tire_configuration_id
+                WHERE i.configuration_id=equipment_models.tire_configuration_id
             ) THEN 1 ELSE 0 END,
-            tire_positions_required=(SELECT COUNT(*) FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.tire_configuration_id),
+            tire_positions_required=COALESCE((SELECT COUNT(*) FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.tire_configuration_id),0),
             has_batteries=CASE WHEN EXISTS (
                 SELECT 1 FROM master_data_configuration_items i
-                JOIN master_data_configurations c ON c.id=i.configuration_id
-                WHERE c.id=equipment_models.battery_configuration_id
+                WHERE i.configuration_id=equipment_models.battery_configuration_id
             ) THEN 1 ELSE 0 END,
             battery_count_required=COALESCE((SELECT SUM(COALESCE(CAST(json_extract(i.extra_json,'$.count') AS INTEGER),0)) FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.battery_configuration_id),0),
             battery_capacity_ah=(SELECT value_number FROM master_data_configuration_items i WHERE i.configuration_id=equipment_models.battery_configuration_id ORDER BY i.sort_order,i.id LIMIT 1),
@@ -113,4 +125,4 @@ def save_editor_data(db: Session, model_id: int, payload: dict):
     sync_model_configuration_fields(db)
     _sync_model_counts_and_defaults(db, model_id)
     db.commit()
-    return _json_safe(get_editor_data(db, model_id))
+    return get_editor_data_safe(db, model_id)
