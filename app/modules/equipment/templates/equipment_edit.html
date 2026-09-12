@@ -12,8 +12,37 @@
     <div class="alert-warning" style="margin-bottom:14px;">الحالة الفنية والوضعية لا تُعدلان من شاشة بيانات العتاد. يتم تحديثهما من الإجراءات التشغيلية المخصصة.</div>
     <form method="post" action="/equipment/{{ item.id }}/edit" class="grid-form" id="equipmentEditForm" onsubmit="return confirm('هل تؤكد تثبيت جميع تعديلات بيانات العتاد؟');">
         <div class="field"><label>الوثيقة</label><input type="text" name="acquisition_document" value="{{ item.acquisition_document or '' }}"></div>
-        <div class="field"><label>نوع العتاد *</label><select name="equipment_type_id" id="edit-type-select" required onchange="onEditTypeChange()">{% for t in types %}<option value="{{ t.id }}" {% if t.id == item.equipment_type_id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
-        <div class="field"><label>الطراز</label><select name="equipment_model_id" id="edit-model-select"><option value="">بدون طراز محدد</option>{% for t in types %}{% for m in t.models %}<option value="{{ m.id }}" data-type-id="{{ t.id }}" {% if m.id == item.equipment_model_id %}selected{% endif %} {% if t.id != item.equipment_type_id %}hidden{% endif %}>{{ m.name }}</option>{% endfor %}{% endfor %}</select></div>
+        <div class="field">
+            <label>الطراز *</label>
+            <select name="equipment_model_id" id="edit-model-select" required onchange="onEditModelChange()">
+                <option value="">اختر الطراز</option>
+                {% for t in types %}{% for m in t.models %}
+                <option value="{{ m.id }}"
+                    data-type-id="{{ t.id }}"
+                    data-type-name="{{ t.name }}"
+                    data-brand-name="{{ m.brand.name if m.brand else '' }}"
+                    data-tires="{{ 'نعم' if m.has_tires else 'لا' }}"
+                    data-tire-count="{{ m.tire_positions_required or '' }}"
+                    data-tire-size="{{ m.tire_size or '' }}"
+                    data-batteries="{{ 'نعم' if m.has_batteries else 'لا' }}"
+                    data-battery-count="{{ m.battery_count_required or '' }}"
+                    data-battery-capacity="{{ m.battery_capacity_ah or '' }}"
+                    data-battery-voltage="{{ m.battery_voltage_v or '' }}"
+                    data-mobility="{{ m.mobility_type or '' }}"
+                    data-driver="{{ 'نعم' if m.requires_driver else 'لا' }}"
+                    {% if m.id == item.equipment_model_id %}selected{% endif %}>{{ m.name }}</option>
+                {% endfor %}{% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="equipment_type_id" id="edit-type-hidden" value="{{ item.equipment_type_id }}">
+        <div class="field">
+            <label>الصنف / النوع</label>
+            <input type="text" id="edit-type-preview" value="" readonly>
+        </div>
+        <div class="field" style="grid-column:1 / -1;">
+            <label>مواصفات الطراز من Master Data</label>
+            <div id="edit-model-specs" class="alert-info" style="line-height:1.9;">يتم تحميل المواصفات تلقائياً عند اختيار الطراز.</div>
+        </div>
         <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number" value="{{ item.registration_number or '' }}"></div>
         <div class="field"><label>رقم الهيكل</label><input type="text" name="vin" value="{{ item.vin or '' }}"></div>
         <div class="field"><label>تاريخ الاقتناء</label><input type="date" name="acquisition_date" value="{{ item.acquisition_date.strftime('%Y-%m-%d') if item.acquisition_date else '' }}"></div>
@@ -25,8 +54,37 @@
 </div>
 
 <script>
-function showEditServerModels(typeId,selectedModelId=''){const modelSelect=document.getElementById('edit-model-select');if(!modelSelect)return;const options=modelSelect.querySelectorAll('option[data-type-id]');options.forEach(option=>{const visible=option.dataset.typeId===String(typeId);option.hidden=!visible;option.style.display=visible?'':'none'});const matching=Array.from(options).find(option=>option.dataset.typeId===String(typeId)&&String(option.value)===String(selectedModelId));modelSelect.value=matching?matching.value:''}
-function onEditTypeChange(){const typeSelect=document.getElementById('edit-type-select'),modelSelect=document.getElementById('edit-model-select');if(!typeSelect||!modelSelect)return;showEditServerModels(typeSelect.value);modelSelect.disabled=false}
-showEditServerModels(document.getElementById('edit-type-select')?.value,'{{ item.equipment_model_id or "" }}');
+function onEditModelChange(){
+    const modelSelect=document.getElementById('edit-model-select');
+    const typeHidden=document.getElementById('edit-type-hidden');
+    const typePreview=document.getElementById('edit-type-preview');
+    const specs=document.getElementById('edit-model-specs');
+    if(!modelSelect)return;
+    const option=modelSelect.options[modelSelect.selectedIndex];
+    if(!option||!option.value){
+        if(typeHidden)typeHidden.value='';
+        if(typePreview)typePreview.value='';
+        if(specs)specs.textContent='يتم تحميل المواصفات تلقائياً عند اختيار الطراز.';
+        return;
+    }
+    const d=option.dataset;
+    if(typeHidden)typeHidden.value=d.typeId||'';
+    if(typePreview)typePreview.value=d.typeName||'';
+    if(specs){
+        const parts=[];
+        if(d.brandName)parts.push('العلامة: '+d.brandName);
+        parts.push('الإطارات: '+(d.tires||'لا'));
+        if(d.tireCount)parts.push('عدد مواضع الإطارات: '+d.tireCount);
+        if(d.tireSize)parts.push('مقاس الإطار: '+d.tireSize);
+        parts.push('البطاريات: '+(d.batteries||'لا'));
+        if(d.batteryCount)parts.push('عدد البطاريات: '+d.batteryCount);
+        if(d.batteryCapacity)parts.push('سعة البطارية: '+d.batteryCapacity+' Ah');
+        if(d.batteryVoltage)parts.push('جهد البطارية: '+d.batteryVoltage+' V');
+        if(d.mobility)parts.push('نوع الحركة: '+d.mobility);
+        parts.push('يتطلب سائقاً: '+(d.driver||'لا'));
+        specs.textContent=parts.join(' • ');
+    }
+}
+onEditModelChange();
 </script>
 {% endblock %}
