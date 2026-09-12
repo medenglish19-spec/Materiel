@@ -83,4 +83,23 @@ def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     duplicate=db.query(EquipmentModel).filter(EquipmentModel.id!=obj.id,EquipmentModel.equipment_type_id==obj.equipment_type_id,EquipmentModel.brand_id==brand_id,EquipmentModel.name==obj.name).first()
     if duplicate: raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id=brand_id;db.commit();db.refresh(obj);return obj
+
+def update_model_tire_configuration(db: Session, obj: EquipmentModel, has_tires: bool, tire_positions_required: int, tire_size: str | None) -> EquipmentModel:
+    """Update only tire-related Master Data fields without touching other model settings."""
+    if tire_positions_required < 0:
+        raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
+    normalized_size = (tire_size or "").strip() or None
+    if has_tires and tire_positions_required < 1:
+        raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
+    if has_tires and not normalized_size:
+        raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد المقاس الافتراضي")
+    if not has_tires and (tire_positions_required != 0 or normalized_size is not None):
+        raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
+    obj.has_tires = has_tires
+    obj.tire_positions_required = tire_positions_required
+    obj.tire_size = normalized_size
+    db.commit()
+    db.refresh(obj)
+    return obj
+
 def delete_model(db:Session,obj:EquipmentModel)->None: db.delete(obj);db.commit()
