@@ -44,6 +44,7 @@ async def master_data_editor_save(model_id:int,request:Request,db:Session=Depend
 def master_data_import_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user})
 @router.post("/equipment-types/master-data/import",response_class=HTMLResponse)
+@router.post("/equipment-types/master-data",response_class=HTMLResponse)
 async def master_data_import_form(request:Request,file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"يرجى اختيار ملف Excel بصيغة .xlsx"},status_code=400)
