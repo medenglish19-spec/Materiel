@@ -140,7 +140,10 @@ def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, re
     _validate_reading_position(db, equipment_id, date_value, value, unit_code)
     captured_status = normalize_equipment_status(equipment_status) if equipment_status is not None else normalize_equipment_status(equipment.operational_status)
     reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source="manual", equipment_status=captured_status, notes=(notes or "").strip()[:300] or None)
-    db.add(reading); db.flush(); _refresh_equipment_current(db, equipment, unit_code); db.commit(); db.refresh(reading); return reading
+    db.add(reading); db.flush()
+    equipment.operational_status = captured_status
+    _refresh_equipment_current(db, equipment, unit_code)
+    db.commit(); db.refresh(reading); return reading
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
     """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type."""
     clean_rows = list(rows)
