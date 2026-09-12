@@ -92,7 +92,7 @@ def current_state(db: Session, tire_id: int):
 
 
 def _state_from_history(movements):
-    state = {"installed": False, "equipment_id": None, "position_id": None, "movement": None}
+    state = {"installed": False, "equipment_id": None, "position_id": None, "movement": None, "disposition": "stock"}
     for movement in sorted(movements, key=lambda m: (m.movement_date, m.id)):
         if movement.movement_type == "remove":
             state = {"installed": False, "equipment_id": None, "position_id": None, "movement": movement, "disposition": _remove_disposition(movement)}
@@ -134,8 +134,7 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
 
 def _installed_tire_count(db: Session, equipment_id: int, exclude_tire_id: int | None = None, when: date | None = None):
     count = 0
-    tires = db.query(Tire).all()
-    for tire in tires:
+    for tire in db.query(Tire).all():
         if exclude_tire_id is not None and tire.id == exclude_tire_id:
             continue
         state = _tire_state_at(db, tire.id, when) if when is not None else current_state(db, tire.id)
@@ -152,10 +151,7 @@ def _validate_model_capacity(db: Session, equipment_id: int, tire_id: int, movem
     required = int(model.tire_positions_required or 0)
     if required <= 0 or movement_type not in {"install", "move"}:
         return
-    if when is None:
-        installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id)
-    else:
-        installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
+    installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id) if when is None else _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
     if installed >= required:
         raise ValueError(f"تم بلوغ العدد المحدد للإطارات لهذا الطراز ({required}). يجب فك إطار أولًا أو اختيار موضع/عتاد آخر.")
 
@@ -217,6 +213,11 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
     if movement_date > date.today():
         raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
     if db is None:
+        state = current_state(db, tire.id)
+        condition = tire_condition(tire, state)
+        if movement_type == "install" and condition in {"expired", "damaged"}:
+            label = "منتهي الصلاحية" if condition == "expired" else "تالف"
+            raise ValueError(f"لا يمكن تركيب إطار {label}")
         if movement_type in {"install", "move"} and (not equipment_id or not position_id):
             raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب أو النقل")
         return
@@ -383,3 +384,85 @@ def dispose_tire(db: Session, tire_id: int, disposal_date: date, document: str, 
     db.commit()
     db.refresh(obj)
     return obj
+
+
+def tire_condition(tire: Tire, state=None, today: date | None = None):
+    today = today or date.today()
+    if state and state.get("disposition") == "damaged":
+        return "damaged"
+    if state and state.get("disposition") == "expired":
+        return "expired"
+    if tire.expiry_date and tire.expiry_date < today:
+        return "expired"
+    return "good"
+
+
+def tire_location(state):
+    if not state:
+        return "unassigned"
+    return "installed" if state.get("installed") else "stock"
+
+
+def tire_status(tire: Tire, state=None, today: date | None = None):
+    if state and state.get("disposition") == "disposed":
+        return "disposed"
+    condition = tire_condition(tire, state, today=today)
+    if condition in {"damaged", "expired"}:
+        return condition
+    return tire_location(state)
+
+
+def dashboard_stats(db: Session):
+    tires = list_tires(db)
+    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
+    for tire in tires:
+        status = tire_status(tire, current_state(db, tire.id))
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def inventory(db: Session):
+    result = []
+    for tire in list_tires(db):
+        state = current_state(db, tire.id)
+        if state and state.get("disposition") == "disposed":
+            continue
+        if not state or not state["installed"]:
+            result.append({"tire": tire, "state": state, "status": tire_status(tire, state), "condition": tire_condition(tire, state), "location": tire_location(state)})
+    return result
+
+
+def installed_for_equipment(db: Session, equipment_id: int):
+    rows = []
+    for tire in list_tires(db):
+        state = current_state(db, tire.id)
+        if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
+            rows.append({"tire": tire, "state": state, "condition": tire_condition(tire, state), "location": tire_location(state)})
+    return sorted(rows, key=lambda x: (x["state"]["position"].sort_order if x["state"]["position"] else 9999, x["state"]["position"].id if x["state"]["position"] else 9999))
+
+
+def equipment_position_view(db: Session, equipment_id: int):
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return []
+    configured = list_positions(db, equipment.equipment_model_id)
+    mounted = {item["state"]["position"].id: item for item in installed_for_equipment(db, equipment_id) if item["state"]["position"]}
+    result = [{"position": p, "item": mounted.get(p.id)} for p in configured]
+    configured_ids = {p.id for p in configured}
+    for item in mounted.values():
+        if item["state"]["position"].id not in configured_ids:
+            result.append({"position": item["state"]["position"], "item": item})
+    return sorted(result, key=lambda x: (x["position"].axle_number or 9999, x["position"].sort_order, x["position"].id))
+
+
+def movement_history(db: Session, tire_id: int):
+    return _history(db, tire_id)
+
+
+def model_configuration(db: Session, model_id: int):
+    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id == model_id).first()
+    if not model:
+        return None
+    positions = list_positions(db, model_id)
+    sizes = db.query(TireModelSize).filter(TireModelSize.equipment_model_id == model_id).order_by(TireModelSize.size).all()
+    return {"model": model, "positions": positions, "sizes": sizes, "axles": sorted({p.axle_number for p in positions if p.axle_number is not None})}
