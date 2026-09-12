@@ -112,9 +112,17 @@ def _prevent_invalid_meter_update(mapper, connection, target):
 
 @event.listens_for(MeterReading, "after_insert")
 def _audit_meter_insert(mapper, connection, target):
-    # Keep the denormalized current equipment status synchronized with the
-    # status recorded on every reading, including bulk/import paths.
-    if target.equipment_status:
+    # Keep the denormalized current equipment status synchronized only when
+    # this newly inserted reading is actually the latest reading in history.
+    # This preserves historical insertion: an old reading must not overwrite
+    # the current status represented by a newer reading.
+    latest_id = connection.execute(
+        select(MeterReading.id)
+        .where(MeterReading.equipment_id == target.equipment_id)
+        .order_by(MeterReading.reading_date.desc(), MeterReading.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if latest_id == target.id and target.equipment_status:
         connection.execute(
             update(Equipment)
             .where(Equipment.id == target.equipment_id)
