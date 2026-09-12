@@ -60,10 +60,11 @@ def upgrade() -> None:
         sa.UniqueConstraint("equipment_model_id", "property_key", name="uq_master_data_model_property"),
     )
     op.create_index("ix_master_data_model_properties_model", "master_data_model_properties", ["equipment_model_id"])
-    op.add_column("equipment_models", sa.Column("tire_configuration_id", sa.Integer(), nullable=True))
-    op.add_column("equipment_models", sa.Column("battery_configuration_id", sa.Integer(), nullable=True))
-    op.create_foreign_key("fk_equipment_models_tire_configuration", "equipment_models", "master_data_configurations", ["tire_configuration_id"], ["id"], ondelete="SET NULL")
-    op.create_foreign_key("fk_equipment_models_battery_configuration", "equipment_models", "master_data_configurations", ["battery_configuration_id"], ["id"], ondelete="SET NULL")
+    with op.batch_alter_table("equipment_models", recreate="always") as batch_op:
+        batch_op.add_column(sa.Column("tire_configuration_id", sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column("battery_configuration_id", sa.Integer(), nullable=True))
+        batch_op.create_foreign_key("fk_equipment_models_tire_configuration", "master_data_configurations", ["tire_configuration_id"], ["id"], ondelete="SET NULL")
+        batch_op.create_foreign_key("fk_equipment_models_battery_configuration", "master_data_configurations", ["battery_configuration_id"], ["id"], ondelete="SET NULL")
     op.create_index("ix_equipment_models_tire_configuration", "equipment_models", ["tire_configuration_id"])
     op.create_index("ix_equipment_models_battery_configuration", "equipment_models", ["battery_configuration_id"])
 
@@ -71,10 +72,11 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_equipment_models_battery_configuration", table_name="equipment_models")
     op.drop_index("ix_equipment_models_tire_configuration", table_name="equipment_models")
-    op.drop_constraint("fk_equipment_models_battery_configuration", "equipment_models", type_="foreignkey")
-    op.drop_constraint("fk_equipment_models_tire_configuration", "equipment_models", type_="foreignkey")
-    op.drop_column("equipment_models", "battery_configuration_id")
-    op.drop_column("equipment_models", "tire_configuration_id")
+    with op.batch_alter_table("equipment_models", recreate="always") as batch_op:
+        batch_op.drop_constraint("fk_equipment_models_battery_configuration", type_="foreignkey")
+        batch_op.drop_constraint("fk_equipment_models_tire_configuration", type_="foreignkey")
+        batch_op.drop_column("battery_configuration_id")
+        batch_op.drop_column("tire_configuration_id")
     op.drop_index("ix_master_data_model_properties_model", table_name="master_data_model_properties")
     op.drop_table("master_data_model_properties")
     op.drop_index("ix_master_data_configuration_items_config", table_name="master_data_configuration_items")
