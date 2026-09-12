@@ -4,8 +4,7 @@
 {% block content %}
 <style>
 .dashboard-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}
-.dashboard-head h2{margin:0 0 5px}
-.dashboard-muted{color:#667085;font-size:13px}
+.dashboard-head h2{margin:0 0 5px}.dashboard-muted{color:#667085;font-size:13px}
 .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
 .stat-card{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:18px;box-shadow:0 7px 24px rgba(15,23,42,.05)}
 .stat-number{font-size:28px;font-weight:800;color:#172033}.stat-label{margin-top:7px;color:#667085;font-size:13px;font-weight:700}
@@ -15,86 +14,30 @@
 @media(max-width:600px){.dashboard-head{align-items:flex-start;flex-direction:column}}
 </style>
 
-<div class="dashboard-head">
-    <div>
-        <h2>مرحبًا، {{ user.full_name }}</h2>
-        <div class="dashboard-muted">نظرة تشغيلية مختصرة على حالة العتاد والتنبيهات المهمة.</div>
-    </div>
-</div>
+<div class="dashboard-head"><div><h2>مرحبًا، {{ user.full_name }}</h2><div class="dashboard-muted">نظرة تشغيلية مختصرة على حالة العتاد والتنبيهات المهمة.</div></div></div>
 
 <div class="cards-grid">
-    <div class="stat-card">
-        <div class="stat-number">{{ total_equipment }}</div>
-        <div class="stat-label">إجمالي العتاد</div>
-    </div>
-    {% for status, count in status_counts.items() %}
-    <div class="stat-card">
-        <div class="stat-number">{{ count }}</div>
-        <div class="stat-label">{{ status }}</div>
-    </div>
-    {% endfor %}
-    <div class="stat-card">
-        <div class="stat-number">{{ expired_tires|length }}</div>
-        <div class="stat-label">إطارات مركبة منتهية الصلاحية</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-number">{{ expired_batteries|length }}</div>
-        <div class="stat-label">بطاريات مركبة منتهية الصلاحية</div>
-    </div>
+    <div class="stat-card"><div class="stat-number">{{ total_equipment }}</div><div class="stat-label">إجمالي العتاد</div></div>
+    {% for status, count in status_counts.items() %}<div class="stat-card"><div class="stat-number">{{ count }}</div><div class="stat-label">{{ status }}</div></div>{% endfor %}
+    <div class="stat-card"><div class="stat-number">{{ expired_tires|length }}</div><div class="stat-label">إطارات مركبة مستحقة للاستبدال</div></div>
+    <div class="stat-card"><div class="stat-number">{{ expired_batteries|length }}</div><div class="stat-label">بطاريات مركبة مستحقة للاستبدال</div></div>
 </div>
 
 <section class="dashboard-panel">
-    <h3>الإطارات المركبة المنتهية الصلاحية</h3>
-    <div class="panel-hint">يعرض الجدول الإطارات المنتهية وهي مركبة حاليًا على العتاد، وليس كل الإطارات المنتهية في المخزون.</div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr><th>الرقم التسلسلي</th><th>العتاد</th><th>الموضع</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>السجل</th></tr>
-            </thead>
-            <tbody>
-            {% for item in expired_tires %}
-                <tr>
-                    <td><b>{{ item.tire.serial_number }}</b></td>
-                    <td>{{ item.equipment.registration_number if item.equipment else '-' }}</td>
-                    <td>{{ item.position.name if item.position else '-' }}</td>
-                    <td>{{ item.tire.expiry_date or '-' }}</td>
-                    <td><span class="badge">منتهي الصلاحية</span></td>
-                    <td><a href="/tires/{{ item.tire.id }}">فتح السجل ←</a></td>
-                </tr>
-            {% else %}
-                <tr><td class="empty" colspan="6">لا توجد إطارات مركبة منتهية الصلاحية حاليًا.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <h3>الإطارات المركبة المستحقة للاستبدال</h3>
+    <div class="panel-hint">يعرض الجدول الإطارات المستحقة وهي مركبة حاليًا على العتاد، وليس كل الإطارات الموجودة في المخزون.</div>
+    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>الموضع</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>السجل</th></tr></thead><tbody>
+    {% for item in expired_tires %}<tr><td><b>{{ item.tire.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.position.name if item.position else '-' }}</td><td>{{ item.tire.expiry_date or '-' }}</td><td><span class="badge">مستحقة للاستبدال</span></td><td><a href="/tires/{{ item.tire.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="6">لا توجد إطارات مركبة مستحقة للاستبدال حاليًا.</td></tr>{% endfor %}
+    </tbody></table></div>
 </section>
 
 <section class="dashboard-panel">
-    <h3>البطاريات المركبة المنتهية الصلاحية</h3>
-    <div class="panel-hint">يعرض الجدول البطاريات المنتهية وهي مركبة حاليًا على العتاد فقط.</div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr><th>الرقم التسلسلي</th><th>العتاد</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>السجل</th></tr>
-            </thead>
-            <tbody>
-            {% for item in expired_batteries %}
-                <tr>
-                    <td><b>{{ item.battery.serial_number }}</b></td>
-                    <td>{{ item.equipment.registration_number if item.equipment else '-' }}</td>
-                    <td>{{ item.battery.expiry_date or '-' }}</td>
-                    <td><span class="badge">منتهي الصلاحية</span></td>
-                    <td><a href="/batteries/{{ item.battery.id }}">فتح السجل ←</a></td>
-                </tr>
-            {% else %}
-                <tr><td class="empty" colspan="5">لا توجد بطاريات مركبة منتهية الصلاحية حاليًا.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <h3>البطاريات المركبة المستحقة للاستبدال</h3>
+    <div class="panel-hint">الحالة هنا محسوبة آليًا من قاعدة الاستبدال العامة وتاريخ أول سير للعتاد عند انطباق الاستثناء. لا تعتمد على تاريخ انتهاء يدوي قديم.</div>
+    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>موعد الاستبدال</th><th>الحالة</th><th>السجل</th></tr></thead><tbody>
+    {% for item in expired_batteries %}<tr><td><b>{{ item.battery.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.due_date or '-' }}</td><td><span class="badge">مستحقة للاستبدال</span></td><td><a href="/batteries/{{ item.battery.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="5">لا توجد بطاريات مركبة مستحقة للاستبدال حاليًا.</td></tr>{% endfor %}
+    </tbody></table></div>
 </section>
 
-<div class="dashboard-panel">
-    <p class="dashboard-muted">تُضاف مؤشرات الوحدات الأخرى إلى لوحة التحكم تدريجيًا دون نقل منطقها إلى Dashboard.</p>
-</div>
+<div class="dashboard-panel"><p class="dashboard-muted">تُضاف مؤشرات الوحدات الأخرى إلى لوحة التحكم تدريجيًا دون نقل منطقها إلى Dashboard.</p></div>
 {% endblock %}
