@@ -1,10 +1,8 @@
 """
 modules/dashboard/router.py
 ------------------------------
-لوحة التحكم لا تملك بياناتها الخاصة - هي فقط "تجمّع" مؤشرات من خدمات
-الوحدات الأخرى (equipment الآن، وlaحقًا maintenance, fuel, faults...).
-هذا يحافظ على مبدأ استقلالية الوحدات: dashboard يستدعي services الجاهزة
-لكل وحدة، ولا يكتب استعلامات SQL خاصة به على جداول وحدات أخرى.
+لوحة التحكم تجمع مؤشرات الوحدات من خدماتها، مع إبقاء منطق البيانات داخل
+الوحدات المالكة لها.
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -15,6 +13,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services as equipment_services
+from app.modules.tires import services as tire_services
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -31,6 +30,29 @@ def dashboard_page(
     total_equipment = sum(status_counts.values())
     broken_count = equipment_services.count_broken(db)
 
+    # Dashboard display uses the current state only. Historical validation is
+    # handled by the tire service at the operation date.
+    expired_tires = []
+    for tire in tire_services.list_tires(db):
+        state = tire_services.current_state(db, tire.id)
+        if state and state.get("installed") and tire_services.tire_condition(tire, state) == "expired":
+            equipment = state.get("equipment")
+            position = state.get("position")
+            expired_tires.append(
+                {
+                    "tire": tire,
+                    "equipment": equipment,
+                    "position": position,
+                }
+            )
+    expired_tires.sort(
+        key=lambda item: (
+            item["equipment"].registration_number if item["equipment"] else "",
+            item["position"].sort_order if item["position"] else 9999,
+            item["tire"].serial_number,
+        )
+    )
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -39,5 +61,6 @@ def dashboard_page(
             "total_equipment": total_equipment,
             "status_counts": status_counts,
             "broken_count": broken_count,
+            "expired_tires": expired_tires,
         },
     )
