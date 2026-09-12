@@ -17,6 +17,7 @@ from app.modules.users.models import User
 from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
+from app.modules.tires import services as tire_services
 router = APIRouter(); templates = get_module_templates("app/modules/equipment/templates")
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -81,7 +82,8 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
 def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
-    return templates.TemplateResponse("equipment_detail.html",{"request":request,"item":item,"user":current_user})
+    installed_tires=tire_services.installed_for_equipment(db,equipment_id)
+    return templates.TemplateResponse("equipment_detail.html",{"request":request,"item":item,"user":current_user,"installed_tires":installed_tires})
 @router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
 def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
