@@ -324,8 +324,14 @@ def add_position(db: Session, equipment_model_id: int, axle_number: int, side: s
     model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
     if not model:
         raise ValueError("الطراز غير موجود")
+    if not model.has_tires:
+        raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")
     if axle_number < 1 or side not in SIDES or position_type not in POSITION_TYPES:
         raise ValueError("بيانات موضع الإطار غير صالحة")
+    required = int(model.tire_positions_required or 0)
+    configured_count = db.query(TirePosition).filter(TirePosition.equipment_model_id == equipment_model_id).count()
+    if required > 0 and configured_count >= required:
+        raise ValueError(f"تم بلوغ العدد المحدد لمواضع الإطارات لهذا الطراز ({required}).")
     if db.query(TirePosition).filter(TirePosition.equipment_model_id == equipment_model_id, TirePosition.axle_number == axle_number, TirePosition.side == side, TirePosition.position_type == position_type).first():
         raise ValueError("هذا الموضع موجود مسبقًا لهذا الطراز")
     code = f"M{equipment_model_id}-A{axle_number}-{side}-{position_type}"
