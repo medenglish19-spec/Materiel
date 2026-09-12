@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from app.database.session import get_db
 from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
+from app.modules.equipment_types.master_data_import import import_master_data
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -19,6 +20,25 @@ def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),cu
     models=services.list_models(db)
     counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
     return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
+@router.get("/equipment-types/master-data",response_class=HTMLResponse)
+def master_data_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user})
+@router.post("/equipment-types/master-data",response_class=HTMLResponse)
+async def master_data_import_form(request:Request,file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"يرجى اختيار ملف Excel بصيغة .xlsx"},status_code=400)
+    content=await file.read()
+    if not content:
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"الملف فارغ"},status_code=400)
+    try:
+        result=import_master_data(db,content)
+    except ValueError as exc:
+        db.rollback()
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":str(exc)},status_code=400)
+    except Exception:
+        db.rollback()
+        raise
+    return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"result":result})
 @router.post("/equipment-types/demo")
 def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/demo/delete")
