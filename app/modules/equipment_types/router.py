@@ -10,7 +10,8 @@ from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.master_data_import import import_master_data
-from app.modules.equipment_types.master_data_editor import get_editor_data, save_editor_data
+from app.modules.equipment_types.master_data_editor import get_editor_data
+from app.modules.equipment_types.master_data_editor_transaction import save_editor_data
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -110,7 +111,7 @@ def create_brand_form(name:str=Form(...),db:Session=Depends(get_db),current_user
 @router.post("/equipment-types/models/create")
 def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:
-        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
+        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
     except (ValueError,TypeError):pass
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/{model_id}/brand")
