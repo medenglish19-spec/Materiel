@@ -33,6 +33,8 @@ class Equipment(Base, AuditMixin):
     )
 
     acquisition_date = Column(Date, nullable=True)
+    # تاريخ أول سير/بدء الاستغلال الفعلي للعتاد. لا يُستنتج من تاريخ الاقتناء.
+    first_service_date = Column(Date, nullable=True)
 
     technical_condition = Column(String(20), nullable=False, default="ready")
     operational_status = Column(String(30), nullable=False, default="available")
