@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 
 def sync_model_configuration_fields(db: Session) -> None:
-    """Keep legacy/current model fields populated from the new master configurations."""
+    """Keep legacy/current model fields populated and materialize tire positions."""
     db.execute(text("""
         UPDATE equipment_models
         SET has_tires = 1,
@@ -24,6 +24,7 @@ def sync_model_configuration_fields(db: Session) -> None:
             ), 0)
         WHERE battery_configuration_id IS NOT NULL
     """))
+    materialize_tire_positions(db)
 
 
 def materialize_tire_positions(db: Session) -> None:
