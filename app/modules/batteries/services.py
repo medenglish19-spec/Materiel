@@ -20,21 +20,74 @@ def current_state(db: Session, battery_id: int):
     return {"movement": movement, "installed": movement.movement_type in {"install", "move"} and movement.equipment_id is not None, "equipment": movement.equipment}
 
 
-def _installed_battery_count(db: Session, equipment_id: int, exclude_battery_id: int | None = None) -> int:
-    """Count batteries currently installed on an equipment item.
+def _state_from_history(movements):
+    state = {"installed": False, "equipment_id": None, "movement": None}
+    for movement in sorted(movements, key=lambda m: (m.movement_date, m.id)):
+        if movement.movement_type == "remove":
+            state = {"installed": False, "equipment_id": None, "movement": movement}
+        elif movement.movement_type in {"install", "move"}:
+            state = {"installed": True, "equipment_id": movement.equipment_id, "movement": movement}
+    return state
 
-    The allowed quantity comes from the equipment model in Master Data.
-    This keeps battery capacity rules centralized at model level instead of
-    asking the user to configure the same quantity for every vehicle.
-    """
+
+def _state_at(db: Session, battery_id: int, when: date, extra=None):
+    movements = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery_id, BatteryMovement.movement_date <= when).all()
+    if extra is not None:
+        movements.append(extra)
+    return _state_from_history(movements)
+
+
+def _installed_battery_count(db: Session, equipment_id: int, exclude_battery_id: int | None = None, when: date | None = None) -> int:
+    """Count batteries installed on equipment at a point in history."""
     count = 0
     for battery in db.query(Battery).all():
         if exclude_battery_id is not None and battery.id == exclude_battery_id:
             continue
-        state = current_state(db, battery.id)
-        if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
+        state = _state_at(db, battery.id, when) if when is not None else current_state(db, battery.id)
+        if state and state["installed"] and state["equipment_id"] == equipment_id:
             count += 1
     return count
+
+
+def _validate_meter_history(movements):
+    previous_equipment_id = None
+    previous = None
+    for movement in sorted(movements, key=lambda m: (m.movement_date, m.id)):
+        if movement.movement_type == "remove":
+            previous_equipment_id = None
+            previous = None
+            continue
+        if movement.meter_value is None or movement.equipment_id is None:
+            continue
+        value = Decimal(str(movement.meter_value))
+        if previous_equipment_id == movement.equipment_id and previous is not None and value < previous:
+            raise ValueError("قراءات عداد حركات البطارية غير متوافقة مع التسلسل الزمني للعتاد")
+        previous_equipment_id = movement.equipment_id
+        previous = value
+
+
+def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
+    if meter_value is None:
+        return
+    readings = []
+    # Keep the check historical: only readings on or around the movement date
+    # constrain a backdated movement; the current odometer remains a present-day upper bound.
+    from app.modules.meter_readings.models import MeterReading
+    rows = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
+    for reading in rows:
+        value = reading.odometer if reading.odometer is not None else reading.hours
+        if value is not None:
+            reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
+            readings.append((reading_date, Decimal(str(value))))
+    before = [value for d, value in readings if d <= movement_date]
+    after = [value for d, value in readings if d >= movement_date]
+    if before and meter_value < before[-1]:
+        raise ValueError("قراءة العداد أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
+    if after and meter_value > after[0]:
+        raise ValueError("قراءة العداد أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if equipment and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
+        raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
 
 
 def validate_movement(db: Session, battery: Battery, movement_type: str, movement_date: date, equipment_id: int | None, meter_value: Decimal | None):
@@ -42,45 +95,61 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
         raise ValueError("نوع حركة البطارية غير صالح")
     if movement_date > date.today():
         raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
-    state = current_state(db, battery.id)
-    installed = bool(state and state["installed"])
-    if movement_type == "install" and installed:
-        raise ValueError("البطارية مركبة بالفعل")
-    if movement_type in {"move", "remove"} and not installed:
-        raise ValueError("لا يمكن نقل أو فك بطارية غير مركبة")
-    if movement_type in {"install", "move"}:
-        if not equipment_id:
+    if db is None:
+        if movement_type in {"install", "move"} and not equipment_id:
             raise ValueError("العتاد مطلوب عند تركيب أو نقل البطارية")
-        equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-        if not equipment:
-            raise ValueError("العتاد غير موجود")
+        return
 
-        # Master Data rule: a model defines how many batteries its equipment
-        # is designed to carry. Keep legacy models without a configured count
-        # at the existing one-battery limit.
-        required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
-        installed_count = _installed_battery_count(db, equipment_id, exclude_battery_id=battery.id)
-        if installed_count >= required_count:
-            if required_count == 1:
-                raise ValueError("العتاد لديه بطارية مركبة بالفعل")
-            raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count})")
-    else:
-        equipment_id = None
-    last = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery.id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).first()
-    if last and movement_date < last.movement_date:
-        raise ValueError("تاريخ الحركة لا يمكن أن يسبق آخر حركة")
-    if meter_value is not None and last and last.meter_value is not None and meter_value < last.meter_value:
-        raise ValueError("قراءة العداد لا يمكن أن تقل عن القراءة السابقة")
-    if movement_type in {"install", "move"} and equipment_id:
-        equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-        if meter_value is not None and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-            raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
+    existing = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery.id).order_by(BatteryMovement.movement_date.asc(), BatteryMovement.id.asc()).all()
+    synthetic_id = max((m.id for m in existing), default=0) + 1
+    candidate = BatteryMovement(id=synthetic_id, battery_id=battery.id, movement_date=movement_date, movement_type=movement_type, equipment_id=equipment_id, meter_value=meter_value)
+    timeline = sorted(existing + [candidate], key=lambda m: (m.movement_date, m.id))
+    _validate_meter_history(timeline)
+
+    state_at = {"installed": False, "equipment_id": None}
+    for movement in timeline:
+        if movement.movement_type == "install":
+            if state_at["installed"]:
+                raise ValueError("التسلسل التاريخي غير صالح: البطارية مركبة بالفعل قبل عملية التركيب")
+            if not movement.equipment_id:
+                raise ValueError("العتاد مطلوب عند التركيب")
+            if battery.expiry_date and movement.movement_date > battery.expiry_date:
+                raise ValueError("لا يمكن تركيب بطارية منتهية الصلاحية في تاريخ الحركة المحدد")
+            equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
+            if not equipment:
+                raise ValueError("العتاد غير موجود")
+            required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
+            installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
+            if installed_count >= required_count:
+                if required_count == 1:
+                    raise ValueError("العتاد لديه بطارية مركبة بالفعل في التاريخ المحدد")
+                raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
+            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            state_at = {"installed": True, "equipment_id": movement.equipment_id}
+        elif movement.movement_type == "move":
+            if not state_at["installed"]:
+                raise ValueError("لا يمكن نقل بطارية غير مركبة في التاريخ المحدد")
+            if not movement.equipment_id:
+                raise ValueError("العتاد مطلوب عند النقل")
+            if battery.expiry_date and movement.movement_date > battery.expiry_date:
+                raise ValueError("لا يمكن نقل بطارية منتهية الصلاحية في تاريخ الحركة المحدد")
+            equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
+            if not equipment:
+                raise ValueError("العتاد غير موجود")
+            required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
+            installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
+            if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
+                raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
+            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            state_at = {"installed": True, "equipment_id": movement.equipment_id}
+        elif movement.movement_type == "remove":
+            if not state_at["installed"]:
+                raise ValueError("لا يمكن فك بطارية غير مركبة في التاريخ المحدد")
+            state_at = {"installed": False, "equipment_id": None}
 
 
 def add_battery(db: Session, data: dict):
     data = dict(data)
-    # Excel logic: default service life is 2 years, calculated from manufacture
-    # date, or from receipt date when manufacture date is unavailable.
     if data.get("expiry_date") is None:
         base = data.get("manufacture_date") or data.get("receipt_date")
         if base:
@@ -115,10 +184,6 @@ def status(battery: Battery, state):
         return "expired"
     if not state:
         return "unassigned"
-
-    # current_state() supplies the movement object, while lightweight callers
-    # and existing tests may provide only the derived installed flag. Support
-    # both representations without changing the source-of-truth model.
     movement = state.get("movement") if isinstance(state, dict) else None
     if movement and movement.movement_type == "remove":
         reason = (movement.reason or "").strip().lower()
@@ -126,7 +191,6 @@ def status(battery: Battery, state):
             return "damaged"
         if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
             return "expired"
-
     if state.get("installed"):
         return "installed"
     return "stock"
