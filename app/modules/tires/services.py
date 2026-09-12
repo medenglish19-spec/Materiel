@@ -115,10 +115,37 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
         raise ValueError("العتاد أو موضع الإطار غير موجود")
     if position.equipment_model_id is not None and position.equipment_model_id != equipment.equipment_model_id:
         raise ValueError("موضع الإطار لا ينتمي إلى طراز العتاد المحدد")
+    model = equipment.equipment_model
+    if model is None:
+        raise ValueError("لا يمكن تركيب الإطار على عتاد لا يرتبط بطراز")
     sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all()}
     if sizes and (not tire.size or tire.size.strip().lower() not in sizes):
         raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")
     return equipment, position
+
+
+def _installed_tire_count(db: Session, equipment_id: int, exclude_tire_id: int | None = None):
+    count = 0
+    for tire in list_tires(db):
+        if exclude_tire_id is not None and tire.id == exclude_tire_id:
+            continue
+        state = current_state(db, tire.id)
+        if state and state.get("installed") and state.get("equipment") and state["equipment"].id == equipment_id:
+            count += 1
+    return count
+
+
+def _validate_model_capacity(db: Session, equipment_id: int, tire_id: int, movement_type: str):
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment or equipment.equipment_model is None:
+        raise ValueError("لا يمكن تركيب الإطار على عتاد لا يرتبط بطراز")
+    model = equipment.equipment_model
+    required = int(model.tire_positions_required or 0)
+    if required <= 0 or movement_type not in {"install", "move"}:
+        return
+    installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id)
+    if installed >= required:
+        raise ValueError(f"تم بلوغ العدد المحدد للإطارات لهذا الطراز ({required}). يجب فك إطار أولًا أو اختيار موضع/عتاد آخر.")
 
 
 def _position_occupied_at(db: Session, equipment_id: int, position_id: int, when: date, exclude_tire_id: int | None = None, extra=None):
@@ -177,10 +204,6 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
         raise ValueError("نوع حركة الإطار غير صالح")
     if movement_date > date.today():
         raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
-
-    # Keep the direct service contract safe even for callers/tests that do not
-    # provide a database session, while using the full historical validation
-    # whenever a real session is available.
     state = current_state(db, tire.id)
     installed = bool(state and state.get("installed"))
     condition = tire_condition(tire, state)
@@ -216,6 +239,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
+            _validate_model_capacity(db, equipment.id, tire.id, "install")
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
             if _position_occupied_at(db, equipment.id, movement.position_id, movement.movement_date, tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار مشغول بإطار آخر في التاريخ المحدد")
@@ -226,6 +250,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند النقل")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
+            _validate_model_capacity(db, equipment.id, tire.id, "move")
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
             if _position_occupied_at(db, equipment.id, movement.position_id, movement.movement_date, tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار الهدف مشغول بإطار آخر في التاريخ المحدد")
