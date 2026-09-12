@@ -1,12 +1,42 @@
+import calendar
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.modules.batteries.models import Battery, BatteryMovement
+from app.modules.batteries.models import Battery, BatteryMovement, BatterySystemSetting
 from app.modules.equipment.models import Equipment
 
 MOVEMENT_TYPES = {"install", "move", "remove"}
+
+
+def _add_years(value: date, years: int) -> date:
+    day = min(value.day, calendar.monthrange(value.year + years, value.month)[1])
+    return date(value.year + years, value.month, day)
+
+
+def get_validity_years(db: Session) -> int:
+    setting = db.query(BatterySystemSetting).filter(BatterySystemSetting.id == 1).first()
+    if setting is None:
+        setting = BatterySystemSetting(id=1, validity_years=2)
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting.validity_years
+
+
+def set_validity_years(db: Session, years: int):
+    if years < 1 or years > 100:
+        raise ValueError("مدة صلاحية البطاريات يجب أن تكون بين سنة واحدة و100 سنة")
+    setting = db.query(BatterySystemSetting).filter(BatterySystemSetting.id == 1).first()
+    if setting is None:
+        setting = BatterySystemSetting(id=1, validity_years=years)
+        db.add(setting)
+    else:
+        setting.validity_years = years
+    db.commit()
+    db.refresh(setting)
+    return setting
 
 
 def list_batteries(db: Session):
@@ -70,8 +100,6 @@ def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: dat
     if meter_value is None:
         return
     readings = []
-    # Keep the check historical: only readings on or around the movement date
-    # constrain a backdated movement; the current odometer remains a present-day upper bound.
     from app.modules.meter_readings.models import MeterReading
     rows = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
     for reading in rows:
@@ -88,6 +116,36 @@ def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: dat
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if equipment and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
         raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
+
+
+def _equipment_age_below_limit(equipment: Equipment | None, when: date, years: int) -> bool:
+    first_service = getattr(equipment, "first_service_date", None) if equipment else None
+    return bool(first_service and when < _add_years(first_service, years))
+
+
+def _general_expiry_date(battery: Battery, years: int) -> date | None:
+    base = battery.manufacture_date or battery.receipt_date
+    return _add_years(base, years) if base else None
+
+
+def _expired_at(db: Session, battery: Battery, equipment: Equipment | None, when: date) -> bool:
+    years = get_validity_years(db)
+    # Exceptional new/zero-km equipment rule: while the equipment has not yet
+    # reached the configured battery life from its first service date, age alone
+    # cannot authorize battery replacement.
+    if _equipment_age_below_limit(equipment, when, years):
+        return False
+    expiry = _general_expiry_date(battery, years)
+    return bool(expiry and when > expiry)
+
+
+def replacement_due_date(db: Session, battery: Battery, equipment: Equipment | None = None) -> date | None:
+    years = get_validity_years(db)
+    if equipment and getattr(equipment, "first_service_date", None):
+        first_service_due = _add_years(equipment.first_service_date, years)
+        if date.today() < first_service_due:
+            return first_service_due
+    return _general_expiry_date(battery, years)
 
 
 def validate_movement(db: Session, battery: Battery, movement_type: str, movement_date: date, equipment_id: int | None, meter_value: Decimal | None):
@@ -113,11 +171,11 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
                 raise ValueError("التسلسل التاريخي غير صالح: البطارية مركبة بالفعل قبل عملية التركيب")
             if not movement.equipment_id:
                 raise ValueError("العتاد مطلوب عند التركيب")
-            if battery.expiry_date and movement.movement_date > battery.expiry_date:
-                raise ValueError("لا يمكن تركيب بطارية منتهية الصلاحية في تاريخ الحركة المحدد")
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
+            if _expired_at(db, battery, equipment, movement.movement_date):
+                raise ValueError("لا يمكن تركيب بطارية انتهت مدة صلاحيتها وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count:
@@ -131,11 +189,11 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
                 raise ValueError("لا يمكن نقل بطارية غير مركبة في التاريخ المحدد")
             if not movement.equipment_id:
                 raise ValueError("العتاد مطلوب عند النقل")
-            if battery.expiry_date and movement.movement_date > battery.expiry_date:
-                raise ValueError("لا يمكن نقل بطارية منتهية الصلاحية في تاريخ الحركة المحدد")
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
+            if _expired_at(db, battery, equipment, movement.movement_date):
+                raise ValueError("لا يمكن نقل بطارية انتهت مدة صلاحيتها وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
@@ -150,14 +208,9 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
 
 def add_battery(db: Session, data: dict):
     data = dict(data)
-    if data.get("expiry_date") is None:
-        base = data.get("manufacture_date") or data.get("receipt_date")
-        if base:
-            try:
-                from dateutil.relativedelta import relativedelta
-                data["expiry_date"] = base + relativedelta(years=2)
-            except Exception:
-                data["expiry_date"] = date(base.year + 2, base.month, base.day)
+    # expiry_date is retained on the legacy table for backward compatibility,
+    # but new records no longer receive a manually entered or hard-coded expiry.
+    data.pop("expiry_date", None)
     battery = Battery(**data)
     db.add(battery)
     db.commit()
@@ -179,11 +232,7 @@ def add_movement(db: Session, battery_id: int, data: dict):
     return movement
 
 
-def status(battery: Battery, state):
-    if battery.expiry_date and battery.expiry_date < date.today():
-        return "expired"
-    if not state:
-        return "unassigned"
+def status(battery: Battery, state, equipment: Equipment | None = None, db: Session | None = None):
     movement = state.get("movement") if isinstance(state, dict) else None
     if movement and movement.movement_type == "remove":
         reason = (movement.reason or "").strip().lower()
@@ -191,6 +240,14 @@ def status(battery: Battery, state):
             return "damaged"
         if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
             return "expired"
+    if db is not None and state and state.get("installed"):
+        target = equipment or state.get("equipment")
+        if _expired_at(db, battery, target, date.today()):
+            return "expired"
+    elif db is None and battery.expiry_date and battery.expiry_date < date.today():
+        return "expired"
+    if not state:
+        return "unassigned"
     if state.get("installed"):
         return "installed"
     return "stock"
@@ -200,6 +257,6 @@ def stats(db: Session):
     counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
     for battery in list_batteries(db):
         counts["total"] += 1
-        key = status(battery, current_state(db, battery.id))
+        key = status(battery, current_state(db, battery.id), db=db)
         counts[key] += 1
     return counts
