@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
-from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
+from app.modules.equipment_types.master_data_import import import_master_data
+from app.modules.equipment_types.master_data_editor_transaction import get_editor_data_safe, save_editor_data
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -19,13 +20,45 @@ def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),cu
     models=services.list_models(db)
     counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
     return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
-@router.post("/equipment-types/demo")
-def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
-@router.post("/equipment-types/demo/delete")
-def delete_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:demo.delete_demo_classification(db)
-    except ValueError as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types",status_code=302)
+@router.get("/equipment-types/master-data",response_class=HTMLResponse)
+def master_data_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    models=services.list_models(db)
+    return templates.TemplateResponse("master_data_editor.html",{"request":request,"models":models,"selected_model_id":models[0].id if models else None,"user":current_user})
+@router.get("/equipment-types/master-data/{model_id}/data")
+def master_data_editor_data(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:return JSONResponse(get_editor_data_safe(db,model_id))
+    except ValueError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+@router.post("/equipment-types/master-data/{model_id}/data")
+async def master_data_editor_save(model_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:
+        payload=await request.json()
+        if not isinstance(payload,dict):raise ValueError("بيانات الحفظ غير صحيحة.")
+        return JSONResponse(save_editor_data(db,model_id,payload))
+    except ValueError as exc:
+        db.rollback();raise HTTPException(status_code=400,detail=str(exc)) from exc
+    except Exception:
+        db.rollback();raise
+@router.get("/equipment-types/master-data/import",response_class=HTMLResponse)
+def master_data_import_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user})
+@router.post("/equipment-types/master-data/import",response_class=HTMLResponse)
+@router.post("/equipment-types/master-data",response_class=HTMLResponse)
+async def master_data_import_form(request:Request,file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"يرجى اختيار ملف Excel بصيغة .xlsx"},status_code=400)
+    content=await file.read()
+    if not content:
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"الملف فارغ"},status_code=400)
+    try:
+        result=import_master_data(db,content)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":str(exc)},status_code=400)
+    except Exception:
+        db.rollback()
+        raise
+    return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"result":result})
 @router.post("/equipment-types/categories/create")
 def create_category_form(name:str=Form(...),code:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_category(db,EquipmentCategoryCreate(name=name,code=code or None))
