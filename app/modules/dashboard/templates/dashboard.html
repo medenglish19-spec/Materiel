@@ -2,7 +2,25 @@
 {% block title %}لوحة التحكم{% endblock %}
 
 {% block content %}
-<h2>مرحبًا، {{ user.full_name }}</h2>
+<style>
+.dashboard-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}
+.dashboard-head h2{margin:0 0 5px}
+.dashboard-muted{color:#667085;font-size:13px}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
+.stat-card{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:18px;box-shadow:0 7px 24px rgba(15,23,42,.05)}
+.stat-number{font-size:28px;font-weight:800;color:#172033}.stat-label{margin-top:7px;color:#667085;font-size:13px;font-weight:700}
+.dashboard-panel{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:20px;margin-top:18px;box-shadow:0 7px 24px rgba(15,23,42,.05)}
+.dashboard-panel h3{margin:0 0 5px}.panel-hint{color:#667085;font-size:12px;margin-bottom:15px}
+.table-wrap{overflow-x:auto;border:1px solid #e5e9f0;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:650px}th,td{padding:12px;text-align:right;border-bottom:1px solid #edf0f4}th{background:#f8fafc;color:#667085;font-size:12px}tbody tr:last-child td{border-bottom:0}.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#fff1f1;color:#9f2d2d;font-size:12px;font-weight:800}.empty{padding:24px!important;text-align:center;color:#667085}
+@media(max-width:600px){.dashboard-head{align-items:flex-start;flex-direction:column}}
+</style>
+
+<div class="dashboard-head">
+    <div>
+        <h2>مرحبًا، {{ user.full_name }}</h2>
+        <div class="dashboard-muted">نظرة تشغيلية مختصرة على حالة العتاد والتنبيهات المهمة.</div>
+    </div>
+</div>
 
 <div class="cards-grid">
     <div class="stat-card">
@@ -15,10 +33,39 @@
         <div class="stat-label">{{ status }}</div>
     </div>
     {% endfor %}
+    <div class="stat-card">
+        <div class="stat-number">{{ expired_tires|length }}</div>
+        <div class="stat-label">إطارات مركبة منتهية الصلاحية</div>
+    </div>
 </div>
 
-<div class="card">
-    <p>هذه لوحة تحكم أولية. الوحدات القادمة (الصيانة، الوقود، الأعطال، المهمات)
-    ستضيف مؤشراتها وتنبيهاتها هنا تلقائيًا دون أي تعديل على الوحدات الحالية.</p>
+<section class="dashboard-panel">
+    <h3>الإطارات المركبة المنتهية الصلاحية</h3>
+    <div class="panel-hint">يعرض الجدول الإطارات المنتهية وهي مركبة حاليًا على العتاد، وليس كل الإطارات المنتهية في المخزون.</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr><th>الرقم التسلسلي</th><th>العتاد</th><th>الموضع</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>السجل</th></tr>
+            </thead>
+            <tbody>
+            {% for item in expired_tires %}
+                <tr>
+                    <td><b>{{ item.tire.serial_number }}</b></td>
+                    <td>{{ item.equipment.registration_number if item.equipment else '-' }}</td>
+                    <td>{{ item.position.name if item.position else '-' }}</td>
+                    <td>{{ item.tire.expiry_date or '-' }}</td>
+                    <td><span class="badge">منتهي الصلاحية</span></td>
+                    <td><a href="/tires/{{ item.tire.id }}">فتح السجل ←</a></td>
+                </tr>
+            {% else %}
+                <tr><td class="empty" colspan="6">لا توجد إطارات مركبة منتهية الصلاحية حاليًا.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="dashboard-panel">
+    <p class="dashboard-muted">تُضاف مؤشرات الوحدات الأخرى إلى لوحة التحكم تدريجيًا دون نقل منطقها إلى Dashboard.</p>
 </div>
 {% endblock %}
