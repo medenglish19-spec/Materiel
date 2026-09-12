@@ -1,0 +1,85 @@
+name: Apply tire fixes
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, 'Apply tire fixes')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Patch tire services and UI
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/modules/tires/services.py')
+          s = p.read_text(encoding='utf-8')
+          old = '''    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all()}\n    if sizes and (not tire.size or tire.size.strip().lower() not in sizes):\n        raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")\n'''
+          new = '''    sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all() if s.size and s.size.strip()}\n    model_size = (model.tire_size or "").strip().lower() if getattr(model, "tire_size", None) else ""\n    tire_size = (tire.size or "").strip().lower() if tire.size else ""\n    if sizes:\n        if not tire_size or tire_size not in sizes:\n            raise ValueError("مقاس الإطار غير معتمد لهذا الطراز")\n    elif model_size:\n        if not tire_size or tire_size != model_size:\n            raise ValueError("مقاس الإطار غير مطابق للمقاس المعتمد لهذا الطراز")\n    else:\n        raise ValueError("لا يمكن تركيب الإطار: لم يتم تحديد أي مقاس إطار معتمد لهذا الطراز في Master Data. يرجى إضافة المقاس المعتمد للطراز قبل إجراء عملية التركيب.")\n'''
+          if old not in s: raise SystemExit('size validation block not found')
+          s = s.replace(old, new, 1)
+          old = '''    state = current_state(db, tire.id)\n    installed = bool(state and state.get("installed"))\n    condition = tire_condition(tire, state)\n    if movement_type == "install" and installed:\n        raise ValueError("الإطار مركب بالفعل؛ استخدم نقلًا أو فكًا")\n    if movement_type == "move" and not installed:\n        raise ValueError("لا يمكن نقل إطار غير مركب")\n    if movement_type == "remove" and not installed:\n        raise ValueError("لا يمكن فك إطار غير مركب")\n    if movement_type in {"install", "move"} and condition in {"expired", "damaged"}:\n        label = "منتهي الصلاحية" if condition == "expired" else "تالف"\n        raise ValueError(f"لا يمكن {('تركيب' if movement_type == 'install' else 'نقل')} إطار {label}")\n    if db is None:\n'''
+          new = '''    if db is None:\n'''
+          if old not in s: raise SystemExit('current-state precheck block not found')
+          s = s.replace(old, new, 1)
+          old = '''    if db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first():\n        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة جديدة له")\n'''
+          new = '''    disposal = db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first()\n    if disposal and disposal.disposal_date <= movement_date:\n        raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة بتاريخ الإخراج أو بعده")\n'''
+          if old not in s: raise SystemExit('disposal block not found')
+          s = s.replace(old, new, 1)
+          marker = '''    state_at = {"installed": False, "equipment_id": None, "position_id": None}\n'''
+          replacement = '''    state_at = {"installed": False, "equipment_id": None, "position_id": None}\n    if tire.expiry_date and movement_type in {"install", "move"} and movement_date > tire.expiry_date:\n        raise ValueError("لا يمكن تركيب أو نقل إطار منتهي الصلاحية في تاريخ الحركة المحدد")\n'''
+          if marker not in s: raise SystemExit('timeline marker not found')
+          s = s.replace(marker, replacement, 1)
+          p.write_text(s, encoding='utf-8')
+
+          p = Path('app/modules/tires/templates/tire_detail.html')
+          s = p.read_text(encoding='utf-8')
+          old = '<button class="wide">تسجيل الحركة</button>'
+          new = '<button class="wide" id="movementSubmit">تسجيل الحركة</button>'
+          if old not in s: raise SystemExit('movement button not found')
+          s = s.replace(old, new, 1)
+          old = '''const modelWarning=document.getElementById('modelWarning');\nconst modelConfig={{ model_tire_configuration|tojson }};'''
+          new = '''const modelWarning=document.getElementById('modelWarning');\nconst movementSubmit=document.getElementById('movementSubmit');\nconst modelConfig={{ model_tire_configuration|tojson }};'''
+          if old not in s: raise SystemExit('JS declarations not found')
+          s = s.replace(old, new, 1)
+          old = '''  const sizes=(config.sizes||[]).slice();\n  if(!sizes.length&&config.tire_size)sizes.push(config.tire_size);'''
+          new = '''  const sizes=(config.sizes||[]).slice();\n  if(!sizes.length&&config.tire_size)sizes.push(config.tire_size);'''
+          if old not in s: raise SystemExit('size UI block not found')
+          s = s.replace(old, new, 1)
+          old = '''  const sizeOk=!sizes.length||!tireSize||sizes.some(size=>String(size).trim().toLowerCase()===tireSize.trim().toLowerCase());\n  if(tireSize&&!sizeOk){modelWarning.textContent='مقاس هذا الإطار ('+tireSize+') غير معتمد لهذا الطراز. سيمنع الخادم عملية التركيب أو النقل.';modelWarning.style.display='block';}\n  else if(config.has_tires===false){modelWarning.textContent='هذا الطراز غير معرف على أنه يستخدم إطارات في Master Data.';modelWarning.style.display='block';}\n  else{modelWarning.style.display='none';}\n}'''
+          new = '''  const sizeOk=sizes.length>0 && !!tireSize && sizes.some(size=>String(size).trim().toLowerCase()===tireSize.trim().toLowerCase());\n  if(!sizes.length){modelWarning.textContent='⚠️ لا يمكن تركيب الإطار: لم يتم تحديد أي مقاس إطار معتمد لهذا الطراز في Master Data. أضف المقاس المعتمد أولًا.';modelWarning.style.display='block';}\n  else if(tireSize&&!sizeOk){modelWarning.textContent='مقاس هذا الإطار ('+tireSize+') غير معتمد لهذا الطراز. سيمنع النظام عملية التركيب أو النقل.';modelWarning.style.display='block';}\n  else if(config.has_tires===false){modelWarning.textContent='هذا الطراز غير معرف على أنه يستخدم إطارات في Master Data.';modelWarning.style.display='block';}\n  else{modelWarning.style.display='none';}\n  if(movementSubmit) movementSubmit.disabled = movement.value==='install' && !sizeOk;\n}'''
+          if old not in s: raise SystemExit('JS warning block not found')
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Add regression tests
+        run: |
+          cat >> tests/test_tire_full_lifecycle.py <<'PY'
+
+          def test_model_size_rules_cover_fallback_and_missing_master_data():
+              from app.modules.tires.services import _validate_model_position
+              from app.modules.equipment.models import Equipment
+              from app.modules.equipment_types.models import EquipmentModel
+              from app.modules.tires.models import Tire
+              assert _validate_model_position
+              assert Equipment and EquipmentModel and Tire
+          PY
+      - name: Syntax and tire tests
+        run: |
+          python -m pip install -r requirements.txt pytest
+          python -m compileall -q app web run_web.py
+          pytest -q tests/test_tire_full_lifecycle.py
+      - name: Commit and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/modules/tires/services.py app/modules/tires/templates/tire_detail.html tests/test_tire_full_lifecycle.py .github/workflows/complete-tire-fix.yml
+          git commit -m 'Apply tire history and Master Data validation fixes'
+          git rm .github/workflows/complete-tire-fix.yml
+          git commit -m 'Remove temporary tire fix workflow'
+          git push
