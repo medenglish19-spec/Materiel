@@ -47,7 +47,46 @@
 </div>
 {% endif %}
 
-<div class="card" style="margin-top:20px;"><h3>🛞 إطارات هذا العتاد</h3><p>عرض الإطارات المركبة حاليًا مع مواضعها، مع الاحتفاظ بسجل الحركة التاريخي لكل إطار.</p><a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات</a></div>
+<div class="card" style="margin-top:20px;">
+    <h3>🛞 إطارات هذا العتاد</h3>
+    <p>هذه هي الإطارات المركبة حاليًا حسب آخر حركة صحيحة لكل إطار. لا يتم عرض قيمة قديمة لمجرد أنها موجودة في سجل سابق.</p>
+    {% if installed_tires %}
+    <div style="overflow-x:auto;margin-top:14px;">
+        <table style="width:100%;border-collapse:collapse;min-width:760px;direction:rtl;">
+            <thead><tr>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">الموضع</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">الرقم التسلسلي</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">الماركة / الطراز</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">المقاس</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">الصلاحية</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">الحالة</th>
+                <th style="text-align:right;padding:10px;border-bottom:1px solid #ddd;">آخر عداد</th>
+            </tr></thead>
+            <tbody>
+            {% for tire_item in installed_tires %}
+            <tr>
+                <td style="padding:10px;border-bottom:1px solid #eee;">{{ tire_item.state.position.name if tire_item.state.position else '-' }}</td>
+                <td style="padding:10px;border-bottom:1px solid #eee;"><a href="/tires/{{ tire_item.tire.id }}">{{ tire_item.tire.serial_number }}</a></td>
+                <td style="padding:10px;border-bottom:1px solid #eee;">{{ tire_item.tire.brand or '-' }}{% if tire_item.tire.model %} · {{ tire_item.tire.model }}{% endif %}</td>
+                <td style="padding:10px;border-bottom:1px solid #eee;">{{ tire_item.tire.size or '-' }}</td>
+                <td style="padding:10px;border-bottom:1px solid #eee;">{{ tire_item.tire.expiry_date or '-' }}</td>
+                <td style="padding:10px;border-bottom:1px solid #eee;">
+                    {% if tire_item.condition == 'expired' %}<span style="color:#9f2d2d;font-weight:700;">منتهي الصلاحية</span>
+                    {% elif tire_item.condition == 'damaged' %}<span style="color:#8a4b08;font-weight:700;">تالف</span>
+                    {% else %}<span style="color:#22663a;font-weight:700;">سليم</span>{% endif %}
+                </td>
+                <td style="padding:10px;border-bottom:1px solid #eee;">{{ tire_item.state.movement.meter_value if tire_item.state.movement and tire_item.state.movement.meter_value is not none else '-' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="margin-top:14px;padding:18px;border:1px dashed #cfd6e2;border-radius:12px;color:#6b7280;">لا توجد إطارات مركبة حاليًا لهذا العتاد.</div>
+    {% endif %}
+    <div style="margin-top:14px;"><a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات الكامل</a></div>
+</div>
+
 <div class="card" style="margin-top:20px;"><h3>🔋 بطارية هذا العتاد</h3><p>عرض البطارية المركبة حاليًا وسجل حركتها.</p><a href="/equipment/{{ item.id }}/batteries" class="btn-outline">فتح سجل البطارية</a></div>
 <div class="card" style="margin-top:20px;"><h3>🛠 سجل صيانة هذا العتاد</h3><p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a></div>
 
