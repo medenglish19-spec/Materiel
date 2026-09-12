@@ -36,7 +36,6 @@ jobs:
           if marker not in s: raise SystemExit('timeline marker not found')
           s = s.replace(marker, replacement, 1)
           p.write_text(s, encoding='utf-8')
-
           p = Path('app/modules/tires/templates/tire_detail.html')
           s = p.read_text(encoding='utf-8')
           old = '<button class="wide">تسجيل الحركة</button>'
@@ -47,27 +46,19 @@ jobs:
           new = '''const modelWarning=document.getElementById('modelWarning');\nconst movementSubmit=document.getElementById('movementSubmit');\nconst modelConfig={{ model_tire_configuration|tojson }};'''
           if old not in s: raise SystemExit('JS declarations not found')
           s = s.replace(old, new, 1)
-          old = '''  const sizes=(config.sizes||[]).slice();\n  if(!sizes.length&&config.tire_size)sizes.push(config.tire_size);'''
-          new = '''  const sizes=(config.sizes||[]).slice();\n  if(!sizes.length&&config.tire_size)sizes.push(config.tire_size);'''
-          if old not in s: raise SystemExit('size UI block not found')
-          s = s.replace(old, new, 1)
           old = '''  const sizeOk=!sizes.length||!tireSize||sizes.some(size=>String(size).trim().toLowerCase()===tireSize.trim().toLowerCase());\n  if(tireSize&&!sizeOk){modelWarning.textContent='مقاس هذا الإطار ('+tireSize+') غير معتمد لهذا الطراز. سيمنع الخادم عملية التركيب أو النقل.';modelWarning.style.display='block';}\n  else if(config.has_tires===false){modelWarning.textContent='هذا الطراز غير معرف على أنه يستخدم إطارات في Master Data.';modelWarning.style.display='block';}\n  else{modelWarning.style.display='none';}\n}'''
           new = '''  const sizeOk=sizes.length>0 && !!tireSize && sizes.some(size=>String(size).trim().toLowerCase()===tireSize.trim().toLowerCase());\n  if(!sizes.length){modelWarning.textContent='⚠️ لا يمكن تركيب الإطار: لم يتم تحديد أي مقاس إطار معتمد لهذا الطراز في Master Data. أضف المقاس المعتمد أولًا.';modelWarning.style.display='block';}\n  else if(tireSize&&!sizeOk){modelWarning.textContent='مقاس هذا الإطار ('+tireSize+') غير معتمد لهذا الطراز. سيمنع النظام عملية التركيب أو النقل.';modelWarning.style.display='block';}\n  else if(config.has_tires===false){modelWarning.textContent='هذا الطراز غير معرف على أنه يستخدم إطارات في Master Data.';modelWarning.style.display='block';}\n  else{modelWarning.style.display='none';}\n  if(movementSubmit) movementSubmit.disabled = movement.value==='install' && !sizeOk;\n}'''
           if old not in s: raise SystemExit('JS warning block not found')
           s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Add regression tests
+      - name: Add regression test marker
         run: |
           cat >> tests/test_tire_full_lifecycle.py <<'PY'
 
-          def test_model_size_rules_cover_fallback_and_missing_master_data():
+          def test_master_data_size_validation_helper_is_present():
               from app.modules.tires.services import _validate_model_position
-              from app.modules.equipment.models import Equipment
-              from app.modules.equipment_types.models import EquipmentModel
-              from app.modules.tires.models import Tire
-              assert _validate_model_position
-              assert Equipment and EquipmentModel and Tire
+              assert callable(_validate_model_position)
           PY
       - name: Syntax and tire tests
         run: |
@@ -79,7 +70,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/modules/tires/services.py app/modules/tires/templates/tire_detail.html tests/test_tire_full_lifecycle.py .github/workflows/complete-tire-fix.yml
-          git commit -m 'Apply tire history and Master Data validation fixes'
+          git commit -m 'Apply tire fixes'
           git rm .github/workflows/complete-tire-fix.yml
           git commit -m 'Remove temporary tire fix workflow'
           git push
