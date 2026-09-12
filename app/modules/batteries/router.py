@@ -29,8 +29,13 @@ def dec(v):
 @router.get("/batteries", response_class=HTMLResponse)
 def batteries_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     batteries = services.list_batteries(db)
-    statuses = {b.id: services.status(b, services.current_state(db, b.id), db=db) for b in batteries}
-    return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses})
+    statuses = {}
+    due_dates = {}
+    for battery in batteries:
+        state = services.current_state(db, battery.id)
+        statuses[battery.id] = services.status(battery, state, db=db)
+        due_dates[battery.id] = services.replacement_due_date(db, battery, state.get("equipment") if state else None)
+    return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates})
 
 
 @router.get("/batteries/settings", response_class=HTMLResponse)
