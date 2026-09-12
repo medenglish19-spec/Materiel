@@ -13,7 +13,7 @@ def create_category(db: Session, data: EquipmentCategoryCreate) -> EquipmentCate
     if db.query(EquipmentCategory).filter(EquipmentCategory.code==code).first(): code=f"{code}-{db.query(EquipmentCategory).count()+1}"[:30]
     obj=EquipmentCategory(name=name,code=code,is_system=False);db.add(obj);db.commit();db.refresh(obj);return obj
 def get_category_by_name(db: Session,name:str)->Optional[EquipmentCategory]: return db.query(EquipmentCategory).filter(EquipmentCategory.name==name).first()
-def delete_category(db: Session,obj:EquipmentCategory)->None:
+def delete_category(db:Session,obj:EquipmentCategory)->None:
     if obj.is_system: raise ValueError("الفئات الأساسية للنظام لا يمكن حذفها")
     db.delete(obj);db.commit()
 
@@ -34,16 +34,16 @@ def list_brands(db: Session, active_only: bool = False) -> list[EquipmentBrand]:
     if active_only: query=query.filter(EquipmentBrand.is_active.is_(True))
     return query.order_by(EquipmentBrand.name).all()
 def get_brand(db: Session,brand_id:int)->Optional[EquipmentBrand]: return db.query(EquipmentBrand).filter(EquipmentBrand.id==brand_id).first()
-def create_brand(db: Session,data:EquipmentBrandCreate)->EquipmentBrand:
+def create_brand(db:Session,data:EquipmentBrandCreate)->EquipmentBrand:
     name=data.name.strip()
     if not name: raise ValueError("اسم العلامة التجارية مطلوب")
     if db.query(EquipmentBrand).filter(EquipmentBrand.name==name).first(): raise ValueError("العلامة التجارية موجودة مسبقًا")
     obj=EquipmentBrand(name=name);db.add(obj);db.commit();db.refresh(obj);return obj
 
-def list_types(db: Session)->list[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category)).order_by(EquipmentType.name).all()
-def get_type(db: Session,type_id:int)->Optional[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.category)).filter(EquipmentType.id==type_id).first()
-def get_type_by_name(db: Session,name:str)->Optional[EquipmentType]: return db.query(EquipmentType).filter(EquipmentType.name==name).first()
-def create_type(db: Session,data:EquipmentTypeCreate)->EquipmentType:
+def list_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category)).order_by(EquipmentType.name).all()
+def get_type(db:Session,type_id:int)->Optional[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.category)).filter(EquipmentType.id==type_id).first()
+def get_type_by_name(db:Session,name:str)->Optional[EquipmentType]: return db.query(EquipmentType).filter(EquipmentType.name==name).first()
+def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     name=data.name.strip()
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db,name): raise ValueError("نوع العتاد موجود مسبقًا")
@@ -56,6 +56,7 @@ def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:Optional
     if quantity is not None and quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
     obj.theoretical_quantity=quantity;db.commit();db.refresh(obj);return obj
 def delete_type(db:Session,obj:EquipmentType)->None: db.delete(obj);db.commit()
+
 def list_models(db:Session,type_id:Optional[int]=None)->list[EquipmentModel]:
     query=db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category))
     if type_id: query=query.filter(EquipmentModel.equipment_type_id==type_id)
@@ -84,20 +85,20 @@ def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     if duplicate: raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id=brand_id;db.commit();db.refresh(obj);return obj
 
-def update_model_tire_configuration(db: Session, obj: EquipmentModel, has_tires: bool, tire_positions_required: int, tire_size: str | None) -> EquipmentModel:
-    """Update only tire-related Master Data fields without touching other model settings."""
-    if tire_positions_required < 0:
-        raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
-    normalized_size = (tire_size or "").strip() or None
-    if has_tires and tire_positions_required < 1:
-        raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
+def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool,tire_positions_required:int,tire_size:str|None)->EquipmentModel:
+    if tire_positions_required<0: raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
+    normalized_size=(tire_size or "").strip() or None
+    if has_tires and tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
     if has_tires and not normalized_size:
-        raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد المقاس الافتراضي")
-    if not has_tires and (tire_positions_required != 0 or normalized_size is not None):
-        raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
-    obj.has_tires = has_tires
-    obj.tire_positions_required = tire_positions_required
-    obj.tire_size = normalized_size
+        # An explicit TireModelSize list is a valid alternative to the model default.
+        from app.modules.tires.models import TireModelSize
+        has_approved_sizes=db.query(TireModelSize).filter(TireModelSize.equipment_model_id==obj.id).first() is not None
+        if not has_approved_sizes:
+            raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد المقاس الافتراضي أو إضافة مقاس معتمد")
+    if not has_tires and (tire_positions_required!=0 or normalized_size is not None): raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
+    obj.has_tires=has_tires
+    obj.tire_positions_required=tire_positions_required
+    obj.tire_size=normalized_size
     db.commit()
     db.refresh(obj)
     return obj
