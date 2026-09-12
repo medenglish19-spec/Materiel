@@ -22,6 +22,13 @@ class Battery(Base, AuditMixin):
     movements = relationship("BatteryMovement", back_populates="battery", order_by="BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()", cascade="all, delete-orphan")
 
 
+class BatterySystemSetting(Base, AuditMixin):
+    __tablename__ = "battery_system_settings"
+
+    id = Column(Integer, primary_key=True)
+    validity_years = Column(Integer, nullable=False, default=2)
+
+
 class BatteryMovement(Base, AuditMixin):
     __tablename__ = "battery_movements"
 
