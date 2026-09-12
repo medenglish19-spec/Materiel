@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container" dir="rtl">
+  <div class="card">
+    <h1>استيراد البيانات المرجعية</h1>
+    <p>استيراد الأصناف والأنواع والعلامات والطرازات وتكوينات الإطارات والبطاريات وخصائص الطراز من ملف Excel.</p>
+    <p><strong>مهم:</strong> تتم قراءة الملف والتحقق منه قبل اعتماد المعاملة، ولا تُنشأ بيانات جزئية عند وجود خطأ.</p>
+    {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+    {% if result %}
+      <div class="alert alert-success">تم الاستيراد بنجاح.</div>
+      <ul>
+        <li>الأصناف: {{ result.categories }}</li>
+        <li>الأنواع: {{ result.types }}</li>
+        <li>العلامات: {{ result.brands }}</li>
+        <li>الطرازات: {{ result.models }}</li>
+        <li>مواضع الإطارات: {{ result.tire_positions }}</li>
+        <li>عناصر تكوين البطاريات: {{ result.battery_items }}</li>
+        <li>خصائص الطرازات: {{ result.properties }}</li>
+      </ul>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+      <label for="file">ملف Master Data بصيغة Excel (.xlsx)</label>
+      <input id="file" name="file" type="file" accept=".xlsx" required>
+      <button type="submit">استيراد البيانات</button>
+    </form>
+    <hr>
+    <p>الأوراق الإلزامية: Categories, Types, Brands, Models.</p>
+    <p>الأوراق الاختيارية: TirePositions, BatteryConfigurations, ModelProperties.</p>
+  </div>
+</div>
+{% endblock %}
