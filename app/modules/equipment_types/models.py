@@ -50,5 +50,7 @@ class EquipmentModel(Base, TimestampMixin):
     battery_voltage_v = Column(Float, nullable=True)
     mobility_type = Column(String(20), nullable=False, default="mobile")
     requires_driver = Column(Boolean, nullable=False, default=True)
+    tire_configuration_id = Column(Integer, nullable=True, index=True)
+    battery_configuration_id = Column(Integer, nullable=True, index=True)
     equipment_type = relationship("EquipmentType", back_populates="models")
     brand = relationship("EquipmentBrand", back_populates="models")
