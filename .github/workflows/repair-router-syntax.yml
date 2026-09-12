@@ -1,0 +1,36 @@
+name: Repair equipment router syntax
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: "!contains(github.event.head_commit.message, 'Repair equipment router syntax without changing logic')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fix only the unmatched closing parenthesis
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/modules/equipment/router.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'display_name=((st.get("brand")+ " — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]));'
+          new = 'display_name=((st.get("brand")+ " — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]);'
+          if old not in text:
+              raise SystemExit('Expected syntax-error expression was not found; no change made.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          python -m py_compile app/modules/equipment/router.py
+      - name: Commit minimal repair and remove temporary workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/modules/equipment/router.py
+          git rm .github/workflows/repair-router-syntax.yml
+          git commit -m 'Repair equipment router syntax without changing logic'
+          git push
