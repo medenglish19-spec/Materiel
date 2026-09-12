@@ -30,19 +30,10 @@ jobs:
           ('''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id}\n        elif movement.movement_type == "remove":\n''', '''            state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}\n        elif movement.movement_type == "remove":\n'''),
           ('''        elif movement.movement_type == "remove":\n            if not state_at["installed"]:\n                raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")\n            state_at = {"installed": False, "equipment_id": None, "position_id": None}\n''', '''        elif movement.movement_type == "remove":\n            if not state_at["installed"]:\n                raise ValueError("لا يمكن فك إطار غير مركب في التاريخ المحدد")\n            state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": _remove_disposition(movement)}\n''')]
           for old, new in replacements:
-              if old not in s: raise SystemExit('Expected code block not found; aborting without changes')
+              if old not in s:
+                  raise SystemExit('Expected code block not found; aborting without changes')
               s = s.replace(old, new, 1)
           p.write_text(s, encoding='utf-8')
-          PY
-      - name: Add focused regression tests
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('tests/test_tire_full_lifecycle.py')
-          s = p.read_text(encoding='utf-8')
-          if 'test_tire_master_data_size_rule_regression' not in s:
-              s += '''\n\n          def test_tire_master_data_size_rule_regression():\n              from app.modules.tires.services import _validate_model_position\n              assert callable(_validate_model_position)\n\n          def test_tire_historical_movement_validation_regression():\n              from app.modules.tires.services import validate_movement\n              assert callable(validate_movement)\n          '''
-              p.write_text(s, encoding='utf-8')
           PY
       - name: Syntax and tire tests
         run: |
@@ -53,7 +44,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/modules/tires/services.py tests/test_tire_full_lifecycle.py
+          git add app/modules/tires/services.py
           git commit -m 'Apply safe tire validation repair'
           git rm .github/workflows/apply-safe-tire-fix.yml
           git commit -m 'Remove temporary tire validation workflow'
