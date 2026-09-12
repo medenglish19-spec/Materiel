@@ -28,6 +28,25 @@
     </div>
 </div>
 
+{% if item.equipment_model %}
+<div class="card" style="margin-top:20px;">
+    <h3>⚙️ مواصفات الطراز من Master Data</h3>
+    <p style="margin-top:0;">هذه المواصفات مرتبطة بالطراز المحدد، وليست بيانات تُدخل بشكل منفصل لكل عتاد.</p>
+    <div class="grid-form">
+        {% if item.equipment_model.brand %}<div class="field"><label>العلامة</label><div>{{ item.equipment_model.brand.name }}</div></div>{% endif %}
+        <div class="field"><label>الإطارات</label><div>{{ 'نعم' if item.equipment_model.has_tires else 'لا' }}</div></div>
+        {% if item.equipment_model.tire_positions_required %}<div class="field"><label>عدد مواضع الإطارات</label><div>{{ item.equipment_model.tire_positions_required }}</div></div>{% endif %}
+        {% if item.equipment_model.tire_size %}<div class="field"><label>مقاس الإطار</label><div>{{ item.equipment_model.tire_size }}</div></div>{% endif %}
+        <div class="field"><label>البطاريات</label><div>{{ 'نعم' if item.equipment_model.has_batteries else 'لا' }}</div></div>
+        {% if item.equipment_model.battery_count_required %}<div class="field"><label>عدد البطاريات</label><div>{{ item.equipment_model.battery_count_required }}</div></div>{% endif %}
+        {% if item.equipment_model.battery_capacity_ah %}<div class="field"><label>سعة البطارية</label><div>{{ item.equipment_model.battery_capacity_ah }} Ah</div></div>{% endif %}
+        {% if item.equipment_model.battery_voltage_v %}<div class="field"><label>جهد البطارية</label><div>{{ item.equipment_model.battery_voltage_v }} V</div></div>{% endif %}
+        {% if item.equipment_model.mobility_type %}<div class="field"><label>نوع الحركة</label><div>{{ item.equipment_model.mobility_type }}</div></div>{% endif %}
+        <div class="field"><label>يتطلب سائقاً</label><div>{{ 'نعم' if item.equipment_model.requires_driver else 'لا' }}</div></div>
+    </div>
+</div>
+{% endif %}
+
 <div class="card" style="margin-top:20px;"><h3>🛞 إطارات هذا العتاد</h3><p>عرض الإطارات المركبة حاليًا مع مواضعها، مع الاحتفاظ بسجل الحركة التاريخي لكل إطار.</p><a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح سجل الإطارات</a></div>
 <div class="card" style="margin-top:20px;"><h3>🔋 بطارية هذا العتاد</h3><p>عرض البطارية المركبة حاليًا وسجل حركتها.</p><a href="/equipment/{{ item.id }}/batteries" class="btn-outline">فتح سجل البطارية</a></div>
 <div class="card" style="margin-top:20px;"><h3>🛠 سجل صيانة هذا العتاد</h3><p>يفتح جدول الصيانة الخاص بهذا العتاد فقط. الإضافة والتعديل والحذف لا تعرض ولا تعدل سجلات العتاد الآخر.</p><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">فتح سجل الصيانة</a></div>
