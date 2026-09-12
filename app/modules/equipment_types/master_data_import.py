@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 
 REQUIRED_SHEETS = {"Categories", "Types", "Brands", "Models"}
-OPTIONAL_SHEETS = {"TirePositions", "BatteryConfigurations", "ModelProperties"}
 
 
 def _value(row: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -27,7 +26,11 @@ def _rows(ws) -> list[dict[str, Any]]:
     if not values:
         return []
     headers = [str(v).strip() if v is not None else "" for v in values[0]]
-    return [{headers[i]: row[i] if i < len(row) else None for i in range(len(headers)) if headers[i]} for row in values[1:] if any(v is not None and str(v).strip() for v in row)]
+    return [
+        {headers[i]: row[i] if i < len(row) else None for i in range(len(headers)) if headers[i]}
+        for row in values[1:]
+        if any(v is not None and str(v).strip() for v in row)
+    ]
 
 
 def _require(row: dict[str, Any], field: str, sheet: str, row_no: int) -> Any:
@@ -65,7 +68,9 @@ def _upsert_by_name(db: Session, table: str, name: str, values: dict[str, Any]) 
         params = {"name": name, **values}
         placeholders = ", ".join(f":{c}" for c in columns)
         db.execute(text(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})"), params)
-        return int(db.execute(text("SELECT last_insert_rowid()" if db.bind.dialect.name == "sqlite" else f"SELECT id FROM {table} WHERE name = :name"), {"name": name}).scalar_one())
+        if db.bind.dialect.name == "sqlite":
+            return int(db.execute(text("SELECT last_insert_rowid()")).scalar_one())
+        return int(db.execute(text(f"SELECT id FROM {table} WHERE name = :name"), {"name": name}).scalar_one())
     if values:
         assignments = ", ".join(f"{k} = :{k}" for k in values)
         db.execute(text(f"UPDATE {table} SET {assignments} WHERE id = :id"), {**values, "id": current})
@@ -76,23 +81,72 @@ def _config(db: Session, code: str, config_type: str, name: str) -> int:
     current = db.execute(text("SELECT id FROM master_data_configurations WHERE code = :code"), {"code": code}).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if current is None:
-        db.execute(text("INSERT INTO master_data_configurations (code, config_type, name, is_active, created_at, updated_at) VALUES (:code, :type, :name, 1, :now, :now)"), {"code": code, "type": config_type, "name": name, "now": now})
+        db.execute(text("""INSERT INTO master_data_configurations
+            (code, config_type, name, is_active, created_at, updated_at)
+            VALUES (:code, :type, :name, 1, :now, :now)"""), {"code": code, "type": config_type, "name": name, "now": now})
         return int(db.execute(text("SELECT id FROM master_data_configurations WHERE code = :code"), {"code": code}).scalar_one())
-    db.execute(text("UPDATE master_data_configurations SET config_type=:type, name=:name, is_active=1, updated_at=:now WHERE id=:id"), {"type": config_type, "name": name, "now": now, "id": current})
+    db.execute(text("""UPDATE master_data_configurations SET config_type=:type, name=:name,
+        is_active=1, updated_at=:now WHERE id=:id"""), {"type": config_type, "name": name, "now": now, "id": current})
     return int(current)
 
 
 def _config_item(db: Session, config_id: int, data: dict[str, Any]) -> None:
     now = datetime.now(timezone.utc)
-    current = db.execute(text("SELECT id FROM master_data_configuration_items WHERE configuration_id=:cid AND item_code=:code"), {"cid": config_id, "code": data["item_code"]}).scalar_one_or_none()
+    current = db.execute(text("""SELECT id FROM master_data_configuration_items
+        WHERE configuration_id=:cid AND item_code=:code"""), {"cid": config_id, "code": data["item_code"]}).scalar_one_or_none()
     if current is None:
         db.execute(text("""INSERT INTO master_data_configuration_items
-            (configuration_id,item_code,item_name,axle_number,side,position_type,sort_order,value_text,value_number,unit,extra_json,created_at,updated_at)
-            VALUES (:configuration_id,:item_code,:item_name,:axle_number,:side,:position_type,:sort_order,:value_text,:value_number,:unit,:extra_json,:now,:now)"""), {**data, "configuration_id": config_id, "now": now})
+            (configuration_id,item_code,item_name,axle_number,side,position_type,sort_order,
+             value_text,value_number,unit,extra_json,created_at,updated_at)
+            VALUES (:configuration_id,:item_code,:item_name,:axle_number,:side,:position_type,
+                    :sort_order,:value_text,:value_number,:unit,:extra_json,:now,:now)"""), {**data, "configuration_id": config_id, "now": now})
     else:
-        db.execute(text("""UPDATE master_data_configuration_items SET item_name=:item_name, axle_number=:axle_number,
-            side=:side, position_type=:position_type, sort_order=:sort_order, value_text=:value_text,
-            value_number=:value_number, unit=:unit, extra_json=:extra_json, updated_at=:now WHERE id=:id"""), {**data, "now": now, "id": current})
+        db.execute(text("""UPDATE master_data_configuration_items SET item_name=:item_name,
+            axle_number=:axle_number, side=:side, position_type=:position_type, sort_order=:sort_order,
+            value_text=:value_text, value_number=:value_number, unit=:unit, extra_json=:extra_json,
+            updated_at=:now WHERE id=:id"""), {**data, "now": now, "id": current})
+
+
+def _sync_model_configuration_fields(db: Session) -> None:
+    db.execute(text("""
+        UPDATE equipment_models
+        SET has_tires = CASE WHEN tire_configuration_id IS NOT NULL THEN 1 ELSE 0 END,
+            tire_positions_required = CASE WHEN tire_configuration_id IS NOT NULL THEN COALESCE((
+                SELECT COUNT(*) FROM master_data_configuration_items i
+                WHERE i.configuration_id = equipment_models.tire_configuration_id
+            ), 0) ELSE 0 END
+    """))
+    db.execute(text("""
+        UPDATE equipment_models
+        SET has_batteries = CASE WHEN battery_configuration_id IS NOT NULL THEN 1 ELSE 0 END,
+            battery_count_required = CASE WHEN battery_configuration_id IS NOT NULL THEN COALESCE((
+                SELECT COUNT(*) FROM master_data_configuration_items i
+                WHERE i.configuration_id = equipment_models.battery_configuration_id
+            ), 0) ELSE 0 END
+    """))
+    _materialize_tire_positions(db)
+
+
+def _materialize_tire_positions(db: Session) -> None:
+    models = db.execute(text("""SELECT id, tire_configuration_id FROM equipment_models
+        WHERE tire_configuration_id IS NOT NULL""")).all()
+    for model_id, config_id in models:
+        items = db.execute(text("""SELECT item_code, item_name, axle_number, side, position_type, sort_order
+            FROM master_data_configuration_items WHERE configuration_id=:config_id
+            ORDER BY sort_order, id"""), {"config_id": config_id}).all()
+        for item_code, item_name, axle_number, side, position_type, sort_order in items:
+            code = f"MD-{model_id}-{item_code}"[:40]
+            current = db.execute(text("SELECT id FROM tire_positions WHERE code=:code"), {"code": code}).scalar_one_or_none()
+            values = {"code": code, "name": item_name, "description": None, "sort_order": sort_order or 0,
+                      "equipment_model_id": model_id, "axle_number": axle_number, "side": side, "position_type": position_type}
+            if current is None:
+                db.execute(text("""INSERT INTO tire_positions
+                    (code,name,description,sort_order,equipment_model_id,axle_number,side,position_type)
+                    VALUES (:code,:name,:description,:sort_order,:equipment_model_id,:axle_number,:side,:position_type)"""), values)
+            else:
+                db.execute(text("""UPDATE tire_positions SET name=:name, description=:description,
+                    sort_order=:sort_order, equipment_model_id=:equipment_model_id, axle_number=:axle_number,
+                    side=:side, position_type=:position_type WHERE id=:id"""), {**values, "id": current})
 
 
 def import_master_data(db: Session, content: bytes) -> dict[str, int]:
@@ -131,32 +185,7 @@ def import_master_data(db: Session, content: bytes) -> dict[str, int]:
             _upsert_by_name(db, "equipment_types", name, {"measurement_unit": unit, "category_id": category_ids[category_code], "theoretical_quantity": quantity})
             counts["types"] += 1
 
-        for n, row in enumerate(_rows(wb["Models"]), 2):
-            name = str(_require(row, "name", "Models", n))
-            type_name = str(_require(row, "type_name", "Models", n))
-            brand_name = str(_require(row, "brand_name", "Models", n))
-            type_id = db.execute(text("SELECT id FROM equipment_types WHERE name=:name"), {"name": type_name}).scalar_one_or_none()
-            if type_id is None or brand_name not in brand_ids:
-                raise ValueError(f"Models: الصف {n}: النوع أو العلامة غير موجودة")
-            tire_code = _value(row, "tire_config_code")
-            battery_code = _value(row, "battery_config_code")
-            tire_id = config_ids.get(str(tire_code)) if tire_code else None
-            battery_id = config_ids.get(str(battery_code)) if battery_code else None
-            mobility = _value(row, "mobility_type", "mobile")
-            requires_driver = bool(_value(row, "requires_driver", True))
-            existing = db.execute(text("SELECT id FROM equipment_models WHERE equipment_type_id=:tid AND brand_id=:bid AND name=:name"), {"tid": type_id, "bid": brand_ids[brand_name], "name": name}).scalar_one_or_none()
-            values = {"equipment_type_id": type_id, "brand_id": brand_ids[brand_name], "mobility_type": mobility, "requires_driver": requires_driver}
-            if existing is None:
-                db.execute(text("""INSERT INTO equipment_models (name,equipment_type_id,brand_id,has_tires,tire_positions_required,tire_size,has_batteries,battery_count_required,battery_capacity_ah,battery_voltage_v,mobility_type,requires_driver)
-                    VALUES (:name,:equipment_type_id,:brand_id,0,0,NULL,0,0,NULL,NULL,:mobility_type,:requires_driver)"""), {"name": name, **values})
-                existing = db.execute(text("SELECT id FROM equipment_models WHERE equipment_type_id=:tid AND brand_id=:bid AND name=:name"), {"tid": type_id, "bid": brand_ids[brand_name], "name": name}).scalar_one()
-            else:
-                db.execute(text("UPDATE equipment_models SET mobility_type=:mobility_type, requires_driver=:requires_driver, tire_configuration_id=:tire_id, battery_configuration_id=:battery_id WHERE id=:id"), {**values, "tire_id": tire_id, "battery_id": battery_id, "id": existing})
-            if tire_id or battery_id:
-                db.execute(text("UPDATE equipment_models SET tire_configuration_id=:tire_id, battery_configuration_id=:battery_id WHERE id=:id"), {"tire_id": tire_id, "battery_id": battery_id, "id": existing})
-            model_ids[(name, type_name, brand_name)] = int(existing)
-            counts["models"] += 1
-
+        # Import configurations before Models so all references are resolved atomically.
         for sheet, config_type in (("TirePositions", "TIRES"), ("BatteryConfigurations", "BATTERY")):
             if sheet not in sheets:
                 continue
@@ -181,6 +210,61 @@ def import_master_data(db: Session, content: bytes) -> dict[str, int]:
                 _config_item(db, cid, data)
                 counts["tire_positions" if config_type == "TIRES" else "battery_items"] += 1
 
+        model_values = list(wb["Models"].values)
+        model_headers = {str(v).strip() for v in model_values[0] if v is not None and str(v).strip()} if model_values else set()
+        has_tire_config_column = "tire_config_code" in model_headers
+        has_battery_config_column = "battery_config_code" in model_headers
+
+        for n, row in enumerate(_rows(wb["Models"]), 2):
+            name = str(_require(row, "name", "Models", n))
+            type_name = str(_require(row, "type_name", "Models", n))
+            brand_name = str(_require(row, "brand_name", "Models", n))
+            type_id = db.execute(text("SELECT id FROM equipment_types WHERE name=:name"), {"name": type_name}).scalar_one_or_none()
+            if type_id is None or brand_name not in brand_ids:
+                raise ValueError(f"Models: الصف {n}: النوع أو العلامة غير موجودة")
+
+            tire_code = str(_value(row, "tire_config_code") or "").strip() or None
+            battery_code = str(_value(row, "battery_config_code") or "").strip() or None
+            if tire_code and tire_code not in config_ids:
+                raise ValueError(f"Models: الصف {n}: tire_config_code غير موجود: {tire_code}")
+            if battery_code and battery_code not in config_ids:
+                raise ValueError(f"Models: الصف {n}: battery_config_code غير موجود: {battery_code}")
+
+            mobility = _value(row, "mobility_type", "mobile")
+            requires_driver = bool(_value(row, "requires_driver", True))
+            existing = db.execute(text("""SELECT id FROM equipment_models
+                WHERE equipment_type_id=:tid AND brand_id=:bid AND name=:name"""), {"tid": type_id, "bid": brand_ids[brand_name], "name": name}).scalar_one_or_none()
+            values = {"equipment_type_id": type_id, "brand_id": brand_ids[brand_name], "mobility_type": mobility, "requires_driver": requires_driver}
+            if has_tire_config_column:
+                values["tire_configuration_id"] = config_ids.get(tire_code) if tire_code else None
+            if has_battery_config_column:
+                values["battery_configuration_id"] = config_ids.get(battery_code) if battery_code else None
+
+            if existing is None:
+                db.execute(text("""INSERT INTO equipment_models
+                    (name,equipment_type_id,brand_id,has_tires,tire_positions_required,tire_size,
+                     has_batteries,battery_count_required,battery_capacity_ah,battery_voltage_v,
+                     mobility_type,requires_driver,tire_configuration_id,battery_configuration_id)
+                    VALUES (:name,:equipment_type_id,:brand_id,0,0,NULL,0,0,NULL,NULL,
+                            :mobility_type,:requires_driver,:tire_configuration_id,:battery_configuration_id)"""),
+                    {"name": name, **values, "tire_configuration_id": values.get("tire_configuration_id"), "battery_configuration_id": values.get("battery_configuration_id")})
+                existing = db.execute(text("""SELECT id FROM equipment_models
+                    WHERE equipment_type_id=:tid AND brand_id=:bid AND name=:name"""), {"tid": type_id, "bid": brand_ids[brand_name], "name": name}).scalar_one()
+            else:
+                db.execute(text("""UPDATE equipment_models SET mobility_type=:mobility_type,
+                    requires_driver=:requires_driver WHERE id=:id"""), {"mobility_type": mobility, "requires_driver": requires_driver, "id": existing})
+                config_updates = {}
+                if has_tire_config_column:
+                    config_updates["tire_configuration_id"] = values.get("tire_configuration_id")
+                if has_battery_config_column:
+                    config_updates["battery_configuration_id"] = values.get("battery_configuration_id")
+                if config_updates:
+                    assignments = ", ".join(f"{k}=:{k}" for k in config_updates)
+                    db.execute(text(f"UPDATE equipment_models SET {assignments} WHERE id=:id"), {**config_updates, "id": existing})
+
+            model_ids[(name, type_name, brand_name)] = int(existing)
+            counts["models"] += 1
+
         if "ModelProperties" in sheets:
             now = datetime.now(timezone.utc)
             for n, row in enumerate(_rows(wb["ModelProperties"]), 2):
@@ -191,12 +275,19 @@ def import_master_data(db: Session, content: bytes) -> dict[str, int]:
                 prop_key = str(_require(row, "property_key", "ModelProperties", n))
                 label = str(_require(row, "property_label", "ModelProperties", n))
                 data = {"equipment_model_id": model_id, "property_key": prop_key, "property_label": label, "value_text": _value(row, "value_text"), "value_number": _float(_value(row, "value_number"), "value_number", "ModelProperties", n), "unit": _value(row, "unit"), "sort_order": _int(_value(row, "sort_order", 0), "sort_order", "ModelProperties", n, 0) or 0, "extra_json": _value(row, "extra_json")}
-                existing = db.execute(text("SELECT id FROM master_data_model_properties WHERE equipment_model_id=:mid AND property_key=:key"), {"mid": model_id, "key": prop_key}).scalar_one_or_none()
+                existing = db.execute(text("""SELECT id FROM master_data_model_properties
+                    WHERE equipment_model_id=:mid AND property_key=:key"""), {"mid": model_id, "key": prop_key}).scalar_one_or_none()
                 if existing is None:
-                    db.execute(text("""INSERT INTO master_data_model_properties (equipment_model_id,property_key,property_label,value_text,value_number,unit,sort_order,extra_json,created_at,updated_at)
-                        VALUES (:equipment_model_id,:property_key,:property_label,:value_text,:value_number,:unit,:sort_order,:extra_json,:now,:now)"""), {**data, "now": now})
+                    db.execute(text("""INSERT INTO master_data_model_properties
+                        (equipment_model_id,property_key,property_label,value_text,value_number,unit,sort_order,extra_json,created_at,updated_at)
+                        VALUES (:equipment_model_id,:property_key,:property_label,:value_text,:value_number,
+                                :unit,:sort_order,:extra_json,:now,:now)"""), {**data, "now": now})
                 else:
-                    db.execute(text("""UPDATE master_data_model_properties SET property_label=:property_label,value_text=:value_text,value_number=:value_number,unit=:unit,sort_order=:sort_order,extra_json=:extra_json,updated_at=:now WHERE id=:id"""), {**data, "now": now, "id": existing})
+                    db.execute(text("""UPDATE master_data_model_properties SET property_label=:property_label,
+                        value_text=:value_text,value_number=:value_number,unit=:unit,sort_order=:sort_order,
+                        extra_json=:extra_json,updated_at=:now WHERE id=:id"""), {**data, "now": now, "id": existing})
                 counts["properties"] += 1
+
+        _sync_model_configuration_fields(db)
 
     return counts
