@@ -11,6 +11,7 @@ from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
 from app.modules.tires import services
+from app.modules.tires.models import TireModelSize
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -28,6 +29,34 @@ def _decimal(value: str | None):
 
 def _error(exc: Exception):
     return HTTPException(status_code=400, detail=str(exc))
+
+
+def _model_tire_configuration(db: Session):
+    """Build the tire configuration exposed to the movement form.
+
+    The equipment model remains the source of truth: positions and approved
+    tire sizes are read from Master Data and are not entered per vehicle.
+    """
+    configurations = {}
+    models = db.query(EquipmentModel).order_by(EquipmentModel.name).all()
+    for model in models:
+        configurations[model.id] = {
+            "has_tires": bool(model.has_tires),
+            "tire_positions_required": model.tire_positions_required,
+            "tire_size": model.tire_size,
+            "positions": [
+                {"id": position.id, "name": position.name, "code": position.code}
+                for position in services.list_positions(db, model.id)
+            ],
+            "sizes": [
+                size.size
+                for size in db.query(TireModelSize)
+                .filter(TireModelSize.equipment_model_id == model.id)
+                .order_by(TireModelSize.id)
+                .all()
+            ],
+        }
+    return configurations
 
 
 @router.get("/tires", response_class=HTMLResponse)
@@ -127,7 +156,7 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     if not tire:
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "today": date.today(), "validity_years": services.get_validity_years(db)})
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "model_tire_configuration": _model_tire_configuration(db), "today": date.today(), "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/tires/{tire_id}/movements")
