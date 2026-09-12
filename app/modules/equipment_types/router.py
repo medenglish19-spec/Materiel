@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
@@ -10,6 +10,7 @@ from app.modules.equipment import demo, services as equipment_services
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.master_data_import import import_master_data
+from app.modules.equipment_types.master_data_editor import get_editor_data, save_editor_data
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -22,8 +23,26 @@ def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),cu
     return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
 @router.get("/equipment-types/master-data",response_class=HTMLResponse)
 def master_data_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    models=services.list_models(db)
+    return templates.TemplateResponse("master_data_editor.html",{"request":request,"models":models,"selected_model_id":models[0].id if models else None,"user":current_user})
+@router.get("/equipment-types/master-data/{model_id}/data")
+def master_data_editor_data(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:return JSONResponse(get_editor_data(db,model_id))
+    except ValueError as exc:raise HTTPException(status_code=404,detail=str(exc)) from exc
+@router.post("/equipment-types/master-data/{model_id}/data")
+async def master_data_editor_save(model_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:
+        payload=await request.json()
+        if not isinstance(payload,dict):raise ValueError("بيانات الحفظ غير صحيحة.")
+        return JSONResponse(save_editor_data(db,model_id,payload))
+    except ValueError as exc:
+        db.rollback();raise HTTPException(status_code=400,detail=str(exc)) from exc
+    except Exception:
+        db.rollback();raise
+@router.get("/equipment-types/master-data/import",response_class=HTMLResponse)
+def master_data_import_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user})
-@router.post("/equipment-types/master-data",response_class=HTMLResponse)
+@router.post("/equipment-types/master-data/import",response_class=HTMLResponse)
 async def master_data_import_form(request:Request,file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         return templates.TemplateResponse("master_data_import.html",{"request":request,"user":current_user,"error":"يرجى اختيار ملف Excel بصيغة .xlsx"},status_code=400)
