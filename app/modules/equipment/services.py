@@ -32,11 +32,15 @@ def generate_asset_code(db: Session, registration_number: Optional[str] = None) 
 
 
 def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] = None) -> Equipment:
-    asset_code = generate_asset_code(db, data.registration_number); values = data.model_dump(); model_id = values.get("equipment_model_id")
+    asset_code = generate_asset_code(db, data.registration_number); values = data.model_dump(); type_id = values["equipment_type_id"]; model_id = values.get("equipment_model_id")
+    equipment_type = db.query(EquipmentType).filter(EquipmentType.id == type_id).first()
+    if equipment_type is None: raise ValueError("نوع العتاد المحدد غير موجود")
+    if equipment_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ لا يمكن اعتماد عتاد جديد عليه قبل إعادة اعتماده")
     if model_id is not None:
         model = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
         if model is None: raise ValueError("طراز العتاد المحدد غير موجود")
-        if model.equipment_type_id != values["equipment_type_id"]: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
+        if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
+        if model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن اعتماد عتاد جديد عليه قبل إعادة اعتماده")
     equipment = Equipment(**values, asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id); db.add(equipment); db.commit(); db.refresh(equipment); return equipment
 
 
@@ -49,11 +53,14 @@ def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, u
         values["vin"] = (values["vin"] or "").strip() or None
         if values["vin"] is not None and db.query(Equipment).filter(Equipment.vin == values["vin"], Equipment.id != equipment.id).first(): raise ValueError("رقم الهيكل مستخدم بالفعل لعتاد آخر")
     type_id = values.get("equipment_type_id", equipment.equipment_type_id); model_id = values.get("equipment_model_id", equipment.equipment_model_id)
-    if db.query(EquipmentType.id).filter(EquipmentType.id == type_id).first() is None: raise ValueError("نوع العتاد المحدد غير موجود")
+    target_type = db.query(EquipmentType).filter(EquipmentType.id == type_id).first()
+    if target_type is None: raise ValueError("نوع العتاد المحدد غير موجود")
+    if type_id != equipment.equipment_type_id and target_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ لا يمكن نقل عتاد قائم إليه كاعتماد جديد قبل إعادة اعتماده")
     if model_id is not None:
         model = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
         if model is None: raise ValueError("طراز العتاد المحدد غير موجود")
         if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
+        if model_id != equipment.equipment_model_id and model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن نقل عتاد قائم إليه كاعتماد جديد قبل إعادة اعتماده")
     if model_id != equipment.equipment_model_id:
         from app.modules.tires.services import installed_for_equipment
         if installed_for_equipment(db, equipment.id):
