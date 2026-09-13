@@ -128,6 +128,17 @@ def test_tire_batch_snapshot_stats_match_expected_statuses():
     assert counts["disposed"] == 1
 
 
+def test_tire_remove_ui_bypasses_model_configuration_requirements():
+    from pathlib import Path
+
+    template = Path("app/modules/tires/templates/tire_detail.html").read_text(encoding="utf-8")
+
+    assert "movementSubmit.disabled=movement.value!=='remove'" in template
+    assert "equipment.disabled=remove" in template
+    assert "position.disabled=remove" in template
+    assert "movementSubmit.disabled=false" in template
+
+
 def test_battery_history_ordering_remains_date_then_id():
     from app.modules.batteries.services import _state_from_history
     from app.modules.batteries.models import BatteryMovement
