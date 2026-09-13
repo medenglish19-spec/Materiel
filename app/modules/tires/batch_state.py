@@ -78,9 +78,8 @@ def _status(tire, state):
     return "stock" if state else "unassigned"
 
 
-def dashboard_stats(db):
-    """Return dashboard counts using the same single batched state snapshot."""
-    tires, states = current_states(db)
+def dashboard_stats_from_snapshot(tires, states):
+    """Calculate dashboard counts from an already-loaded state snapshot."""
     counts = {
         "total": len(tires),
         "installed": 0,
@@ -94,6 +93,12 @@ def dashboard_stats(db):
         status = _status(tire, states.get(tire.id))
         counts[status] = counts.get(status, 0) + 1
     return counts
+
+
+def dashboard_stats(db):
+    """Return dashboard counts using one batched state snapshot."""
+    tires, states = current_states(db)
+    return dashboard_stats_from_snapshot(tires, states)
 
 
 def inventory(db):
