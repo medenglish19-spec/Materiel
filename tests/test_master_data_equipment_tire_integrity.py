@@ -155,3 +155,39 @@ def test_equipment_type_cannot_be_deleted_while_models_use_it():
         assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is not None
     finally:
         db.close()
+
+
+def test_model_cannot_be_deleted_while_tire_configuration_exists():
+    db = _fresh_db()
+    try:
+        equipment_type = EquipmentType(name="نوع إعدادات إطارات", measurement_unit="km")
+        db.add(equipment_type)
+        db.flush()
+        model = EquipmentModel(
+            name="طراز إعدادات محمية",
+            equipment_type_id=equipment_type.id,
+            has_tires=True,
+            tire_positions_required=1,
+            tire_size="315/80R22.5",
+        )
+        db.add(model)
+        db.flush()
+        position = TirePosition(
+            equipment_model_id=model.id,
+            code="CONFIG-GUARD-POS-1",
+            name="موضع إعدادات محمي",
+            axle_number=1,
+            side="left",
+            position_type="single",
+            sort_order=1,
+        )
+        db.add(position)
+        db.commit()
+
+        with pytest.raises(ValueError, match="لا يمكن حذف طراز يحتوي على إعدادات إطارات"):
+            model_services.delete_model(db, model)
+
+        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is not None
+        assert db.query(TirePosition).filter(TirePosition.id == position.id).first() is not None
+    finally:
+        db.close()
