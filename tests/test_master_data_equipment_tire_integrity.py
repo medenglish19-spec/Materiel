@@ -9,7 +9,7 @@ from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment import services as equipment_services
-from app.modules.equipment_types.models import EquipmentModel, EquipmentType
+from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.equipment_types import services as model_services
 from app.modules.tires.models import Tire, TireMovement, TirePosition
 
@@ -133,10 +133,12 @@ def test_frozen_model_stays_editable_but_blocks_new_equipment():
     try:
         equipment_type = EquipmentType(name="نوع نشط", measurement_unit="km")
         db.add(equipment_type); db.flush()
-        model = EquipmentModel(name="طراز غير معتمد", equipment_type_id=equipment_type.id, is_frozen=True)
+        brand = EquipmentBrand(name="علامة اختبار")
+        db.add(brand); db.flush()
+        model = EquipmentModel(name="طراز غير معتمد", equipment_type_id=equipment_type.id, brand_id=brand.id, is_frozen=True)
         db.add(model); db.commit()
 
-        model_services.set_model_brand(db, model, 999)
+        model_services.set_model_brand(db, model, brand.id)
         with pytest.raises(ValueError, match="طراز العتاد مجمد"):
             equipment_services.create_equipment(db, EquipmentCreate(equipment_type_id=equipment_type.id, equipment_model_id=model.id))
     finally:
