@@ -139,6 +139,41 @@ def test_tire_remove_ui_bypasses_model_configuration_requirements():
     assert "movementSubmit.disabled=false" in template
 
 
+def test_tire_expiry_is_date_based_and_not_expired_on_exact_expiry_date():
+    from types import SimpleNamespace
+    from app.modules.tires.services import tire_condition
+
+    tire = SimpleNamespace(expiry_date=date(2026, 9, 13))
+
+    assert tire_condition(tire, {"installed": True, "disposition": "installed"}, today=date(2026, 9, 12)) == "good"
+    assert tire_condition(tire, {"installed": True, "disposition": "installed"}, today=date(2026, 9, 13)) == "good"
+    assert tire_condition(tire, {"installed": True, "disposition": "installed"}, today=date(2026, 9, 14)) == "expired"
+
+
+def test_all_tire_templates_are_arabic_rtl():
+    from pathlib import Path
+
+    template_dir = Path("app/modules/tires/templates")
+    templates = sorted(template_dir.glob("*.html"))
+
+    assert templates
+    for template in templates:
+        content = template.read_text(encoding="utf-8")
+        assert '<html lang="ar" dir="rtl">' in content, template.name
+
+
+def test_equipment_detail_exposes_current_installed_tire_table_data():
+    from pathlib import Path
+    from app.modules.equipment import router
+
+    source = inspect.getsource(router.equipment_detail_page)
+    template = Path("app/modules/equipment/templates/equipment_detail.html").read_text(encoding="utf-8")
+
+    assert "tire_services.installed_for_equipment(db,equipment_id)" in source or "tire_services.installed_for_equipment(db, equipment_id)" in source
+    assert "installed_tires" in template
+    assert "هذه هي الإطارات المركبة حاليًا حسب آخر حركة صحيحة لكل إطار" in template
+
+
 def test_battery_history_ordering_remains_date_then_id():
     from app.modules.batteries.services import _state_from_history
     from app.modules.batteries.models import BatteryMovement
