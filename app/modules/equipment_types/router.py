@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 from urllib.parse import quote
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
