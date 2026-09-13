@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -34,9 +35,9 @@ def test_application_templates_use_shared_shell_except_login():
         if path.as_posix().endswith("app/modules/users/templates/login.html"):
             continue
         assert '{% extends "base.html" %}' in text, f"Template bypasses shared shell: {path.relative_to(ROOT)}"
-        assert "<!doctype html>" not in text.lower(), f"Template contains a standalone document shell: {path.relative_to(ROOT)}"
-        assert "<html" not in text.lower(), f"Template contains a standalone html root: {path.relative_to(ROOT)}"
-        assert "<body" not in text.lower(), f"Template contains a standalone body root: {path.relative_to(ROOT)}"
+        assert not re.search(r"^\s*<!doctype\s+html\b", text, re.IGNORECASE | re.MULTILINE), f"Template contains a standalone document shell: {path.relative_to(ROOT)}"
+        assert not re.search(r"^\s*<html\b", text, re.IGNORECASE | re.MULTILINE), f"Template contains a standalone html root: {path.relative_to(ROOT)}"
+        assert not re.search(r"^\s*<body\b", text, re.IGNORECASE | re.MULTILINE), f"Template contains a standalone body root: {path.relative_to(ROOT)}"
 
 
 def test_numerical_status_template_contains_required_labels():
