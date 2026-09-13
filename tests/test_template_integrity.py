@@ -25,6 +25,20 @@ def test_all_html_templates_have_valid_jinja_syntax():
         env.get_template(path.name)
 
 
+def test_application_templates_use_shared_shell_except_login():
+    templates = sorted((ROOT / "app").rglob("templates/*.html"))
+    assert templates, "No application templates were found"
+
+    for path in templates:
+        text = path.read_text(encoding="utf-8")
+        if path.as_posix().endswith("app/modules/users/templates/login.html"):
+            continue
+        assert '{% extends "base.html" %}' in text, f"Template bypasses shared shell: {path.relative_to(ROOT)}"
+        assert "<!doctype html>" not in text.lower(), f"Template contains a standalone document shell: {path.relative_to(ROOT)}"
+        assert "<html" not in text.lower(), f"Template contains a standalone html root: {path.relative_to(ROOT)}"
+        assert "<body" not in text.lower(), f"Template contains a standalone body root: {path.relative_to(ROOT)}"
+
+
 def test_numerical_status_template_contains_required_labels():
     path = ROOT / "app/modules/equipment/templates/equipment_numerical_status.html"
     text = path.read_text(encoding="utf-8")
