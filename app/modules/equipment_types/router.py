@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 from urllib.parse import quote
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
@@ -57,13 +56,27 @@ def set_type_theoretical_quantity_form(type_id:int,theoretical_quantity:str=Form
         try:services.set_type_theoretical_quantity(db,obj,None if not theoretical_quantity.strip() else int(theoretical_quantity))
         except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
+@router.post("/equipment-types/{type_id}/freeze")
+def freeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_type(db,type_id)
+    if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
+    try:services.set_type_frozen(db,obj,True)
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم تجميد نوع العتاد؛ لن يمكن تعديل بياناته أو حذفه حتى فك التجميد"),status_code=303)
+@router.post("/equipment-types/{type_id}/unfreeze")
+def unfreeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_type(db,type_id)
+    if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
+    try:services.set_type_frozen(db,obj,False)
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم فك تجميد نوع العتاد"),status_code=303)
 @router.post("/equipment-types/{type_id}/delete")
 def delete_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
     if obj:
         try:services.delete_type(db,obj)
         except (ValueError,TypeError) as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types",status_code=302)
+    return RedirectResponse(url="/equipment-types",status_code=303)
 @router.post("/equipment-types/brands/create")
 def create_brand_form(name:str=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:services.create_brand(db,EquipmentBrandCreate(name=name))
@@ -82,6 +95,20 @@ def set_model_brand_form(model_id:int,brand_id:int=Form(...),db:Session=Depends(
         try:services.set_model_brand(db,obj,brand_id)
         except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
+@router.post("/equipment-types/models/{model_id}/freeze")
+def freeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_model(db,model_id)
+    if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    try:services.set_model_frozen(db,obj,True)
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم تجميد طراز العتاد؛ لن يمكن تعديل بياناته أو حذفه حتى فك التجميد"),status_code=303)
+@router.post("/equipment-types/models/{model_id}/unfreeze")
+def unfreeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_model(db,model_id)
+    if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    try:services.set_model_frozen(db,obj,False)
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم فك تجميد طراز العتاد"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/delete")
 def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
