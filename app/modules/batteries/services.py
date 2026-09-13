@@ -2,7 +2,7 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.modules.batteries.models import Battery, BatteryMovement, BatterySystemSetting
 from app.modules.equipment.models import Equipment
@@ -43,8 +43,43 @@ def list_batteries(db: Session):
     return db.query(Battery).order_by(Battery.serial_number).all()
 
 
+def current_states(db: Session):
+    """Load the latest state of every battery with one movement query.
+
+    This is the batch equivalent of current_state() and is intended for
+    dashboards, statistics and list views where calling current_state() once
+    per battery would create an N+1 query pattern.
+    """
+    batteries = list_batteries(db)
+    movements = (
+        db.query(BatteryMovement)
+        .options(joinedload(BatteryMovement.equipment))
+        .order_by(BatteryMovement.battery_id.asc(), BatteryMovement.movement_date.asc(), BatteryMovement.id.asc())
+        .all()
+    )
+    grouped = {battery.id: [] for battery in batteries}
+    for movement in movements:
+        if movement.battery_id in grouped:
+            grouped[movement.battery_id].append(movement)
+
+    states = {}
+    for battery in batteries:
+        state = None
+        for movement in grouped[battery.id]:
+            if movement.movement_type == "remove":
+                state = {"movement": movement, "installed": False, "equipment": None}
+            else:
+                state = {
+                    "movement": movement,
+                    "installed": movement.equipment_id is not None,
+                    "equipment": movement.equipment,
+                }
+        states[battery.id] = state
+    return batteries, states
+
+
 def current_state(db: Session, battery_id: int):
-    movement = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery_id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).first()
+    movement = db.query(BatteryMovement).options(joinedload(BatteryMovement.equipment)).filter(BatteryMovement.battery_id == battery_id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).first()
     if not movement:
         return None
     return {"movement": movement, "installed": movement.movement_type in {"install", "move"} and movement.equipment_id is not None, "equipment": movement.equipment}
@@ -70,11 +105,27 @@ def _state_at(db: Session, battery_id: int, when: date, extra=None):
 def _installed_battery_count(db: Session, equipment_id: int, exclude_battery_id: int | None = None, when: date | None = None) -> int:
     """Count batteries installed on equipment at a point in history."""
     count = 0
-    for battery in db.query(Battery).all():
+    batteries = db.query(Battery).all()
+    if when is None:
+        _, states = current_states(db)
+        for battery in batteries:
+            if exclude_battery_id is not None and battery.id == exclude_battery_id:
+                continue
+            state = states.get(battery.id)
+            if state and state["installed"] and state["equipment"].id == equipment_id:
+                count += 1
+        return count
+
+    movements = db.query(BatteryMovement).filter(BatteryMovement.movement_date <= when).order_by(BatteryMovement.battery_id.asc(), BatteryMovement.movement_date.asc(), BatteryMovement.id.asc()).all()
+    grouped = {battery.id: [] for battery in batteries}
+    for movement in movements:
+        if movement.battery_id in grouped:
+            grouped[movement.battery_id].append(movement)
+    for battery in batteries:
         if exclude_battery_id is not None and battery.id == exclude_battery_id:
             continue
-        state = _state_at(db, battery.id, when) if when is not None else current_state(db, battery.id)
-        if state and state["installed"] and state["equipment_id"] == equipment_id:
+        state = _state_from_history(grouped[battery.id])
+        if state["installed"] and state["equipment_id"] == equipment_id:
             count += 1
     return count
 
@@ -130,8 +181,6 @@ def _general_expiry_date(battery: Battery, years: int) -> date | None:
 
 def _expired_at(db: Session, battery: Battery, equipment: Equipment | None, when: date) -> bool:
     years = get_validity_years(db)
-    # For the exceptional new/zero-km equipment case, the replacement threshold
-    # is anchored to the equipment first-service date rather than battery receipt.
     if equipment and getattr(equipment, "first_service_date", None):
         return when >= _add_years(equipment.first_service_date, years)
     expiry = _general_expiry_date(battery, years)
@@ -205,8 +254,6 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
 
 def add_battery(db: Session, data: dict):
     data = dict(data)
-    # expiry_date is retained on the legacy table for backward compatibility,
-    # but new records no longer receive a manually entered or hard-coded expiry.
     data.pop("expiry_date", None)
     battery = Battery(**data)
     db.add(battery)
@@ -252,8 +299,9 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
 
 def stats(db: Session):
     counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
-    for battery in list_batteries(db):
+    batteries, states = current_states(db)
+    for battery in batteries:
         counts["total"] += 1
-        key = status(battery, current_state(db, battery.id), db=db)
+        key = status(battery, states.get(battery.id), db=db)
         counts[key] += 1
     return counts
