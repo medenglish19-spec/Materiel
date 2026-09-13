@@ -191,3 +191,44 @@ def test_model_cannot_be_deleted_while_tire_configuration_exists():
         assert db.query(TirePosition).filter(TirePosition.id == position.id).first() is not None
     finally:
         db.close()
+
+
+def test_frozen_type_blocks_mutation_and_deletion_but_can_be_unfrozen():
+    db = _fresh_db()
+    try:
+        equipment_type = EquipmentType(name="نوع مجمد", measurement_unit="km", is_frozen=True)
+        db.add(equipment_type)
+        db.commit()
+
+        with pytest.raises(ValueError, match="نوع العتاد مجمد"):
+            model_services.set_type_theoretical_quantity(db, equipment_type, 5)
+        with pytest.raises(ValueError, match="نوع العتاد مجمد"):
+            model_services.delete_type(db, equipment_type)
+
+        model_services.set_type_frozen(db, equipment_type, False)
+        model_services.set_type_theoretical_quantity(db, equipment_type, 5)
+        assert equipment_type.theoretical_quantity == 5
+    finally:
+        db.close()
+
+
+def test_frozen_model_blocks_mutation_and_deletion_but_can_be_unfrozen():
+    db = _fresh_db()
+    try:
+        equipment_type = EquipmentType(name="نوع طراز مجمد", measurement_unit="km")
+        db.add(equipment_type)
+        db.flush()
+        model = EquipmentModel(name="طراز مجمد", equipment_type_id=equipment_type.id, is_frozen=True)
+        db.add(model)
+        db.commit()
+
+        with pytest.raises(ValueError, match="طراز العتاد مجمد"):
+            model_services.set_model_brand(db, model, 999)
+        with pytest.raises(ValueError, match="طراز العتاد مجمد"):
+            model_services.delete_model(db, model)
+
+        model_services.set_model_frozen(db, model, False)
+        model_services.delete_model(db, model)
+        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is None
+    finally:
+        db.close()
