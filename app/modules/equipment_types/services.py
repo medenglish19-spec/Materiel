@@ -33,7 +33,7 @@ def list_brands(db:Session, active_only: bool = False)->list[EquipmentBrand]:
     query=db.query(EquipmentBrand)
     if active_only: query=query.filter(EquipmentBrand.is_active.is_(True))
     return query.order_by(EquipmentBrand.name).all()
-def get_brand(db:Session,brand_id:int)->Optional[EquipmentBrand]: return db.query(EquipmentBrand).filter(EquipmentBrand.id==brand_id).first()
+def get_brand(db:Session,brand_id:int)->Optional[EquipmentBrand]: return db.query(EquipmentBrand).filter(EquipmentBrand.id == brand_id).first()
 def create_brand(db:Session,data:EquipmentBrandCreate)->EquipmentBrand:
     name=data.name.strip()
     if not name: raise ValueError("اسم العلامة التجارية مطلوب")
@@ -96,7 +96,6 @@ def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool
     if has_tires and tire_positions_required<configured_count:
         raise ValueError(f"عدد مواضع الإطارات المطلوب ({tire_positions_required}) لا يمكن أن يكون أقل من المواضع المعرفة حاليًا ({configured_count})")
     if has_tires and not normalized_size:
-        # An explicit TireModelSize list is a valid alternative to the model default.
         from app.modules.tires.models import TireModelSize
         has_approved_sizes=db.query(TireModelSize).filter(TireModelSize.equipment_model_id==obj.id).first() is not None
         if not has_approved_sizes:
@@ -109,4 +108,8 @@ def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool
     db.refresh(obj)
     return obj
 
-def delete_model(db:Session,obj:EquipmentModel)->None: db.delete(obj);db.commit()
+def delete_model(db:Session,obj:EquipmentModel)->None:
+    from app.modules.equipment.models import Equipment
+    if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():
+        raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
+    db.delete(obj);db.commit()
