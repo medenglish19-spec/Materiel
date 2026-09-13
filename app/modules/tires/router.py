@@ -60,7 +60,7 @@ def _model_tire_configuration(db: Session):
 def tires_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     tires, states = batch_state.current_states(db)
     statuses = {t.id: services.tire_status(t, states.get(t.id)) for t in tires}
-    counts = batch_state.dashboard_stats(db)
+    counts = batch_state.dashboard_stats_from_snapshot(tires, states)
     return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
