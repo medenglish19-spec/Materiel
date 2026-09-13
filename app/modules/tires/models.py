@@ -21,7 +21,6 @@ class Tire(Base, AuditMixin):
     expiry_date_manual = Column(Boolean, nullable=False, default=False)
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
-
     movements = relationship("TireMovement", back_populates="tire", order_by="TireMovement.movement_date.desc(), TireMovement.id.desc()", cascade="all, delete-orphan")
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")
 
