@@ -72,6 +72,18 @@ def test_tire_list_page_uses_one_batch_snapshot_and_no_single_state_lookup():
     assert "services.current_state(" not in source
 
 
+def test_tire_equipment_page_reuses_one_batch_snapshot_for_rows_and_positions():
+    from app.modules.tires import router
+
+    source = inspect.getsource(router.equipment_tires_page)
+
+    assert source.count("batch_state.current_states(db)") == 1
+    assert "batch_state._installed_for_equipment_from_snapshot" in source
+    assert "batch_state.equipment_position_view_from_snapshot" in source
+    assert "batch_state.installed_for_equipment(db, equipment_id)" not in source
+    assert "batch_state.equipment_position_view(db, equipment_id)" not in source
+
+
 def test_tire_detail_keeps_single_state_compatibility_path():
     from app.modules.tires import router, services
 
