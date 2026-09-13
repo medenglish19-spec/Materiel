@@ -86,8 +86,9 @@ def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=
     obj=services.get_model(db,model_id)
     if obj:
         try:services.delete_model(db,obj)
-        except (ValueError,TypeError) as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types",status_code=302)
+        except (ValueError,TypeError) as exc:
+            return RedirectResponse(url="/equipment-types?notice_type=warning&notice="+str(exc),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice=تم حذف الطراز بنجاح",status_code=303)
 @router.get("/api/equipment-types",response_model=list[EquipmentTypeOut])
 def api_list_types(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_types(db)
 @router.get("/api/equipment-types/{type_id}/models",response_model=list[EquipmentModelOut])
