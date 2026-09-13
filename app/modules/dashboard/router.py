@@ -67,10 +67,6 @@ def dashboard_page(
         if not state or not state.get("installed"):
             continue
         equipment = state.get("equipment")
-        due_date = battery_services.replacement_due_date(db, battery, equipment)
-        # replacement_due_date() normally performs a settings lookup. The
-        # dashboard has already loaded the single system rule above, so derive
-        # the same date here to avoid a query for every battery.
         first_service = getattr(equipment, "first_service_date", None) if equipment else None
         if first_service:
             due_date = battery_services._add_years(first_service, validity_years)
