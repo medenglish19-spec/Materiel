@@ -72,6 +72,24 @@ def test_tire_list_page_uses_one_batch_snapshot_and_no_single_state_lookup():
     assert "services.current_state(" not in source
 
 
+def test_tire_detail_keeps_single_state_compatibility_path():
+    from app.modules.tires import router, services
+
+    assert callable(services.current_state)
+    assert "services.current_state(db, tire_id)" in inspect.getsource(router.tire_detail)
+
+
+def test_tire_dashboard_uses_batch_state_and_only_expired_installed_tires():
+    from app.modules.dashboard import router
+
+    source = inspect.getsource(router.dashboard_page)
+
+    assert "tire_batch_state.current_states(db)" in source
+    assert "state.get(\"installed\")" in source
+    assert "tire_services.tire_condition(tire, state) == \"expired\"" in source
+    assert "tire_services.current_state" not in source
+
+
 def test_tire_batch_snapshot_stats_match_expected_statuses():
     from types import SimpleNamespace
     from app.modules.tires.batch_state import dashboard_stats_from_snapshot
