@@ -50,17 +50,15 @@ def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     if get_category(db,data.category_id) is None: raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id);db.add(obj);db.commit();db.refresh(obj);return obj
 def set_type_category(db:Session,obj:EquipmentType,category_id:int)->EquipmentType:
-    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ فك التجميد أولًا قبل تعديل بياناته")
     if get_category(db,category_id) is None: raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id=category_id;db.commit();db.refresh(obj);return obj
 def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:Optional[int])->EquipmentType:
-    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ فك التجميد أولًا قبل تعديل بياناته")
     if quantity is not None and quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
     obj.theoretical_quantity=quantity;db.commit();db.refresh(obj);return obj
 def set_type_frozen(db:Session,obj:EquipmentType,frozen:bool)->EquipmentType:
     obj.is_frozen=frozen;db.commit();db.refresh(obj);return obj
 def delete_type(db:Session,obj:EquipmentType)->None:
-    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ فك التجميد أولًا قبل الحذف")
+    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
     if db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).first():
         raise ValueError("لا يمكن حذف نوع عتاد مرتبط بطرازات مسجلة؛ احذف أو انقل الطرازات وفق إجراءات النظام أولًا")
     db.delete(obj);db.commit()
@@ -89,14 +87,12 @@ def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
     obj=EquipmentModel(name=name,equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
     db.add(obj);db.commit();db.refresh(obj);return obj
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ فك التجميد أولًا قبل تعديل بياناته")
     if get_brand(db,brand_id) is None: raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
     duplicate=db.query(EquipmentModel).filter(EquipmentModel.id!=obj.id,EquipmentModel.equipment_type_id==obj.equipment_type_id,EquipmentModel.brand_id==brand_id,EquipmentModel.name==obj.name).first()
     if duplicate: raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id=brand_id;db.commit();db.refresh(obj);return obj
 
 def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool,tire_positions_required:int,tire_size:str|None)->EquipmentModel:
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ فك التجميد أولًا قبل تعديل إعدادات الإطارات")
     if tire_positions_required<0: raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
     normalized_size=(tire_size or "").strip() or None
     from app.modules.tires.models import TirePosition
@@ -125,7 +121,7 @@ def set_model_frozen(db:Session,obj:EquipmentModel,frozen:bool)->EquipmentModel:
 def delete_model(db:Session,obj:EquipmentModel)->None:
     from app.modules.equipment.models import Equipment
     from app.modules.tires.models import TireModelSize, TirePosition
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ فك التجميد أولًا قبل الحذف")
+    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
     if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():
         raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
     if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==obj.id).first() or db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==obj.id).first():
