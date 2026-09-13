@@ -60,10 +60,7 @@ def _model_tire_configuration(db: Session):
 def tires_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     tires, states = batch_state.current_states(db)
     statuses = {t.id: services.tire_status(t, states.get(t.id)) for t in tires}
-    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
-    for tire in tires:
-        key = services.tire_status(tire, states.get(tire.id))
-        counts[key] = counts.get(key, 0) + 1
+    counts = batch_state.dashboard_stats(db)
     return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
@@ -84,7 +81,7 @@ def update_tire_settings(validity_years: int = Form(...), db: Session = Depends(
 
 @router.get("/tires/inventory", response_class=HTMLResponse)
 def tire_inventory_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("tire_inventory.html", {"request": request, "user": current_user, "items": services.inventory(db)})
+    return templates.TemplateResponse("tire_inventory.html", {"request": request, "user": current_user, "items": batch_state.inventory(db)})
 
 
 @router.get("/tires/positions", response_class=HTMLResponse)
@@ -201,4 +198,4 @@ def equipment_tires_page(request: Request, equipment_id: int, db: Session = Depe
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": services.installed_for_equipment(db, equipment_id), "position_view": services.equipment_position_view(db, equipment_id)})
+    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": batch_state.installed_for_equipment(db, equipment_id), "position_view": batch_state.equipment_position_view(db, equipment_id)})
