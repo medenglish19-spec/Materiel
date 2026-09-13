@@ -1,5 +1,8 @@
+from datetime import date
+
 from sqlalchemy.orm import joinedload
 
+from app.modules.equipment.models import Equipment
 from app.modules.tires.models import Tire, TireDisposal, TireMovement
 
 
@@ -63,6 +66,18 @@ def current_states(db):
     return tires, states
 
 
+def _status(tire, state):
+    if state and state.get("disposition") == "disposed":
+        return "disposed"
+    if state and state.get("disposition") in {"damaged", "expired"}:
+        return state["disposition"]
+    if tire.expiry_date and tire.expiry_date < date.today():
+        return "expired"
+    if state and state.get("installed"):
+        return "installed"
+    return "stock" if state else "unassigned"
+
+
 def dashboard_stats(db):
     """Return dashboard counts using the same single batched state snapshot."""
     tires, states = current_states(db)
@@ -76,17 +91,7 @@ def dashboard_stats(db):
         "unassigned": 0,
     }
     for tire in tires:
-        state = states.get(tire.id)
-        if state and state.get("disposition") == "disposed":
-            status = "disposed"
-        elif state and state.get("disposition") in {"damaged", "expired"}:
-            status = state["disposition"]
-        elif tire.expiry_date and tire.expiry_date < __import__("datetime").date.today():
-            status = "expired"
-        elif state and state.get("installed"):
-            status = "installed"
-        else:
-            status = "stock" if state else "unassigned"
+        status = _status(tire, states.get(tire.id))
         counts[status] = counts.get(status, 0) + 1
     return counts
 
@@ -141,7 +146,7 @@ def equipment_position_view(db, equipment_id):
     """Build the equipment tire position view without per-tire current_state queries."""
     from app.modules.tires import services
 
-    equipment = db.query(__import__("app.modules.equipment.models", fromlist=["Equipment"]).Equipment).filter_by(id=equipment_id).first()
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         return []
     configured = services.list_positions(db, equipment.equipment_model_id)
