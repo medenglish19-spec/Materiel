@@ -63,14 +63,14 @@ def freeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=De
     if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
     try:services.set_type_frozen(db,obj,True)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم تجميد نوع العتاد؛ لن يمكن تعديل بياناته أو حذفه حتى فك التجميد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد نوع العتاد؛ سيبقى محفوظًا ويستمر العتاد الموجود عليه، ولن يُعتمد لعتاد جديد"),status_code=303)
 @router.post("/equipment-types/{type_id}/unfreeze")
 def unfreeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
     if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
     try:services.set_type_frozen(db,obj,False)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم فك تجميد نوع العتاد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد نوع العتاد؛ يمكن استخدامه مجددًا لعتاد جديد"),status_code=303)
 @router.post("/equipment-types/{type_id}/delete")
 def delete_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
@@ -102,14 +102,14 @@ def freeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=
     if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
     try:services.set_model_frozen(db,obj,True)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم تجميد طراز العتاد؛ لن يمكن تعديل بياناته أو حذفه حتى فك التجميد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد طراز العتاد؛ سيبقى محفوظًا ويستمر العتاد الموجود عليه، ولن يُعتمد لعتاد جديد"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/unfreeze")
 def unfreeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
     try:services.set_model_frozen(db,obj,False)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم فك تجميد طراز العتاد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد طراز العتاد؛ يمكن استخدامه مجددًا لعتاد جديد"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/delete")
 def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
