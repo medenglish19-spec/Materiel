@@ -122,9 +122,8 @@ def inventory(db):
     return result
 
 
-def installed_for_equipment(db, equipment_id):
-    """Return installed tires for one equipment from a single state snapshot."""
-    tires, states = current_states(db)
+def _installed_for_equipment_from_snapshot(tires, states, equipment_id):
+    """Build installed tire rows from an already-loaded state snapshot."""
     from app.modules.tires import services
 
     rows = []
@@ -147,17 +146,20 @@ def installed_for_equipment(db, equipment_id):
     )
 
 
-def equipment_position_view(db, equipment_id):
-    """Build the equipment tire position view without per-tire current_state queries."""
+def installed_for_equipment(db, equipment_id):
+    """Return installed tires for one equipment from a single state snapshot."""
+    tires, states = current_states(db)
+    return _installed_for_equipment_from_snapshot(tires, states, equipment_id)
+
+
+def equipment_position_view_from_snapshot(db, equipment, tires, states):
+    """Build the equipment position view from the same snapshot used for installed rows."""
     from app.modules.tires import services
 
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    if not equipment:
-        return []
     configured = services.list_positions(db, equipment.equipment_model_id)
     mounted = {
         item["state"]["position"].id: item
-        for item in installed_for_equipment(db, equipment_id)
+        for item in _installed_for_equipment_from_snapshot(tires, states, equipment.id)
         if item["state"].get("position")
     }
     result = [{"position": position, "item": mounted.get(position.id)} for position in configured]
@@ -174,3 +176,12 @@ def equipment_position_view(db, equipment_id):
             x["position"].id,
         ),
     )
+
+
+def equipment_position_view(db, equipment_id):
+    """Build the equipment tire position view without per-tire current_state queries."""
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        return []
+    tires, states = current_states(db)
+    return equipment_position_view_from_snapshot(db, equipment, tires, states)
