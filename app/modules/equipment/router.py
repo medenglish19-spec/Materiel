@@ -18,6 +18,7 @@ from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.tires import services as tire_services
+from app.modules.batteries import services as battery_services
 router = APIRouter(); templates = get_module_templates("app/modules/equipment/templates")
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -38,7 +39,7 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
     return templates.TemplateResponse("equipment_analysis.html",{"request":request,"user":current_user,"categories":categories,"totals":{"theoretical":totals_theoretical,"actual":totals_actual,"need":max(0,totals_theoretical-totals_actual),"ready":ready,"ready_restricted":ready_restricted,"broken":broken,"readiness":round(ready/totals_actual*100,1) if totals_actual else 0}})
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
 def equipment_numerical_status_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand)).order_by(Equipment.id).all(); models=db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all(); keys=("total","theoretical","ready","ready_restricted","broken","available","in_mission","in_maintenance","in_external_workshop","unavailable","need","surplus","outside_ted"); zero=lambda:{k:0 for k in keys}; groups={}
+    items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); models=db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all(); keys=("total","theoretical","ready","ready_restricted","broken","available","in_mission","in_maintenance","in_external_workshop","unavailable","need","surplus","outside_ted"); zero=lambda:{k:0 for k in keys}; groups={}
     for model in models:
         equipment_type=model.equipment_type; category=equipment_type.category if equipment_type else None; category_name=category.name if category else "غير مصنف"; type_name=equipment_type.name if equipment_type else "بدون نوع"; model_name=model.name or "بدون طراز"; brand_name=model.brand.name if model.brand else "بدون ماركة"; cg=groups.setdefault(category_name,{"types":{},"sort":category.sort_order if category else 9999}); tg=cg["types"].setdefault(type_name,{"models":{},"theoretical":int(equipment_type.theoretical_quantity or 0) if equipment_type else 0}); key=(brand_name,model_name); tg["models"].setdefault(key,dict(zero(),theoretical=0,brand=brand_name,model=model_name,equipment=[]))
     for item in items:
@@ -83,7 +84,13 @@ def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(ge
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     installed_tires=tire_services.installed_for_equipment(db,equipment_id)
-    return templates.TemplateResponse("equipment_detail.html",{"request":request,"item":item,"user":current_user,"installed_tires":installed_tires})
+    batteries, battery_states = battery_services.current_states(db)
+    installed_batteries=[]
+    for battery in batteries:
+        state=battery_states.get(battery.id)
+        if state and state.get("installed") and state.get("equipment") and state["equipment"].id == equipment_id:
+            installed_batteries.append({"battery":battery,"state":state,"condition":battery_services.status(battery,state,equipment=item,db=db),"due_date":battery_services.replacement_due_date(db,battery,item)})
+    return templates.TemplateResponse("equipment_detail.html",{"request":request,"item":item,"user":current_user,"installed_tires":installed_tires,"installed_batteries":installed_batteries})
 @router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
 def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
