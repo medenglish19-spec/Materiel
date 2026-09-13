@@ -55,7 +55,10 @@ def set_type_category(db:Session,obj:EquipmentType,category_id:int)->EquipmentTy
 def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:Optional[int])->EquipmentType:
     if quantity is not None and quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
     obj.theoretical_quantity=quantity;db.commit();db.refresh(obj);return obj
-def delete_type(db:Session,obj:EquipmentType)->None: db.delete(obj);db.commit()
+def delete_type(db:Session,obj:EquipmentType)->None:
+    if db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).first():
+        raise ValueError("لا يمكن حذف نوع عتاد مرتبط بطرازات مسجلة؛ احذف أو انقل الطرازات وفق إجراءات النظام أولًا")
+    db.delete(obj);db.commit()
 
 def list_models(db:Session,type_id:Optional[int]=None)->list[EquipmentModel]:
     query=db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category))
