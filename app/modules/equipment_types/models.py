@@ -30,6 +30,7 @@ class EquipmentType(Base, TimestampMixin):
     measurement_unit = Column(String(10), nullable=False)
     theoretical_quantity = Column(Integer, nullable=True, default=None)
     category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    is_frozen = Column(Boolean, nullable=False, default=False)
     category = relationship("EquipmentCategory", back_populates="equipment_types")
     models = relationship("EquipmentModel", back_populates="equipment_type", cascade="all, delete-orphan")
 
@@ -41,6 +42,7 @@ class EquipmentModel(Base, TimestampMixin):
     name = Column(String(80), nullable=False)
     equipment_type_id = Column(Integer, ForeignKey("equipment_types.id"), nullable=False)
     brand_id = Column(Integer, ForeignKey("equipment_brands.id", ondelete="SET NULL"), nullable=True, index=True)
+    is_frozen = Column(Boolean, nullable=False, default=False)
     has_tires = Column(Boolean, nullable=False, default=False)
     tire_positions_required = Column(Integer, nullable=False, default=0)
     tire_size = Column(String(50), nullable=True)
