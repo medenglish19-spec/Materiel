@@ -55,12 +55,12 @@ def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, u
     type_id = values.get("equipment_type_id", equipment.equipment_type_id); model_id = values.get("equipment_model_id", equipment.equipment_model_id)
     target_type = db.query(EquipmentType).filter(EquipmentType.id == type_id).first()
     if target_type is None: raise ValueError("نوع العتاد المحدد غير موجود")
-    if type_id != equipment.equipment_type_id and target_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ لا يمكن نقل عتاد قائم إليه كاعتماد جديد قبل إعادة اعتماده")
+    if (type_id != equipment.equipment_type_id or model_id != equipment.equipment_model_id) and target_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ لا يمكن اعتماد نقل العتاد إليه قبل إعادة اعتماده")
     if model_id is not None:
         model = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
         if model is None: raise ValueError("طراز العتاد المحدد غير موجود")
         if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
-        if model_id != equipment.equipment_model_id and model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن نقل عتاد قائم إليه كاعتماد جديد قبل إعادة اعتماده")
+        if model_id != equipment.equipment_model_id and model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن اعتماد نقل العتاد إليه قبل إعادة اعتماده")
     if model_id != equipment.equipment_model_id:
         from app.modules.tires.services import installed_for_equipment
         if installed_for_equipment(db, equipment.id):
