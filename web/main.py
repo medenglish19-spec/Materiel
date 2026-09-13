@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote, urlsplit
 
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -36,6 +37,23 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    @app.exception_handler(HTTPException)
+    async def html_http_exception_handler(request: Request, exc: HTTPException):
+        accept=request.headers.get("accept", "")
+        referer=request.headers.get("referer")
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and "text/html" in accept and referer:
+            base=str(request.base_url)
+            if referer.startswith(base):
+                parsed=urlsplit(referer)
+                target=parsed.path or "/"
+                if parsed.query:
+                    target += "?" + parsed.query
+                separator="&" if parsed.query else "?"
+                detail=str(exc.detail) if exc.detail else "تعذر تنفيذ العملية. راجع البيانات وحاول مرة أخرى."
+                target += separator + "notice_type=warning&notice=" + quote(detail)
+                return RedirectResponse(url=target,status_code=303)
+        return JSONResponse(status_code=exc.status_code,content={"detail":exc.detail},headers=exc.headers)
 
     @app.middleware("http")
     async def fresh_dynamic_pages(request: Request, call_next):
