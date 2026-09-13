@@ -28,13 +28,14 @@ def dec(v):
 
 @router.get("/batteries", response_class=HTMLResponse)
 def batteries_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    batteries = services.list_batteries(db)
+    batteries, states = services.current_states(db)
     statuses = {}
     due_dates = {}
     for battery in batteries:
-        state = services.current_state(db, battery.id)
+        state = states.get(battery.id)
+        equipment = state.get("equipment") if state else None
         statuses[battery.id] = services.status(battery, state, db=db)
-        due_dates[battery.id] = services.replacement_due_date(db, battery, state.get("equipment") if state else None)
+        due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
     return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates})
 
 
@@ -92,11 +93,12 @@ def equipment_battery_page(request: Request, equipment_id: int, db: Session = De
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(404, "العتاد غير موجود")
+    batteries, states = services.current_states(db)
     items = []
     due_dates = {}
     statuses = {}
-    for battery in services.list_batteries(db):
-        state = services.current_state(db, battery.id)
+    for battery in batteries:
+        state = states.get(battery.id)
         if state and state["installed"] and state["equipment"] and state["equipment"].id == equipment_id:
             items.append(battery)
             due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
