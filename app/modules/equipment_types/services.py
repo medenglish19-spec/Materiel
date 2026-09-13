@@ -113,6 +113,9 @@ def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool
 
 def delete_model(db:Session,obj:EquipmentModel)->None:
     from app.modules.equipment.models import Equipment
+    from app.modules.tires.models import TireModelSize, TirePosition
     if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():
         raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
+    if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==obj.id).first() or db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==obj.id).first():
+        raise ValueError("لا يمكن حذف طراز يحتوي على إعدادات إطارات؛ احذف إعدادات الإطارات وفق إجراءات النظام أولًا للحفاظ على التاريخ")
     db.delete(obj);db.commit()
