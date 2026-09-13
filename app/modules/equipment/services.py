@@ -54,6 +54,10 @@ def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, u
         model = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
         if model is None: raise ValueError("طراز العتاد المحدد غير موجود")
         if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
+    if model_id != equipment.equipment_model_id:
+        from app.modules.tires.services import installed_for_equipment
+        if installed_for_equipment(db, equipment.id):
+            raise ValueError("لا يمكن تغيير طراز العتاد بينما توجد إطارات مركبة عليه؛ يجب فك الإطارات أولًا للحفاظ على التاريخ واتساق بيانات Master Data")
     if "notes" in values: values["notes"] = (values["notes"] or "").strip()[:500] or None
     for field, value in values.items(): setattr(equipment, field, value)
     equipment.updated_by_id = user_id
