@@ -1,4 +1,5 @@
 from datetime import date
+import inspect
 
 
 def test_battery_batch_state_helper_is_available():
@@ -59,6 +60,42 @@ def test_tire_history_remove_then_install_returns_to_installed():
     assert state["equipment_id"] == 20
     assert state["position_id"] == 3
     assert state["disposition"] == "installed"
+
+
+def test_tire_list_page_uses_one_batch_snapshot_and_no_single_state_lookup():
+    from app.modules.tires import router
+
+    source = inspect.getsource(router.tires_page)
+
+    assert source.count("batch_state.current_states(db)") == 1
+    assert "batch_state.dashboard_stats(db)" not in source
+    assert "services.current_state(" not in source
+
+
+def test_tire_batch_snapshot_stats_match_expected_statuses():
+    from types import SimpleNamespace
+    from app.modules.tires.batch_state import dashboard_stats_from_snapshot
+
+    tires = [
+        SimpleNamespace(id=1, expiry_date=date(2030, 1, 1)),
+        SimpleNamespace(id=2, expiry_date=date(2020, 1, 1)),
+        SimpleNamespace(id=3, expiry_date=date(2030, 1, 1)),
+        SimpleNamespace(id=4, expiry_date=date(2030, 1, 1)),
+    ]
+    states = {
+        1: {"installed": True, "disposition": "installed"},
+        2: {"installed": True, "disposition": "installed"},
+        3: {"installed": False, "disposition": "stock"},
+        4: {"installed": False, "disposition": "disposed"},
+    }
+
+    counts = dashboard_stats_from_snapshot(tires, states)
+
+    assert counts["total"] == 4
+    assert counts["installed"] == 1
+    assert counts["expired"] == 1
+    assert counts["stock"] == 1
+    assert counts["disposed"] == 1
 
 
 def test_battery_history_ordering_remains_date_then_id():
