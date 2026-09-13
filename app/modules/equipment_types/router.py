@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from urllib.parse import quote
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
@@ -87,8 +88,8 @@ def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=
     if obj:
         try:services.delete_model(db,obj)
         except (ValueError,TypeError) as exc:
-            return RedirectResponse(url="/equipment-types?notice_type=warning&notice="+str(exc),status_code=303)
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice=تم حذف الطراز بنجاح",status_code=303)
+            return RedirectResponse(url="/equipment-types?notice_type=warning&notice="+quote(str(exc)),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم حذف الطراز بنجاح"),status_code=303)
 @router.get("/api/equipment-types",response_model=list[EquipmentTypeOut])
 def api_list_types(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_types(db)
 @router.get("/api/equipment-types/{type_id}/models",response_model=list[EquipmentModelOut])
