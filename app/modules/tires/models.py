@@ -18,6 +18,7 @@ class Tire(Base, AuditMixin):
     manufacture_date = Column(Date, nullable=True)
     receipt_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)
+    expiry_date_manual = Column(Numeric(1, 0), nullable=False, default=0)
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
 
