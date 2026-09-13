@@ -198,4 +198,7 @@ def equipment_tires_page(request: Request, equipment_id: int, db: Session = Depe
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": batch_state.installed_for_equipment(db, equipment_id), "position_view": batch_state.equipment_position_view(db, equipment_id)})
+    tires, states = batch_state.current_states(db)
+    items = batch_state._installed_for_equipment_from_snapshot(tires, states, equipment_id)
+    position_view = batch_state.equipment_position_view_from_snapshot(db, equipment, tires, states)
+    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": items, "position_view": position_view})
