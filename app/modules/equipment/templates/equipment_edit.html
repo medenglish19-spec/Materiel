@@ -30,7 +30,8 @@
                     data-battery-voltage="{{ m.battery_voltage_v or '' }}"
                     data-mobility="{{ m.mobility_type or '' }}"
                     data-driver="{{ 'نعم' if m.requires_driver else 'لا' }}"
-                    {% if m.id == item.equipment_model_id %}selected{% endif %}>{{ m.name }}</option>
+                    {% if m.id == item.equipment_model_id %}selected{% endif %}
+                    {% if m.is_frozen and m.id != item.equipment_model_id %}disabled{% endif %}>{{ m.name }}{% if m.is_frozen %} — غير معتمد{% endif %}</option>
                 {% endfor %}{% endfor %}
             </select>
         </div>
