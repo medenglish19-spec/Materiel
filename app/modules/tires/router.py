@@ -12,6 +12,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
 from app.modules.equipment_types import services as equipment_type_services
 from app.modules.tires import services
+from app.modules.tires import batch_state
 from app.modules.tires.models import TireModelSize
 from app.modules.users.models import User
 
@@ -33,11 +34,6 @@ def _error(exc: Exception):
 
 
 def _model_tire_configuration(db: Session):
-    """Build the tire configuration exposed to the movement form.
-
-    The equipment model remains the source of truth: positions and approved
-    tire sizes are read from Master Data and are not entered per vehicle.
-    """
     configurations = {}
     models = db.query(EquipmentModel).order_by(EquipmentModel.name).all()
     for model in models:
@@ -62,9 +58,13 @@ def _model_tire_configuration(db: Session):
 
 @router.get("/tires", response_class=HTMLResponse)
 def tires_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    tires = services.list_tires(db)
-    statuses = {t.id: services.tire_status(t, services.current_state(db, t.id)) for t in tires}
-    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": services.dashboard_stats(db), "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
+    tires, states = batch_state.current_states(db)
+    statuses = {t.id: services.tire_status(t, states.get(t.id)) for t in tires}
+    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
+    for tire in tires:
+        key = services.tire_status(tire, states.get(tire.id))
+        counts[key] = counts.get(key, 0) + 1
+    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
 @router.get("/tires/settings", response_class=HTMLResponse)
