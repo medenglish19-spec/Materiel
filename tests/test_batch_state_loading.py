@@ -150,16 +150,18 @@ def test_tire_expiry_is_date_based_and_not_expired_on_exact_expiry_date():
     assert tire_condition(tire, {"installed": True, "disposition": "installed"}, today=date(2026, 9, 14)) == "expired"
 
 
-def test_all_tire_templates_are_arabic_rtl():
+def test_all_tire_templates_are_arabic_rtl_or_use_shared_rtl_base():
     from pathlib import Path
 
     template_dir = Path("app/modules/tires/templates")
     templates = sorted(template_dir.glob("*.html"))
+    shared_base = Path("web/templates/base.html").read_text(encoding="utf-8")
 
     assert templates
+    assert '<html lang="ar" dir="rtl">' in shared_base
     for template in templates:
         content = template.read_text(encoding="utf-8")
-        assert '<html lang="ar" dir="rtl">' in content, template.name
+        assert '<html lang="ar" dir="rtl">' in content or '{% extends "base.html" %}' in content, template.name
 
 
 def test_equipment_detail_exposes_current_installed_tire_table_data():
