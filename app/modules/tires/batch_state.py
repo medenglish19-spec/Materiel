@@ -8,12 +8,13 @@ from app.modules.tires.models import Tire, TireDisposal, TireMovement
 
 def _movement_datetime(movement):
     value = getattr(movement, "movement_datetime", None)
-    if value is not None:
-        return value
-    return datetime.combine(movement.movement_date, time.min)
+    return value if value is not None else datetime.combine(movement.movement_date, time.min)
 
 
 def _remove_disposition(movement):
+    explicit = getattr(movement, "removal_disposition", None)
+    if explicit in {"stock", "damaged", "expired"}:
+        return explicit
     reason = (movement.reason or "").strip().lower()
     if reason in {"تالف", "damaged", "تلف"}:
         return "damaged"
@@ -23,13 +24,8 @@ def _remove_disposition(movement):
 
 
 def current_states(db):
-    """Load current tire states with batched historical queries."""
     tires = db.query(Tire).order_by(Tire.serial_number).all()
-    movements = (
-        db.query(TireMovement)
-        .options(joinedload(TireMovement.equipment), joinedload(TireMovement.position))
-        .all()
-    )
+    movements = db.query(TireMovement).options(joinedload(TireMovement.equipment), joinedload(TireMovement.position)).all()
     movements.sort(key=lambda m: (m.tire_id, _movement_datetime(m), m.id))
     disposals = db.query(TireDisposal).all()
     disposal_by_tire = {row.tire_id: row for row in disposals}
@@ -67,7 +63,6 @@ def _status(tire, state):
 
 
 def dashboard_stats_from_snapshot(tires, states):
-    """Calculate dashboard counts from an already-loaded state snapshot."""
     counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
     for tire in tires:
         status = _status(tire, states.get(tire.id))
@@ -83,7 +78,6 @@ def dashboard_stats(db):
 def inventory(db):
     tires, states = current_states(db)
     from app.modules.tires import services
-
     result = []
     for tire in tires:
         state = states.get(tire.id)
@@ -96,7 +90,6 @@ def inventory(db):
 
 def _installed_for_equipment_from_snapshot(tires, states, equipment_id):
     from app.modules.tires import services
-
     rows = []
     for tire in tires:
         state = states.get(tire.id)
@@ -113,7 +106,6 @@ def installed_for_equipment(db, equipment_id):
 
 def equipment_position_view_from_snapshot(db, equipment, tires, states):
     from app.modules.tires import services
-
     configured = services.list_positions(db, equipment.equipment_model_id)
     mounted = {item["state"]["position"].id: item for item in _installed_for_equipment_from_snapshot(tires, states, equipment.id) if item["state"].get("position")}
     result = [{"position": position, "item": mounted.get(position.id)} for position in configured]
