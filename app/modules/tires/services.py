@@ -118,7 +118,7 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
     model = equipment.equipment_model
     if model is None:
         raise ValueError("لا يمكن تركيب الإطار على عتاد لا يرتبط بطراز")
-    if not model.has_tires:
+    if getattr(model, "has_tires", True) is False:
         raise ValueError("لا يمكن تركيب الإطار: هذا الطراز غير معرف كطراز مزود بالإطارات في Master Data")
     sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all() if s.size and s.size.strip()}
     model_size = (model.tire_size or "").strip().lower() if getattr(model, "tire_size", None) else ""
@@ -153,7 +153,10 @@ def _validate_model_capacity(db: Session, equipment_id: int, tire_id: int, movem
     required = int(model.tire_positions_required or 0)
     if required <= 0 or movement_type not in {"install", "move"}:
         return
-    installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
+    if when is None:
+        installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id)
+    else:
+        installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
     if installed >= required:
         raise ValueError(f"تم بلوغ العدد المحدد للإطارات لهذا الطراز ({required}). يجب فك إطار أولًا أو اختيار موضع/عتاد آخر.")
 
