@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}بطارية {{ battery.serial_number }} | Materiel{% endblock %}
 {% block content %}
+<style>
+.battery-record .record-hero{position:relative;overflow:hidden}.battery-record .record-summary{grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px}.battery-record .record-box{min-height:92px;display:flex;flex-direction:column;justify-content:center;border-radius:14px}.battery-record .record-box b{font-size:18px;margin-top:8px}.battery-record .record-status-row{gap:8px;margin-top:14px}.battery-record .record-notice{border-radius:12px}.battery-record .record-form{gap:14px}.battery-record .record-form label{background:#f8fafc;border:1px solid #e7ebf2;border-radius:12px;padding:12px}.battery-record .record-form input,.battery-record .record-form select{margin-top:7px;background:#fff}.battery-record .record-form button{min-height:46px;border-radius:12px;font-weight:800}.battery-record .record-table tbody tr:hover{background:#f8fbff}.battery-record .record-table td:first-child{font-weight:700}@media(max-width:900px){.battery-record .record-summary{grid-template-columns:repeat(2,minmax(140px,1fr))}}@media(max-width:560px){.battery-record .record-summary,.battery-record .record-form{grid-template-columns:1fr}.battery-record .record-form .record-wide{grid-column:auto}}
+</style>
 <div class="record-page battery-record">
 <a class="record-back" href="/batteries">← العودة إلى إدارة البطاريات</a>
 <header class="record-hero"><div><p class="record-eyebrow">MATERIEL · BATTERY RECORD</p><h2>البطارية: {{ battery.serial_number }}</h2><div class="record-muted">الملف التشغيلي للبطارية وسجل حركاتها.</div></div></header>
