@@ -44,12 +44,7 @@ def list_batteries(db: Session):
 
 
 def current_states(db: Session):
-    """Load the latest state of every battery with one movement query.
-
-    This is the batch equivalent of current_state() and is intended for
-    dashboards, statistics and list views where calling current_state() once
-    per battery would create an N+1 query pattern.
-    """
+    """Load the latest state of every battery with one movement query."""
     batteries = list_batteries(db)
     movements = (
         db.query(BatteryMovement)
@@ -220,8 +215,10 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
-            if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن تركيب بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
+            # replacement_due_date is advisory only. A battery remains usable
+            # after the estimated replacement date until it is explicitly
+            # reported as damaged/unusable. Therefore it must never block an
+            # install or move merely because its estimated date has passed.
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count:
@@ -238,8 +235,8 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
-            if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن نقل بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
+            # Estimated replacement date is not a technical failure state and
+            # therefore does not prevent transferring a still-serviceable battery.
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
@@ -300,8 +297,9 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
 def stats(db: Session):
     counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
     batteries, states = current_states(db)
+    counts["total"] = len(batteries)
     for battery in batteries:
-        counts["total"] += 1
-        key = status(battery, states.get(battery.id), db=db)
-        counts[key] += 1
+        state = states.get(battery.id)
+        value = status(battery, state, db=db)
+        counts[value] = counts.get(value, 0) + 1
     return counts
