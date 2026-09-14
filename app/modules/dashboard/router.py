@@ -43,13 +43,7 @@ def dashboard_page(
         if state and state.get("installed") and tire_services.tire_condition(tire, state) == "expired":
             equipment = state.get("equipment")
             position = state.get("position")
-            expired_tires.append(
-                {
-                    "tire": tire,
-                    "equipment": equipment,
-                    "position": position,
-                }
-            )
+            expired_tires.append({"tire": tire, "equipment": equipment, "position": position})
     expired_tires.sort(
         key=lambda item: (
             item["equipment"].registration_number if item["equipment"] else "",
@@ -59,30 +53,21 @@ def dashboard_page(
     )
 
     batteries, battery_states = battery_services.current_states(db)
-    validity_years = battery_services.get_validity_years(db)
+    replacement_due_batteries = []
     today = date.today()
-    expired_batteries = []
     for battery in batteries:
         state = battery_states.get(battery.id)
         if not state or not state.get("installed"):
             continue
         equipment = state.get("equipment")
-        first_service = getattr(equipment, "first_service_date", None) if equipment else None
-        if first_service:
-            due_date = battery_services._add_years(first_service, validity_years)
-        else:
-            base = battery.manufacture_date or battery.receipt_date
-            due_date = battery_services._add_years(base, validity_years) if base else None
+        due_date = battery_services.replacement_due_date(db, battery, equipment)
         if due_date and today >= due_date:
-            expired_batteries.append(
-                {
-                    "battery": battery,
-                    "equipment": equipment,
-                    "due_date": due_date,
-                }
+            replacement_due_batteries.append(
+                {"battery": battery, "equipment": equipment, "due_date": due_date}
             )
-    expired_batteries.sort(
+    replacement_due_batteries.sort(
         key=lambda item: (
+            item["due_date"] or date.max,
             item["equipment"].registration_number if item["equipment"] else "",
             item["battery"].serial_number,
         )
@@ -97,6 +82,6 @@ def dashboard_page(
             "status_counts": status_counts,
             "broken_count": broken_count,
             "expired_tires": expired_tires,
-            "expired_batteries": expired_batteries,
+            "replacement_due_batteries": replacement_due_batteries,
         },
     )
