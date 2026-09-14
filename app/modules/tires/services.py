@@ -8,6 +8,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
 from app.modules.meter_readings.models import MeterReading
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
+from app.modules.tires import state_engine
 
 MOVEMENT_TYPES = {"install", "move", "remove"}
 REMOVAL_DISPOSITIONS = {"stock", "damaged", "expired"}
@@ -23,8 +24,7 @@ def _add_years(value: date, years: int) -> date:
 
 
 def _movement_datetime(movement: TireMovement) -> datetime:
-    value = getattr(movement, "movement_datetime", None)
-    return value if value is not None else datetime.combine(movement.movement_date, time.min)
+    return state_engine.movement_datetime(movement)
 
 
 def _as_movement_datetime(value: date | datetime | None) -> datetime | None:
@@ -84,39 +84,29 @@ def set_validity_years(db: Session, years: int):
 
 
 def _remove_disposition(movement: TireMovement) -> str:
-    explicit = getattr(movement, "removal_disposition", None)
-    if explicit in REMOVAL_DISPOSITIONS:
-        return explicit
-    reason = (movement.reason or "").strip().lower()
-    if reason in DAMAGED_REASONS:
-        return "damaged"
-    if reason in EXPIRED_REASONS:
-        return "expired"
-    return "stock"
+    return state_engine.remove_disposition(movement)
 
 
 def current_state(db: Session, tire_id: int):
-    movements = db.query(TireMovement).filter(TireMovement.tire_id == tire_id).all()
-    state = None
-    for movement in sorted(movements, key=_movement_datetime):
-        if movement.movement_type == "remove":
-            state = {"movement": movement, "installed": False, "equipment": None, "position": None, "disposition": _remove_disposition(movement)}
-        else:
-            state = {"movement": movement, "installed": True, "equipment": movement.equipment, "position": movement.position, "disposition": "installed"}
+    movements = db.query(TireMovement).options(joinedload(TireMovement.equipment), joinedload(TireMovement.position)).filter(TireMovement.tire_id == tire_id).all()
+    state = state_engine.state_from_history(movements) if movements else None
     disposal = db.query(TireDisposal).filter(TireDisposal.tire_id == tire_id).first()
     if disposal and (state is None or disposal.disposal_date >= _movement_datetime(state["movement"]).date()):
-        return {"movement": state["movement"] if state else None, "installed": False, "equipment": None, "position": None, "disposition": "disposed", "disposal": disposal}
+        return {
+            "movement": state["movement"] if state else None,
+            "installed": False,
+            "equipment_id": None,
+            "position_id": None,
+            "equipment": None,
+            "position": None,
+            "disposition": "disposed",
+            "disposal": disposal,
+        }
     return state
 
 
 def _state_from_history(movements):
-    state = {"installed": False, "equipment_id": None, "position_id": None, "movement": None, "disposition": "stock"}
-    for movement in sorted(movements, key=_movement_datetime):
-        if movement.movement_type == "remove":
-            state = {"installed": False, "equipment_id": None, "position_id": None, "movement": movement, "disposition": _remove_disposition(movement)}
-        elif movement.movement_type in {"install", "move"}:
-            state = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "movement": movement, "disposition": "installed"}
-    return state
+    return state_engine.state_from_history(movements)
 
 
 def _tire_state_at(db: Session, tire_id: int, when: date | datetime, extra=None):
@@ -258,7 +248,8 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
         raise ValueError("جلسة قاعدة البيانات مطلوبة للتحقق من حركة الإطار")
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة الإطار غير صالح")
-    movement_datetime = movement_datetime or datetime.combine(movement_date, time.min)
+    if movement_datetime is None:
+        raise ValueError("وقت حركة الإطار مطلوب")
     if movement_datetime.date() != movement_date:
         raise ValueError("تاريخ ووقت حركة الإطار غير متطابقين")
     if movement_datetime > datetime.now():
@@ -411,8 +402,7 @@ def add_movement(db: Session, tire_id: int, data: dict):
     movement_date = data["movement_date"]
     movement_datetime = data.get("movement_datetime")
     if movement_datetime is None:
-        movement_datetime = datetime.combine(movement_date, datetime.now().time().replace(microsecond=0)) if movement_date == date.today() else datetime.combine(movement_date, time.min)
-        data["movement_datetime"] = movement_datetime
+        raise ValueError("وقت حركة الإطار مطلوب")
     removal_disposition = data.get("removal_disposition")
     validate_movement(db, tire, data["movement_type"], movement_date, data.get("equipment_id"), data.get("position_id"), data.get("meter_value"), movement_datetime, removal_disposition)
     if data["movement_type"] == "remove":
@@ -437,7 +427,7 @@ def dispose_tire(db: Session, tire_id: int, disposal_date: date, document: str, 
         raise ValueError("الإطار أُخرج من المخزون مسبقًا")
     if db.query(TireMovement).filter(TireMovement.tire_id == tire_id, TireMovement.movement_date > disposal_date).first():
         raise ValueError("تاريخ الإخراج لا يمكن أن يسبق حركة تاريخية لاحقة")
-    if _tire_state_at(db, tire_id, disposal_date)["installed"]:
+    if _tire_state_at(db, tire_id, datetime.combine(disposal_date, time.max))["installed"]:
         raise ValueError("يجب أن يكون الإطار خارج العتاد في تاريخ الإخراج")
     document = (document or "").strip()
     reason = (reason or "").strip()

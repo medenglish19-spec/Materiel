@@ -156,10 +156,8 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
 
 
 @router.post("/tires/{tire_id}/movements")
-def create_movement(tire_id: int, movement_type: str = Form(...), movement_date: date = Form(...), movement_time: time | None = Form(None), equipment_id: int | None = Form(None), position_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), removal_disposition: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_movement(tire_id: int, movement_type: str = Form(...), movement_date: date = Form(...), movement_time: time = Form(...), equipment_id: int | None = Form(None), position_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), removal_disposition: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        if movement_time is None:
-            movement_time = datetime.now().time().replace(microsecond=0) if movement_date == date.today() else time.min
         movement_datetime = datetime.combine(movement_date, movement_time)
         services.add_movement(db, tire_id, {"movement_date": movement_date, "movement_datetime": movement_datetime, "movement_type": movement_type, "equipment_id": equipment_id, "position_id": position_id, "meter_value": _decimal(meter_value), "document_number": document_number.strip() or None, "reason": reason.strip() or None, "removal_disposition": removal_disposition if movement_type == "remove" else None, "notes": notes.strip() or None})
     except ValueError as exc:

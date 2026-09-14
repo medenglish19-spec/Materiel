@@ -1,32 +1,24 @@
-from datetime import date, datetime, time
+from datetime import date
 
 from sqlalchemy.orm import joinedload
 
 from app.modules.equipment.models import Equipment
 from app.modules.tires.models import Tire, TireDisposal, TireMovement
+from app.modules.tires import state_engine
 
 
 def _movement_datetime(movement):
-    value = getattr(movement, "movement_datetime", None)
-    return value if value is not None else datetime.combine(movement.movement_date, time.min)
+    return state_engine.movement_datetime(movement)
 
 
 def _remove_disposition(movement):
-    explicit = getattr(movement, "removal_disposition", None)
-    if explicit in {"stock", "damaged", "expired"}:
-        return explicit
-    reason = (movement.reason or "").strip().lower()
-    if reason in {"تالف", "damaged", "تلف"}:
-        return "damaged"
-    if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
-        return "expired"
-    return "stock"
+    return state_engine.remove_disposition(movement)
 
 
 def current_states(db):
     tires = db.query(Tire).order_by(Tire.serial_number).all()
     movements = db.query(TireMovement).options(joinedload(TireMovement.equipment), joinedload(TireMovement.position)).all()
-    movements.sort(key=lambda m: (m.tire_id, _movement_datetime(m), m.id))
+    movements.sort(key=lambda m: (m.tire_id, state_engine.movement_datetime(m), m.id))
     disposals = db.query(TireDisposal).all()
     disposal_by_tire = {row.tire_id: row for row in disposals}
     grouped = {tire.id: [] for tire in tires}
@@ -36,15 +28,20 @@ def current_states(db):
 
     states = {}
     for tire in tires:
-        state = None
-        for movement in grouped[tire.id]:
-            if movement.movement_type == "remove":
-                state = {"movement": movement, "installed": False, "equipment": None, "position": None, "disposition": _remove_disposition(movement)}
-            else:
-                state = {"movement": movement, "installed": True, "equipment": movement.equipment, "position": movement.position, "disposition": "installed"}
+        tire_movements = grouped[tire.id]
+        state = state_engine.state_from_history(tire_movements) if tire_movements else None
         disposal = disposal_by_tire.get(tire.id)
-        if disposal and (state is None or disposal.disposal_date >= _movement_datetime(state["movement"]).date()):
-            states[tire.id] = {"movement": state["movement"] if state else None, "installed": False, "equipment": None, "position": None, "disposition": "disposed", "disposal": disposal}
+        if disposal and (state is None or disposal.disposal_date >= state_engine.movement_datetime(state["movement"]).date()):
+            states[tire.id] = {
+                "movement": state["movement"] if state else None,
+                "installed": False,
+                "equipment_id": None,
+                "position_id": None,
+                "equipment": None,
+                "position": None,
+                "disposition": "disposed",
+                "disposal": disposal,
+            }
         else:
             states[tire.id] = state
     return tires, states

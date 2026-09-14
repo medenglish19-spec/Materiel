@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from sqlalchemy import create_engine
@@ -57,7 +57,7 @@ def test_equipment_model_cannot_change_while_tire_is_installed():
         position = TirePosition(equipment_model_id=model_a.id, code="GUARD-POS-1", name="موضع اختبار", axle_number=1, side="left", position_type="single", sort_order=1)
         tire = Tire(serial_number="GUARD-TIRE-1", size="315/80R22.5", expiry_date=date(2030, 1, 1))
         db.add_all([equipment, position, tire]); db.flush()
-        db.add(TireMovement(tire_id=tire.id, movement_date=date(2026, 9, 1), movement_type="install", equipment_id=equipment.id, position_id=position.id)); db.commit()
+        db.add(TireMovement(tire_id=tire.id, movement_date=date(2026, 9, 1), movement_datetime=datetime(2026, 9, 1, 10), movement_type="install", equipment_id=equipment.id, position_id=position.id)); db.commit()
         with pytest.raises(ValueError, match="لا يمكن تغيير طراز العتاد بينما توجد إطارات مركبة عليه"):
             equipment_services.update_equipment(db, equipment, EquipmentUpdate(equipment_model_id=model_b.id))
         db.refresh(equipment); assert equipment.equipment_model_id == model_a.id

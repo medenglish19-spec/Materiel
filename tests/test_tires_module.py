@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -77,7 +77,7 @@ def test_expired_tire_cannot_be_installed(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="منتهي الصلاحية"):
-        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None)
+        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None, datetime.now().replace(microsecond=0))
 
 
 def test_damaged_tire_cannot_be_installed(monkeypatch):
@@ -88,4 +88,4 @@ def test_damaged_tire_cannot_be_installed(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="تالف"):
-        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None)
+        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None, datetime.now().replace(microsecond=0))
