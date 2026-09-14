@@ -1,40 +1,20 @@
 {% extends "base.html" %}
 {% block title %}بطارية {{ battery.serial_number }} | Materiel{% endblock %}
 {% block content %}
+<style>
+.battery-record .record-hero{position:relative;overflow:hidden}.battery-record .record-summary{grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px}.battery-record .record-box{min-height:92px;display:flex;flex-direction:column;justify-content:center;border-radius:14px}.battery-record .record-box b{font-size:18px;margin-top:8px}.battery-record .record-status-row{gap:8px;margin-top:14px}.battery-record .record-notice{border-radius:12px}.battery-record .record-form{gap:14px}.battery-record .record-form label{background:#f8fafc;border:1px solid #e7ebf2;border-radius:12px;padding:12px}.battery-record .record-form input,.battery-record .record-form select{margin-top:7px;background:#fff}.battery-record .record-form button{min-height:46px;border-radius:12px;font-weight:800}.battery-record .record-table tbody tr:hover{background:#f8fbff}.battery-record .record-table td:first-child{font-weight:700}@media(max-width:900px){.battery-record .record-summary{grid-template-columns:repeat(2,minmax(140px,1fr))}}@media(max-width:560px){.battery-record .record-summary,.battery-record .record-form{grid-template-columns:1fr}.battery-record .record-form .record-wide{grid-column:auto}}
+</style>
 <div class="record-page battery-record">
 <a class="record-back" href="/batteries">← العودة إلى إدارة البطاريات</a>
 <header class="record-hero"><div><p class="record-eyebrow">MATERIEL · BATTERY RECORD</p><h2>البطارية: {{ battery.serial_number }}</h2><div class="record-muted">الملف التشغيلي للبطارية وسجل حركاتها.</div></div></header>
 <section class="record-panel">
-  <div class="record-summary">
-    <div class="record-box"><span>الماركة</span><b>{{ battery.brand or '-' }}</b></div>
-    <div class="record-box"><span>طراز البطارية</span><b>{{ battery.model or '-' }}</b></div>
-    <div class="record-box"><span>تاريخ الصنع / الاستلام</span><b>{{ battery.manufacture_date or battery.receipt_date or '-' }}</b></div>
-    <div class="record-box"><span>موعد الاستبدال المحسوب</span><b>{{ replacement_due_date or '-' }}</b></div>
-    <div class="record-box"><span>وثيقة الاقتناء</span><b>{{ battery.acquisition_document or '-' }}</b></div>
-  </div>
-  <div class="record-status-row">
-    {% if state and state.installed and current_equipment %}
-      {% if replacement_due_date and today >= replacement_due_date %}<span class="record-badge expired">مستحقة للاستبدال</span>{% else %}<span class="record-badge good">ليست مستحقة بسبب العمر</span>{% endif %}
-    {% elif state and state.movement and state.movement.movement_type == 'remove' and state.movement.reason in ['تالف','damaged','تلف'] %}<span class="record-badge damaged">تالف — مسجل يدويًا</span>
-    {% else %}<span class="record-badge good">لا يوجد استحقاق عمر مرتبط بعتاد حالي</span>{% endif %}
-    <span class="record-badge {% if state and state.installed %}installed{% else %}stock{% endif %}">{% if state and state.installed %}مركبة{% else %}في المخزون{% endif %}</span>
-  </div>
+  <div class="record-summary"><div class="record-box"><span>الماركة</span><b>{{ battery.brand or '-' }}</b></div><div class="record-box"><span>طراز البطارية</span><b>{{ battery.model or '-' }}</b></div><div class="record-box"><span>تاريخ الصنع / الاستلام</span><b>{{ battery.manufacture_date or battery.receipt_date or '-' }}</b></div><div class="record-box"><span>موعد الاستبدال المحسوب</span><b>{{ replacement_due_date or '-' }}</b></div><div class="record-box"><span>وثيقة الاقتناء</span><b>{{ battery.acquisition_document or '-' }}</b></div></div>
+  <div class="record-status-row">{% if state and state.installed and current_equipment %}{% if replacement_due_date and today >= replacement_due_date %}<span class="record-badge expired">مستحقة للاستبدال</span>{% else %}<span class="record-badge good">ليست مستحقة بسبب العمر</span>{% endif %}{% elif state and state.movement and state.movement.movement_type == 'remove' and state.movement.reason in ['تالف','damaged','تلف'] %}<span class="record-badge damaged">تالف — مسجل يدويًا</span>{% else %}<span class="record-badge good">لا يوجد استحقاق عمر مرتبط بعتاد حالي</span>{% endif %}<span class="record-badge {% if state and state.installed %}installed{% else %}stock{% endif %}">{% if state and state.installed %}مركبة{% else %}في المخزون{% endif %}</span></div>
   <div class="record-notice">مدة الاستبدال العامة: <b>{{ validity_years }} سنة</b>. العمر وحده لا يعني التلف؛ التلف لا يُسجل إلا من خلال حركة فك بسبب تلف.</div>
   {% if state and state.installed %}<div class="record-notice">العتاد الحالي: <b>{{ state.equipment.registration_number or state.equipment.asset_code }}</b>{% if state.equipment.equipment_model %} · الطراز: <b>{{ state.equipment.equipment_model.name }}</b>{% endif %}{% if state.equipment.first_service_date %} · أول سير: <b>{{ state.equipment.first_service_date }}</b>{% endif %}</div>{% endif %}
 </section>
-<section class="record-panel">
-  <div class="record-section-head"><h3>تسجيل حركة</h3><div class="record-hint">الفك إلزامي قبل استبدال أو نقل البطارية. لا يوجد نقل مباشر: سجّل الفك أولًا بسبب واضح، ثم سجّل التركيب في العتاد الجديد. بلوغ موعد الاستبدال لا يجعل البطارية تالفة.</div></div>
-  <form method="post" action="/batteries/{{ battery.id }}/movements" class="record-form">
-    <label>نوع الحركة<select name="movement_type" id="movement_type" required><option value="install">تركيب</option><option value="remove">فك</option></select></label>
-    <label>تاريخ الحركة<input type="date" name="movement_date" value="{{ today }}" required></label>
-    <label>العتاد<select name="equipment_id" id="equipment_id"><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.asset_code }}{% if e.equipment_model %} — {{ e.equipment_model.name }}{% endif %}</option>{% endfor %}</select></label>
-    <label>قراءة العداد<input name="meter_value" type="number" step="0.1" placeholder="القراءة عند الحركة"></label>
-    <label>رقم الوثيقة<input name="document_number" placeholder="وثيقة التسليم / الحركة"></label>
-    <label>سبب الحركة<input name="reason" id="reason" placeholder="سبب الفك أو التركيب" required></label>
-    <label class="record-wide">ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label>
-    <button class="record-wide">تسجيل الحركة</button>
-  </form>
-</section>
+<section class="record-panel"><div class="record-section-head"><h3>تسجيل حركة</h3><div class="record-hint">الفك إلزامي قبل استبدال أو نقل البطارية. لا يوجد نقل مباشر: سجّل الفك أولًا بسبب واضح، ثم سجّل التركيب في العتاد الجديد. بلوغ موعد الاستبدال لا يجعل البطارية تالفة.</div></div>
+<form method="post" action="/batteries/{{ battery.id }}/movements" class="record-form"><label>نوع الحركة<select name="movement_type" id="movement_type" required><option value="install">تركيب</option><option value="remove">فك</option></select></label><label>تاريخ الحركة<input type="date" name="movement_date" value="{{ today }}" required></label><label>العتاد<select name="equipment_id" id="equipment_id"><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.asset_code }}{% if e.equipment_model %} — {{ e.equipment_model.name }}{% endif %}</option>{% endfor %}</select></label><label>قراءة العداد<input name="meter_value" type="number" step="0.1" placeholder="القراءة عند الحركة"></label><label>رقم الوثيقة<input name="document_number" placeholder="وثيقة التسليم / الحركة"></label><label>سبب الحركة<input name="reason" id="reason" placeholder="سبب الفك أو التركيب" required></label><label class="record-wide">ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label><button class="record-wide">تسجيل الحركة</button></form></section>
 <section class="record-panel"><div class="record-section-head"><h3>السجل الزمني الكامل</h3><div class="record-hint">أحدث حركة تظهر أولًا. حركات النقل القديمة تبقى محفوظة لأغراض التاريخ.</div></div><div class="record-table-wrap"><table class="record-table"><thead><tr><th>التاريخ</th><th>الحركة</th><th>العتاد</th><th>العداد</th><th>الوثيقة</th><th>السبب</th></tr></thead><tbody>{% for m in history %}<tr><td>{{ m.movement_date }}</td><td><b>{{ {'install':'تركيب','move':'نقل','remove':'فك'}.get(m.movement_type,m.movement_type) }}</b></td><td>{{ m.equipment.registration_number if m.equipment else '-' }}</td><td>{{ m.meter_value or '-' }}</td><td>{{ m.document_number or '-' }}</td><td>{{ m.reason or '-' }}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد حركات مسجلة لهذه البطارية.</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
 <script>const movement=document.getElementById('movement_type');const equipment=document.getElementById('equipment_id');const reason=document.getElementById('reason');function sync(){const remove=movement.value==='remove';equipment.disabled=remove;equipment.required=!remove;if(remove)equipment.value='';reason.required=true;}movement.addEventListener('change',sync);sync();</script>
