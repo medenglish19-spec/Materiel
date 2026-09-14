@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -75,7 +75,7 @@ class TireMovement(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     tire_id = Column(Integer, ForeignKey("tires.id", ondelete="CASCADE"), nullable=False, index=True)
     movement_date = Column(Date, nullable=False, default=date.today, index=True)
-    movement_datetime = Column(DateTime, nullable=True, index=True)
+    movement_datetime = Column(DateTime, nullable=False, index=True)
     movement_type = Column(String(20), nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
     position_id = Column(Integer, ForeignKey("tire_positions.id", ondelete="SET NULL"), nullable=True)
@@ -89,4 +89,6 @@ class TireMovement(Base, AuditMixin):
     equipment = relationship("Equipment")
     position = relationship("TirePosition", back_populates="movements")
 
-    __table_args__ = (UniqueConstraint("equipment_id", "position_id", "movement_date", "id", name="uq_tire_movement_identity"),)
+    __table_args__ = (
+        UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),
+    )
