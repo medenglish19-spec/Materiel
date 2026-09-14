@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
@@ -9,7 +9,6 @@ from app.shared.mixins import AuditMixin
 
 class Tire(Base, AuditMixin):
     __tablename__ = "tires"
-
     id = Column(Integer, primary_key=True, index=True)
     serial_number = Column(String(80), unique=True, nullable=False, index=True)
     brand = Column(String(80), nullable=True)
@@ -21,14 +20,12 @@ class Tire(Base, AuditMixin):
     expiry_date_manual = Column(Boolean, nullable=False, default=False)
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
-
     movements = relationship("TireMovement", back_populates="tire", order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()", cascade="all, delete-orphan")
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")
 
 
 class TirePosition(Base, AuditMixin):
     __tablename__ = "tire_positions"
-
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(40), unique=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
@@ -43,7 +40,6 @@ class TirePosition(Base, AuditMixin):
 
 class TireModelSize(Base, AuditMixin):
     __tablename__ = "tire_model_sizes"
-
     id = Column(Integer, primary_key=True, index=True)
     equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=False, index=True)
     size = Column(String(50), nullable=False)
@@ -52,14 +48,12 @@ class TireModelSize(Base, AuditMixin):
 
 class TireSystemSetting(Base, AuditMixin):
     __tablename__ = "tire_system_settings"
-
     id = Column(Integer, primary_key=True)
     validity_years = Column(Integer, nullable=False, default=3)
 
 
 class TireDisposal(Base, AuditMixin):
     __tablename__ = "tire_disposals"
-
     id = Column(Integer, primary_key=True, index=True)
     tire_id = Column(Integer, ForeignKey("tires.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     disposal_date = Column(Date, nullable=False)
@@ -71,7 +65,6 @@ class TireDisposal(Base, AuditMixin):
 
 class TireMovement(Base, AuditMixin):
     __tablename__ = "tire_movements"
-
     id = Column(Integer, primary_key=True, index=True)
     tire_id = Column(Integer, ForeignKey("tires.id", ondelete="CASCADE"), nullable=False, index=True)
     movement_date = Column(Date, nullable=False, default=date.today, index=True)
@@ -84,11 +77,17 @@ class TireMovement(Base, AuditMixin):
     reason = Column(String(250), nullable=True)
     removal_disposition = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
-
     tire = relationship("Tire", back_populates="movements")
     equipment = relationship("Equipment")
     position = relationship("TirePosition", back_populates="movements")
+    __table_args__ = (UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),)
 
-    __table_args__ = (
-        UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),
-    )
+
+@event.listens_for(TireMovement, "before_insert")
+def _validate_tire_movement_policy(mapper, connection, target):
+    if target.movement_type == "move":
+        raise ValueError("نقل الإطار المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
+    if target.movement_type not in {"install", "remove"}:
+        raise ValueError("نوع حركة الإطار غير صالح")
+    if target.movement_type == "remove" and not (target.reason or "").strip():
+        raise ValueError("سبب فك الإطار إلزامي")
