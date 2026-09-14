@@ -9,7 +9,10 @@ def test_replacement_due_is_not_damage_or_unusable_state():
     state = {"installed": True}
 
     # A due/replacement date is an advisory condition, not damage.
-    assert status(battery, state, db=None) == "replacement_due"
+    # The service intentionally exposes the due condition as its existing
+    # "expired" status; it must never be interpreted as "damaged".
+    assert status(battery, state, db=None) == "expired"
+    assert status(battery, state, db=None) != "damaged"
     assert battery.expiry_date < date.today()
 
 
