@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -41,17 +41,8 @@ def _model_tire_configuration(db: Session):
             "has_tires": bool(model.has_tires),
             "tire_positions_required": model.tire_positions_required,
             "tire_size": model.tire_size,
-            "positions": [
-                {"id": position.id, "name": position.name, "code": position.code}
-                for position in services.list_positions(db, model.id)
-            ],
-            "sizes": [
-                size.size
-                for size in db.query(TireModelSize)
-                .filter(TireModelSize.equipment_model_id == model.id)
-                .order_by(TireModelSize.id)
-                .all()
-            ],
+            "positions": [{"id": p.id, "name": p.name, "code": p.code} for p in services.list_positions(db, model.id)],
+            "sizes": [s.size for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == model.id).order_by(TireModelSize.id).all()],
         }
     return configurations
 
@@ -167,13 +158,16 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     if not tire:
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "model_tire_configuration": _model_tire_configuration(db), "today": date.today(), "validity_years": services.get_validity_years(db)})
+    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "model_tire_configuration": _model_tire_configuration(db), "today": date.today(), "validity_years": services.get_validity_years(db), "now_time": datetime.now().strftime("%H:%M")})
 
 
 @router.post("/tires/{tire_id}/movements")
-def create_movement(tire_id: int, movement_type: str = Form(...), movement_date: date = Form(...), equipment_id: int | None = Form(None), position_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_movement(tire_id: int, movement_type: str = Form(...), movement_date: date = Form(...), movement_time: time | None = Form(None), equipment_id: int | None = Form(None), position_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_movement(db, tire_id, {"movement_date": movement_date, "movement_type": movement_type, "equipment_id": equipment_id, "position_id": position_id, "meter_value": _decimal(meter_value), "document_number": document_number.strip() or None, "reason": reason.strip() or None, "notes": notes.strip() or None})
+        if movement_time is None:
+            movement_time = datetime.now().time().replace(microsecond=0) if movement_date == date.today() else time.min
+        movement_datetime = datetime.combine(movement_date, movement_time)
+        services.add_movement(db, tire_id, {"movement_date": movement_date, "movement_datetime": movement_datetime, "movement_type": movement_type, "equipment_id": equipment_id, "position_id": position_id, "meter_value": _decimal(meter_value), "document_number": document_number.strip() or None, "reason": reason.strip() or None, "notes": notes.strip() or None})
     except ValueError as exc:
         db.rollback()
         raise _error(exc)
