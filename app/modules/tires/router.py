@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
+from app.modules.asset_movements.mandatory_removal import require_explicit_removal, require_free_before_install
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
 from app.modules.equipment_types import services as equipment_type_services
@@ -158,8 +159,12 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
 @router.post("/tires/{tire_id}/movements")
 def create_movement(tire_id: int, movement_type: str = Form(...), movement_date: date = Form(...), movement_time: time = Form(...), equipment_id: int | None = Form(None), position_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), removal_disposition: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
+        reason_value = reason.strip()
+        require_explicit_removal(movement_type, reason_value, resource_label="الإطار")
+        state = services.current_state(db, tire_id)
+        require_free_before_install(movement_type=movement_type, currently_installed=bool(state and state.get("installed")), resource_label="الإطار")
         movement_datetime = datetime.combine(movement_date, movement_time)
-        services.add_movement(db, tire_id, {"movement_date": movement_date, "movement_datetime": movement_datetime, "movement_type": movement_type, "equipment_id": equipment_id, "position_id": position_id, "meter_value": _decimal(meter_value), "document_number": document_number.strip() or None, "reason": reason.strip() or None, "removal_disposition": removal_disposition if movement_type == "remove" else None, "notes": notes.strip() or None})
+        services.add_movement(db, tire_id, {"movement_date": movement_date, "movement_datetime": movement_datetime, "movement_type": movement_type, "equipment_id": equipment_id, "position_id": position_id, "meter_value": _decimal(meter_value), "document_number": document_number.strip() or None, "reason": reason_value or None, "removal_disposition": removal_disposition if movement_type == "remove" else None, "notes": notes.strip() or None})
     except ValueError as exc:
         db.rollback()
         raise _error(exc)
