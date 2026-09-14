@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
@@ -18,6 +18,7 @@ class Tire(Base, AuditMixin):
     manufacture_date = Column(Date, nullable=True)
     receipt_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)
+    expiry_date_manual = Column(Boolean, nullable=False, default=False)
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
 
