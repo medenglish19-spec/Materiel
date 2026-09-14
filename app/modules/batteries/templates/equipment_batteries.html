@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}بطاريات العتاد{% endblock %}
 {% block content %}
+<style>
+.equipment-batteries-page .record-hero{position:relative}.equipment-batteries-page .record-table tbody tr:hover{background:#f8fbff}.equipment-batteries-page .record-notice{border-radius:14px;margin-bottom:16px}.equipment-batteries-page .record-table td:first-child{font-weight:700}.equipment-batteries-page .record-badge{white-space:nowrap}@media(max-width:600px){.equipment-batteries-page .record-hero{gap:10px}.equipment-batteries-page .record-section-head{align-items:flex-start}}
+</style>
 <div class="record-page equipment-batteries-page" dir="rtl">
   <a class="record-back" href="/equipment/{{ equipment.id }}">← سجل العتاد</a>
   <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · BATTERIES</div><h2>بطاريات {{ equipment.registration_number or equipment.asset_code }}</h2><div class="record-muted">الحالة الحالية للبطاريات المركبة وسجل كل بطارية.</div></div><span class="record-badge installed">{{ items|length }} بطارية مركبة</span></header>
