@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from app.modules.batteries.models import Battery, BatteryMovement
-from app.modules.batteries.services import MOVEMENT_TYPES, _equipment_age_below_limit, _state_from_history, status
+from app.modules.batteries.services import MOVEMENT_TYPES, _equipment_age_below_limit, _is_damaged_reason, _state_from_history, status
 from app.modules.equipment.models import Equipment
 
 
@@ -46,3 +46,13 @@ def test_damage_is_not_inferred_from_age_or_expiry():
     assert status(battery, {"installed": True}, equipment=None, db=None) == "expired"
     movement = BatteryMovement(id=9, battery_id=2, movement_date=date.today(), movement_type="remove", reason="تالف")
     assert status(battery, {"installed": False, "movement": movement}, equipment=None, db=None) == "damaged"
+
+
+def test_replacement_date_does_not_mean_damage():
+    assert _is_damaged_reason("تالف") is True
+    assert _is_damaged_reason("تلف") is True
+    assert _is_damaged_reason("damaged") is True
+    assert _is_damaged_reason("انتهاء الصلاحية") is False
+    assert _is_damaged_reason("منتهي الصلاحية") is False
+    assert _is_damaged_reason("expired") is False
+    assert _is_damaged_reason(None) is False
