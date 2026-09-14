@@ -1,7 +1,7 @@
 from datetime import date
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
+from sqlalchemy.orm import relationship
 
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
@@ -82,16 +82,12 @@ class TireMovement(Base, AuditMixin):
     position = relationship("TirePosition", back_populates="movements")
     __table_args__ = (UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),)
 
-    @validates("movement_type")
-    def validate_movement_type(self, key, value):
-        if value not in {"install", "remove", "move"}:
-            raise ValueError("نوع حركة الإطار غير صالح")
-        if value == "move":
-            raise ValueError("نقل الإطار المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
-        return value
 
-    @validates("reason")
-    def validate_reason(self, key, value):
-        if self.movement_type == "remove" and not (value or "").strip():
-            raise ValueError("سبب فك الإطار إلزامي")
-        return value
+@event.listens_for(TireMovement, "before_insert")
+def _validate_tire_movement_policy(mapper, connection, target):
+    if target.movement_type == "move":
+        raise ValueError("نقل الإطار المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
+    if target.movement_type not in {"install", "remove"}:
+        raise ValueError("نوع حركة الإطار غير صالح")
+    if target.movement_type == "remove" and not (target.reason or "").strip():
+        raise ValueError("سبب فك الإطار إلزامي")

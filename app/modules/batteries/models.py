@@ -1,7 +1,7 @@
 from datetime import date
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text, event
+from sqlalchemy.orm import relationship
 
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
@@ -41,16 +41,12 @@ class BatteryMovement(Base, AuditMixin):
     battery = relationship("Battery", back_populates="movements")
     equipment = relationship("Equipment")
 
-    @validates("movement_type")
-    def validate_movement_type(self, key, value):
-        if value not in {"install", "remove", "move"}:
-            raise ValueError("نوع حركة البطارية غير صالح")
-        if value == "move":
-            raise ValueError("نقل البطارية المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
-        return value
 
-    @validates("reason")
-    def validate_reason(self, key, value):
-        if self.movement_type == "remove" and not (value or "").strip():
-            raise ValueError("سبب فك البطارية إلزامي")
-        return value
+@event.listens_for(BatteryMovement, "before_insert")
+def _validate_battery_movement_policy(mapper, connection, target):
+    if target.movement_type == "move":
+        raise ValueError("نقل البطارية المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
+    if target.movement_type not in {"install", "remove"}:
+        raise ValueError("نوع حركة البطارية غير صالح")
+    if target.movement_type == "remove" and not (target.reason or "").strip():
+        raise ValueError("سبب فك البطارية إلزامي")
