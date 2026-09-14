@@ -1,6 +1,6 @@
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
@@ -24,7 +24,7 @@ class Tire(Base, AuditMixin):
     movements = relationship(
         "TireMovement",
         back_populates="tire",
-        order_by="TireMovement.movement_date.desc(), TireMovement.id.desc()",
+        order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()",
         cascade="all, delete-orphan",
     )
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")
@@ -82,6 +82,7 @@ class TireMovement(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     tire_id = Column(Integer, ForeignKey("tires.id", ondelete="CASCADE"), nullable=False, index=True)
     movement_date = Column(Date, nullable=False, default=date.today, index=True)
+    movement_datetime = Column(DateTime, nullable=True, index=True)
     movement_type = Column(String(20), nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
     position_id = Column(Integer, ForeignKey("tire_positions.id", ondelete="SET NULL"), nullable=True)
