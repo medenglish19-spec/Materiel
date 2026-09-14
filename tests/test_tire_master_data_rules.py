@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -88,9 +88,9 @@ def test_explicit_tire_model_sizes_override_model_default_size():
 
 def test_historical_state_is_independent_of_later_current_state():
     movements = [
-        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", equipment_id=10, position_id=100),
-        TireMovement(id=2, tire_id=1, movement_date=date(2026, 2, 1), movement_type="remove", reason="تالف"),
-        TireMovement(id=3, tire_id=1, movement_date=date(2026, 3, 1), movement_type="install", equipment_id=20, position_id=200),
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_datetime=datetime(2026, 1, 1, 10), movement_type="install", equipment_id=10, position_id=100),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 2, 1), movement_datetime=datetime(2026, 2, 1, 10), movement_type="remove", reason="تالف"),
+        TireMovement(id=3, tire_id=1, movement_date=date(2026, 3, 1), movement_datetime=datetime(2026, 3, 1, 10), movement_type="install", equipment_id=20, position_id=200),
     ]
 
     current = _state_from_history(movements)
