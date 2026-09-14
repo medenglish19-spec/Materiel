@@ -23,19 +23,19 @@
   {% if state and state.installed %}<div class="record-notice">العتاد الحالي: <b>{{ state.equipment.registration_number or state.equipment.asset_code }}</b>{% if state.equipment.equipment_model %} · الطراز: <b>{{ state.equipment.equipment_model.name }}</b>{% endif %}{% if state.equipment.first_service_date %} · أول سير: <b>{{ state.equipment.first_service_date }}</b>{% endif %}</div>{% endif %}
 </section>
 <section class="record-panel">
-  <div class="record-section-head"><h3>تسجيل حركة</h3><div class="record-hint">الحالة التاريخية هي المرجع عند التحقق من التركيب والنقل والفك، وليس الحالة الحالية فقط.</div></div>
+  <div class="record-section-head"><h3>تسجيل حركة</h3><div class="record-hint">الفك إلزامي قبل استبدال أو نقل البطارية. لا يوجد نقل مباشر: سجّل الفك أولًا بسبب واضح، ثم سجّل التركيب في العتاد الجديد. بلوغ موعد الاستبدال لا يجعل البطارية تالفة.</div></div>
   <form method="post" action="/batteries/{{ battery.id }}/movements" class="record-form">
-    <label>نوع الحركة<select name="movement_type" id="movement_type" required><option value="install">تركيب</option><option value="move">نقل</option><option value="remove">فك</option></select></label>
+    <label>نوع الحركة<select name="movement_type" id="movement_type" required><option value="install">تركيب</option><option value="remove">فك</option></select></label>
     <label>تاريخ الحركة<input type="date" name="movement_date" value="{{ today }}" required></label>
     <label>العتاد<select name="equipment_id" id="equipment_id"><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.asset_code }}{% if e.equipment_model %} — {{ e.equipment_model.name }}{% endif %}</option>{% endfor %}</select></label>
     <label>قراءة العداد<input name="meter_value" type="number" step="0.1" placeholder="القراءة عند الحركة"></label>
     <label>رقم الوثيقة<input name="document_number" placeholder="وثيقة التسليم / الحركة"></label>
-    <label>سبب الحركة<input name="reason" placeholder="سبب الفك أو النقل"></label>
+    <label>سبب الحركة<input name="reason" id="reason" placeholder="سبب الفك أو التركيب" required></label>
     <label class="record-wide">ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label>
     <button class="record-wide">تسجيل الحركة</button>
   </form>
 </section>
-<section class="record-panel"><div class="record-section-head"><h3>السجل الزمني الكامل</h3><div class="record-hint">أحدث حركة تظهر أولًا.</div></div><div class="record-table-wrap"><table class="record-table"><thead><tr><th>التاريخ</th><th>الحركة</th><th>العتاد</th><th>العداد</th><th>الوثيقة</th><th>السبب</th></tr></thead><tbody>{% for m in history %}<tr><td>{{ m.movement_date }}</td><td><b>{{ {'install':'تركيب','move':'نقل','remove':'فك'}.get(m.movement_type,m.movement_type) }}</b></td><td>{{ m.equipment.registration_number if m.equipment else '-' }}</td><td>{{ m.meter_value or '-' }}</td><td>{{ m.document_number or '-' }}</td><td>{{ m.reason or '-' }}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد حركات مسجلة لهذه البطارية.</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="record-panel"><div class="record-section-head"><h3>السجل الزمني الكامل</h3><div class="record-hint">أحدث حركة تظهر أولًا. حركات النقل القديمة تبقى محفوظة لأغراض التاريخ.</div></div><div class="record-table-wrap"><table class="record-table"><thead><tr><th>التاريخ</th><th>الحركة</th><th>العتاد</th><th>العداد</th><th>الوثيقة</th><th>السبب</th></tr></thead><tbody>{% for m in history %}<tr><td>{{ m.movement_date }}</td><td><b>{{ {'install':'تركيب','move':'نقل','remove':'فك'}.get(m.movement_type,m.movement_type) }}</b></td><td>{{ m.equipment.registration_number if m.equipment else '-' }}</td><td>{{ m.meter_value or '-' }}</td><td>{{ m.document_number or '-' }}</td><td>{{ m.reason or '-' }}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد حركات مسجلة لهذه البطارية.</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
-<script>const movement=document.getElementById('movement_type');const equipment=document.getElementById('equipment_id');function sync(){const remove=movement.value==='remove';equipment.disabled=remove;equipment.required=!remove;if(remove)equipment.value='';}movement.addEventListener('change',sync);sync();</script>
+<script>const movement=document.getElementById('movement_type');const equipment=document.getElementById('equipment_id');const reason=document.getElementById('reason');function sync(){const remove=movement.value==='remove';equipment.disabled=remove;equipment.required=!remove;if(remove)equipment.value='';reason.required=true;}movement.addEventListener('change',sync);sync();</script>
 {% endblock %}
