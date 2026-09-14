@@ -1,9 +1,16 @@
-from datetime import date
+from datetime import date, datetime, time
 
 from sqlalchemy.orm import joinedload
 
 from app.modules.equipment.models import Equipment
 from app.modules.tires.models import Tire, TireDisposal, TireMovement
+
+
+def _movement_datetime(movement):
+    value = getattr(movement, "movement_datetime", None)
+    if value is not None:
+        return value
+    return datetime.combine(movement.movement_date, time.min)
 
 
 def _remove_disposition(movement):
@@ -21,9 +28,9 @@ def current_states(db):
     movements = (
         db.query(TireMovement)
         .options(joinedload(TireMovement.equipment), joinedload(TireMovement.position))
-        .order_by(TireMovement.tire_id.asc(), TireMovement.movement_date.asc(), TireMovement.id.asc())
         .all()
     )
+    movements.sort(key=lambda m: (m.tire_id, _movement_datetime(m), m.id))
     disposals = db.query(TireDisposal).all()
     disposal_by_tire = {row.tire_id: row for row in disposals}
     grouped = {tire.id: [] for tire in tires}
@@ -36,31 +43,12 @@ def current_states(db):
         state = None
         for movement in grouped[tire.id]:
             if movement.movement_type == "remove":
-                state = {
-                    "movement": movement,
-                    "installed": False,
-                    "equipment": None,
-                    "position": None,
-                    "disposition": _remove_disposition(movement),
-                }
+                state = {"movement": movement, "installed": False, "equipment": None, "position": None, "disposition": _remove_disposition(movement)}
             else:
-                state = {
-                    "movement": movement,
-                    "installed": True,
-                    "equipment": movement.equipment,
-                    "position": movement.position,
-                    "disposition": "installed",
-                }
+                state = {"movement": movement, "installed": True, "equipment": movement.equipment, "position": movement.position, "disposition": "installed"}
         disposal = disposal_by_tire.get(tire.id)
-        if disposal and (state is None or disposal.disposal_date >= state["movement"].movement_date):
-            states[tire.id] = {
-                "movement": state["movement"] if state else None,
-                "installed": False,
-                "equipment": None,
-                "position": None,
-                "disposition": "disposed",
-                "disposal": disposal,
-            }
+        if disposal and (state is None or disposal.disposal_date >= _movement_datetime(state["movement"]).date()):
+            states[tire.id] = {"movement": state["movement"] if state else None, "installed": False, "equipment": None, "position": None, "disposition": "disposed", "disposal": disposal}
         else:
             states[tire.id] = state
     return tires, states
@@ -80,15 +68,7 @@ def _status(tire, state):
 
 def dashboard_stats_from_snapshot(tires, states):
     """Calculate dashboard counts from an already-loaded state snapshot."""
-    counts = {
-        "total": len(tires),
-        "installed": 0,
-        "stock": 0,
-        "expired": 0,
-        "damaged": 0,
-        "disposed": 0,
-        "unassigned": 0,
-    }
+    counts = {"total": len(tires), "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "disposed": 0, "unassigned": 0}
     for tire in tires:
         status = _status(tire, states.get(tire.id))
         counts[status] = counts.get(status, 0) + 1
@@ -96,13 +76,11 @@ def dashboard_stats_from_snapshot(tires, states):
 
 
 def dashboard_stats(db):
-    """Return dashboard counts using one batched state snapshot."""
     tires, states = current_states(db)
     return dashboard_stats_from_snapshot(tires, states)
 
 
 def inventory(db):
-    """Return inventory rows from the same batched state snapshot."""
     tires, states = current_states(db)
     from app.modules.tires import services
 
@@ -112,18 +90,11 @@ def inventory(db):
         if state and state.get("disposition") == "disposed":
             continue
         if not state or not state.get("installed"):
-            result.append({
-                "tire": tire,
-                "state": state,
-                "status": services.tire_status(tire, state),
-                "condition": services.tire_condition(tire, state),
-                "location": services.tire_location(state),
-            })
+            result.append({"tire": tire, "state": state, "status": services.tire_status(tire, state), "condition": services.tire_condition(tire, state), "location": services.tire_location(state)})
     return result
 
 
 def _installed_for_equipment_from_snapshot(tires, states, equipment_id):
-    """Build installed tire rows from an already-loaded state snapshot."""
     from app.modules.tires import services
 
     rows = []
@@ -131,55 +102,30 @@ def _installed_for_equipment_from_snapshot(tires, states, equipment_id):
         state = states.get(tire.id)
         equipment = state.get("equipment") if state else None
         if state and state.get("installed") and equipment and equipment.id == equipment_id:
-            rows.append({
-                "tire": tire,
-                "state": state,
-                "condition": services.tire_condition(tire, state),
-                "location": services.tire_location(state),
-            })
-    return sorted(
-        rows,
-        key=lambda x: (
-            x["state"]["position"].sort_order if x["state"]["position"] else 9999,
-            x["state"]["position"].id if x["state"]["position"] else 9999,
-        ),
-    )
+            rows.append({"tire": tire, "state": state, "condition": services.tire_condition(tire, state), "location": services.tire_location(state)})
+    return sorted(rows, key=lambda x: (x["state"]["position"].sort_order if x["state"]["position"] else 9999, x["state"]["position"].id if x["state"]["position"] else 9999))
 
 
 def installed_for_equipment(db, equipment_id):
-    """Return installed tires for one equipment from a single state snapshot."""
     tires, states = current_states(db)
     return _installed_for_equipment_from_snapshot(tires, states, equipment_id)
 
 
 def equipment_position_view_from_snapshot(db, equipment, tires, states):
-    """Build the equipment position view from the same snapshot used for installed rows."""
     from app.modules.tires import services
 
     configured = services.list_positions(db, equipment.equipment_model_id)
-    mounted = {
-        item["state"]["position"].id: item
-        for item in _installed_for_equipment_from_snapshot(tires, states, equipment.id)
-        if item["state"].get("position")
-    }
+    mounted = {item["state"]["position"].id: item for item in _installed_for_equipment_from_snapshot(tires, states, equipment.id) if item["state"].get("position")}
     result = [{"position": position, "item": mounted.get(position.id)} for position in configured]
     configured_ids = {position.id for position in configured}
     for item in mounted.values():
         position = item["state"]["position"]
         if position.id not in configured_ids:
             result.append({"position": position, "item": item})
-    return sorted(
-        result,
-        key=lambda x: (
-            x["position"].axle_number or 9999,
-            x["position"].sort_order,
-            x["position"].id,
-        ),
-    )
+    return sorted(result, key=lambda x: (x["position"].axle_number or 9999, x["position"].sort_order, x["position"].id))
 
 
 def equipment_position_view(db, equipment_id):
-    """Build the equipment tire position view without per-tire current_state queries."""
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         return []
