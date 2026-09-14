@@ -13,11 +13,11 @@ from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentB
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
 @router.get("/equipment-types",response_class=HTMLResponse)
-def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):return templates.TemplateResponse("types_list.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":services.list_models(db),"user":current_user})
+def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":services.list_models(db),"user":current_user})
 @router.get("/equipment-types/structure",response_class=HTMLResponse)
 def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db)
-    counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
+    models=services.list_models(db);counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
     return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
 @router.post("/equipment-types/demo")
 def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return RedirectResponse(url="/equipment-types",status_code=302)
@@ -60,17 +60,17 @@ def set_type_theoretical_quantity_form(type_id:int,theoretical_quantity:str=Form
 @router.post("/equipment-types/{type_id}/freeze")
 def freeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
-    if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
+    if obj is None:raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
     try:services.set_type_frozen(db,obj,True)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد نوع العتاد؛ سيبقى محفوظًا ويستمر العتاد الموجود عليه، ولن يُعتمد لعتاد جديد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد نوع العتاد"),status_code=303)
 @router.post("/equipment-types/{type_id}/unfreeze")
 def unfreeze_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
-    if obj is None: raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
+    if obj is None:raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
     try:services.set_type_frozen(db,obj,False)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد نوع العتاد؛ يمكن استخدامه مجددًا لعتاد جديد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد نوع العتاد"),status_code=303)
 @router.post("/equipment-types/{type_id}/delete")
 def delete_type_form(type_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
@@ -85,10 +85,16 @@ def create_brand_form(name:str=Form(...),db:Session=Depends(get_db),current_user
     return RedirectResponse(url="/equipment-types",status_code=302)
 @router.post("/equipment-types/models/create")
 def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:
-        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
+    try:services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return RedirectResponse(url="/equipment-types",status_code=302)
+@router.post("/equipment-types/models/{model_id}/update")
+def update_model_form(model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_model(db,model_id)
+    if obj is None:raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    try:services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,tire_size=tire_size.strip() or None,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
+    except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم حفظ تعديلات الطراز والمواصفات"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/brand")
 def set_model_brand_form(model_id:int,brand_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
@@ -99,24 +105,23 @@ def set_model_brand_form(model_id:int,brand_id:int=Form(...),db:Session=Depends(
 @router.post("/equipment-types/models/{model_id}/freeze")
 def freeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
-    if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    if obj is None:raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
     try:services.set_model_frozen(db,obj,True)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد طراز العتاد؛ سيبقى محفوظًا ويستمر العتاد الموجود عليه، ولن يُعتمد لعتاد جديد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم إيقاف اعتماد طراز العتاد"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/unfreeze")
 def unfreeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
-    if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    if obj is None:raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
     try:services.set_model_frozen(db,obj,False)
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
-    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد طراز العتاد؛ يمكن استخدامه مجددًا لعتاد جديد"),status_code=303)
+    return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تمت إعادة اعتماد طراز العتاد"),status_code=303)
 @router.post("/equipment-types/models/{model_id}/delete")
 def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj:
         try:services.delete_model(db,obj)
-        except (ValueError,TypeError) as exc:
-            return RedirectResponse(url="/equipment-types?notice_type=warning&notice="+quote(str(exc)),status_code=303)
+        except (ValueError,TypeError) as exc:return RedirectResponse(url="/equipment-types?notice_type=warning&notice="+quote(str(exc)),status_code=303)
     return RedirectResponse(url="/equipment-types?notice_type=success&notice="+quote("تم حذف الطراز بنجاح"),status_code=303)
 @router.get("/api/equipment-types",response_model=list[EquipmentTypeOut])
 def api_list_types(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_types(db)
