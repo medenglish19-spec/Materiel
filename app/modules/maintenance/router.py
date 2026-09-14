@@ -69,7 +69,7 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
     if edit_id and edit_id.isdigit():
         edit_rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == int(edit_id)).first()
     return templates.TemplateResponse(
-        "maintenance_rules.html",
+        "maintenance_rules_model_only.html",
         {
             "request": request,
             "user": current_user,
