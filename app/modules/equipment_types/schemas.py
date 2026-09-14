@@ -7,10 +7,15 @@ MOBILITY_TYPES = {"mobile", "towed"}
 class EquipmentCategoryCreate(BaseModel):
     name: str
     code: Optional[str] = None
+class EquipmentCategoryUpdate(BaseModel):
+    name: str
+    code: Optional[str] = None
 class EquipmentCategoryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int; name: str; code: str; sort_order: int; is_system: bool
 class EquipmentBrandCreate(BaseModel):
+    name: str
+class EquipmentBrandUpdate(BaseModel):
     name: str
 class EquipmentBrandOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -21,6 +26,18 @@ class EquipmentTypeCreate(BaseModel):
     @classmethod
     def measurement_unit_valid(cls, v: str) -> str:
         if v not in MEASUREMENT_UNITS: raise ValueError(f"وحدة القياس يجب أن تكون أحد: {MEASUREMENT_UNITS}")
+        return v
+    @field_validator("theoretical_quantity")
+    @classmethod
+    def theoretical_quantity_valid(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
+        return v
+class EquipmentTypeUpdate(BaseModel):
+    name: str; measurement_unit: str; category_id: int; theoretical_quantity: Optional[int] = None
+    @field_validator("measurement_unit")
+    @classmethod
+    def measurement_unit_valid(cls, v: str) -> str:
+        if v not in MEASUREMENT_UNITS: raise ValueError("وحدة القياس غير صحيحة")
         return v
     @field_validator("theoretical_quantity")
     @classmethod
