@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.database.base import Base
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.maintenance.models import MaintenanceRule
-from app.modules.maintenance.router import effective_rules_for_equipment
+from app.modules.maintenance.services import effective_rules_for_equipment
 
 
 engine = create_engine(
@@ -74,3 +74,17 @@ def test_maintenance_rules_are_selected_by_model_only():
         assert effective_rules_for_equipment(db, eq_without_model) == []
     finally:
         db.close()
+
+
+def test_maintenance_rules_workspace_has_no_exception_ui_or_routes():
+    from pathlib import Path
+
+    template = Path("app/modules/maintenance/templates/maintenance_rules_model_only.html").read_text(encoding="utf-8")
+    router = Path("app/modules/maintenance/router.py").read_text(encoding="utf-8")
+
+    assert "exceptions/create" not in router
+    assert "exceptions/update" not in router
+    assert "exceptionForm" not in template
+    assert "newException" not in template
+    assert "exceptions/create" not in template
+    assert "parent_rule" not in router
