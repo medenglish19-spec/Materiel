@@ -1,43 +1,41 @@
 {% extends "base.html" %}
 {% block title %}لوحة التحكم{% endblock %}
-
 {% block content %}
 <style>
-.dashboard-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}
-.dashboard-head h2{margin:0 0 5px}.dashboard-muted{color:#667085;font-size:13px}
-.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
-.stat-card{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:18px;box-shadow:0 7px 24px rgba(15,23,42,.05)}
-.stat-number{font-size:28px;font-weight:800;color:#172033}.stat-label{margin-top:7px;color:#667085;font-size:13px;font-weight:700}
-.dashboard-panel{background:#fff;border:1px solid #e5e9f0;border-radius:16px;padding:20px;margin-top:18px;box-shadow:0 7px 24px rgba(15,23,42,.05)}
-.dashboard-panel h3{margin:0 0 5px}.panel-hint{color:#667085;font-size:12px;margin-bottom:15px}
-.table-wrap{overflow-x:auto;border:1px solid #e5e9f0;border-radius:12px}table{width:100%;border-collapse:collapse;min-width:650px}th,td{padding:12px;text-align:right;border-bottom:1px solid #edf0f4}th{background:#f8fafc;color:#667085;font-size:12px}tbody tr:last-child td{border-bottom:0}.badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#fff1f1;color:#9f2d2d;font-size:12px;font-weight:800}.empty{padding:24px!important;text-align:center;color:#667085}
-@media(max-width:600px){.dashboard-head{align-items:flex-start;flex-direction:column}}
+.dashboard-modern{direction:rtl}.dashboard-modern .hero{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:22px}.dashboard-modern .eyebrow{font-size:12px;font-weight:800;color:#4f6fae;letter-spacing:.04em;margin-bottom:6px}.dashboard-modern h2{margin:0;color:#13233f;font-size:28px}.dashboard-modern .sub{color:#718096;font-size:13px;margin-top:7px}.dashboard-modern .date-pill{background:#fff;border:1px solid #e4e9f1;border-radius:14px;padding:11px 15px;color:#526174;font-size:12px;box-shadow:0 5px 18px rgba(18,36,67,.04)}
+.dashboard-modern .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}.dashboard-modern .stat{position:relative;overflow:hidden;background:#fff;border:1px solid #e5eaf2;border-radius:18px;padding:18px;min-height:108px;box-shadow:0 8px 25px rgba(18,36,67,.05)}.dashboard-modern .stat:before{content:"";position:absolute;right:0;top:0;width:4px;height:100%;background:#4f76b8}.dashboard-modern .stat.warn:before{background:#d49a31}.dashboard-modern .stat.danger:before{background:#c65353}.dashboard-modern .stat.green:before{background:#39956d}.dashboard-modern .stat-label{font-size:12px;color:#758197;font-weight:700}.dashboard-modern .stat-value{font-size:30px;line-height:1.1;color:#152642;font-weight:850;margin-top:10px}.dashboard-modern .stat-foot{font-size:11px;color:#9aa4b3;margin-top:7px}
+.dashboard-modern .layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,.8fr);gap:18px}.dashboard-modern .panel{background:#fff;border:1px solid #e5eaf2;border-radius:18px;padding:19px;box-shadow:0 8px 25px rgba(18,36,67,.05);margin-bottom:18px}.dashboard-modern .panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:15px}.dashboard-modern .panel h3{margin:0;color:#182943;font-size:17px}.dashboard-modern .hint{font-size:11px;color:#8792a3;margin-top:4px}.dashboard-modern .count{font-size:11px;background:#f2f5fa;color:#5d6b80;border-radius:999px;padding:6px 10px;font-weight:800}.dashboard-modern .table-wrap{overflow:auto;border:1px solid #edf0f5;border-radius:13px}.dashboard-modern table{width:100%;min-width:650px;border-collapse:collapse}.dashboard-modern th,.dashboard-modern td{padding:11px 10px;border-bottom:1px solid #edf0f4;text-align:right;white-space:nowrap}.dashboard-modern th{background:#f8fafc;color:#7b8798;font-size:11px}.dashboard-modern td{font-size:12px;color:#344256}.dashboard-modern tbody tr:last-child td{border-bottom:0}.dashboard-modern .badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;background:#fff3e2;color:#a86608}.dashboard-modern .danger-badge{background:#fff0f0;color:#ad3838}.dashboard-modern .link{color:#3569ae;text-decoration:none;font-weight:800;font-size:11px}.dashboard-modern .empty{padding:25px!important;text-align:center;color:#8a95a5}.dashboard-modern .quick{display:grid;gap:10px}.dashboard-modern .quick-card{display:flex;align-items:center;justify-content:space-between;padding:14px;border:1px solid #edf0f5;border-radius:14px;background:#fbfcfe}.dashboard-modern .quick-title{font-weight:800;color:#263852;font-size:12px}.dashboard-modern .quick-meta{font-size:11px;color:#8994a4;margin-top:4px}.dashboard-modern .arrow{width:31px;height:31px;border-radius:10px;background:#edf3fb;display:grid;place-items:center;color:#3d68a4;font-weight:900}.dashboard-modern .note{background:linear-gradient(135deg,#152a4b,#243e68);color:#fff;border:0}.dashboard-modern .note h3{color:#fff}.dashboard-modern .note p{font-size:12px;line-height:1.9;color:#dce6f5;margin:7px 0 0}
+@media(max-width:1000px){.dashboard-modern .stats{grid-template-columns:repeat(2,1fr)}.dashboard-modern .layout{grid-template-columns:1fr}}@media(max-width:600px){.dashboard-modern .hero{align-items:flex-start;flex-direction:column}.dashboard-modern .stats{grid-template-columns:1fr}.dashboard-modern h2{font-size:23px}}
 </style>
-
-<div class="dashboard-head"><div><h2>مرحبًا، {{ user.full_name }}</h2><div class="dashboard-muted">نظرة تشغيلية مختصرة على حالة العتاد والتنبيهات المهمة.</div></div></div>
-
-<div class="cards-grid">
-    <div class="stat-card"><div class="stat-number">{{ total_equipment }}</div><div class="stat-label">إجمالي العتاد</div></div>
-    {% for status, count in status_counts.items() %}<div class="stat-card"><div class="stat-number">{{ count }}</div><div class="stat-label">{{ status }}</div></div>{% endfor %}
-    <div class="stat-card"><div class="stat-number">{{ expired_tires|length }}</div><div class="stat-label">إطارات مركبة مستحقة للاستبدال</div></div>
-    <div class="stat-card"><div class="stat-number">{{ replacement_due_batteries|length }}</div><div class="stat-label">بطاريات مركبة حان موعد استبدالها</div></div>
+<div class="dashboard-modern">
+  <div class="hero"><div><div class="eyebrow">MATERIEL · OPERATION CENTER</div><h2>لوحة القيادة</h2><div class="sub">ملخص فوري لحالة العتاد والتنبيهات التشغيلية المهمة.</div></div><div class="date-pill">نظام إدارة العتاد · متابعة يومية</div></div>
+  <div class="stats">
+    <div class="stat"><div class="stat-label">إجمالي العتاد</div><div class="stat-value">{{ total_equipment }}</div><div class="stat-foot">كل العربات والمعدات المسجلة</div></div>
+    {% for status, count in status_counts.items() %}<div class="stat"><div class="stat-label">{{ status }}</div><div class="stat-value">{{ count }}</div><div class="stat-foot">الحالة الحالية</div></div>{% endfor %}
+    <div class="stat warn"><div class="stat-label">إطارات مستحقة للاستبدال</div><div class="stat-value">{{ expired_tires|length }}</div><div class="stat-foot">المركبة حاليًا فقط</div></div>
+    <div class="stat green"><div class="stat-label">بطاريات حان موعدها</div><div class="stat-value">{{ replacement_due_batteries|length }}</div><div class="stat-foot">تنبيه وقائي وليس تلفًا</div></div>
+  </div>
+  <div class="layout">
+    <main>
+      <section class="panel"><div class="panel-head"><div><h3>الإطارات المركبة المستحقة للاستبدال</h3><div class="hint">إطارات مركبة حاليًا فقط وفق آخر حالة صحيحة.</div></div><span class="count">{{ expired_tires|length }} حالة</span></div>
+        <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>الموضع</th><th>تاريخ الانتهاء</th><th>الحالة</th><th></th></tr></thead><tbody>
+        {% for item in expired_tires %}<tr><td><b>{{ item.tire.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.position.name if item.position else '-' }}</td><td>{{ item.tire.expiry_date or '-' }}</td><td><span class="badge danger-badge">مستحقة للاستبدال</span></td><td><a class="link" href="/tires/{{ item.tire.id }}">فتح ←</a></td></tr>{% else %}<tr><td class="empty" colspan="6">لا توجد إطارات مركبة مستحقة للاستبدال حاليًا.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </section>
+      <section class="panel"><div class="panel-head"><div><h3>البطاريات المركبة التي حان موعد استبدالها</h3><div class="hint">الموعد تنبيه إداري؛ لا يمنع النقل أو إعادة التركيب ما لم يسجل تلف صريح.</div></div><span class="count">{{ replacement_due_batteries|length }} حالة</span></div>
+        <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>موعد الاستبدال</th><th>التنبيه</th><th></th></tr></thead><tbody>
+        {% for item in replacement_due_batteries %}<tr><td><b>{{ item.battery.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.due_date or '-' }}</td><td><span class="badge">حان موعد الاستبدال</span></td><td><a class="link" href="/batteries/{{ item.battery.id }}">فتح ←</a></td></tr>{% else %}<tr><td class="empty" colspan="5">لا توجد بطاريات مركبة حان موعد استبدالها حاليًا.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </section>
+    </main>
+    <aside>
+      <section class="panel"><div class="panel-head"><div><h3>الوصول السريع</h3><div class="hint">العمليات الأكثر استخدامًا</div></div></div><div class="quick">
+        <a class="quick-card" href="/tires" style="text-decoration:none"><div><div class="quick-title">إدارة الإطارات</div><div class="quick-meta">المخزون والحركات والسجلات</div></div><span class="arrow">←</span></a>
+        <a class="quick-card" href="/batteries" style="text-decoration:none"><div><div class="quick-title">إدارة البطاريات</div><div class="quick-meta">السجل والحالة والتركيب</div></div><span class="arrow">←</span></a>
+        <a class="quick-card" href="/equipment" style="text-decoration:none"><div><div class="quick-title">سجل العربات</div><div class="quick-meta">المعدات وحالتها الحالية</div></div><span class="arrow">←</span></a>
+      </div></section>
+      <section class="panel note"><h3>قاعدة تشغيلية</h3><p>الترتيب الزمني يعتمد على تاريخ ووقت الحدث الفعلي. تاريخ الإنشاء يستخدم للتدقيق فقط، ولا يستبدل تاريخ الحركة أو الصيانة.</p></section>
+    </aside>
+  </div>
 </div>
-
-<section class="dashboard-panel">
-    <h3>الإطارات المركبة المستحقة للاستبدال</h3>
-    <div class="panel-hint">يعرض الجدول الإطارات المستحقة وهي مركبة حاليًا على العتاد، وليس كل الإطارات الموجودة في المخزون.</div>
-    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>الموضع</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>السجل</th></tr></thead><tbody>
-    {% for item in expired_tires %}<tr><td><b>{{ item.tire.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.position.name if item.position else '-' }}</td><td>{{ item.tire.expiry_date or '-' }}</td><td><span class="badge">مستحقة للاستبدال</span></td><td><a href="/tires/{{ item.tire.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="6">لا توجد إطارات مركبة مستحقة للاستبدال حاليًا.</td></tr>{% endfor %}
-    </tbody></table></div>
-</section>
-
-<section class="dashboard-panel">
-    <h3>البطاريات المركبة التي حان موعد استبدالها</h3>
-    <div class="panel-hint">هذا تنبيه استبدال وقائي فقط: بلوغ الموعد لا يعني أن البطارية تالفة أو غير قابلة للنقل وإعادة التركيب. المنع يكون عند تسجيل تلف صريح.</div>
-    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>موعد الاستبدال</th><th>التنبيه</th><th>السجل</th></tr></thead><tbody>
-    {% for item in replacement_due_batteries %}<tr><td><b>{{ item.battery.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.due_date or '-' }}</td><td><span class="badge">حان موعد الاستبدال</span></td><td><a href="/batteries/{{ item.battery.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="5">لا توجد بطاريات مركبة حان موعد استبدالها حاليًا.</td></tr>{% endfor %}
-    </tbody></table></div>
-</section>
-
-<div class="dashboard-panel"><p class="dashboard-muted">تُضاف مؤشرات الوحدات الأخرى إلى لوحة التحكم تدريجيًا دون نقل منطقها إلى Dashboard.</p></div>
 {% endblock %}
