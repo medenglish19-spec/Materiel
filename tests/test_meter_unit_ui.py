@@ -29,7 +29,7 @@ def test_equipment_pages_use_only_the_configured_meter_unit():
 def test_maintenance_pages_render_meter_values_with_the_equipment_unit():
     dashboard = read("app/modules/maintenance/templates/maintenance_dashboard.html")
     due = read("app/modules/maintenance/templates/maintenance_due.html")
-    rules = read("app/modules/maintenance/templates/maintenance_rules.html")
+    rules = read("app/modules/maintenance/templates/maintenance_rules_model_only.html")
 
     for text in (dashboard, due):
         assert "row.unit == 'hours'" in text
