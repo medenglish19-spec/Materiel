@@ -119,7 +119,6 @@ def maintenance_rule_create(
         name=name.strip(),
         equipment_type_id=model.equipment_type_id,
         equipment_model_id=model.id,
-        parent_rule_id=None,
         interval_km=km,
         interval_hours=hours,
         interval_days=days,
@@ -171,7 +170,6 @@ def maintenance_rule_update(
     rule.name = name.strip()
     rule.equipment_type_id = model.equipment_type_id
     rule.equipment_model_id = model.id
-    rule.parent_rule_id = None
     rule.interval_km = km
     rule.interval_hours = hours
     rule.interval_days = days
