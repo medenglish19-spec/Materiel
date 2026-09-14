@@ -36,10 +36,6 @@ def _as_movement_datetime(value: date | datetime | None) -> datetime | None:
     return datetime.combine(value, time.min)
 
 
-def _movement_date(value: date | datetime) -> date:
-    return value.date() if isinstance(value, datetime) else value
-
-
 def list_tires(db: Session):
     return db.query(Tire).order_by(Tire.serial_number).all()
 
@@ -80,6 +76,8 @@ def set_validity_years(db: Session, years: int):
     else:
         setting.validity_years = years
     for tire in db.query(Tire).all():
+        if getattr(tire, "expiry_date_manual", False):
+            continue
         base = tire.manufacture_date or tire.receipt_date
         if base:
             tire.expiry_date = _add_years(base, years)
@@ -332,10 +330,13 @@ def add_tire(db: Session, data: dict):
     base = manufacture_date or receipt_date
     if expiry_date is None and base:
         data["expiry_date"] = _add_years(base, get_validity_years(db))
+        data["expiry_date_manual"] = False
     elif expiry_date and manufacture_date and expiry_date < manufacture_date:
         raise ValueError("تاريخ انتهاء الصلاحية لا يمكن أن يسبق تاريخ التصنيع")
     elif expiry_date and receipt_date and expiry_date < receipt_date:
         raise ValueError("تاريخ انتهاء الصلاحية لا يمكن أن يسبق تاريخ الاستلام")
+    if expiry_date is not None:
+        data["expiry_date_manual"] = True
     tire = Tire(**data)
     db.add(tire)
     db.commit()
