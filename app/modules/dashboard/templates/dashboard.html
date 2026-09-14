@@ -20,7 +20,7 @@
     <div class="stat-card"><div class="stat-number">{{ total_equipment }}</div><div class="stat-label">إجمالي العتاد</div></div>
     {% for status, count in status_counts.items() %}<div class="stat-card"><div class="stat-number">{{ count }}</div><div class="stat-label">{{ status }}</div></div>{% endfor %}
     <div class="stat-card"><div class="stat-number">{{ expired_tires|length }}</div><div class="stat-label">إطارات مركبة مستحقة للاستبدال</div></div>
-    <div class="stat-card"><div class="stat-number">{{ expired_batteries|length }}</div><div class="stat-label">بطاريات مركبة مستحقة للاستبدال</div></div>
+    <div class="stat-card"><div class="stat-number">{{ replacement_due_batteries|length }}</div><div class="stat-label">بطاريات مركبة حان موعد استبدالها</div></div>
 </div>
 
 <section class="dashboard-panel">
@@ -32,10 +32,10 @@
 </section>
 
 <section class="dashboard-panel">
-    <h3>البطاريات المركبة المستحقة للاستبدال</h3>
-    <div class="panel-hint">الحالة هنا محسوبة آليًا من قاعدة الاستبدال العامة وتاريخ أول سير للعتاد عند انطباق الاستثناء. لا تعتمد على تاريخ انتهاء يدوي قديم.</div>
-    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>موعد الاستبدال</th><th>الحالة</th><th>السجل</th></tr></thead><tbody>
-    {% for item in expired_batteries %}<tr><td><b>{{ item.battery.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.due_date or '-' }}</td><td><span class="badge">مستحقة للاستبدال</span></td><td><a href="/batteries/{{ item.battery.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="5">لا توجد بطاريات مركبة مستحقة للاستبدال حاليًا.</td></tr>{% endfor %}
+    <h3>البطاريات المركبة التي حان موعد استبدالها</h3>
+    <div class="panel-hint">هذا تنبيه استبدال وقائي فقط: بلوغ الموعد لا يعني أن البطارية تالفة أو غير قابلة للنقل وإعادة التركيب. المنع يكون عند تسجيل تلف صريح.</div>
+    <div class="table-wrap"><table><thead><tr><th>الرقم التسلسلي</th><th>العتاد</th><th>موعد الاستبدال</th><th>التنبيه</th><th>السجل</th></tr></thead><tbody>
+    {% for item in replacement_due_batteries %}<tr><td><b>{{ item.battery.serial_number }}</b></td><td>{{ item.equipment.registration_number if item.equipment else '-' }}</td><td>{{ item.due_date or '-' }}</td><td><span class="badge">حان موعد الاستبدال</span></td><td><a href="/batteries/{{ item.battery.id }}">فتح السجل ←</a></td></tr>{% else %}<tr><td class="empty" colspan="5">لا توجد بطاريات مركبة حان موعد استبدالها حاليًا.</td></tr>{% endfor %}
     </tbody></table></div>
 </section>
 
