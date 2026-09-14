@@ -188,7 +188,6 @@ def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: dat
     if meter_value < 0:
         raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
     unit = _equipment_measurement_unit(db, equipment_id)
-    value_column = MeterReading.odometer if unit == "km" else MeterReading.hours
     readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
     values = []
     for reading in readings:
@@ -231,8 +230,7 @@ def _validate_tire_meter_history(movements):
 
 
 def _validate_same_day_ambiguity(existing, movement_date: date):
-    same_day = [m for m in existing if m.movement_date == movement_date]
-    if same_day:
+    if any(m.movement_date == movement_date for m in existing):
         raise ValueError("لا يمكن ترتيب أكثر من حركة لهذا الإطار في نفس التاريخ بدقة. استخدم تاريخًا مختلفًا لكل حركة للحفاظ على التسلسل التاريخي.")
 
 
@@ -279,7 +277,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند النقل")
             if tire.expiry_date and movement.movement_date > tire.expiry_date:
-                raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في تاريخ الحركة المحدد")
+                raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في التاريخ المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "move", movement.movement_date)
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
