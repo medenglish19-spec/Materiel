@@ -5,9 +5,10 @@ from app.modules.tires import services
 from app.modules.tires.models import Tire
 
 
-def test_manual_expiry_field_exists_and_defaults_to_false():
-    tire = Tire(serial_number="MANUAL-1")
-    assert tire.expiry_date_manual is False
+def test_manual_expiry_field_has_false_default():
+    column = Tire.__table__.c.expiry_date_manual
+    assert column.default is not None
+    assert column.default.arg is False
 
 
 def test_explicit_removal_disposition_has_priority_over_free_text_reason():
