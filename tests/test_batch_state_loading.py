@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 import inspect
 
 
@@ -19,9 +19,9 @@ def test_tire_history_latest_installation_wins_by_date_then_id():
     from app.modules.tires.models import TireMovement
 
     movements = [
-        TireMovement(id=4, tire_id=1, movement_date=date(2026, 2, 1), movement_type="install", equipment_id=20, position_id=2),
-        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 1), movement_type="remove", equipment_id=None, position_id=None),
-        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_type="install", equipment_id=10, position_id=1),
+        TireMovement(id=4, tire_id=1, movement_date=date(2026, 2, 1), movement_datetime=datetime(2026, 2, 1, 10), movement_type="install", equipment_id=20, position_id=2),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 1), movement_datetime=datetime(2026, 1, 1, 10), movement_type="remove", equipment_id=None, position_id=None),
+        TireMovement(id=1, tire_id=1, movement_date=date(2026, 1, 1), movement_datetime=datetime(2026, 1, 1, 9), movement_type="install", equipment_id=10, position_id=1),
     ]
 
     state = _state_from_history(movements)
@@ -49,9 +49,9 @@ def test_tire_history_remove_then_install_returns_to_installed():
     from app.modules.tires.models import TireMovement
 
     movements = [
-        TireMovement(id=1, tire_id=1, movement_date=date(2025, 1, 1), movement_type="install", equipment_id=10, position_id=1),
-        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 1), movement_type="remove", equipment_id=None, position_id=None, reason="إصلاح"),
-        TireMovement(id=3, tire_id=1, movement_date=date(2026, 2, 1), movement_type="install", equipment_id=20, position_id=3),
+        TireMovement(id=1, tire_id=1, movement_date=date(2025, 1, 1), movement_datetime=datetime(2025, 1, 1, 10), movement_type="install", equipment_id=10, position_id=1),
+        TireMovement(id=2, tire_id=1, movement_date=date(2026, 1, 1), movement_datetime=datetime(2026, 1, 1, 10), movement_type="remove", equipment_id=None, position_id=None, reason="إصلاح"),
+        TireMovement(id=3, tire_id=1, movement_date=date(2026, 2, 1), movement_datetime=datetime(2026, 2, 1, 10), movement_type="install", equipment_id=20, position_id=3),
     ]
 
     state = _state_from_history(movements)
