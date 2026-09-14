@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.master-data-page{max-width:1500px;margin:auto}.md-hero{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:24px}.md-title h1{margin:0;font-size:clamp(1.45rem,2.5vw,2rem)}.md-title p{margin:7px 0 0;color:var(--muted,#64748b)}.md-actions{display:flex;gap:10px;flex-wrap:wrap}.md-grid{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(0,2fr);gap:18px}.md-card{background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:18px;box-shadow:0 8px 28px rgba(15,23,42,.06);padding:20px}.md-card h2{font-size:1.05rem;margin:0}.md-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}.md-form{display:grid;gap:12px}.md-form label{font-weight:700;font-size:.88rem}.md-form input,.md-form select,.md-form textarea{width:100%;box-sizing:border-box;border:1px solid #dbe3ee;border-radius:11px;padding:11px 12px;background:#fff}.md-help{font-size:.78rem;color:#64748b;margin-top:-5px}.md-table-wrap{overflow:auto;border:1px solid #e5eaf1;border-radius:14px}.md-table{width:100%;border-collapse:collapse;min-width:720px}.md-table th,.md-table td{padding:13px 14px;text-align:right;border-bottom:1px solid #edf1f6;vertical-align:middle}.md-table th{background:#f8fafc;color:#475569;font-size:.78rem;white-space:nowrap}.md-table tr:last-child td{border-bottom:0}.md-table tr:hover td{background:#fafcff}.md-name{font-weight:800;color:#172033}.md-code{font-family:ui-monospace,monospace;color:#64748b;font-size:.82rem}.md-actions-cell{display:flex;gap:7px;justify-content:flex-start;flex-wrap:wrap}.md-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #dbe3ee;border-radius:10px;padding:9px 12px;text-decoration:none;cursor:pointer;font-weight:700;background:#fff;color:#243247}.md-btn.primary{background:#173b67;color:#fff;border-color:#173b67}.md-btn.danger{color:#b42318}.md-search{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}.md-search input{border:1px solid #dbe3ee;border-radius:11px;padding:11px 12px}.md-empty{text-align:center;padding:38px 15px;color:#64748b}.md-note{padding:12px 14px;border-radius:12px;background:#f1f7ff;color:#31577d;font-size:.85rem;margin-bottom:15px}.md-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.md-count{font-size:.8rem;color:#64748b}.md-section{margin-top:18px}.md-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}.md-kpi{padding:14px;border:1px solid #e7edf5;border-radius:13px;background:#fbfcfe}.md-kpi strong{display:block;font-size:1.3rem}.md-kpi span{font-size:.78rem;color:#64748b}@media(max-width:900px){.md-grid{grid-template-columns:1fr}.md-hero{align-items:flex-start;flex-direction:column}.md-kpis{grid-template-columns:1fr 1fr}}@media(max-width:560px){.md-card{padding:15px;border-radius:14px}.md-kpis{grid-template-columns:1fr}.md-search{grid-template-columns:1fr}.md-actions{width:100%}.md-actions .md-btn{flex:1}}
+</style>
+<div class="master-data-page" dir="rtl">
+  <div class="md-hero">
+    <div class="md-title"><h1>البيانات الأساسية</h1><p>إدارة مرنة وموحدة للطرازات والأنواع والمواصفات التي تعتمد عليها بقية وحدات النظام.</p></div>
+    <div class="md-actions"><a class="md-btn" href="/equipment">← سجل العتاد</a><a class="md-btn primary" href="#new-model">＋ إضافة طراز</a></div>
+  </div>
+  <div class="md-grid">
+    <section class="md-card" id="new-model">
+      <div class="md-head"><h2>إضافة / تعديل بيانات الطراز</h2></div>
+      <div class="md-note">هذه الصفحة هي مصدر البيانات المرجعية. اجعل المواصفات دقيقة لأنها تُستخدم تلقائياً في سجلات العتاد والصيانة والإطارات والبطاريات.</div>
+      <form method="post" class="md-form">
+        {{ form.hidden_tag() if form is defined else '' }}
+        {% if form is defined %}
+          {% for field in form if field.type not in ['CSRFTokenField','SubmitField'] %}<div><label>{{ field.label }}</label>{{ field(class_='') }}{% if field.description %}<div class="md-help">{{ field.description }}</div>{% endif %}</div>{% endfor %}
+          {% for field in form if field.type == 'SubmitField' %}{{ field(class_='md-btn primary') }}{% endfor %}
+        {% else %}
+          <div><label for="model_name">اسم الطراز</label><input id="model_name" name="model_name" required placeholder="مثال: Toyota Land Cruiser"></div>
+          <div><label for="manufacturer">الشركة المصنعة</label><input id="manufacturer" name="manufacturer" placeholder="مثال: Toyota"></div>
+          <div><label for="category">النوع / الصنف</label><input id="category" name="category" placeholder="مثال: مركبة خفيفة"></div>
+          <div><label for="notes">ملاحظات</label><textarea id="notes" name="notes" rows="3"></textarea></div>
+          <button class="md-btn primary" type="submit">حفظ البيانات</button>
+        {% endif %}
+      </form>
+    </section>
+    <section class="md-card">
+      <div class="md-head"><h2>الطرازات والمراجع</h2><div class="md-tools"><span class="md-count" id="mdCount"></span></div></div>
+      <div class="md-search"><input id="mdSearch" type="search" placeholder="ابحث بالاسم، الشركة، النوع أو أي معلومة…" aria-label="بحث في البيانات الأساسية"><button class="md-btn" type="button" id="mdClear">مسح</button></div>
+      <div class="md-table-wrap">
+        <table class="md-table" id="mdTable"><thead><tr><th>#</th><th>الطراز</th><th>الشركة / النوع</th><th>المواصفات</th><th>إجراءات</th></tr></thead><tbody>
+        {% for item in items|default(models|default([])) %}
+          <tr><td>{{ loop.index }}</td><td class="md-name">{{ item.name|default(item.model_name|default('—')) }}</td><td>{{ item.manufacturer|default(item.category|default('—')) }}</td><td class="md-code">{{ item.code|default(item.description|default('—')) }}</td><td class="md-actions-cell"><a class="md-btn" href="{{ item.edit_url|default('#') }}">تعديل</a>{% if item.delete_url is defined %}<a class="md-btn danger" href="{{ item.delete_url }}" onclick="return confirm('هل أنت متأكد من حذف هذا السجل؟')">حذف</a>{% endif %}</td></tr>
+        {% else %}<tr id="mdEmpty"><td colspan="5" class="md-empty">لا توجد بيانات حالياً. ابدأ بإضافة أول طراز.</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+      <div class="md-section md-kpis"><div class="md-kpi"><strong id="visibleCount">0</strong><span>السجلات الظاهرة</span></div><div class="md-kpi"><strong>مرجع</strong><span>بيانات مركزية قابلة لإعادة الاستخدام</span></div><div class="md-kpi"><strong>مرن</strong><span>بحث وتعديل سريع</span></div></div>
+    </section>
+  </div>
+</div>
+<script>
+(()=>{const q=document.getElementById('mdSearch'),clear=document.getElementById('mdClear'),rows=[...document.querySelectorAll('#mdTable tbody tr')].filter(r=>r.id!=='mdEmpty'),count=document.getElementById('mdCount'),visible=document.getElementById('visibleCount');function apply(){const s=(q.value||'').trim().toLocaleLowerCase();let n=0;rows.forEach(r=>{const ok=!s||r.textContent.toLocaleLowerCase().includes(s);r.hidden=!ok;if(ok)n++});count.textContent=`${n} من ${rows.length} سجل`;visible.textContent=n}q?.addEventListener('input',apply);clear?.addEventListener('click',()=>{q.value='';apply();q.focus()});apply()})();
+</script>
+{% endblock %}
