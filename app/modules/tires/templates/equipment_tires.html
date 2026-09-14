@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}إطارات العتاد{% endblock %}
 {% block content %}
+<style>
+.equipment-tires-page .record-hero{position:relative;overflow:hidden}.equipment-tires-page .record-summary{grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px}.equipment-tires-page .record-box{min-height:88px;justify-content:center}.equipment-tires-page .record-box b{font-size:24px}.equipment-tires-page .tire-position-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.equipment-tires-page .tire-position-card{background:linear-gradient(180deg,#fff,#f8fafc);border:1px solid #e4e9f1;border-radius:16px;padding:16px;min-height:118px;box-shadow:0 6px 20px rgba(15,23,42,.04)}.equipment-tires-page .tire-position-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.equipment-tires-page .tire-position-card .tire-serial-link{display:block;margin-top:16px;font-size:17px;font-weight:800}.equipment-tires-page .record-table tbody tr:hover{background:#f8fbff}@media(max-width:760px){.equipment-tires-page .record-summary{grid-template-columns:repeat(2,minmax(130px,1fr))}}@media(max-width:500px){.equipment-tires-page .record-summary{grid-template-columns:1fr}}
+</style>
 <div class="record-page equipment-tires-page" dir="rtl">
   <a class="record-back" href="/equipment">← العتاد</a>
   <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · TIRES</div><h2>إطارات {{ equipment.registration_number or equipment.asset_code }}</h2><div class="record-muted">الحالة الحالية والتوزيع حسب مواضع طراز العتاد.</div></div></header>
