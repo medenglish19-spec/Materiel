@@ -77,11 +77,9 @@ def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->Equipmen
         if db.query(Equipment.id).filter(Equipment.equipment_type_id==obj.id).first(): raise ValueError("لا يمكن تغيير وحدة القياس لنوع مرتبط بعتاد فعلي؛ حفاظًا على تاريخ القراءات")
     obj.name=name;obj.measurement_unit=data.measurement_unit;obj.category_id=data.category_id;obj.theoretical_quantity=data.theoretical_quantity;db.commit();db.refresh(obj);return obj
 def set_type_category(db:Session,obj:EquipmentType,category_id:int)->EquipmentType:
-    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل الفئة")
     if get_category(db,category_id) is None: raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id=category_id;db.commit();db.refresh(obj);return obj
 def set_type_theoretical_quantity(db:Session,obj:EquipmentType,quantity:Optional[int])->EquipmentType:
-    if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل التعداد النظري")
     if quantity is not None and quantity<0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
     obj.theoretical_quantity=quantity;db.commit();db.refresh(obj);return obj
 def set_type_frozen(db:Session,obj:EquipmentType,frozen:bool)->EquipmentType:
@@ -131,7 +129,6 @@ def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->Equip
     obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver;db.commit();db.refresh(obj);return obj
 
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل العلامة التجارية")
     brand=get_brand(db,brand_id)
     if brand is None or not brand.is_active: raise ValueError("العلامة التجارية غير موجودة أو غير نشطة")
     duplicate=db.query(EquipmentModel).filter(EquipmentModel.id!=obj.id,EquipmentModel.equipment_type_id==obj.equipment_type_id,EquipmentModel.brand_id==brand_id,EquipmentModel.name==obj.name).first()
@@ -139,7 +136,6 @@ def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     obj.brand_id=brand_id;db.commit();db.refresh(obj);return obj
 
 def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool,tire_positions_required:int,tire_size:str|None)->EquipmentModel:
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل إعدادات الإطارات")
     if tire_positions_required<0: raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
     normalized_size=(tire_size or "").strip() or None
     from app.modules.tires.models import TirePosition
