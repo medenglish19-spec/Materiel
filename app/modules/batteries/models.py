@@ -1,7 +1,7 @@
 from datetime import date
 
 from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
@@ -9,7 +9,6 @@ from app.shared.mixins import AuditMixin
 
 class Battery(Base, AuditMixin):
     __tablename__ = "batteries"
-
     id = Column(Integer, primary_key=True, index=True)
     serial_number = Column(String(80), unique=True, nullable=False, index=True)
     brand = Column(String(80), nullable=True)
@@ -24,14 +23,12 @@ class Battery(Base, AuditMixin):
 
 class BatterySystemSetting(Base, AuditMixin):
     __tablename__ = "battery_system_settings"
-
     id = Column(Integer, primary_key=True)
     validity_years = Column(Integer, nullable=False, default=2)
 
 
 class BatteryMovement(Base, AuditMixin):
     __tablename__ = "battery_movements"
-
     id = Column(Integer, primary_key=True, index=True)
     battery_id = Column(Integer, ForeignKey("batteries.id", ondelete="CASCADE"), nullable=False, index=True)
     movement_date = Column(Date, nullable=False, default=date.today, index=True)
@@ -43,3 +40,17 @@ class BatteryMovement(Base, AuditMixin):
     notes = Column(Text, nullable=True)
     battery = relationship("Battery", back_populates="movements")
     equipment = relationship("Equipment")
+
+    @validates("movement_type")
+    def validate_movement_type(self, key, value):
+        if value not in {"install", "remove", "move"}:
+            raise ValueError("نوع حركة البطارية غير صالح")
+        if value == "move":
+            raise ValueError("نقل البطارية المباشر غير مسموح. يجب تسجيل الفك أولًا ثم التركيب.")
+        return value
+
+    @validates("reason")
+    def validate_reason(self, key, value):
+        if self.movement_type == "remove" and not (value or "").strip():
+            raise ValueError("سبب فك البطارية إلزامي")
+        return value
