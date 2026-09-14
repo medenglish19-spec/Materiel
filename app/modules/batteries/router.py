@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
+from app.modules.asset_movements.mandatory_removal import require_explicit_removal, require_free_before_install
 from app.modules.batteries import services
 from app.modules.batteries.models import Battery, BatteryMovement
 from app.modules.equipment.models import Equipment
@@ -78,7 +79,11 @@ def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_
 @router.post("/batteries/{battery_id}/movements")
 def create_movement(battery_id: int, movement_type: str = Form(...), movement_date: date = Form(...), equipment_id: int | None = Form(None), meter_value: str | None = Form(None), document_number: str = Form(""), reason: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_movement(db, battery_id, {"movement_date": movement_date, "movement_type": movement_type, "equipment_id": equipment_id, "meter_value": dec(meter_value), "document_number": document_number.strip() or None, "reason": reason.strip() or None, "notes": notes.strip() or None})
+        reason_value = reason.strip()
+        require_explicit_removal(movement_type, reason_value, resource_label="البطارية")
+        state = services.current_state(db, battery_id)
+        require_free_before_install(movement_type=movement_type, currently_installed=bool(state and state.get("installed")), resource_label="البطارية")
+        services.add_movement(db, battery_id, {"movement_date": movement_date, "movement_type": movement_type, "equipment_id": equipment_id, "meter_value": dec(meter_value), "document_number": document_number.strip() or None, "reason": reason_value or None, "notes": notes.strip() or None})
     except ValueError as exc:
         db.rollback()
         raise HTTPException(400, str(exc))
