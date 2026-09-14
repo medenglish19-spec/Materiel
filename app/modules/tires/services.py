@@ -113,11 +113,13 @@ def _validate_model_position(db: Session, equipment_id: int, position_id: int, t
     position = db.query(TirePosition).filter(TirePosition.id == position_id).first()
     if not equipment or not position:
         raise ValueError("العتاد أو موضع الإطار غير موجود")
-    if position.equipment_model_id is not None and position.equipment_model_id != equipment.equipment_model_id:
+    if position.equipment_model_id != equipment.equipment_model_id:
         raise ValueError("موضع الإطار لا ينتمي إلى طراز العتاد المحدد")
     model = equipment.equipment_model
     if model is None:
         raise ValueError("لا يمكن تركيب الإطار على عتاد لا يرتبط بطراز")
+    if not model.has_tires:
+        raise ValueError("لا يمكن تركيب الإطار: هذا الطراز غير معرف كطراز مزود بالإطارات في Master Data")
     sizes = {s.size.strip().lower() for s in db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment.equipment_model_id).all() if s.size and s.size.strip()}
     model_size = (model.tire_size or "").strip().lower() if getattr(model, "tire_size", None) else ""
     tire_size = (tire.size or "").strip().lower() if tire.size else ""
@@ -151,7 +153,7 @@ def _validate_model_capacity(db: Session, equipment_id: int, tire_id: int, movem
     required = int(model.tire_positions_required or 0)
     if required <= 0 or movement_type not in {"install", "move"}:
         return
-    installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id) if when is None else _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
+    installed = _installed_tire_count(db, equipment_id, exclude_tire_id=tire_id, when=when)
     if installed >= required:
         raise ValueError(f"تم بلوغ العدد المحدد للإطارات لهذا الطراز ({required}). يجب فك إطار أولًا أو اختيار موضع/عتاد آخر.")
 
@@ -169,25 +171,44 @@ def _position_occupied_at(db: Session, equipment_id: int, position_id: int, when
     return None
 
 
+def _equipment_measurement_unit(db: Session, equipment_id: int) -> str:
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        raise ValueError("العتاد المحدد غير موجود")
+    measurement_unit = (getattr(equipment.equipment_type, "measurement_unit", None) or "").strip().lower()
+    if measurement_unit not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح في Master Data (km أو hours)")
+    return measurement_unit
+
+
 def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
     if meter_value is None:
         return
+    meter_value = Decimal(str(meter_value))
+    if meter_value < 0:
+        raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
+    unit = _equipment_measurement_unit(db, equipment_id)
+    value_column = MeterReading.odometer if unit == "km" else MeterReading.hours
     readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
     values = []
     for reading in readings:
-        value = reading.odometer if reading.odometer is not None else reading.hours
+        value = getattr(reading, "odometer", None) if unit == "km" else getattr(reading, "hours", None)
         if value is not None:
             reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
             values.append((reading_date, Decimal(str(value))))
-    before = [value for d, value in values if d <= movement_date]
-    after = [value for d, value in values if d >= movement_date]
+    before = [value for d, value in values if d < movement_date]
+    same_day = [value for d, value in values if d == movement_date]
+    after = [value for d, value in values if d > movement_date]
+    if same_day and any(meter_value != value for value in same_day):
+        raise ValueError(f"قراءة {unit} في نفس تاريخ الحركة لا تطابق القراءة المسجلة للعتاد")
     if before and meter_value < before[-1]:
-        raise ValueError("قراءة العداد أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
+        raise ValueError(f"قراءة {unit} للحركة أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
     if after and meter_value > after[0]:
-        raise ValueError("قراءة العداد أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
+        raise ValueError(f"قراءة {unit} للحركة أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    if equipment and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-        raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
+    current_value = equipment.current_odometer if unit == "km" else equipment.current_hours
+    if current_value is not None and meter_value > Decimal(str(current_value)):
+        raise ValueError(f"قراءة {unit} للحركة أعلى من القراءة الحالية المسجلة للعتاد")
 
 
 def _validate_tire_meter_history(movements):
@@ -201,30 +222,32 @@ def _validate_tire_meter_history(movements):
         if movement.meter_value is None or movement.equipment_id is None:
             continue
         value = Decimal(str(movement.meter_value))
+        if value < 0:
+            raise ValueError("لا يمكن أن تكون قراءة عداد حركة الإطار سالبة")
         if previous_equipment_id == movement.equipment_id and previous is not None and value < previous:
             raise ValueError("قراءات عداد حركات الإطار غير متوافقة مع التسلسل الزمني للعتاد")
         previous_equipment_id = movement.equipment_id
         previous = value
 
 
+def _validate_same_day_ambiguity(existing, movement_date: date):
+    same_day = [m for m in existing if m.movement_date == movement_date]
+    if same_day:
+        raise ValueError("لا يمكن ترتيب أكثر من حركة لهذا الإطار في نفس التاريخ بدقة. استخدم تاريخًا مختلفًا لكل حركة للحفاظ على التسلسل التاريخي.")
+
+
 def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date: date, equipment_id: int | None, position_id: int | None, meter_value: Decimal | None):
+    if db is None:
+        raise ValueError("جلسة قاعدة البيانات مطلوبة للتحقق من حركة الإطار")
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة الإطار غير صالح")
     if movement_date > date.today():
-        raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي")
-    if db is None:
-        state = current_state(db, tire.id)
-        condition = tire_condition(tire, state)
-        if movement_type == "install" and condition in {"expired", "damaged"}:
-            label = "منتهي الصلاحية" if condition == "expired" else "تالف"
-            raise ValueError(f"لا يمكن تركيب إطار {label}")
-        if movement_type in {"install", "move"} and (not equipment_id or not position_id):
-            raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب أو النقل")
-        return
+        raise ValueError("لا يمكن تسجيل حركة بتاريخ مستقبلي. استخدم تاريخ اليوم أو تاريخًا سابقًا صحيحًا.")
     disposal = db.query(TireDisposal).filter(TireDisposal.tire_id == tire.id).first()
     if disposal and disposal.disposal_date <= movement_date:
         raise ValueError("الإطار أُخرج نهائيًا من المخزون ولا يمكن تسجيل حركة بتاريخ الإخراج أو بعده")
     existing = db.query(TireMovement).filter(TireMovement.tire_id == tire.id).order_by(TireMovement.movement_date.asc(), TireMovement.id.asc()).all()
+    _validate_same_day_ambiguity(existing, movement_date)
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value)
     timeline = sorted(existing + [candidate], key=lambda m: (m.movement_date, m.id))
