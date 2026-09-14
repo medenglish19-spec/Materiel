@@ -44,12 +44,7 @@ def list_batteries(db: Session):
 
 
 def current_states(db: Session):
-    """Load the latest state of every battery with one movement query.
-
-    This is the batch equivalent of current_state() and is intended for
-    dashboards, statistics and list views where calling current_state() once
-    per battery would create an N+1 query pattern.
-    """
+    """Load the latest state of every battery with one movement query."""
     batteries = list_batteries(db)
     movements = (
         db.query(BatteryMovement)
@@ -194,6 +189,10 @@ def replacement_due_date(db: Session, battery: Battery, equipment: Equipment | N
     return _general_expiry_date(battery, years)
 
 
+def _is_damaged_reason(reason: str | None) -> bool:
+    return (reason or "").strip().lower() in {"تالف", "damaged", "تلف"}
+
+
 def validate_movement(db: Session, battery: Battery, movement_type: str, movement_date: date, equipment_id: int | None, meter_value: Decimal | None):
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة البطارية غير صالح")
@@ -211,8 +210,11 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
     _validate_meter_history(timeline)
 
     state_at = {"installed": False, "equipment_id": None}
+    damaged_reported = False
     for movement in timeline:
         if movement.movement_type == "install":
+            if damaged_reported:
+                raise ValueError("لا يمكن تركيب بطارية تم الإبلاغ عن تلفها")
             if state_at["installed"]:
                 raise ValueError("التسلسل التاريخي غير صالح: البطارية مركبة بالفعل قبل عملية التركيب")
             if not movement.equipment_id:
@@ -220,8 +222,8 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
-            if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن تركيب بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
+            # replacement_due_date is advisory only. Passing it does not make
+            # the battery unusable; explicit damage reporting is the blocker.
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count:
@@ -231,6 +233,8 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
             state_at = {"installed": True, "equipment_id": movement.equipment_id}
         elif movement.movement_type == "move":
+            if damaged_reported:
+                raise ValueError("لا يمكن نقل بطارية تم الإبلاغ عن تلفها")
             if not state_at["installed"]:
                 raise ValueError("لا يمكن نقل بطارية غير مركبة في التاريخ المحدد")
             if not movement.equipment_id:
@@ -238,8 +242,6 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
-            if _expired_at(db, battery, equipment, movement.movement_date):
-                raise ValueError("لا يمكن نقل بطارية مستحقة للاستبدال وفق قاعدة الاستبدال في تاريخ الحركة المحدد")
             required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
@@ -249,6 +251,7 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
         elif movement.movement_type == "remove":
             if not state_at["installed"]:
                 raise ValueError("لا يمكن فك بطارية غير مركبة في التاريخ المحدد")
+            damaged_reported = _is_damaged_reason(movement.reason)
             state_at = {"installed": False, "equipment_id": None}
 
 
@@ -280,7 +283,7 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
     movement = state.get("movement") if isinstance(state, dict) else None
     if movement and movement.movement_type == "remove":
         reason = (movement.reason or "").strip().lower()
-        if reason in {"تالف", "damaged", "تلف"}:
+        if _is_damaged_reason(reason):
             return "damaged"
         if reason in {"انتهاء الصلاحية", "منتهي الصلاحية", "expired"}:
             return "expired"
