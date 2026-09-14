@@ -6,6 +6,25 @@ from app.modules.tires.models import Tire, TireMovement, TirePosition
 from app.modules.tires.services import MOVEMENT_TYPES, tire_condition, tire_location, tire_status, validate_movement
 
 
+class _Query:
+    def filter(self, *args, **kwargs):
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def first(self):
+        return None
+
+    def all(self):
+        return []
+
+
+class _DB:
+    def query(self, model):
+        return _Query()
+
+
 def test_tire_models_are_registered_with_expected_tables():
     assert Tire.__tablename__ == "tires"
     assert TireMovement.__tablename__ == "tire_movements"
@@ -58,7 +77,7 @@ def test_expired_tire_cannot_be_installed(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="منتهي الصلاحية"):
-        validate_movement(None, tire, "install", date.today(), 1, 1, None)
+        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None)
 
 
 def test_damaged_tire_cannot_be_installed(monkeypatch):
@@ -69,4 +88,4 @@ def test_damaged_tire_cannot_be_installed(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="تالف"):
-        validate_movement(None, tire, "install", date.today(), 1, 1, None)
+        validate_movement(_DB(), tire, "install", date.today(), 1, 1, None)
