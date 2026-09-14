@@ -22,12 +22,7 @@ class Tire(Base, AuditMixin):
     acquisition_document = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
 
-    movements = relationship(
-        "TireMovement",
-        back_populates="tire",
-        order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()",
-        cascade="all, delete-orphan",
-    )
+    movements = relationship("TireMovement", back_populates="tire", order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()", cascade="all, delete-orphan")
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")
 
 
@@ -43,7 +38,6 @@ class TirePosition(Base, AuditMixin):
     axle_number = Column(Integer, nullable=True, index=True)
     side = Column(String(10), nullable=True)
     position_type = Column(String(20), nullable=True)
-
     movements = relationship("TireMovement", back_populates="position")
 
 
@@ -53,7 +47,6 @@ class TireModelSize(Base, AuditMixin):
     id = Column(Integer, primary_key=True, index=True)
     equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=False, index=True)
     size = Column(String(50), nullable=False)
-
     __table_args__ = (UniqueConstraint("equipment_model_id", "size", name="uq_tire_model_size"),)
 
 
@@ -73,7 +66,6 @@ class TireDisposal(Base, AuditMixin):
     disposal_document = Column(String(100), nullable=False)
     reason = Column(String(250), nullable=False)
     notes = Column(Text, nullable=True)
-
     tire = relationship("Tire", back_populates="disposal")
 
 
@@ -90,12 +82,11 @@ class TireMovement(Base, AuditMixin):
     meter_value = Column(Numeric(10, 1), nullable=True)
     document_number = Column(String(100), nullable=True)
     reason = Column(String(250), nullable=True)
+    removal_disposition = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
 
     tire = relationship("Tire", back_populates="movements")
     equipment = relationship("Equipment")
     position = relationship("TirePosition", back_populates="movements")
 
-    __table_args__ = (
-        UniqueConstraint("equipment_id", "position_id", "movement_date", "id", name="uq_tire_movement_identity"),
-    )
+    __table_args__ = (UniqueConstraint("equipment_id", "position_id", "movement_date", "id", name="uq_tire_movement_identity"),)
