@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}إطار {{ tire.serial_number }} | Materiel{% endblock %}
 {% block content %}
+<style>
+.tire-record .record-hero{position:relative;overflow:hidden}.tire-record .record-hero:after{content:'◉';position:absolute;left:28px;top:18px;font-size:76px;opacity:.06}.tire-record .record-summary{grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px}.tire-record .record-box{min-height:92px;display:flex;flex-direction:column;justify-content:center;border-radius:14px}.tire-record .record-box b{font-size:18px;margin-top:8px}.tire-record .record-status-row{gap:8px;margin-top:14px}.tire-record .record-notice{border-radius:12px}.tire-record .record-form{gap:14px}.tire-record .record-form label{background:#f8fafc;border:1px solid #e7ebf2;border-radius:12px;padding:12px}.tire-record .record-form input,.tire-record .record-form select{margin-top:7px;background:#fff}.tire-record .record-form button{min-height:46px;border-radius:12px;font-weight:800}.tire-record .record-warning.blocking{border-radius:12px}.tire-record .record-table tbody tr:hover{background:#f8fbff}.tire-record .record-table td:first-child{font-weight:700}.tire-record .record-panel{scroll-margin-top:90px}@media(max-width:900px){.tire-record .record-summary{grid-template-columns:repeat(2,minmax(140px,1fr))}}@media(max-width:560px){.tire-record .record-summary{grid-template-columns:1fr}.tire-record .record-form{grid-template-columns:1fr}.tire-record .record-form .record-wide{grid-column:auto}}
+</style>
 <div class="record-page tire-record">
 <a class="record-back" href="/tires">← العودة إلى إدارة الإطارات</a>
 <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · TIRE RECORD</div><h2>الإطار: {{ tire.serial_number }}</h2><div class="record-muted">الملف التشغيلي للإطار وسجل حركاته وإخراجه النهائي.</div></div></header>
