@@ -14,18 +14,9 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
       - name: Harden implementation script
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('.github/scripts/apply_custom_specs.py')
-          s=p.read_text(encoding='utf-8')
-          start=s.index('# Add axle upper-bound validation')
-          end=s.index('# Inject sync before final commit')
-          replacement='''# Add axle upper-bound validation after the existing duplicate-position check.\n          m=re.search(r'([^\\n]*توجد مواضع إطارات مكررة[^\\n]*\\n)', s)\n          if not m: raise SystemExit('missing duplicate-position validation in service source')\n          addition='''        if data.axle_count is not None:\\n            invalid=[p.axle_number for p in data.positions if p.axle_number>data.axle_count]\\n            if invalid: raise ValueError(f"رقم المحور {max(invalid)} يتجاوز عدد محاور الطراز المحدد ({data.axle_count})")\\n'''\n          s=s[:start]+replacement+'s=s[:m.end()]+addition+s[m.end():]\\n'+s[end:]\n          p.write_text(s,encoding='utf-8')\n          PY
+        run: >-
+          python -c "from pathlib import Path;import re;p=Path('.github/scripts/apply_custom_specs.py');s=p.read_text(encoding='utf-8');start=s.index('# Add axle upper-bound validation');end=s.index('# Inject sync before final commit');m=re.search(r'([^\\n]*توجد مواضع إطارات مكررة[^\\n]*\\n)',s);assert m,'missing duplicate-position validation';addition='        if data.axle_count is not None:\\n            invalid=[p.axle_number for p in data.positions if p.axle_number>data.axle_count]\n            if invalid: raise ValueError(f\"رقم المحور {max(invalid)} يتجاوز عدد محاور الطراز المحدد ({data.axle_count})\")\\n';s=s[:start]+'# Add axle upper-bound validation after duplicate-position check.\\n'+"m=re.search(r'([^\\n]*توجد مواضع إطارات مكررة[^\\n]*\\n)',s)\\n"+"assert m,'missing duplicate-position validation in service source'\\n"+"s=s[:m.end()]+addition+s[m.end():]\\n"+s[end:];p.write_text(s,encoding='utf-8')"
       - name: Apply implementation
-        env:
-          BRANCH: ${{ github.head_ref }}
         run: python .github/scripts/apply_custom_specs.py
       - name: Commit implementation
         run: |
