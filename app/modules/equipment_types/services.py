@@ -145,6 +145,12 @@ def _validate_tire_positions_and_sizes(db, data, existing_model_id=None):
     if not data.has_tires:
         if data.positions: raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")
         if data.sizes: raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")
+        if existing_model_id is not None:
+            old_position_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}
+            if old_position_ids and db.query(TireMovement.id).filter(TireMovement.position_id.in_(old_position_ids)).first():
+                raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")
+            for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==existing_model_id).all():
+                _assert_size_deletable(db, existing_model_id, row.size)
         return
     if len(data.positions) != data.tire_positions_required:
         raise ValueError(f"يجب تعريف {data.tire_positions_required} موضع إطار بالضبط قبل حفظ الطراز (المعرَّف حاليًا في النموذج: {len(data.positions)})")

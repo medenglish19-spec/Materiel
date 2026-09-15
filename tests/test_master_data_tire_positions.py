@@ -59,7 +59,7 @@ def test_update_cannot_delete_position_used_by_movement():
         from app.modules.equipment.models import Equipment
         equipment=Equipment(asset_code="TEST-EQ-1",equipment_type_id=typ.id,equipment_model_id=model.id); db.add(equipment); db.flush()
         db.add(TireMovement(tire_id=tire.id,movement_date=date(2026,9,1),movement_datetime=datetime(2026,9,1,10),movement_type="install",equipment_id=equipment.id,position_id=position.id)); db.commit()
-        d=data(typ,brand,[]) ; d.name=model.name; d.tire_positions_required=0
+        d=data(typ,brand,[pos(2)]) ; d.name=model.name; d.tire_positions_required=1
         with pytest.raises(ValueError,match="حافظ على التاريخ"): services.update_model(db,model,d)
         db.rollback(); db.refresh(model); assert db.query(TirePosition).filter_by(id=position.id).first() is not None
     finally: db.close()
