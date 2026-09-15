@@ -14,21 +14,12 @@ from app.modules.equipment_types import services
 from app.modules.equipment_types.schemas import EquipmentModelCreate
 from web.main import app
 
-
-engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
+engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 Session = sessionmaker(bind=engine)
 
 
 def test_master_data_routes_are_registered():
-    routes = {
-        (route.path, tuple(sorted(getattr(route, "methods", None) or ())))
-        for route in app.routes
-        if getattr(route, "methods", None)
-    }
+    routes = {(route.path, tuple(sorted(getattr(route, "methods", None) or ()))) for route in app.routes if getattr(route, "methods", None)}
     expected = {
         ("/equipment-types", ("GET",)),
         ("/equipment-types/categories/create", ("POST",)),
@@ -37,6 +28,7 @@ def test_master_data_routes_are_registered():
         ("/equipment-types/specs/create", ("POST",)),
         ("/equipment-types/models/create", ("POST",)),
         ("/equipment-types/models/{model_id}/update", ("POST",)),
+        ("/equipment-types/models/{model_id}/delete", ("POST",)),
     }
     assert expected <= routes
 
@@ -53,15 +45,7 @@ def test_model_editor_presenter_is_json_safe_and_contains_reference_chain():
         equipment_type = EquipmentType(name="النوع", measurement_unit="km", category_id=category.id)
         db.add(equipment_type)
         db.flush()
-        model = services.create_model(
-            db,
-            EquipmentModelCreate(
-                name="الطراز",
-                equipment_type_id=equipment_type.id,
-                brand_id=brand.id,
-                requires_driver=False,
-            ),
-        )
+        model = services.create_model(db, EquipmentModelCreate(name="الطراز", equipment_type_id=equipment_type.id, brand_id=brand.id, requires_driver=False))
         payload = model_editor_payload(db, model)
         json.dumps(payload, ensure_ascii=False)
         assert payload["category_id"] == category.id
@@ -77,10 +61,16 @@ def test_requires_driver_unchecked_form_defaults_to_false():
     assert parameter.default.default is False
 
 
-def test_model_editor_has_no_new_model_scroll_and_has_category_selector():
+def test_model_editor_is_hierarchical_and_excel_grid_oriented():
     template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
-    assert 'id="modelCategory"' in template
     assert "window.scrollTo" not in template
-    assert 'data-category="{{ type.category_id or \'\' }}"' in template
+    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص الإضافية"):
+        assert label in template
+    for element_id in ("positionsBody", "sizesBody", "customSpecsFields", "excelFile"):
+        assert f'id="{element_id}"' in template
+    assert "XLSX.read" in template
+    assert "positions_json" in template
+    assert "sizes_json" in template
+    assert "specs_json" in template
     assert "|tojson" in template
     assert "model|tojson" not in template
