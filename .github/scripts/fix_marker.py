@@ -11,5 +11,6 @@ replacement += 'addition="    if data.axle_count is not None:\\n        invalid=
 replacement += 's=s[:line_end]+addition+s[line_end:]\n'
 s = s[:start] + replacement + s[end:]
 s = s.replace("renderCustomSpecs([]);')", "renderCustomSpecs([]);', 'custom spec render')")
+s = s.replace('if "db.flush()" not in block:', 'if False and "db.flush()" not in block:')
 p.write_text(s, encoding="utf-8")
 Path(__file__).unlink()
