@@ -26,11 +26,25 @@ def pos(axle=1,side="left",kind="single",id=None): return {"id":id,"axle_number"
 def test_create_rejects_wrong_position_count_without_model():
     db=db_new(); typ,brand=base(db)
     try:
-        d=data(typ,brand,[pos(1)],sizes=[])
-        d.tire_positions_required=2
-        with pytest.raises(ValueError,match="بالضبط") : services.create_model(db,d)
+        d=data(typ,brand,[pos(1)],sizes=[]); d.tire_positions_required=2
+        with pytest.raises(ValueError,match="بالضبط"): services.create_model(db,d)
+        assert db.query(EquipmentModel).count()==0; assert db.query(TirePosition).count()==0
+    finally: db.close()
+
+def test_create_rejects_too_many_positions_without_model():
+    db=db_new(); typ,brand=base(db)
+    try:
+        d=data(typ,brand,[pos(1),pos(1,"right")],sizes=[]); d.tire_positions_required=1
+        with pytest.raises(ValueError,match="بالضبط"): services.create_model(db,d)
+        assert db.query(EquipmentModel).count()==0; assert db.query(TirePosition).count()==0
+    finally: db.close()
+
+def test_create_rejects_duplicate_position_without_model():
+    db=db_new(); typ,brand=base(db)
+    try:
+        d=data(typ,brand,[pos(1),pos(1)],sizes=[])
+        with pytest.raises(ValueError,match="مكررة"): services.create_model(db,d)
         assert db.query(EquipmentModel).count()==0
-        assert db.query(TirePosition).count()==0
     finally: db.close()
 
 def test_create_matching_positions_is_atomic_and_persists_sizes():
@@ -46,20 +60,19 @@ def test_create_without_default_or_additional_size_is_rejected():
     db=db_new(); typ,brand=base(db)
     try:
         d=data(typ,brand,[pos(1)],sizes=[],tire_size="")
-        with pytest.raises(ValueError,match="مقاس") : services.create_model(db,d)
+        with pytest.raises(ValueError,match="مقاس"): services.create_model(db,d)
         assert db.query(EquipmentModel).count()==0
     finally: db.close()
 
 def test_update_cannot_delete_position_used_by_movement():
     db=db_new(); typ,brand=base(db)
     try:
-        model=services.create_model(db,data(typ,brand,[pos(1)]))
-        position=db.query(TirePosition).filter_by(equipment_model_id=model.id).one()
+        model=services.create_model(db,data(typ,brand,[pos(1)])); position=db.query(TirePosition).filter_by(equipment_model_id=model.id).one()
         tire=Tire(serial_number="TEST-TIRE-1",size="315/80R22.5",expiry_date=date(2030,1,1)); db.add(tire); db.flush()
         from app.modules.equipment.models import Equipment
         equipment=Equipment(asset_code="TEST-EQ-1",equipment_type_id=typ.id,equipment_model_id=model.id); db.add(equipment); db.flush()
         db.add(TireMovement(tire_id=tire.id,movement_date=date(2026,9,1),movement_datetime=datetime(2026,9,1,10),movement_type="install",equipment_id=equipment.id,position_id=position.id)); db.commit()
-        d=data(typ,brand,[pos(2)]) ; d.name=model.name; d.tire_positions_required=1
+        d=data(typ,brand,[pos(2)]); d.name=model.name; d.tire_positions_required=1
         with pytest.raises(ValueError,match="حافظ على التاريخ"): services.update_model(db,model,d)
         db.rollback(); db.refresh(model); assert db.query(TirePosition).filter_by(id=position.id).first() is not None
     finally: db.close()
@@ -68,7 +81,7 @@ def test_non_tire_model_rejects_submitted_tire_configuration():
     db=db_new(); typ,brand=base(db)
     try:
         d=EquipmentModelCreate(name="بدون إطارات",equipment_type_id=typ.id,brand_id=brand.id,has_tires=False,positions=[pos(1)],sizes=[])
-        with pytest.raises(ValueError,match="غير مزود") : services.create_model(db,d)
+        with pytest.raises(ValueError,match="غير مزود"): services.create_model(db,d)
         assert db.query(EquipmentModel).count()==0
     finally: db.close()
 
