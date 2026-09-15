@@ -55,6 +55,10 @@ def position(side="left", position_type="single", axle=1, description=None):
     )
 
 
+def model_positions(db, model_id):
+    return db.query(TirePosition).filter_by(equipment_model_id=model_id).order_by(TirePosition.id).all()
+
+
 def test_create_persists_model_owned_positions_and_sizes():
     db = newdb()
     equipment_type, brand = base(db)
@@ -68,7 +72,7 @@ def test_create_persists_model_owned_positions_and_sizes():
         ),
     )
 
-    rows = services.list_positions(db, model.id)
+    rows = model_positions(db, model.id)
     sizes = [row.size for row in db.query(TireModelSize).filter_by(equipment_model_id=model.id).order_by(TireModelSize.id)]
     assert len(rows) == 2
     assert {row.side for row in rows} == {"left", "right"}
@@ -113,14 +117,14 @@ def test_update_replaces_model_owned_sizes_and_positions():
         db,
         tire_data(equipment_type, brand, positions=[position("left"), position("right")], sizes=["235/75R15", "245/70R16"]),
     )
-    old_positions = services.list_positions(db, model.id)
+    old_positions = model_positions(db, model.id)
     updated = tire_data(equipment_type, brand, name=model.name, positions=[position("left", "inner"), position("right", "outer")], sizes=["265/70R16"])
     updated.positions[0].id = old_positions[0].id
     updated.positions[1].id = old_positions[1].id
 
     services.update_model(db, model, updated)
 
-    rows = services.list_positions(db, model.id)
+    rows = model_positions(db, model.id)
     sizes = [row.size for row in db.query(TireModelSize).filter_by(equipment_model_id=model.id)]
     assert {(row.side, row.position_type) for row in rows} == {("left", "inner"), ("right", "outer")}
     assert sizes == ["265/70R16"]
@@ -134,15 +138,16 @@ def test_historical_position_cannot_be_deleted_by_model_update():
         db,
         tire_data(equipment_type, brand, positions=[position("left"), position("right")], sizes=["235/75R15"]),
     )
-    rows = services.list_positions(db, model.id)
+    rows = model_positions(db, model.id)
     tire = Tire(serial_number="HIST-001", size="235/75R15")
     db.add(tire)
     db.flush()
+    from datetime import date, datetime
     db.add(
         TireMovement(
             tire_id=tire.id,
-            movement_date=__import__("datetime").date.today(),
-            movement_datetime=__import__("datetime").datetime.now(),
+            movement_date=date.today(),
+            movement_datetime=datetime.now(),
             movement_type="install",
             position_id=rows[0].id,
         )
