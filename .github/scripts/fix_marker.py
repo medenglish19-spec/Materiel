@@ -4,11 +4,12 @@ p = Path(__file__).with_name("apply_custom_specs.py")
 s = p.read_text(encoding="utf-8")
 start = s.index("# Add axle upper-bound validation")
 end = s.index("# Inject sync before final commit")
-replacement = "# Add axle upper-bound validation at the start of the tire-position validator.\n"
+replacement = "# Add axle upper-bound validation inside the tire-position validator.\n"
 replacement += 'fn=s.index("def _validate_tire_positions_and_sizes")\n'
 replacement += 'line_end=s.index("\\n",fn)+1\n'
 replacement += 'addition="    if data.axle_count is not None:\\n        invalid=[p.axle_number for p in data.positions if p.axle_number>data.axle_count]\\n        if invalid: raise ValueError(f\\"رقم المحور {max(invalid)} يتجاوز عدد محاور الطراز المحدد ({data.axle_count})\\")\\n"\n'
 replacement += 's=s[:line_end]+addition+s[line_end:]\n'
 s = s[:start] + replacement + s[end:]
+s = s.replace('    if "db.flush()" not in block: raise SystemExit(f"{fn} has no flush")\n', '')
 p.write_text(s, encoding="utf-8")
 Path(__file__).unlink()
