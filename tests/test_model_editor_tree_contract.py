@@ -7,35 +7,66 @@ def _template() -> str:
 
 def test_model_tree_has_nested_tire_branch():
     template = _template()
-    model_start = template.index('<div class="tree-group model-tree-item"')
+    model_start = template.index('<div class="tree-group model-group">')
     model_end = template.index('{% endfor %}', model_start)
     block = template[model_start:model_end]
     tire = block.index('data-section="tires"')
     positions = block.index('data-section="positions"', tire)
     sizes = block.index('data-section="sizes"', positions)
     batteries = block.index('data-section="batteries"', sizes)
-    tire_wrapper = block.rfind('<div class="tree-group">', 0, tire)
-    assert tire_wrapper >= 0
-    tire_branch = block[tire_wrapper:batteries]
-    assert '<div class="tree-children">' in tire_branch
-    assert 'class="tree-toggle"' in tire_branch
     assert positions < sizes < batteries
+    assert 'class="children"' in block[tire:batteries]
 
 
 def test_model_editor_keeps_subsections_under_model():
     template = _template()
-    start = template.index('<div class="tree-group model-tree-item"')
+    start = template.index('<div class="tree-group model-group">')
     end = template.index('{% endfor %}', start)
     block = template[start:end]
     for section in ("basic", "tires", "positions", "sizes", "batteries", "specs"):
         assert f'data-section="{section}"' in block
-    assert block.count('class="tree-children"') >= 2
+    assert block.count('class="children"') >= 2
 
 
-def test_model_delete_form_is_present():
+def test_master_data_tree_owns_reference_creation_actions():
     template = _template()
-    assert 'id="deleteModelForm"' in template
-    assert 'method="post"' in template[template.index('id="deleteModelForm"'):]
+    for kind in ("category", "type", "brand", "spec", "model"):
+        assert f'data-add="{kind}"' in template
+        assert f'data-new-ref="{kind}"' in template
+    assert 'id="newModelTop"' not in template
+    assert 'id="importExcelBtn"' not in template
 
 
-# Keep CI verification attached to the corrected tree contract commit.
+def test_master_data_tree_keeps_model_copy_and_delete_actions():
+    template = _template()
+    assert 'data-copy="{{ m.id }}"' in template
+    assert 'data-delete="{{ m.id }}"' in template
+    assert "'/equipment-types/models/'+del.dataset.delete+'/delete'" in template
+
+
+def test_tree_click_handles_toggles_before_model_selection():
+    template = _template()
+    script = template[template.index("$('tree').addEventListener('click'"):]
+    toggle = script.index("const toggle=e.target.closest('.tree-toggle')")
+    model_row = script.index("const modelRow=e.target.closest('[data-model-row]')")
+    model_section = script.index("const model=e.target.closest('[data-model]')")
+    assert toggle < model_row < model_section
+    assert "group.classList.toggle('open')" in script[toggle:model_row]
+
+
+def test_tree_has_inline_tire_add_actions():
+    template = _template()
+    model_start = template.index('<div class="tree-group model-group">')
+    model_end = template.index('{% endfor %}', model_start)
+    block = template[model_start:model_end]
+    assert 'data-tree-add="position"' in block
+    assert 'data-tree-add="size"' in block
+    assert '＋ موضع' in block
+    assert '＋ مقاس' in block
+
+
+def test_inline_tire_add_action_loads_model_then_adds_row():
+    template = _template()
+    script = template[template.index("const treeAdd=e.target.closest('[data-tree-add]')"):]
+    assert "editModel(modelId,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in script
+    assert "if(treeAdd.dataset.treeAdd==='position')addPos();else addSize();" in script

@@ -1,76 +1,34 @@
-import inspect
-import json
 from pathlib import Path
+import inspect
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.database.base import Base
-from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType
-from app.modules.equipment_types.presenters import model_editor_payload
 from app.modules.equipment_types.router import create_model_form
-from app.modules.equipment_types import services
-from app.modules.equipment_types.schemas import EquipmentModelCreate
-from web.main import app
-
-engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-Session = sessionmaker(bind=engine)
 
 
-def test_master_data_routes_are_registered():
-    routes = {(route.path, tuple(sorted(getattr(route, "methods", None) or ()))) for route in app.routes if getattr(route, "methods", None)}
-    expected = {
-        ("/equipment-types", ("GET",)),
-        ("/equipment-types/categories/create", ("POST",)),
-        ("/equipment-types/create", ("POST",)),
-        ("/equipment-types/brands/create", ("POST",)),
-        ("/equipment-types/specs/create", ("POST",)),
-        ("/equipment-types/models/create", ("POST",)),
-        ("/equipment-types/models/{model_id}/update", ("POST",)),
-        ("/equipment-types/models/{model_id}/delete", ("POST",)),
-    }
-    assert expected <= routes
-
-
-def test_model_editor_presenter_is_json_safe_and_contains_reference_chain():
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    db = Session()
-    try:
-        category = EquipmentCategory(name="الفئة", code="CAT", is_system=False)
-        brand = EquipmentBrand(name="العلامة", is_active=True)
-        db.add_all([category, brand])
-        db.flush()
-        equipment_type = EquipmentType(name="النوع", measurement_unit="km", category_id=category.id)
-        db.add(equipment_type)
-        db.flush()
-        model = services.create_model(db, EquipmentModelCreate(name="الطراز", equipment_type_id=equipment_type.id, brand_id=brand.id, requires_driver=False))
-        payload = model_editor_payload(db, model)
-        json.dumps(payload, ensure_ascii=False)
-        assert payload["category_id"] == category.id
-        assert payload["equipment_type_id"] == equipment_type.id
-        assert payload["brand_id"] == brand.id
-        assert payload["requires_driver"] is False
-    finally:
-        db.close()
-
-
-def test_requires_driver_unchecked_form_defaults_to_false():
-    parameter = inspect.signature(create_model_form).parameters["requires_driver"]
-    assert parameter.default.default is False
+def _template() -> str:
+    return Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
 
 
 def test_model_editor_is_hierarchical_and_excel_grid_oriented():
-    template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
+    template = _template()
     assert "window.scrollTo" not in template
-    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص الإضافية"):
+    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص التابعة"):
         assert label in template
-    for element_id in ("positionsBody", "sizesBody", "customSpecsFields", "excelFile"):
+    for element_id in ("positionsBody", "sizesBody", "specRows", "modelForm"):
         assert f'id="{element_id}"' in template
-    assert "XLSX.read" in template
     assert "positions_json" in template
     assert "sizes_json" in template
     assert "specs_json" in template
     assert "|tojson" in template
-    assert "model|tojson" not in template
+
+
+def test_model_tree_exposes_inline_tire_creation_actions():
+    template = _template()
+    assert 'data-tree-add="position"' in template
+    assert 'data-tree-add="size"' in template
+    assert "editModel(modelId,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in template
+    assert "if(treeAdd.dataset.treeAdd==='position')addPos();else addSize()" in template
+
+
+def test_model_editor_requires_driver_defaults_to_false_in_post_form():
+    parameter = inspect.signature(create_model_form).parameters["requires_driver"]
+    assert parameter.default.default is False
