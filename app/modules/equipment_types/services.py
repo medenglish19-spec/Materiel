@@ -105,6 +105,8 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if brand is None: raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
     if not brand.is_active: raise ValueError("العلامة التجارية غير نشطة؛ أعد تفعيلها أولًا")
     if data.has_tires and data.tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
+    if data.has_tires and data.axle_count is not None and data.axle_count < 1: raise ValueError("عدد المحاور يجب أن يكون رقمًا موجبًا")
+    if not data.has_tires and data.axle_count is not None: raise ValueError("لا يمكن تحديد عدد محاور لطراز غير مزود بالإطارات")
     if not data.has_tires and (data.tire_positions_required!=0 or (data.tire_size or "").strip()): raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
     if data.has_batteries and data.battery_count_required<1: raise ValueError("هذا الطراز يملك بطاريات؛ يجب تحديد عدد البطاريات")
     if data.has_batteries and (data.battery_capacity_ah is None or data.battery_capacity_ah<=0): raise ValueError("يجب تحديد سعة البطارية بالأمبير/ساعة")
@@ -149,6 +151,10 @@ def _validate_tire_positions_and_sizes(db,data,existing_model_id=None):
         key=(p.axle_number,p.side,p.position_type)
         if key in seen:raise ValueError("توجد مواضع مكررة بنفس المحور والجهة والنوع")
         seen.add(key)
+    if data.axle_count is not None:
+        invalid=[p.axle_number for p in data.positions if p.axle_number > data.axle_count]
+        if invalid:
+            raise ValueError(f"رقم المحور {max(invalid)} يتجاوز عدد محاور الطراز المحدد ({data.axle_count})")
     existing_ids=set();existing_sizes={}
     if existing_model_id is not None:
         existing_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}
@@ -220,7 +226,7 @@ def delete_position(db:Session,position_id:int):
 
 def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
     _validate_model_data(db,data);_validate_tire_positions_and_sizes(db,data,None)
-    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
+    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,axle_count=data.axle_count,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
     db.add(obj);db.flush();_sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
 
 def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->EquipmentModel:
@@ -229,7 +235,7 @@ def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->Equip
     if data.equipment_type_id!=obj.equipment_type_id:
         from app.modules.equipment.models import Equipment
         if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
-    obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver
+    obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.axle_count=data.axle_count;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver
     _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
 
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:

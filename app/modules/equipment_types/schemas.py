@@ -78,6 +78,7 @@ class EquipmentModelCreate(BaseModel):
     brand_id: int
     has_tires: bool = False
     tire_positions_required: int = 0
+    axle_count: Optional[int] = None
     tire_size: Optional[str] = None
     has_batteries: bool = False
     battery_count_required: int = 0
@@ -91,6 +92,11 @@ class EquipmentModelCreate(BaseModel):
     @classmethod
     def counts_valid(cls, v: int) -> int:
         if v < 0: raise ValueError("عدد التجهيزات لا يمكن أن يكون سالبًا")
+        return v
+    @field_validator("axle_count")
+    @classmethod
+    def axle_count_valid(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 1: raise ValueError("عدد المحاور يجب أن يكون رقمًا موجبًا")
         return v
     @field_validator("tire_size")
     @classmethod
@@ -108,4 +114,4 @@ class EquipmentModelCreate(BaseModel):
         return v
 class EquipmentModelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; name: str; equipment_type_id: int; brand_id: int; is_frozen: bool; has_tires: bool; tire_positions_required: int; tire_size: Optional[str]; has_batteries: bool; battery_count_required: int; battery_capacity_ah: Optional[float]; battery_voltage_v: Optional[float]; mobility_type: str; requires_driver: bool
+    id: int; name: str; equipment_type_id: int; brand_id: int; is_frozen: bool; has_tires: bool; tire_positions_required: int; axle_count: Optional[int]; tire_size: Optional[str]; has_batteries: bool; battery_count_required: int; battery_capacity_ah: Optional[float]; battery_voltage_v: Optional[float]; mobility_type: str; requires_driver: bool

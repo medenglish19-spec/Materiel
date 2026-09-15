@@ -18,8 +18,8 @@ def db_new():
 def base(db):
     cat=EquipmentCategory(name="اختبار",code="TEST",is_system=True); brand=EquipmentBrand(name="اختبار",is_active=True); db.add_all([cat,brand]); db.flush(); typ=EquipmentType(name="مركبات اختبار",measurement_unit="km",category_id=cat.id); db.add(typ); db.flush(); return typ,brand
 
-def data(typ,brand,positions, sizes=None, tire_size="315/80R22.5"):
-    return EquipmentModelCreate(name="طراز اختبار",equipment_type_id=typ.id,brand_id=brand.id,has_tires=True,tire_positions_required=len(positions),tire_size=tire_size,positions=positions,sizes=sizes or [],has_batteries=False)
+def data(typ,brand,positions, sizes=None, tire_size="315/80R22.5", axle_count=None):
+    return EquipmentModelCreate(name="طراز اختبار",equipment_type_id=typ.id,brand_id=brand.id,has_tires=True,tire_positions_required=len(positions),axle_count=axle_count,tire_size=tire_size,positions=positions,sizes=sizes or [],has_batteries=False)
 
 def pos(axle=1,side="left",kind="single",id=None): return {"id":id,"axle_number":axle,"side":side,"position_type":kind,"description":""}
 
@@ -61,6 +61,54 @@ def test_create_without_default_or_additional_size_is_rejected():
     try:
         d=data(typ,brand,[pos(1)],sizes=[],tire_size="")
         with pytest.raises(ValueError,match="مقاس"): services.create_model(db,d)
+        assert db.query(EquipmentModel).count()==0
+    finally: db.close()
+
+def test_create_rejects_position_above_axle_count_atomically():
+    db=db_new(); typ,brand=base(db)
+    try:
+        d=data(typ,brand,[pos(3)],axle_count=2)
+        with pytest.raises(ValueError,match="يتجاوز عدد محاور"):
+            services.create_model(db,d)
+        assert db.query(EquipmentModel).count()==0
+        assert db.query(TirePosition).count()==0
+    finally: db.close()
+
+def test_create_accepts_position_at_axle_count():
+    db=db_new(); typ,brand=base(db)
+    try:
+        model=services.create_model(db,data(typ,brand,[pos(2)],axle_count=2))
+        assert model.axle_count==2
+        assert db.query(TirePosition).filter_by(equipment_model_id=model.id,axle_number=2).count()==1
+    finally: db.close()
+
+def test_create_with_no_axle_limit_accepts_positive_axle():
+    db=db_new(); typ,brand=base(db)
+    try:
+        model=services.create_model(db,data(typ,brand,[pos(9)],axle_count=None))
+        assert model.axle_count is None
+        assert db.query(TirePosition).filter_by(equipment_model_id=model.id,axle_number=9).count()==1
+    finally: db.close()
+
+def test_update_rejects_lowering_axle_count_when_old_position_exceeds_limit():
+    db=db_new(); typ,brand=base(db)
+    try:
+        model=services.create_model(db,data(typ,brand,[pos(3)],axle_count=3))
+        position=db.query(TirePosition).filter_by(equipment_model_id=model.id).one()
+        submitted=data(typ,brand,[pos(3,id=position.id)],axle_count=2)
+        submitted.name=model.name
+        with pytest.raises(ValueError,match="يتجاوز عدد محاور"):
+            services.update_model(db,model,submitted)
+        db.rollback();db.refresh(model)
+        assert model.axle_count==3
+        assert db.query(TirePosition).filter_by(id=position.id,axle_number=3).count()==1
+    finally: db.close()
+
+def test_non_tire_model_rejects_axle_count():
+    db=db_new(); typ,brand=base(db)
+    try:
+        d=EquipmentModelCreate(name="بدون إطارات",equipment_type_id=typ.id,brand_id=brand.id,has_tires=False,axle_count=2)
+        with pytest.raises(ValueError,match="غير مزود بالإطارات"): services.create_model(db,d)
         assert db.query(EquipmentModel).count()==0
     finally: db.close()
 

@@ -46,6 +46,7 @@ class EquipmentModel(Base, TimestampMixin):
     has_tires = Column(Boolean, nullable=False, default=False)
     tire_positions_required = Column(Integer, nullable=False, default=0)
     tire_size = Column(String(50), nullable=True)
+    axle_count = Column(Integer, nullable=True, default=None)
     has_batteries = Column(Boolean, nullable=False, default=False)
     battery_count_required = Column(Integer, nullable=False, default=0)
     battery_capacity_ah = Column(Float, nullable=True)
