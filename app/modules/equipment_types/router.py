@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 import json
+import json
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -119,6 +120,7 @@ def toggle_brand_form(brand_id:int,db:Session=Depends(get_db),current_user:User=
     services.set_brand_active(db,obj,not obj.is_active);return _redirect("تم تحديث حالة العلامة التجارية")
 @router.post("/equipment-types/models/create")
 @router.post("/equipment-types/models/create")
+@router.post("/equipment-types/models/create")
 def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:
         positions_data=json.loads(positions_json); sizes_data=json.loads(sizes_json)
@@ -127,6 +129,7 @@ def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_i
     except (ValueError,TypeError) as exc:
         db.rollback(); return _redirect(str(exc),"warning")
     return _redirect("تمت إضافة الطراز والمواصفات")
+@router.post("/equipment-types/models/{model_id}/update")
 @router.post("/equipment-types/models/{model_id}/update")
 @router.post("/equipment-types/models/{model_id}/update")
 def update_model_form(model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
