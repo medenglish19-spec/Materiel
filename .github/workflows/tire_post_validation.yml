@@ -1,0 +1,38 @@
+name: tire-post-validation
+on:
+  pull_request:
+    types: [reopened]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  validate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Harden historical deletion guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/modules/equipment_types/services.py')
+          s=p.read_text(encoding='utf-8')
+          old='''    if not data.has_tires:\n        if data.positions: raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")\n        if data.sizes: raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")\n        return'''
+          new='''    if not data.has_tires:\n        if data.positions: raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")\n        if data.sizes: raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")\n        if existing_model_id is not None:\n            old_position_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}\n            if old_position_ids and db.query(TireMovement.id).filter(TireMovement.position_id.in_(old_position_ids)).first():\n                raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")\n            old_sizes=[row.size for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==existing_model_id).all()]\n            for old_size in old_sizes:\n                _assert_size_deletable(db, existing_model_id, old_size)\n        return'''
+          if old not in s: raise SystemExit('expected validator block not found')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          python -m compileall -q app tests web run_web.py
+          python -m pip install -r requirements.txt pytest
+          python -m pytest -q
+      - name: Commit clean result and remove temporary workflows
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git rm -f .github/workflows/migrate_tire_master_data.yml .github/workflows/tire_migration_finalize.yml .github/workflows/tire_migration_pr.yml .github/workflows/tire_fixup.yml .github/workflows/tire_final_validation.yml .github/workflows/tire_post_validation.yml || true
+          git commit -m 'fix: protect historical tire master data' || true
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
