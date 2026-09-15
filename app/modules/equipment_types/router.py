@@ -19,7 +19,7 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db);tire_master_data={};spec_definitions=services.list_spec_definitions(db);spec_definitions=services.list_spec_definitions(db);spec_definitions=services.list_spec_definitions(db)
+    models=services.list_models(db);tire_master_data={};spec_definitions=services.list_spec_definitions(db);spec_definitions=services.list_spec_definitions(db)
     for model in models:
         tire_master_data[model.id]={"positions":[{"id":p.id,"axle_number":p.axle_number,"side":p.side,"position_type":p.position_type,"description":p.description} for p in db.query(TirePosition).filter(TirePosition.equipment_model_id==model.id).order_by(TirePosition.axle_number,TirePosition.sort_order,TirePosition.id).all()],"sizes":[row.size for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==model.id).order_by(TireModelSize.id).all()],"specs":[{"definition_id":v.spec_definition_id,"value":v.value} for v in model.spec_values]}
     return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"user":current_user})
