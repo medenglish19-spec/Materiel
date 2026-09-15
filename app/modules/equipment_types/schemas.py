@@ -47,7 +47,7 @@ class EquipmentTypeUpdate(BaseModel):
         return v
 class EquipmentTypeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; name: str; measurement_unit: str; theoretical_quantity: Optional[int] = None; category_id: int; is_frozen: bool
+    id: int; name: str; measurement_unit: str; theoretical_quantity: Optional[int] = None; category_id: Optional[int] = None; is_frozen: bool
 POSITION_SIDES = {"left", "right"}
 POSITION_TYPES = {"single", "inner", "outer"}
 
@@ -140,4 +140,4 @@ class EquipmentModelCreate(BaseModel):
         return v
 class EquipmentModelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; name: str; equipment_type_id: int; brand_id: int; is_frozen: bool; has_tires: bool; tire_positions_required: int; axle_count: Optional[int]; tire_size: Optional[str]; has_batteries: bool; battery_count_required: int; battery_capacity_ah: Optional[float]; battery_voltage_v: Optional[float]; mobility_type: str; requires_driver: bool
+    id: int; name: str; equipment_type_id: int; brand_id: Optional[int] = None; is_frozen: bool; has_tires: bool; tire_positions_required: int; axle_count: Optional[int]; tire_size: Optional[str]; has_batteries: bool; battery_count_required: int; battery_capacity_ah: Optional[float]; battery_voltage_v: Optional[float]; mobility_type: str; requires_driver: bool
