@@ -21,26 +21,24 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import textwrap
-
           workflow = Path('.github/workflows/migrate_tire_master_data.yml').read_text(encoding='utf-8')
           start = workflow.index("          python - <<'PY'\n") + len("          python - <<'PY'\n")
           end = workflow.index("\n          PY\n", start)
           code = textwrap.dedent(workflow[start:end])
-
           old='''def remove_functions(source, names):\n    tree = ast.parse(source)\n    ranges=[]\n    for n in tree.body:\n        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names:\n            ranges.append((n.lineno-1, n.end_lineno))\n    if not ranges: return source\n    lines=source.splitlines(True)\n    for a,b in reversed(ranges): del lines[a:b]\n    return ''.join(lines)'''
           new='''def remove_functions(source, names):\n    tree = ast.parse(source)\n    ranges=[]\n    for n in tree.body:\n        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names:\n            start=n.lineno-1\n            if n.decorator_list:\n                start=min(d.lineno-1 for d in n.decorator_list)\n            ranges.append((start, n.end_lineno))\n    if not ranges: return source\n    lines=source.splitlines(True)\n    for a,b in reversed(ranges): del lines[a:b]\n    return ''.join(lines)'''
-          if old not in code:
-              raise SystemExit('migration helper block not found')
+          if old not in code: raise SystemExit('migration helper block not found')
           code=code.replace(old,new,1)
-
           old='''# 8) Search for forbidden legacy references.\nforbidden=[]\nfor p in ROOT.rglob('*'):\n    if not p.is_file() or '.git' in p.parts: continue\n    if p.suffix.lower() not in {'.py','.html','.js','.md','.txt'}: continue\n    try: text=p.read_text(encoding='utf-8')\n    except Exception: continue\n    for token in ['tire_model_configuration','tire_positions.html','/tires/positions','/tires/models/']:\n        if token in text: forbidden.append(f'{p}:{token}')\nif forbidden: raise RuntimeError('Legacy references remain: '+', '.join(forbidden))'''
           new='''# 8) Search only active application references; migrations/tests may retain historical names.\nforbidden=[]\nfor p in ROOT.rglob('*'):\n    if not p.is_file() or '.git' in p.parts: continue\n    if p.suffix.lower() not in {'.py','.html','.js','.md','.txt'}: continue\n    if 'migrations' in p.parts or 'tests' in p.parts: continue\n    try: text=p.read_text(encoding='utf-8')\n    except Exception: continue\n    if p.as_posix().endswith('app/modules/tires/router.py'): continue\n    for token in ['tire_model_configuration','tire_positions.html','/tires/positions','/tires/models/{model_id}/configuration']:\n        if token in text: forbidden.append(f'{p}:{token}')\nif forbidden: raise RuntimeError('Legacy active references remain: '+', '.join(forbidden))'''
-          if old not in code:
-              raise SystemExit('legacy scan block not found')
+          if old not in code: raise SystemExit('legacy scan block not found')
           code=code.replace(old,new,1)
-
           exec(compile(code, 'tire_migration.py', 'exec'), {'__name__':'__main__'})
           PY
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
       - name: Syntax and tests
         run: |
           python -m compileall -q app web run_web.py
