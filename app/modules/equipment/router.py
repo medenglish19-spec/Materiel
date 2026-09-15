@@ -13,6 +13,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
+from app.modules.equipment_types.models import EquipmentModelSpecValue
 from app.modules.users.models import User
 from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
@@ -22,7 +23,32 @@ from app.modules.batteries import services as battery_services
 router = APIRouter(); templates = get_module_templates("app/modules/equipment/templates")
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items=services.list_equipment(db); types=type_services.list_types(db); return templates.TemplateResponse("equipment_list.html", {"request":request,"items":items,"types":types,"user":current_user})
+    items = services.list_equipment(db)
+    types = type_services.list_types(db)
+
+    # --- إضافة: بيانات الخصائص الحرّة للفلترة في /equipment ---
+    spec_definitions = type_services.list_spec_definitions(db)
+    spec_definitions_data = [
+        {"id": d.id, "name": d.name, "data_type": d.data_type, "unit": d.unit, "options": d.options}
+        for d in spec_definitions
+    ]
+
+    model_ids = {item.equipment_model_id for item in items if item.equipment_model_id is not None}
+    specs_by_model: dict[int, dict[int, str]] = {}
+    if model_ids:
+        rows = db.query(EquipmentModelSpecValue).filter(EquipmentModelSpecValue.equipment_model_id.in_(model_ids)).all()
+        for row in rows:
+            specs_by_model.setdefault(row.equipment_model_id, {})[row.spec_definition_id] = row.value
+    equipment_specs_map = {
+        item.id: specs_by_model.get(item.equipment_model_id, {}) for item in items
+    }
+    # --- نهاية الإضافة ---
+
+    return templates.TemplateResponse("equipment_list.html", {
+        "request": request, "items": items, "types": types, "user": current_user,
+        "spec_definitions_data": spec_definitions_data,
+        "equipment_specs_map": equipment_specs_map,
+    })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); categories={}; ready=ready_restricted=broken=0

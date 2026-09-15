@@ -22,16 +22,157 @@
     </form>
 </div>
 {% if not types %}<div class="card alert-warning">لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.</div>{% endif %}
-<div class="toolbar"><input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل..."><select id="filter-type"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select><select id="filter-status"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select><select id="filter-condition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select><div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="first-service" checked> أول سير</label><label><input type="checkbox" data-col="meter" checked> العداد</label></div></div></div>
+<div class="toolbar"><input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل..."><select id="filter-type"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select><select id="filter-status"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select><select id="filter-condition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="عاطل">عاطل</option></select><div class="spec-filter-toggle">
+  <button type="button" class="btn-outline" id="spec-filter-toggle-btn" onclick="toggleSpecFilterMenu()">🔧 فلترة حسب خاصية ⌄</button>
+  <div id="spec-filter-menu" class="columns-menu" style="display:none;">
+    <div class="spec-filter-row">
+      <select id="spec-filter-definition" onchange="onSpecDefinitionChange()">
+        <option value="">اختر الخاصية...</option>
+      </select>
+    </div>
+    <div id="spec-filter-value-wrap"></div>
+    <button type="button" id="spec-filter-add-btn" onclick="addSpecFilter()" disabled>إضافة الفلتر</button>
+    <div id="spec-filter-chips"></div>
+  </div>
+</div><div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="first-service" checked> أول سير</label><label><input type="checkbox" data-col="meter" checked> العداد</label></div></div></div>
 <style>
-.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}.master-preview,.master-specs{min-height:37px;box-sizing:border-box;border:1px solid #edf0f3;border-radius:9px;background:#f8fafc;color:#667085;padding:8px 10px;font-size:12px}.master-specs{line-height:1.9}.master-specs span{display:inline-block;margin-left:10px}.master-specs strong{color:#344054}#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}#equipment-table{min-width:1050px}#equipment-table tbody tr.data-row{cursor:pointer;transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2}.model-cell-link{display:inline-flex;align-items:center;gap:5px;color:#245d88;font-weight:750;text-decoration:none;border-bottom:1px dashed #9db6ca}.model-cell-link:hover{color:#173b63;border-bottom-style:solid}
+.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}.master-preview,.master-specs{min-height:37px;box-sizing:border-box;border:1px solid #edf0f3;border-radius:9px;background:#f8fafc;color:#667085;padding:8px 10px;font-size:12px}.master-specs{line-height:1.9}.master-specs span{display:inline-block;margin-left:10px}.master-specs strong{color:#344054}#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}#equipment-table{min-width:1050px}#equipment-table tbody tr.data-row{cursor:pointer;transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2}.model-cell-link{display:inline-flex;align-items:center;gap:5px;color:#245d88;font-weight:750;text-decoration:none;border-bottom:1px dashed #9db6ca}.model-cell-link:hover{color:#173b63;border-bottom-style:solid}.spec-filter-row{margin-bottom:8px}.spec-filter-row select,.spec-filter-row input{width:100%;box-sizing:border-box;padding:8px;border:1px solid #d8dee8;border-radius:8px}#spec-filter-value-wrap{margin-bottom:8px}#spec-filter-value-wrap.two-inputs{display:flex;gap:6px}#spec-filter-value-wrap.two-inputs input{width:50%}.spec-chip{display:inline-flex;align-items:center;gap:6px;background:#eef2f7;border-radius:20px;padding:5px 10px;font-size:12px;margin:4px 4px 0 0}.spec-chip button{border:0;background:none;cursor:pointer;font-weight:700;color:#991b1b}
 </style>
 <div class="table-wrap" id="equipment-table-wrap"><table class="data-table modern-table" id="equipment-table"><thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-first-service">أول سير</th><th class="col-meter">العداد</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead><tbody>
-{% for item in items %}<tr class="data-row{% if item.operational_status == 'unavailable' %} meter-not-working{% endif %}" onclick="openEquipment({{ item.id }})" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}" data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}"><td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{% if item.equipment_model %}<a class="model-cell-link" href="/equipment/{{ item.id }}" onclick="event.stopPropagation()">{{ item.equipment_model.name }} ↗</a>{% else %}-{% endif %}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-first-service">{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td><td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td><td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td></tr>{% else %}<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}</tbody></table></div><p class="results-count" id="results-count"></p>
+{% for item in items %}<tr class="data-row{% if item.operational_status == 'unavailable' %} meter-not-working{% endif %}" onclick="openEquipment({{ item.id }})" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}" data-condition="{{ 'جاهز' if item.technical_condition == 'ready' else 'عاطل' }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}"><td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{% if item.equipment_model %}<a class="model-cell-link" href="/equipment/{{ item.id }}" onclick="event.stopPropagation()">{{ item.equipment_model.name }} ↗</a>{% else %}-{% endif %}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-first-service">{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td><td><span class="badge badge-condition-{{ item.technical_condition }}">{{ "جاهز" if item.technical_condition == "ready" else "عاطل" }}</span></td><td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td></tr>{% else %}<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}</tbody></table></div><p class="results-count" id="results-count"></p>
+<script>
+window.SPEC_DEFINITIONS = {{ spec_definitions_data|tojson }};
+window.EQUIPMENT_SPECS_MAP = {{ equipment_specs_map|tojson }};
+</script>
 <script>
 function openEquipment(id){window.location.href='/equipment/'+id}function toggleAddForm(){const card=document.getElementById('add-form-card');card.style.display=card.style.display==='none'?'block':'none'}
 function onModelChange(){const model=document.getElementById('model-select'),type=document.getElementById('type-select'),typeBox=document.getElementById('model-master-type'),specs=document.getElementById('model-master-specs'),o=model.options[model.selectedIndex];if(!o||!o.value){type.value='';typeBox.textContent='سيُسحب تلقائيًا من Master Data';specs.textContent='اختر الطراز لعرض مواصفاته.';return}type.value=o.dataset.typeId||'';typeBox.textContent=(o.dataset.typeName||'')+(o.dataset.brandName?' — '+o.dataset.brandName:'')+' — '+o.textContent.replace((o.dataset.brandName?o.dataset.brandName+' — ':''),'');specs.innerHTML='<span><strong>الإطارات:</strong> '+o.dataset.tires+'</span><span><strong>المواضع:</strong> '+o.dataset.tireCount+'</span><span><strong>المقاس:</strong> '+(o.dataset.tireSize||'—')+'</span><span><strong>البطاريات:</strong> '+o.dataset.batteries+'</span><span><strong>العدد:</strong> '+o.dataset.batteryCount+'</span><span><strong>السعة:</strong> '+(o.dataset.batteryCapacity||'—')+' Ah</span><span><strong>الجهد:</strong> '+(o.dataset.batteryVoltage||'—')+' V</span><span><strong>الحركة:</strong> '+(o.dataset.mobility||'—')+'</span><span><strong>السائق:</strong> '+o.dataset.driver+'</span>'}
-function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value,rows=document.querySelectorAll('#equipment-table tbody tr.data-row');let visibleCount=0;rows.forEach(row=>{const visible=(!search||row.dataset.search.toLowerCase().includes(search))&&(!type||row.dataset.type===type)&&(!status||row.dataset.status===status)&&(!condition||row.dataset.condition===condition);row.style.display=visible?'':'none';if(visible)visibleCount++});document.getElementById('results-count').textContent=visibleCount+' نتيجة'}['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters)}})
-function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none'}function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>el.style.display=visible?'':'none');localStorage.setItem('equipment-col-'+col,visible?'1':'0')})}document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility)});applyColumnVisibility();applyFilters();
+let activeSpecFilters = {};
+function populateSpecDefinitionSelect() {
+  const select = document.getElementById('spec-filter-definition');
+  (window.SPEC_DEFINITIONS || []).forEach(def => {
+    const opt = document.createElement('option');
+    opt.value = String(def.id);
+    opt.textContent = def.name + (def.unit ? ' (' + def.unit + ')' : '');
+    select.appendChild(opt);
+  });
+}
+function onSpecDefinitionChange() {
+  const definitionId = document.getElementById('spec-filter-definition').value;
+  const wrap = document.getElementById('spec-filter-value-wrap');
+  const addBtn = document.getElementById('spec-filter-add-btn');
+  wrap.innerHTML = '';
+  wrap.className = '';
+  addBtn.disabled = true;
+  if (!definitionId) return;
+  const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
+  if (!definition) return;
+  if (definition.data_type === 'number') {
+    wrap.className = 'two-inputs';
+    const minInput = document.createElement('input');
+    minInput.type = 'number'; minInput.id = 'spec-filter-min'; minInput.placeholder = 'من';
+    const maxInput = document.createElement('input');
+    maxInput.type = 'number'; maxInput.id = 'spec-filter-max'; maxInput.placeholder = 'إلى';
+    wrap.appendChild(minInput); wrap.appendChild(maxInput);
+    const check = () => { addBtn.disabled = (minInput.value === '' && maxInput.value === ''); };
+    minInput.addEventListener('input', check); maxInput.addEventListener('input', check);
+  } else {
+    const distinctValues = new Set();
+    Object.values(window.EQUIPMENT_SPECS_MAP || {}).forEach(specs => {
+      const v = specs[definitionId];
+      if (v !== undefined && v !== null && v !== '') distinctValues.add(v);
+    });
+    const sortedValues = Array.from(distinctValues).sort((a, b) => a.localeCompare(b, 'ar'));
+    const select = document.createElement('select');
+    select.id = 'spec-filter-value-select';
+    const emptyOpt = document.createElement('option');
+    emptyOpt.value = ''; emptyOpt.textContent = 'اختر القيمة...';
+    select.appendChild(emptyOpt);
+    sortedValues.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', () => { addBtn.disabled = (select.value === ''); });
+    wrap.appendChild(select);
+  }
+}
+function addSpecFilter() {
+  const definitionId = document.getElementById('spec-filter-definition').value;
+  if (!definitionId) return;
+  const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
+  if (!definition) return;
+  if (definition.data_type === 'number') {
+    const minVal = document.getElementById('spec-filter-min').value;
+    const maxVal = document.getElementById('spec-filter-max').value;
+    activeSpecFilters[definitionId] = {
+      type: 'number',
+      min: minVal === '' ? null : parseFloat(minVal),
+      max: maxVal === '' ? null : parseFloat(maxVal),
+    };
+  } else {
+    const value = document.getElementById('spec-filter-value-select').value;
+    if (!value) return;
+    activeSpecFilters[definitionId] = { type: definition.data_type, value: value };
+  }
+  renderSpecFilterChips();
+  applyFilters();
+}
+function removeSpecFilter(definitionId) {
+  delete activeSpecFilters[definitionId];
+  renderSpecFilterChips();
+  applyFilters();
+}
+function renderSpecFilterChips() {
+  const container = document.getElementById('spec-filter-chips');
+  container.innerHTML = '';
+  Object.keys(activeSpecFilters).forEach(definitionId => {
+    const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
+    if (!definition) return;
+    const filter = activeSpecFilters[definitionId];
+    let label;
+    if (filter.type === 'number') {
+      if (filter.min !== null && filter.max !== null) label = definition.name + ': ' + filter.min + ' - ' + filter.max;
+      else if (filter.min !== null) label = definition.name + ': ≥ ' + filter.min;
+      else label = definition.name + ': ≤ ' + filter.max;
+    } else {
+      label = definition.name + ': ' + filter.value;
+    }
+    const chip = document.createElement('span');
+    chip.className = 'spec-chip';
+    chip.textContent = label;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = '×';
+    btn.onclick = () => removeSpecFilter(definitionId);
+    chip.appendChild(btn);
+    container.appendChild(chip);
+  });
+}
+function toggleSpecFilterMenu() {
+  const menu = document.getElementById('spec-filter-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+function matchesSpecFilters(row) {
+  const definitionIds = Object.keys(activeSpecFilters);
+  if (definitionIds.length === 0) return true;
+  const equipmentId = row.dataset.id;
+  const specs = (window.EQUIPMENT_SPECS_MAP || {})[equipmentId];
+  for (const definitionId of definitionIds) {
+    const filter = activeSpecFilters[definitionId];
+    const rawValue = specs ? specs[definitionId] : undefined;
+    if (rawValue === undefined || rawValue === null || rawValue === '') return false;
+    if (filter.type === 'number') {
+      const numValue = parseFloat(rawValue);
+      if (isNaN(numValue)) return false;
+      if (filter.min !== null && numValue < filter.min) return false;
+      if (filter.max !== null && numValue > filter.max) return false;
+    } else {
+      if (rawValue !== filter.value) return false;
+    }
+  }
+  return true;
+}
+function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value,rows=document.querySelectorAll('#equipment-table tbody tr.data-row');let visibleCount=0;rows.forEach(row=>{const visible=(!search||row.dataset.search.toLowerCase().includes(search))&&(!type||row.dataset.type===type)&&(!status||row.dataset.status===status)&&(!condition||row.dataset.condition===condition)&&matchesSpecFilters(row);row.style.display=visible?'':'none';if(visible)visibleCount++});document.getElementById('results-count').textContent=visibleCount+' نتيجة'}['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters)}})
+function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none'}function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>el.style.display=visible?'':'none');localStorage.setItem('equipment-col-'+col,visible?'1':'0')})}document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility)});populateSpecDefinitionSelect();applyColumnVisibility();applyFilters();
 </script>
 {% endblock %}
