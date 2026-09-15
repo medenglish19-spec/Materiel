@@ -11,7 +11,6 @@ from app.database.session import get_db
 from app.modules.asset_movements.mandatory_removal import require_explicit_removal, require_free_before_install
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
-from app.modules.equipment_types import services as equipment_type_services
 from app.modules.tires import services
 from app.modules.tires import batch_state
 from app.modules.tires.models import TireModelSize
@@ -70,71 +69,18 @@ def tire_inventory_page(request: Request, db: Session = Depends(get_db), current
     return templates.TemplateResponse("tire_inventory.html", {"request": request, "user": current_user, "items": batch_state.inventory(db)})
 
 
-@router.get("/tires/positions", response_class=HTMLResponse)
-def tire_positions_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    models = db.query(EquipmentModel).order_by(EquipmentModel.name).all()
-    return templates.TemplateResponse("tire_positions.html", {"request": request, "user": current_user, "models": models})
 
 
-@router.get("/tires/models/{model_id}/configuration", response_class=HTMLResponse)
-def tire_model_configuration(request: Request, model_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    configuration = services.model_configuration(db, model_id)
-    if not configuration:
-        raise HTTPException(status_code=404, detail="الطراز غير موجود")
-    return templates.TemplateResponse("tire_model_configuration.html", {"request": request, "user": current_user, **configuration})
 
 
-@router.post("/tires/models/{model_id}/configuration")
-def update_tire_model_configuration(model_id: int, has_tires: bool = Form(False), tire_positions_required: int = Form(0), tire_size: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    model = equipment_type_services.get_model(db, model_id)
-    if not model:
-        raise HTTPException(status_code=404, detail="الطراز غير موجود")
-    try:
-        equipment_type_services.update_model_tire_configuration(db, model, has_tires, tire_positions_required, tire_size)
-    except ValueError as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
-@router.post("/tires/models/{model_id}/sizes")
-def create_model_size(model_id: int, size: str = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        services.add_model_size(db, model_id, size)
-    except ValueError as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
-@router.post("/tires/models/{model_id}/positions")
-def create_model_position(model_id: int, axle_number: int = Form(...), side: str = Form(...), position_type: str = Form(...), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        services.add_position(db, model_id, axle_number, side, position_type, description)
-    except ValueError as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
-@router.post("/tires/positions/{position_id}/delete")
-def delete_model_position(position_id: int, model_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        services.delete_position(db, position_id)
-    except ValueError as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
-@router.post("/tires/model-sizes/{size_id}/delete")
-def delete_model_size(size_id: int, model_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        services.delete_model_size(db, size_id)
-    except ValueError as exc:
-        db.rollback()
-        raise _error(exc)
-    return RedirectResponse(f"/tires/models/{model_id}/configuration", status_code=303)
 
 
 @router.post("/tires")

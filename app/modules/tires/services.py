@@ -334,64 +334,12 @@ def add_tire(db: Session, data: dict):
     return tire
 
 
-def add_model_size(db: Session, equipment_model_id: int, size: str):
-    model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
-    size = (size or "").strip()
-    if not model or not size:
-        raise ValueError("الطراز والمقاس مطلوبان")
-    if db.query(TireModelSize).filter(TireModelSize.equipment_model_id == equipment_model_id, TireModelSize.size.ilike(size)).first():
-        raise ValueError("المقاس مضاف مسبقًا لهذا الطراز")
-    obj = TireModelSize(equipment_model_id=equipment_model_id, size=size)
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
 
 
-def delete_model_size(db: Session, size_id: int):
-    obj = db.query(TireModelSize).filter(TireModelSize.id == size_id).first()
-    if not obj:
-        return
-    for tire in list_tires(db):
-        state = current_state(db, tire.id)
-        if state and state.get("installed") and state.get("equipment") and state["equipment"].equipment_model_id == obj.equipment_model_id and tire.size and tire.size.strip().lower() == obj.size.strip().lower():
-            raise ValueError("لا يمكن حذف مقاس ما زال مستخدمًا على إطار مركب لهذا الطراز")
-    db.delete(obj)
-    db.commit()
 
 
-def add_position(db: Session, equipment_model_id: int, axle_number: int, side: str, position_type: str, description: str = ""):
-    model = db.query(EquipmentModel).filter(EquipmentModel.id == equipment_model_id).first()
-    if not model:
-        raise ValueError("الطراز غير موجود")
-    if not model.has_tires:
-        raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")
-    if axle_number < 1 or side not in SIDES or position_type not in POSITION_TYPES:
-        raise ValueError("بيانات موضع الإطار غير صالحة")
-    required = int(model.tire_positions_required or 0)
-    configured_count = db.query(TirePosition).filter(TirePosition.equipment_model_id == equipment_model_id).count()
-    if required > 0 and configured_count >= required:
-        raise ValueError(f"تم بلوغ العدد المحدد لمواضع الإطارات لهذا الطراز ({required}).")
-    if db.query(TirePosition).filter(TirePosition.equipment_model_id == equipment_model_id, TirePosition.axle_number == axle_number, TirePosition.side == side, TirePosition.position_type == position_type).first():
-        raise ValueError("هذا الموضع موجود مسبقًا لهذا الطراز")
-    code = f"M{equipment_model_id}-A{axle_number}-{side}-{position_type}"
-    name_side = "يسار" if side == "left" else "يمين"
-    name_type = {"single": "مفرد", "inner": "داخلي", "outer": "خارجي"}[position_type]
-    obj = TirePosition(equipment_model_id=equipment_model_id, axle_number=axle_number, side=side, position_type=position_type, code=code, name=f"المحور {axle_number} — {name_side} {name_type}", description=description.strip() or None, sort_order=axle_number)
-    db.add(obj)
-    db.commit()
-    db.refresh(obj)
-    return obj
 
 
-def delete_position(db: Session, position_id: int):
-    obj = db.query(TirePosition).filter(TirePosition.id == position_id).first()
-    if not obj:
-        return
-    if db.query(TireMovement).filter(TireMovement.position_id == position_id).first():
-        raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")
-    db.delete(obj)
-    db.commit()
 
 
 def add_movement(db: Session, tire_id: int, data: dict):

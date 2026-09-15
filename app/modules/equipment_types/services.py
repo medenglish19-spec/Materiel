@@ -1,6 +1,7 @@
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType
+from app.modules.tires.models import TirePosition, TireModelSize, TireMovement
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentTypeCreate, EquipmentTypeUpdate
 
 def list_categories(db: Session) -> list[EquipmentCategory]: return db.query(EquipmentCategory).order_by(EquipmentCategory.sort_order, EquipmentCategory.name).all()
@@ -104,8 +105,7 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if brand is None: raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
     if not brand.is_active: raise ValueError("العلامة التجارية غير نشطة؛ أعد تفعيلها أولًا")
     if data.has_tires and data.tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
-    if data.has_tires and not (data.tire_size or "").strip(): raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد مقاس الإطار")
-    if not data.has_tires and (data.tire_positions_required!=0 or data.tire_size): raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
+    if not data.has_tires and (data.tire_positions_required!=0 or (data.tire_size or "").strip()): raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
     if data.has_batteries and data.battery_count_required<1: raise ValueError("هذا الطراز يملك بطاريات؛ يجب تحديد عدد البطاريات")
     if data.has_batteries and (data.battery_capacity_ah is None or data.battery_capacity_ah<=0): raise ValueError("يجب تحديد سعة البطارية بالأمبير/ساعة")
     if data.has_batteries and (data.battery_voltage_v is None or data.battery_voltage_v<=0): raise ValueError("يجب تحديد فولط البطارية")
@@ -116,46 +116,136 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if obj is not None: q=q.filter(EquipmentModel.id!=obj.id)
     if q.first(): raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
 
+POSITION_SIDES={"left","right"};POSITION_TYPES={"single","inner","outer"}
+def _assert_size_deletable(db: Session, equipment_model_id: int, size_value: str) -> None:
+    size_key=(size_value or "").strip().lower()
+    if not size_key:return
+    from app.modules.tires.models import Tire
+    from app.modules.tires import state_engine
+    for tire in db.query(Tire).filter(Tire.size.isnot(None)).all():
+        if (tire.size or "").strip().lower()!=size_key:continue
+        movements=db.query(TireMovement).filter(TireMovement.tire_id==tire.id).all()
+        if not movements:continue
+        state=state_engine.state_from_history(movements)
+        if state and state.get("installed"):
+            equipment=state.get("equipment");equipment_id=state.get("equipment_id")
+            if equipment is None and equipment_id:
+                from app.modules.equipment.models import Equipment
+                equipment=db.query(Equipment).filter(Equipment.id==equipment_id).first()
+            if equipment and equipment.equipment_model_id==equipment_model_id:raise ValueError("لا يمكن حذف مقاس مستخدم على إطار مركب لهذا الطراز")
+
+def _validate_tire_positions_and_sizes(db,data,existing_model_id=None):
+    if not data.has_tires:
+        if data.positions:raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")
+        if data.sizes:raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")
+        if existing_model_id is not None:
+            old_position_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}
+            if old_position_ids and db.query(TireMovement.id).filter(TireMovement.position_id.in_(old_position_ids)).first():raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")
+            for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==existing_model_id).all():_assert_size_deletable(db,existing_model_id,row.size)
+        return
+    if len(data.positions)!=data.tire_positions_required:raise ValueError(f"يجب تعريف {data.tire_positions_required} موضع إطار بالضبط قبل حفظ الطراز (المعرَّف حاليًا في النموذج: {len(data.positions)})")
+    seen=set()
+    for p in data.positions:
+        key=(p.axle_number,p.side,p.position_type)
+        if key in seen:raise ValueError("توجد مواضع مكررة بنفس المحور والجهة والنوع")
+        seen.add(key)
+    existing_ids=set();existing_sizes={}
+    if existing_model_id is not None:
+        existing_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}
+        submitted_ids={p.id for p in data.positions if p.id is not None}
+        if submitted_ids-existing_ids:raise ValueError("توجد مواضع في النموذج لا تنتمي لهذا الطراز")
+        to_delete=existing_ids-submitted_ids
+        if to_delete and db.query(TireMovement.id).filter(TireMovement.position_id.in_(to_delete)).first():raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")
+        existing_sizes={row.id:row.size for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==existing_model_id).all()}
+    normalized=[];seen_sizes=set()
+    for raw in data.sizes:
+        value=(raw or "").strip()
+        if not value:continue
+        key=value.lower()
+        if key in seen_sizes:raise ValueError(f"المقاس مكرر: {value}")
+        seen_sizes.add(key);normalized.append(value)
+    if not (data.tire_size or "").strip() and not normalized:raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد المقاس الافتراضي أو إضافة مقاس معتمد واحد على الأقل")
+    if existing_model_id is not None:
+        submitted_norm={v.lower() for v in normalized}
+        for size_id,size_value in existing_sizes.items():
+            if (size_value or "").strip().lower() not in submitted_norm:_assert_size_deletable(db,existing_model_id,size_value)
+
+def _sync_positions(db,equipment_model_id,positions):
+    existing={p.id:p for p in db.query(TirePosition).filter(TirePosition.equipment_model_id==equipment_model_id).all()};submitted_ids={p.id for p in positions if p.id is not None}
+    for pid,obj in existing.items():
+        if pid not in submitted_ids:db.delete(obj)
+    names={"left":"يسار","right":"يمين"};types={"single":"مفرد","inner":"داخلي","outer":"خارجي"}
+    for p in positions:
+        if p.id is not None:
+            obj=existing[p.id];obj.axle_number=p.axle_number;obj.side=p.side;obj.position_type=p.position_type;obj.name=f"المحور {p.axle_number} — {names[p.side]} {types[p.position_type]}";obj.code=f"M{equipment_model_id}-A{p.axle_number}-{p.side}-{p.position_type}";obj.description=(p.description or "").strip() or None;obj.sort_order=p.axle_number
+        else:db.add(TirePosition(equipment_model_id=equipment_model_id,axle_number=p.axle_number,side=p.side,position_type=p.position_type,code=f"M{equipment_model_id}-A{p.axle_number}-{p.side}-{p.position_type}",name=f"المحور {p.axle_number} — {names[p.side]} {types[p.position_type]}",description=(p.description or "").strip() or None,sort_order=p.axle_number))
+
+def _sync_sizes(db,equipment_model_id,tire_size,sizes):
+    existing={row.size.strip().lower():row for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==equipment_model_id).all() if row.size};normalized=[]
+    for raw in sizes:
+        value=(raw or "").strip()
+        if value and value.lower() not in {v.lower() for v in normalized}:normalized.append(value)
+    submitted={v.lower() for v in normalized}
+    for key,row in existing.items():
+        if key not in submitted:db.delete(row)
+    for value in normalized:
+        if value.lower() not in existing:db.add(TireModelSize(equipment_model_id=equipment_model_id,size=value))
+
+def add_model_size(db:Session,equipment_model_id:int,size:str):
+    value=(size or "").strip()
+    if not value:raise ValueError("مقاس الإطار مطلوب")
+    model=db.query(EquipmentModel).filter(EquipmentModel.id==equipment_model_id).first()
+    if not model:raise ValueError("الطراز غير موجود")
+    if db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==equipment_model_id,TireModelSize.size.ilike(value)).first():raise ValueError("المقاس موجود مسبقًا لهذا الطراز")
+    obj=TireModelSize(equipment_model_id=equipment_model_id,size=value);db.add(obj);db.commit();db.refresh(obj);return obj
+
+def delete_model_size(db:Session,size_id:int):
+    obj=db.query(TireModelSize).filter(TireModelSize.id==size_id).first()
+    if obj is None:raise ValueError("المقاس غير موجود")
+    _assert_size_deletable(db,obj.equipment_model_id,obj.size);db.delete(obj);db.commit()
+
+def add_position(db:Session,equipment_model_id:int,axle_number:int,side:str,position_type:str,description:str=""):
+    if side not in POSITION_SIDES:raise ValueError("جهة الموضع غير صالحة")
+    if position_type not in POSITION_TYPES:raise ValueError("نوع الموضع غير صالح")
+    if axle_number<1:raise ValueError("رقم المحور غير صالح")
+    if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==equipment_model_id,TirePosition.axle_number==axle_number,TirePosition.side==side,TirePosition.position_type==position_type).first():raise ValueError("الموضع موجود مسبقًا")
+    name_side="يسار" if side=="left" else "يمين";name_type={"single":"مفرد","inner":"داخلي","outer":"خارجي"}[position_type]
+    obj=TirePosition(equipment_model_id=equipment_model_id,axle_number=axle_number,side=side,position_type=position_type,code=f"M{equipment_model_id}-A{axle_number}-{side}-{position_type}",name=f"المحور {axle_number} — {name_side} {name_type}",description=(description or "").strip() or None,sort_order=axle_number);db.add(obj);db.commit();db.refresh(obj);return obj
+
+def delete_position(db:Session,position_id:int):
+    obj=db.query(TirePosition).filter(TirePosition.id==position_id).first()
+    if obj is None:raise ValueError("الموضع غير موجود")
+    if db.query(TireMovement.id).filter(TireMovement.position_id==position_id).first():raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")
+    db.delete(obj);db.commit()
+
 def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
-    _validate_model_data(db,data)
-    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver);db.add(obj);db.commit();db.refresh(obj);return obj
+    _validate_model_data(db,data);_validate_tire_positions_and_sizes(db,data,None)
+    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
+    db.add(obj);db.flush();_sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
 
 def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->EquipmentModel:
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
-    _validate_model_data(db,data,obj=obj)
-    if data.equipment_type_id != obj.equipment_type_id:
+    if obj.is_frozen:raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
+    _validate_model_data(db,data,obj=obj);_validate_tire_positions_and_sizes(db,data,obj.id)
+    if data.equipment_type_id!=obj.equipment_type_id:
         from app.modules.equipment.models import Equipment
-        if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first(): raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
-    obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver;db.commit();db.refresh(obj);return obj
+        if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
+    obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver
+    _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
 
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     brand=get_brand(db,brand_id)
-    if brand is None or not brand.is_active: raise ValueError("العلامة التجارية غير موجودة أو غير نشطة")
+    if brand is None or not brand.is_active:raise ValueError("العلامة التجارية غير موجودة أو غير نشطة")
     duplicate=db.query(EquipmentModel).filter(EquipmentModel.id!=obj.id,EquipmentModel.equipment_type_id==obj.equipment_type_id,EquipmentModel.brand_id==brand_id,EquipmentModel.name==obj.name).first()
-    if duplicate: raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
+    if duplicate:raise ValueError("يوجد طراز بالاسم نفسه لهذا النوع والعلامة")
     obj.brand_id=brand_id;db.commit();db.refresh(obj);return obj
-
-def update_model_tire_configuration(db:Session,obj:EquipmentModel,has_tires:bool,tire_positions_required:int,tire_size:str|None)->EquipmentModel:
-    if tire_positions_required<0: raise ValueError("عدد مواضع الإطارات لا يمكن أن يكون سالبًا")
-    normalized_size=(tire_size or "").strip() or None
-    from app.modules.tires.models import TirePosition
-    configured_count=db.query(TirePosition).filter(TirePosition.equipment_model_id==obj.id).count()
-    if not has_tires and configured_count: raise ValueError("لا يمكن تعطيل الإطارات بينما توجد مواضع إطارات معرفة لهذا الطراز؛ احذف المواضع أولًا للحفاظ على اتساق الإعدادات")
-    if has_tires and tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
-    if has_tires and tire_positions_required<configured_count: raise ValueError(f"عدد مواضع الإطارات المطلوب ({tire_positions_required}) لا يمكن أن يكون أقل من المواضع المعرفة حاليًا ({configured_count})")
-    if has_tires and not normalized_size:
-        from app.modules.tires.models import TireModelSize
-        if not db.query(TireModelSize).filter(TireModelSize.equipment_model_id==obj.id).first(): raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد المقاس الافتراضي أو إضافة مقاس معتمد")
-    if not has_tires and (tire_positions_required!=0 or normalized_size is not None): raise ValueError("بيانات الإطارات يجب أن تكون فارغة إذا كان الطراز لا يملك إطارات")
-    obj.has_tires=has_tires;obj.tire_positions_required=tire_positions_required;obj.tire_size=normalized_size;db.commit();db.refresh(obj);return obj
 
 def set_model_frozen(db:Session,obj:EquipmentModel,frozen:bool)->EquipmentModel:
     obj.is_frozen=frozen;db.commit();db.refresh(obj);return obj
 
 def delete_model(db:Session,obj:EquipmentModel)->None:
     from app.modules.equipment.models import Equipment
-    from app.modules.tires.models import TireModelSize, TirePosition
-    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
-    if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first(): raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
-    if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==obj.id).first() or db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==obj.id).first(): raise ValueError("لا يمكن حذف طراز يحتوي على إعدادات إطارات؛ احذف الإعدادات المرجعية أولًا")
+    from app.modules.tires.models import TireModelSize,TirePosition
+    if obj.is_frozen:raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
+    if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
+    if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==obj.id).first() or db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==obj.id).first():raise ValueError("لا يمكن حذف طراز يحتوي على إعدادات إطارات؛ احذف الإعدادات المرجعية أولًا")
     db.delete(obj);db.commit()

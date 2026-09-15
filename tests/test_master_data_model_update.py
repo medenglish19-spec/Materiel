@@ -7,7 +7,7 @@ from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types import services
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel
-from app.modules.equipment_types.schemas import EquipmentModelCreate, EquipmentTypeCreate
+from app.modules.equipment_types.schemas import EquipmentModelCreate, EquipmentTypeCreate, TirePositionInput
 
 
 engine = create_engine(
@@ -52,7 +52,7 @@ def _seed(db):
     return category, brand, second_brand, equipment_type, second_type, model
 
 
-def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tire_count=0, tire_size=None, has_batteries=False, battery_count=0, battery_ah=None, battery_v=None):
+def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tire_count=0, tire_size=None, has_batteries=False, battery_count=0, battery_ah=None, battery_v=None, positions=None, sizes=None):
     return EquipmentModelCreate(
         name=name or model.name,
         equipment_type_id=type_id or model.equipment_type_id,
@@ -66,6 +66,8 @@ def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tir
         battery_voltage_v=battery_v,
         mobility_type="mobile",
         requires_driver=True,
+        positions=positions or [],
+        sizes=sizes or [],
     )
 
 
@@ -89,6 +91,7 @@ def test_model_update_changes_reference_specs_atomically():
                 battery_count=2,
                 battery_ah=180,
                 battery_v=24,
+                positions=[TirePositionInput(axle_number=i//2+1,side="left" if i%2==0 else "right",position_type="single") for i in range(6)],
             ),
         )
         assert updated.name == "طراز محدث"
