@@ -55,3 +55,24 @@ class EquipmentModel(Base, TimestampMixin):
     requires_driver = Column(Boolean, nullable=False, default=True)
     equipment_type = relationship("EquipmentType", back_populates="models")
     brand = relationship("EquipmentBrand", back_populates="models")
+    spec_values = relationship("EquipmentModelSpecValue", back_populates="model", cascade="all, delete-orphan")
+
+class EquipmentModelSpecDefinition(Base, TimestampMixin):
+    __tablename__ = "equipment_model_spec_definitions"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    data_type = Column(String(20), nullable=False, default="text")
+    unit = Column(String(20), nullable=True)
+    options = Column(String(500), nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    values = relationship("EquipmentModelSpecValue", back_populates="definition", cascade="all, delete-orphan")
+
+class EquipmentModelSpecValue(Base, TimestampMixin):
+    __tablename__ = "equipment_model_spec_values"
+    __table_args__ = (UniqueConstraint("equipment_model_id", "spec_definition_id", name="uq_model_spec_value"),)
+    id = Column(Integer, primary_key=True, index=True)
+    equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=False, index=True)
+    spec_definition_id = Column(Integer, ForeignKey("equipment_model_spec_definitions.id", ondelete="CASCADE"), nullable=False, index=True)
+    value = Column(String(255), nullable=False)
+    definition = relationship("EquipmentModelSpecDefinition", back_populates="values")
+    model = relationship("EquipmentModel", back_populates="spec_values")

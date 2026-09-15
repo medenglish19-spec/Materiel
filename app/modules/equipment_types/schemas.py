@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MEASUREMENT_UNITS = {"km", "hours"}
 MOBILITY_TYPES = {"mobile", "towed"}
+SPEC_DATA_TYPES = {"text", "number", "select"}
 
 class EquipmentCategoryCreate(BaseModel):
     name: str
@@ -72,6 +73,30 @@ class TirePositionInput(BaseModel):
         if v < 1: raise ValueError("رقم المحور غير صالح")
         return v
 
+class SpecDefinitionCreate(BaseModel):
+    name: str
+    data_type: str = "text"
+    unit: Optional[str] = None
+    options: Optional[str] = None
+    @field_validator("data_type")
+    @classmethod
+    def data_type_valid(cls,v: str) -> str:
+        if v not in SPEC_DATA_TYPES: raise ValueError(f"نوع الخاصية يجب أن يكون أحد: {SPEC_DATA_TYPES}")
+        return v
+
+class SpecDefinitionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    data_type: str
+    unit: Optional[str]
+    options: Optional[str]
+    sort_order: int
+
+class SpecValueInput(BaseModel):
+    definition_id: int
+    value: str
+
 class EquipmentModelCreate(BaseModel):
     name: str
     equipment_type_id: int
@@ -88,6 +113,7 @@ class EquipmentModelCreate(BaseModel):
     requires_driver: bool = True
     positions: list[TirePositionInput] = Field(default_factory=list)
     sizes: list[str] = Field(default_factory=list)
+    specs: list[SpecValueInput] = Field(default_factory=list)
     @field_validator("tire_positions_required", "battery_count_required")
     @classmethod
     def counts_valid(cls, v: int) -> int:

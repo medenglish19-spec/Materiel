@@ -10,7 +10,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment_types import demo, services
 from app.modules.equipment.models import Equipment
-from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut, EquipmentTypeUpdate
+from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut, EquipmentTypeUpdate, SpecDefinitionCreate, SpecDefinitionOut, SpecValueInput
 from app.modules.users.models import User
 from app.modules.tires.models import TireModelSize, TirePosition
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
@@ -19,10 +19,10 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db);tire_master_data={}
+    models=services.list_models(db);tire_master_data={};spec_definitions=services.list_spec_definitions(db)
     for model in models:
-        tire_master_data[model.id]={"positions":[{"id":p.id,"axle_number":p.axle_number,"side":p.side,"position_type":p.position_type,"description":p.description} for p in db.query(TirePosition).filter(TirePosition.equipment_model_id==model.id).order_by(TirePosition.axle_number,TirePosition.sort_order,TirePosition.id).all()],"sizes":[row.size for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==model.id).order_by(TireModelSize.id).all()]}
-    return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":models,"tire_master_data":tire_master_data,"user":current_user})
+        tire_master_data[model.id]={"positions":[{"id":p.id,"axle_number":p.axle_number,"side":p.side,"position_type":p.position_type,"description":p.description} for p in db.query(TirePosition).filter(TirePosition.equipment_model_id==model.id).order_by(TirePosition.axle_number,TirePosition.sort_order,TirePosition.id).all()],"sizes":[row.size for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==model.id).order_by(TireModelSize.id).all()],"specs":[{"definition_id":v.spec_definition_id,"value":v.value} for v in model.spec_values]}
+    return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":services.list_types(db),"categories":services.list_categories(db),"brands":services.list_brands(db),"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"user":current_user})
 @router.get("/equipment-types/structure",response_class=HTMLResponse)
 def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     models=services.list_models(db);counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
@@ -113,23 +113,33 @@ def toggle_brand_form(brand_id:int,db:Session=Depends(get_db),current_user:User=
     obj=services.get_brand(db,brand_id)
     if obj is None:raise HTTPException(status_code=404,detail="العلامة التجارية غير موجودة")
     services.set_brand_active(db,obj,not obj.is_active);return _redirect("تم تحديث حالة العلامة التجارية")
+@router.get("/api/equipment-model-spec-definitions",response_model=list[SpecDefinitionOut])
+def api_list_spec_definitions(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))): return services.list_spec_definitions(db)
+@router.post("/equipment-types/specs/create")
+def create_spec_definition_form(name:str=Form(...),data_type:str=Form("text"),unit:str=Form(""),options:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try: services.create_spec_definition(db,SpecDefinitionCreate(name=name,data_type=data_type,unit=unit or None,options=options or None))
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc)) from exc
+    return _redirect("تمت إضافة الخاصية")
+@router.post("/equipment-types/specs/{definition_id}/delete")
+def delete_spec_definition_form(definition_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    services.delete_spec_definition(db,definition_id);return _redirect("تم حذف الخاصية من كل الطرازات المستخدمة فيها")
 @router.post("/equipment-types/models/create")
-def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+def create_model_form(name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     try:
-        positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json)
-        if not isinstance(positions_data,list) or not isinstance(sizes_data,list):raise ValueError("بيانات المواضع أو المقاسات غير صالحة")
-        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
+        positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json);specs_data=json.loads(specs_json)
+        if not isinstance(positions_data,list) or not isinstance(sizes_data,list) or not isinstance(specs_data,list):raise ValueError("بيانات المواضع أو المقاسات أو الخصائص غير صالحة")
+        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
     except (ValueError,TypeError) as exc:
         db.rollback();return _redirect(str(exc),"warning")
     return _redirect("تمت إضافة الطراز والمواصفات")
 @router.post("/equipment-types/models/{model_id}/update")
-def update_model_form(model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+def update_model_form(model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),brand_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(True),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj is None:raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
     try:
-        positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json)
-        if not isinstance(positions_data,list) or not isinstance(sizes_data,list):raise ValueError("بيانات المواضع أو المقاسات غير صالحة")
-        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
+        positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json);specs_data=json.loads(specs_json)
+        if not isinstance(positions_data,list) or not isinstance(sizes_data,list) or not isinstance(specs_data,list):raise ValueError("بيانات المواضع أو المقاسات أو الخصائص غير صالحة")
+        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_id,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver))
     except (ValueError,TypeError) as exc:
         db.rollback();return _redirect(str(exc),"warning")
     return _redirect("تم حفظ تعديلات الطراز والمواصفات")
