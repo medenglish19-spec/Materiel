@@ -17,3 +17,4 @@ def downgrade():
     bind=op.get_bind();tables=set(sa.inspect(bind).get_table_names())
     if "equipment_model_spec_values" in tables:op.drop_table("equipment_model_spec_values")
     if "equipment_model_spec_definitions" in tables:op.drop_table("equipment_model_spec_definitions")
+
