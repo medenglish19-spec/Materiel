@@ -36,3 +36,6 @@ def test_model_delete_form_is_present():
     template = _template()
     assert 'id="deleteModelForm"' in template
     assert 'method="post"' in template[template.index('id="deleteModelForm"'):]
+
+
+# Keep CI verification attached to the corrected tree contract commit.
