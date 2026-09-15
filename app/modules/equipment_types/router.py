@@ -19,13 +19,11 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db)
-    types=services.list_types(db)
-    categories=services.list_categories(db)
-    brands=services.list_brands(db)
+    models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db)
     spec_definitions=[{"id":d.id,"name":d.name,"data_type":d.data_type,"unit":d.unit,"options":d.options} for d in services.list_spec_definitions(db)]
-    model_editor_data=model_editor_payloads(db,models)
-    return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"model_editor_data":model_editor_data,"spec_definitions":spec_definitions,"user":current_user})
+    editor_payloads=model_editor_payloads(db,models)
+    tire_master_data={p["id"]:{"positions":p["positions"],"sizes":p["sizes"],"specs":p["specs"]} for p in editor_payloads}
+    return templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"user":current_user})
 @router.get("/equipment-types/structure",response_class=HTMLResponse)
 def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     models=services.list_models(db);counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
