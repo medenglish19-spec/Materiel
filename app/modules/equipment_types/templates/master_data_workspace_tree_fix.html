@@ -1,0 +1,55 @@
+{% extends "master_data_workspace.html" %}
+{% block content %}
+{{ super() }}
+<style>
+.model-tire-subtree > .tree-children { padding-right: 17px; }
+.model-tire-subtree > .tree-node::before { content: "›"; display:inline-block; width:20px; color:#64748b; transition:transform .15s ease; }
+.model-tire-subtree.open > .tree-node::before { transform:rotate(90deg); }
+</style>
+<script>
+(function () {
+  "use strict";
+  function normalizeModelTree() {
+    document.querySelectorAll(".model-tree-item").forEach(function (modelItem) {
+      const modelChildren = modelItem.querySelector(":scope > .tree-children");
+      if (!modelChildren) return;
+      const tiresNode = modelChildren.querySelector(":scope > .child-node[data-section='tires']");
+      const tireChildren = tiresNode && tiresNode.nextElementSibling;
+      if (!tiresNode || !tireChildren || !tireChildren.classList.contains("tree-children")) return;
+      if (tireChildren.parentElement.classList.contains("model-tire-subtree")) return;
+      const tireGroup = document.createElement("div");
+      tireGroup.className = "tree-group model-tire-subtree";
+      modelChildren.insertBefore(tireGroup, tiresNode);
+      tireGroup.appendChild(tiresNode);
+      tireGroup.appendChild(tireChildren);
+      tiresNode.setAttribute("aria-expanded", "false");
+      tiresNode.addEventListener("click", function () {
+        const isOpen = tireGroup.classList.toggle("open");
+        tiresNode.setAttribute("aria-expanded", String(isOpen));
+      });
+    });
+  }
+  function improveNewModelReset() {
+    const newButton = document.getElementById("newModelTop");
+    if (!newButton) return;
+    newButton.addEventListener("click", function () {
+      const typeSelect = document.getElementById("modelType");
+      const category = document.getElementById("modelCategory");
+      if (typeSelect) {
+        const selectedCategory = category ? category.value : "";
+        Array.from(typeSelect.options).forEach(function (option) {
+          if (!option.value) return;
+          option.hidden = !!selectedCategory && option.dataset.category !== selectedCategory;
+        });
+        typeSelect.value = "";
+      }
+      const firstField = document.getElementById("modelName");
+      if (firstField) firstField.focus({ preventScroll: true });
+    });
+  }
+  function init() { normalizeModelTree(); improveNewModelReset(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init, { once: true });
+  else init();
+})();
+</script>
+{% endblock %}
