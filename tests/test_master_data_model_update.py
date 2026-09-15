@@ -66,6 +66,8 @@ def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tir
         battery_voltage_v=battery_v,
         mobility_type="mobile",
         requires_driver=True,
+        positions=positions or [],
+        sizes=sizes or [],
     )
 
 

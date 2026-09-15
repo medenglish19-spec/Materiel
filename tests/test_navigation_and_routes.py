@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 from web import main
 
 NAVIGATION_PATHS = {"/dashboard", "/equipment", "/equipment/numerical-status", "/meter-readings", "/meter-readings/operations", "/equipment-types", "/maintenance", "/faults-repairs", "/tires", "/batteries", "/fuel", "/missions", "/users", "/logout"}
-PAGE_PATHS = {*NAVIGATION_PATHS, "/maintenance/periodic", "/maintenance/rules", "/tires/settings", "/tires/inventory", "/tires/positions"}
+PAGE_PATHS = {*NAVIGATION_PATHS, "/maintenance/periodic", "/maintenance/rules", "/tires/settings", "/tires/inventory"}
 
 
 def _client(monkeypatch):
