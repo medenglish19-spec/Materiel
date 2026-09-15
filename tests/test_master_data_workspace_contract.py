@@ -24,7 +24,11 @@ Session = sessionmaker(bind=engine)
 
 
 def test_master_data_routes_are_registered():
-    routes = {(route.path, tuple(sorted(route.methods or ()))) for route in app.routes}
+    routes = {
+        (route.path, tuple(sorted(getattr(route, "methods", None) or ())))
+        for route in app.routes
+        if getattr(route, "methods", None)
+    }
     expected = {
         ("/equipment-types", ("GET",)),
         ("/equipment-types/categories/create", ("POST",)),
@@ -70,7 +74,7 @@ def test_model_editor_presenter_is_json_safe_and_contains_reference_chain():
 
 def test_requires_driver_unchecked_form_defaults_to_false():
     parameter = inspect.signature(create_model_form).parameters["requires_driver"]
-    assert parameter.default is False
+    assert parameter.default.default is False
 
 
 def test_model_editor_has_no_new_model_scroll_and_has_category_selector():
