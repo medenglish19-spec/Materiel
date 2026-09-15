@@ -8,7 +8,9 @@ def test_model_tree_has_nested_tire_branch():
     sizes = template.index('data-section="sizes"', positions)
     batteries = template.index('data-section="batteries"', sizes)
     block = template[tire:batteries]
+    assert '<div class="tree-group">' in block
     assert '<div class="tree-children">' in block
+    assert 'class="tree-toggle"' in block
     assert positions < sizes < batteries
 
 
