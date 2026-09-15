@@ -1,8 +1,8 @@
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
-from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType
+from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType, EquipmentModelSpecDefinition, EquipmentModelSpecValue
 from app.modules.tires.models import TirePosition, TireModelSize, TireMovement
-from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentTypeCreate, EquipmentTypeUpdate
+from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentTypeCreate, EquipmentTypeUpdate, SpecDefinitionCreate, SpecValueInput
 
 def list_categories(db: Session) -> list[EquipmentCategory]: return db.query(EquipmentCategory).order_by(EquipmentCategory.sort_order, EquipmentCategory.name).all()
 def get_category(db: Session, category_id: int) -> Optional[EquipmentCategory]: return db.query(EquipmentCategory).filter(EquipmentCategory.id == category_id).first()
@@ -90,11 +90,30 @@ def delete_type(db:Session,obj:EquipmentType)->None:
     if db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).first(): raise ValueError("لا يمكن حذف نوع عتاد مرتبط بطرازات مسجلة؛ احذف أو انقل الطرازات وفق إجراءات النظام أولًا")
     db.delete(obj);db.commit()
 
+def list_spec_definitions(db: Session) -> list[EquipmentModelSpecDefinition]:
+    return db.query(EquipmentModelSpecDefinition).order_by(EquipmentModelSpecDefinition.sort_order, EquipmentModelSpecDefinition.name).all()
+
+def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
+    name=data.name.strip()
+    if not name: raise ValueError("اسم الخاصية مطلوب")
+    if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first(): raise ValueError("توجد خاصية بهذا الاسم مسبقًا")
+    options=None
+    if data.data_type=="select":
+        vals=[o.strip() for o in (data.options or "").split(",") if o.strip()]
+        if len(vals)<2: raise ValueError("خاصية من نوع اختيار تحتاج قيمتين على الأقل مفصولتين بفاصلة")
+        options=",".join(vals)
+    obj=EquipmentModelSpecDefinition(name=name,data_type=data.data_type,unit=(data.unit or "").strip() or None,options=options,sort_order=db.query(EquipmentModelSpecDefinition).count())
+    db.add(obj);db.commit();db.refresh(obj);return obj
+
+def delete_spec_definition(db: Session, definition_id: int) -> None:
+    obj=db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.id==definition_id).first()
+    if obj is not None: db.delete(obj);db.commit()
+
 def list_models(db:Session,type_id:Optional[int]=None)->list[EquipmentModel]:
-    query=db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category))
+    query=db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.spec_values).joinedload(EquipmentModelSpecValue.definition),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category))
     if type_id: query=query.filter(EquipmentModel.equipment_type_id==type_id)
     return query.order_by(EquipmentModel.name).all()
-def get_model(db:Session,model_id:int)->Optional[EquipmentModel]: return db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category)).filter(EquipmentModel.id==model_id).first()
+def get_model(db:Session,model_id:int)->Optional[EquipmentModel]: return db.query(EquipmentModel).options(joinedload(EquipmentModel.brand),joinedload(EquipmentModel.spec_values).joinedload(EquipmentModelSpecValue.definition),joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category)).filter(EquipmentModel.id==model_id).first()
 
 def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel|None=None)->None:
     equipment_type=get_type(db,data.equipment_type_id)
@@ -117,6 +136,30 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     q=db.query(EquipmentModel).filter(EquipmentModel.equipment_type_id==data.equipment_type_id,EquipmentModel.name==name,EquipmentModel.brand_id==data.brand_id)
     if obj is not None: q=q.filter(EquipmentModel.id!=obj.id)
     if q.first(): raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
+
+def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[SpecValueInput]):
+    definitions={d.id:d for d in db.query(EquipmentModelSpecDefinition).all()}
+    seen=set();normalized=[]
+    for item in specs:
+        if item.definition_id not in definitions: raise ValueError("توجد خاصية في النموذج لم تعد معرّفة في النظام")
+        if item.definition_id in seen: raise ValueError("لا يمكن إدخال نفس الخاصية أكثر من مرة لنفس الطراز")
+        seen.add(item.definition_id);value=(item.value or "").strip()
+        if not value: continue
+        definition=definitions[item.definition_id]
+        if definition.data_type=="number":
+            try: float(value)
+            except ValueError as exc: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون رقمًا") from exc
+        elif definition.data_type=="select":
+            allowed={o.strip() for o in (definition.options or "").split(",")}
+            if value not in allowed: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون إحدى: {definition.options}")
+        normalized.append((item.definition_id,value))
+    existing={r.spec_definition_id:r for r in db.query(EquipmentModelSpecValue).filter(EquipmentModelSpecValue.equipment_model_id==equipment_model_id).all()}
+    submitted={i for i,_ in normalized}
+    for did,row in existing.items():
+        if did not in submitted: db.delete(row)
+    for did,value in normalized:
+        if did in existing: existing[did].value=value
+        else: db.add(EquipmentModelSpecValue(equipment_model_id=equipment_model_id,spec_definition_id=did,value=value))
 
 POSITION_SIDES={"left","right"};POSITION_TYPES={"single","inner","outer"}
 def _assert_size_deletable(db: Session, equipment_model_id: int, size_value: str) -> None:
@@ -227,7 +270,8 @@ def delete_position(db:Session,position_id:int):
 def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
     _validate_model_data(db,data);_validate_tire_positions_and_sizes(db,data,None)
     obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,axle_count=data.axle_count,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
-    db.add(obj);db.flush();_sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
+    db.add(obj);db.flush();_sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
+    db.commit();db.refresh(obj);return obj
 
 def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->EquipmentModel:
     if obj.is_frozen:raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
@@ -236,7 +280,8 @@ def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->Equip
         from app.modules.equipment.models import Equipment
         if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
     obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.axle_count=data.axle_count;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver
-    _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.commit();db.refresh(obj);return obj
+    _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
+    db.commit();db.refresh(obj);return obj
 
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     brand=get_brand(db,brand_id)
