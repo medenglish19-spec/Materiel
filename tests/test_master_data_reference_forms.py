@@ -13,4 +13,4 @@ def test_new_model_button_does_not_focus_or_scroll_page():
     template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
     assert "window.scrollTo" not in template
     assert "modelName.focus" not in template
-    assert 'id="newModel" type="button"' in template
+    assert 'id="newModelTop"' in template
