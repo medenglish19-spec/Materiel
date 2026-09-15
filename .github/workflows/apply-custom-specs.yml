@@ -13,10 +13,8 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Patch implementation script
-        run: python .github/scripts/fix_marker.py
       - name: Apply implementation
-        run: python .github/scripts/apply_custom_specs.py
+        run: python .github/scripts/apply_custom_specs_v2.py
       - name: Commit implementation
         run: |
           git config user.name "github-actions[bot]"
