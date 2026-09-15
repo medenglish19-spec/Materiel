@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MEASUREMENT_UNITS = {"km", "hours"}
 MOBILITY_TYPES = {"mobile", "towed"}
@@ -56,19 +56,16 @@ class TirePositionInput(BaseModel):
     side: str
     position_type: str
     description: Optional[str] = None
-
     @field_validator("side")
     @classmethod
     def side_valid(cls, v: str) -> str:
         if v not in POSITION_SIDES: raise ValueError("جهة الموضع غير صالحة")
         return v
-
     @field_validator("position_type")
     @classmethod
     def type_valid(cls, v: str) -> str:
         if v not in POSITION_TYPES: raise ValueError("نوع الموضع غير صالح")
         return v
-
     @field_validator("axle_number")
     @classmethod
     def axle_valid(cls, v: int) -> int:
@@ -88,8 +85,8 @@ class EquipmentModelCreate(BaseModel):
     battery_voltage_v: Optional[float] = None
     mobility_type: str = "mobile"
     requires_driver: bool = True
-    positions: list[TirePositionInput] = []
-    sizes: list[str] = []
+    positions: list[TirePositionInput] = Field(default_factory=list)
+    sizes: list[str] = Field(default_factory=list)
     @field_validator("tire_positions_required", "battery_count_required")
     @classmethod
     def counts_valid(cls, v: int) -> int:
