@@ -1,0 +1,39 @@
+name: final-tire-patch
+on:
+  pull_request:
+    types: [reopened]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  finalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Patch and test
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/modules/equipment_types/services.py')
+          s=p.read_text(encoding='utf-8')
+          old='''    if not data.has_tires:\n        if data.positions: raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")\n        if data.sizes: raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")\n        return'''
+          new='''    if not data.has_tires:\n        if data.positions: raise ValueError("لا يمكن تعريف مواضع إطارات لطراز غير مزود بالإطارات")\n        if data.sizes: raise ValueError("لا يمكن تعريف مقاسات معتمدة لطراز غير مزود بالإطارات")\n        if existing_model_id is not None:\n            old_position_ids={row[0] for row in db.query(TirePosition.id).filter(TirePosition.equipment_model_id==existing_model_id).all()}\n            if old_position_ids and db.query(TireMovement.id).filter(TireMovement.position_id.in_(old_position_ids)).first():\n                raise ValueError("لا يمكن حذف موضع استُخدم في سجل حركات؛ حافظ على التاريخ")\n            for row in db.query(TireModelSize).filter(TireModelSize.equipment_model_id==existing_model_id).all():\n                _assert_size_deletable(db, existing_model_id, row.size)\n        return'''
+          if old not in s: raise SystemExit('validator anchor missing')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          PY
+          python -m compileall -q app tests web run_web.py
+          python -m pip install -r requirements.txt pytest
+          python -m pytest -q
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/modules/equipment_types/services.py
+          git add -u .github/workflows/final_patch.yml
+          git rm -f .github/workflows/final_patch.yml
+          git commit -m 'fix: protect historical tire positions and sizes'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
