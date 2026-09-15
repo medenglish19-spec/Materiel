@@ -1,0 +1,40 @@
+name: tire-last-fix
+on:
+  pull_request:
+    types: [reopened]
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Fix remaining fixtures and validate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('.')
+          p=root/'tests/test_master_data_model_update.py'; s=p.read_text(encoding='utf-8')
+          old='''        mobility_type="mobile",\n        requires_driver=True,\n    )'''
+          new='''        mobility_type="mobile",\n        requires_driver=True,\n        positions=positions or [],\n        sizes=sizes or [],\n    )'''
+          if old not in s: raise SystemExit('model fixture anchor missing')
+          p.write_text(s.replace(old,new,1),encoding='utf-8')
+          p=root/'tests/test_navigation_and_routes.py'; s=p.read_text(encoding='utf-8').replace(', "/tires/positions"',''); p.write_text(s,encoding='utf-8')
+          p=root/'app/modules/equipment_types/templates/master_data_workspace.html'; s=p.read_text(encoding='utf-8').replace("href='/equipment-types/models/'","href='/equipment-types/models/create'").replace("action='/equipment-types/models/'","action='/equipment-types/models/create'").replace('href="/equipment-types/models/"','href="/equipment-types/models/create"').replace('action="/equipment-types/models/"','action="/equipment-types/models/create"'); p.write_text(s,encoding='utf-8')
+          PY
+          python -m compileall -q app tests web run_web.py
+          python -m pip install -r requirements.txt pytest
+          python -m pytest -q
+      - name: Commit and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app tests
+          git rm -f .github/workflows/last_fix.yml
+          git commit -m 'test: fix final tire migration fixtures'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
