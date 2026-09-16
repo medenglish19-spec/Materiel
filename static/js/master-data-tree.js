@@ -42,15 +42,37 @@
     });
   }
 
-  // The arrow is the only control that expands/collapses a group.
+  const syncArrows = () => {
+    tree.querySelectorAll('.tree-group').forEach((group) => {
+      const node = group.querySelector(':scope > .tree-node');
+      const arrow = node?.querySelector(':scope > .tree-toggle');
+      if (!arrow) return;
+      arrow.textContent = group.classList.contains('open') ? '⌄' : '›';
+      node.setAttribute('aria-expanded', group.classList.contains('open') ? 'true' : 'false');
+    });
+  };
+
+  // The arrow owns expansion/collapse. Stop propagation so legacy workspace handlers
+  // cannot also interpret the same click as a node action.
+  tree.addEventListener('click', (event) => {
+    const toggle = event.target.closest('.tree-toggle');
+    if (!toggle || !tree.contains(toggle)) return;
+
+    const group = toggle.closest('.tree-group');
+    if (!group) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    group.classList.toggle('open');
+    syncArrows();
+  }, true);
+
   // Labels remain workspace actions and existing editor handlers keep ownership of them.
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
 
-    const toggle = event.target.closest('.tree-toggle');
-    if (toggle) return;
-
+    if (event.target.closest('.tree-toggle')) return;
     if (node.matches('[data-model-row], [data-model]')) return;
 
     if (node.matches('[data-ref]')) {
@@ -68,25 +90,14 @@
     }
   }, true);
 
-  const syncArrows = () => {
-    tree.querySelectorAll('.tree-group').forEach((group) => {
-      const node = group.querySelector(':scope > .tree-node');
-      const arrow = node?.querySelector(':scope > .tree-toggle');
-      if (!arrow) return;
-      arrow.textContent = group.classList.contains('open') ? '⌄' : '›';
-      node.setAttribute('aria-expanded', group.classList.contains('open') ? 'true' : 'false');
-    });
-  };
-
-  const openAncestors = (node) => {
+  const revealAncestors = (node) => {
     let group = node.parentElement?.closest('.tree-group');
     while (group && tree.contains(group)) {
+      const parentNode = group.querySelector(':scope > .tree-node');
+      if (parentNode) parentNode.hidden = false;
       group.classList.add('open');
-      const parent = group.parentElement?.closest('.tree-group');
-      if (!parent) break;
-      group = parent;
+      group = group.parentElement?.closest('.tree-group');
     }
-    syncArrows();
   };
 
   const searchableNodes = () => Array.from(tree.querySelectorAll('.tree-node')).filter((node) => {
@@ -103,11 +114,16 @@
       return;
     }
 
+    // Do the visibility pass first, then reveal/open ancestors, and sync arrows once.
     nodes.forEach((node) => {
-      const match = node.textContent.toLocaleLowerCase().includes(query);
-      node.hidden = !match;
-      if (match) openAncestors(node);
+      node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
     });
+
+    nodes.forEach((node) => {
+      if (!node.hidden) revealAncestors(node);
+    });
+
+    syncArrows();
   };
 
   const searchInput = document.getElementById('treeSearch');
