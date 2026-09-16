@@ -57,6 +57,19 @@
     .mdx .soft{background:#edf3f8;color:#234f75;border:1px solid #d6e2ec}
     .mdx .primary{background:#234f75;color:#fff;box-shadow:0 2px 5px rgba(35,79,117,.16)}
     .mdx .danger{border:1px solid #fecaca}
+
+    /* Model workspace navigation: sections remain on one page so existing forms and handlers are untouched. */
+    .mdx .model-workspace-nav{position:sticky;top:10px;z-index:5;display:flex;gap:6px;align-items:center;overflow:auto;padding:7px;margin:0 0 14px;background:rgba(255,255,255,.96);border:1px solid #dfe6ee;border-radius:11px;box-shadow:0 4px 14px rgba(15,23,42,.05);scrollbar-width:thin}
+    .mdx .model-workspace-nav:before{content:'أقسام الطراز';font-size:11px;font-weight:800;color:#718096;padding:0 7px;white-space:nowrap;border-left:1px solid #e2e8f0}
+    .mdx .model-workspace-tab{border:1px solid transparent;background:transparent;color:#52657b;border-radius:8px;padding:8px 11px;white-space:nowrap;font:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .12s ease}
+    .mdx .model-workspace-tab:hover{background:#edf4fa;color:#234f75}
+    .mdx .model-workspace-tab.active{background:#e7f0f8;color:#173b63;border-color:#cbdbea;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+    .mdx .model-workspace-tab .tab-icon{margin-left:5px}
+    .mdx .model-workspace-box{scroll-margin-top:78px}
+    .mdx .model-workspace-box.workspace-focus{outline:2px solid #b7d0e6;outline-offset:2px}
+    .mdx .model-workspace-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 13px;background:#f5f8fb;border:1px solid #dfe7ef;border-radius:10px;color:#53657a;font-size:12px}
+    .mdx .model-workspace-summary strong{color:#234f75;font-size:13px}
+    @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
     @keyframes mdxPanelIn{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
     @media(max-width:1000px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
   `;
@@ -163,7 +176,6 @@
       nested.appendChild(modelGroup);
     });
 
-    // Remove the old roots only after every original type/model node was placed.
     const remainingTypes = typeChildren.querySelectorAll(':scope > [data-ref-item="type"]');
     const remainingModels = modelChildren.querySelectorAll(':scope > .model-group');
     if (remainingTypes.length === 0) typeRoot.remove();
@@ -172,6 +184,66 @@
   };
 
   buildRealHierarchy();
+
+  const setupModelWorkspace = () => {
+    const panel = document.getElementById('modelPanel');
+    if (!panel || panel.dataset.workspaceReady === '1') return;
+
+    const boxes = Array.from(panel.children).filter((child) => child.classList?.contains('box'));
+    if (!boxes.length) return;
+
+    const nav = document.createElement('nav');
+    nav.className = 'model-workspace-nav';
+    nav.setAttribute('aria-label', 'أقسام الطراز');
+
+    const icons = ['📄', '🛞', '🔋', '⚙'];
+    const labels = [];
+    boxes.forEach((box, index) => {
+      box.classList.add('model-workspace-box');
+      box.dataset.workspaceSection = String(index);
+      const heading = box.querySelector(':scope > .box-head h3');
+      const text = heading?.textContent.trim() || `القسم ${index + 1}`;
+      labels.push(text);
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'model-workspace-tab';
+      tab.dataset.workspaceTarget = String(index);
+      tab.innerHTML = `<span class="tab-icon">${icons[index] || '•'}</span>${text}`;
+      tab.addEventListener('click', () => {
+        box.scrollIntoView({behavior:'smooth', block:'start'});
+        boxes.forEach((item) => item.classList.remove('workspace-focus'));
+        box.classList.add('workspace-focus');
+        nav.querySelectorAll('.model-workspace-tab').forEach((item) => item.classList.toggle('active', item === tab));
+        window.setTimeout(() => box.classList.remove('workspace-focus'), 900);
+      });
+      nav.appendChild(tab);
+    });
+
+    const summary = document.createElement('div');
+    summary.className = 'model-workspace-summary';
+    summary.innerHTML = '<strong>مساحة عمل الطراز</strong><span>البيانات والإطارات والبطاريات والخصائص التابعة في صفحة واحدة</span>';
+    panel.insertBefore(summary, boxes[0]);
+    panel.insertBefore(nav, boxes[0]);
+
+    const activateByScroll = () => {
+      const navRect = nav.getBoundingClientRect();
+      let activeIndex = 0;
+      let best = Number.POSITIVE_INFINITY;
+      boxes.forEach((box, index) => {
+        const distance = Math.abs(box.getBoundingClientRect().top - navRect.bottom - 12);
+        if (box.getBoundingClientRect().top <= navRect.bottom + 120 && distance < best) {
+          best = distance;
+          activeIndex = index;
+        }
+      });
+      nav.querySelectorAll('.model-workspace-tab').forEach((tab, index) => tab.classList.toggle('active', index === activeIndex));
+    };
+    window.addEventListener('scroll', activateByScroll, {passive:true});
+    activateByScroll();
+    panel.dataset.workspaceReady = '1';
+  };
+
+  setupModelWorkspace();
 
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
