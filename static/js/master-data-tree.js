@@ -12,6 +12,9 @@
     #tree .master-hierarchy-group{margin-bottom:3px}
     #tree .master-hierarchy-group>.children{padding-right:20px}
     #tree .master-models-label{font-weight:800;color:#475569}
+    #tree .master-uncategorized{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
+    #tree .master-reference-group{margin-top:6px}
+    #tree .master-reference-label{font-size:11px;color:#94a3b8;font-weight:800;padding:5px 8px}
   `;
   document.head.appendChild(style);
 
@@ -33,9 +36,6 @@
   const findTypeNode = (id) => tree.querySelector(`[data-ref-item="type"][data-id="${CSS.escape(String(id))}"]`);
   const findCategoryNode = (id) => tree.querySelector(`[data-ref-item="category"][data-id="${CSS.escape(String(id))}"]`);
 
-  // Build the visible hierarchy from the real persisted relations:
-  // category -> equipment type -> model. Brands and spec definitions remain
-  // independent reference data and are never attached to a category.
   const buildRealHierarchy = () => {
     const categoryRoot = tree.querySelector('[data-ref="categories"]')?.closest('.tree-group');
     const typeRoot = tree.querySelector('[data-ref="types"]')?.closest('.tree-group');
@@ -51,41 +51,63 @@
     const addType = typeChildren.querySelector('[data-new-ref="type"]');
     if (addType) categoryChildren.appendChild(addType);
 
+    const uncategorizedGroup = document.createElement('div');
+    uncategorizedGroup.className = 'tree-group master-uncategorized open';
+    const uncategorizedNode = document.createElement('button');
+    uncategorizedNode.className = 'tree-node';
+    uncategorizedNode.type = 'button';
+    uncategorizedNode.innerHTML = '<span class="tree-toggle">⌄</span>🗂 أنواع عتاد غير مصنّفة';
+    const uncategorizedChildren = document.createElement('div');
+    uncategorizedChildren.className = 'children';
+    uncategorizedGroup.append(uncategorizedNode, uncategorizedChildren);
+
+    const typeGroupsById = new Map();
+    let hasUncategorized = false;
     const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
     typeNodes.forEach((typeNode) => {
       const typeId = String(typeNode.dataset.id || '');
-      let categoryId = typeCategoryMap.get(typeId) || '';
-      if (!categoryId) {
-        const model = Object.values(DATA).find((m) => String(m.equipment_type_id) === typeId);
-        categoryId = model?.category_id ? String(model.category_id) : '';
-      }
+      const categoryId = typeCategoryMap.get(typeId) || '';
       const categoryNode = categoryId ? findCategoryNode(categoryId) : null;
-      if (!categoryNode) return;
-
-      const categoryGroup = categoryNode.closest('.tree-group');
-      const categoryNested = categoryGroup?.querySelector(':scope > .children');
-      if (!categoryNested) return;
+      const destination = categoryNode
+        ? categoryNode.closest('.tree-group')?.querySelector(':scope > .children')
+        : uncategorizedChildren;
+      if (!destination) return;
 
       const typeGroup = document.createElement('div');
       typeGroup.className = 'tree-group master-hierarchy-group open';
-      typeGroup.appendChild(typeNode.cloneNode(true));
+      const typeClone = typeNode.cloneNode(true);
+      const typeNested = document.createElement('div');
+      typeNested.className = 'children';
+      typeGroup.append(typeClone, typeNested);
+      destination.appendChild(typeGroup);
       typeNode.remove();
-      typeGroup.appendChild(Object.assign(document.createElement('div'), { className: 'children' }));
-      categoryNested.appendChild(typeGroup);
+      typeGroupsById.set(typeId, typeGroup);
+      if (!categoryNode) hasUncategorized = true;
     });
 
+    if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);
+
     const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
+    let allModelsMoved = true;
     modelGroups.forEach((modelGroup) => {
       const row = modelGroup.querySelector(':scope > [data-model-row]');
-      if (!row) return;
+      if (!row) {
+        allModelsMoved = false;
+        return;
+      }
       const id = String(row.dataset.modelRow);
       const model = DATA[id] || DATA[Number(id)];
-      if (!model) return;
+      if (!model) {
+        allModelsMoved = false;
+        return;
+      }
 
-      const typeNode = findTypeNode(model.equipment_type_id);
-      const typeGroup = typeNode?.closest('.master-hierarchy-group');
+      const typeGroup = typeGroupsById.get(String(model.equipment_type_id));
       const nested = typeGroup?.querySelector(':scope > .children');
-      if (!nested) return;
+      if (!nested) {
+        allModelsMoved = false;
+        return;
+      }
 
       let modelsLabel = nested.querySelector(':scope > .master-models-label');
       if (!modelsLabel) {
@@ -97,39 +119,15 @@
       nested.appendChild(modelGroup);
     });
 
-    // Brands and specs stay as the only independent reference sections.
-    typeRoot.remove();
-    modelRoot.remove();
+    // Remove the old roots only after every original type/model node was placed.
+    const remainingTypes = typeChildren.querySelectorAll(':scope > [data-ref-item="type"]');
+    const remainingModels = modelChildren.querySelectorAll(':scope > .model-group');
+    if (remainingTypes.length === 0) typeRoot.remove();
+    if (remainingModels.length === 0 && allModelsMoved) modelRoot.remove();
     categoryRoot.dataset.hierarchyBuilt = '1';
   };
 
   buildRealHierarchy();
-
-  // Restore the historical measurement-unit selector. These are the exact values
-  // used by the previous Master Data implementation; no new unit source is created.
-  const restoreMeasurementUnitSelect = () => {
-    const input = document.querySelector('#refBody input[name="measurement_unit"]');
-    if (!input || document.querySelector('#refBody select[name="measurement_unit"]')) return;
-    const select = document.createElement('select');
-    select.name = 'measurement_unit';
-    select.required = true;
-    [['km', 'كم'], ['hours', 'ساعات']].forEach(([value, label]) => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      select.appendChild(option);
-    });
-    const previous = input.value;
-    input.replaceWith(select);
-    if (previous === 'km' || previous === 'hours') select.value = previous;
-  };
-
-  tree.addEventListener('click', (event) => {
-    if (event.target.closest('[data-ref-item="type"], [data-new-ref="type"], [data-add="type"]')) {
-      setTimeout(restoreMeasurementUnitSelect, 0);
-    }
-  }, true);
-  setTimeout(restoreMeasurementUnitSelect, 0);
 
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
@@ -144,10 +142,8 @@
   tree.addEventListener('click', (event) => {
     const toggle = event.target.closest('.tree-toggle');
     if (!toggle || !tree.contains(toggle)) return;
-
     const group = toggle.closest('.tree-group');
     if (!group) return;
-
     event.preventDefault();
     event.stopPropagation();
     group.classList.toggle('open');
@@ -157,21 +153,13 @@
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
-
     if (event.target.closest('.tree-toggle')) return;
     if (node.matches('[data-model-row], [data-model]')) return;
-
     if (node.matches('[data-ref]')) {
       event.preventDefault();
       event.stopPropagation();
       if (typeof selectNode === 'function') selectNode(node);
-      const labels = {
-        categories: 'الفئات',
-        types: 'أنواع العتاد',
-        brands: 'العلامات التجارية',
-        specs: 'الخصائص',
-        models: 'الطرازات',
-      };
+      const labels = {categories:'الفئات',types:'أنواع العتاد',brands:'العلامات التجارية',specs:'الخصائص',models:'الطرازات'};
       if (typeof title === 'function') title(labels[node.dataset.ref] || node.textContent.trim());
     }
   }, true);
@@ -193,33 +181,19 @@
   const searchTree = (q) => {
     const query = String(q || '').trim().toLocaleLowerCase();
     const nodes = searchableNodes();
-
     if (!query) {
       nodes.forEach((node) => { node.hidden = false; });
       syncArrows();
       return;
     }
-
-    nodes.forEach((node) => {
-      node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
-    });
-
-    nodes.forEach((node) => {
-      if (!node.hidden) revealAncestors(node);
-    });
-
+    nodes.forEach((node) => { node.hidden = !node.textContent.toLocaleLowerCase().includes(query); });
+    nodes.forEach((node) => { if (!node.hidden) revealAncestors(node); });
     syncArrows();
   };
 
   const searchInput = document.getElementById('treeSearch');
-  if (searchInput) {
-    searchInput.addEventListener('input', () => searchTree(searchInput.value));
-  }
+  if (searchInput) searchInput.addEventListener('input', () => searchTree(searchInput.value));
 
-  new MutationObserver(syncArrows).observe(tree, {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class'],
-  });
+  new MutationObserver(syncArrows).observe(tree, {subtree:true,attributes:true,attributeFilter:['class']});
   syncArrows();
 })();
