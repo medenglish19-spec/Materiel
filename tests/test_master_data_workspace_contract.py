@@ -25,8 +25,8 @@ def test_model_tree_exposes_inline_tire_creation_actions():
     template = _template()
     assert 'data-tree-add="position"' in template
     assert 'data-tree-add="size"' in template
-    assert "editModel(modelId,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in template
-    assert "if(treeAdd.dataset.treeAdd==='position')addPos();else addSize()" in template
+    assert "editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in template
+    assert "treeAdd.dataset.treeAdd==='position'?addPos():addSize();" in template
 
 
 def test_model_editor_requires_driver_defaults_to_false_in_post_form():
