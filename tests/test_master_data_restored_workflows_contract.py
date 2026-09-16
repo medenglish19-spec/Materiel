@@ -71,8 +71,12 @@ def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tr
         autoescape=select_autoescape(["html", "xml"]),
     )
     template = env.get_template(TEMPLATE_PATH.name)
+    request = SimpleNamespace(
+        query_params={},
+        url=SimpleNamespace(path="/equipment-types"),
+    )
     html = template.render(
-        request=SimpleNamespace(query_params={}),
+        request=request,
         types=[SimpleNamespace(id=901, name="نوع تجريبي غير مصنف", category_id=None)],
         categories=[],
         brands=[],
