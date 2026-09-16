@@ -31,9 +31,11 @@
     .mdx #tree .tree-node:hover{background:#edf4fa;color:#173b63}
     .mdx #tree .tree-node.active{background:#e7f0f8;color:#173b63;box-shadow:inset -3px 0 0 #3f729f;font-weight:800}
     .mdx #tree .tree-toggle{color:#64748b;font-weight:800}
-    .mdx #tree .tree-actions{opacity:.78}
+    .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;gap:3px}
     .mdx #tree .tree-node:hover .tree-actions,.mdx #tree .tree-node.active .tree-actions{opacity:1}
-    .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88}
+    .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
+    .mdx #tree .tree-add:hover,.mdx #tree .tree-more:hover,.mdx #tree .tree-action:hover{background:#dbeafe}
+    .mdx #tree .tree-more[data-delete]{color:#a33b3b}
     .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
     .mdx #tree>.master-reference-block{padding:7px 0 12px;margin-bottom:9px;border-bottom:1px solid #dfe6ee}
     .mdx .master-reference-heading{color:#66778c;font-size:11px;letter-spacing:.15px;padding:5px 8px;text-transform:none}
@@ -57,8 +59,6 @@
     .mdx .soft{background:#edf3f8;color:#234f75;border:1px solid #d6e2ec}
     .mdx .primary{background:#234f75;color:#fff;box-shadow:0 2px 5px rgba(35,79,117,.16)}
     .mdx .danger{border:1px solid #fecaca}
-
-    /* Model workspace navigation: sections remain on one page so existing forms and handlers are untouched. */
     .mdx .model-workspace-nav{position:sticky;top:10px;z-index:5;display:flex;gap:6px;align-items:center;overflow:auto;padding:7px;margin:0 0 14px;background:rgba(255,255,255,.96);border:1px solid #dfe6ee;border-radius:11px;box-shadow:0 4px 14px rgba(15,23,42,.05);scrollbar-width:thin}
     .mdx .model-workspace-nav:before{content:'أقسام الطراز';font-size:11px;font-weight:800;color:#718096;padding:0 7px;white-space:nowrap;border-left:1px solid #e2e8f0}
     .mdx .model-workspace-tab{border:1px solid transparent;background:transparent;color:#52657b;border-radius:8px;padding:8px 11px;white-space:nowrap;font:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .12s ease}
@@ -69,9 +69,9 @@
     .mdx .model-workspace-box.workspace-focus{outline:2px solid #b7d0e6;outline-offset:2px}
     .mdx .model-workspace-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 13px;background:#f5f8fb;border:1px solid #dfe7ef;border-radius:10px;color:#53657a;font-size:12px}
     .mdx .model-workspace-summary strong{color:#234f75;font-size:13px}
-    @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
     @keyframes mdxPanelIn{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
     @media(max-width:1000px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
+    @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
   `;
   document.head.appendChild(style);
 
@@ -107,6 +107,14 @@
 
     const addType = typeChildren.querySelector('[data-new-ref="type"]');
     if (addType) categoryChildren.appendChild(addType);
+
+    const addModel = modelChildren.querySelector('[data-new-ref="model"]');
+    if (addModel) {
+      const actionGroup = document.createElement('div');
+      actionGroup.className = 'master-reference-group';
+      actionGroup.appendChild(addModel);
+      categoryChildren.appendChild(actionGroup);
+    }
 
     const uncategorizedGroup = document.createElement('div');
     uncategorizedGroup.className = 'tree-group master-uncategorized open';
@@ -148,24 +156,13 @@
     let allModelsMoved = true;
     modelGroups.forEach((modelGroup) => {
       const row = modelGroup.querySelector(':scope > [data-model-row]');
-      if (!row) {
-        allModelsMoved = false;
-        return;
-      }
+      if (!row) { allModelsMoved = false; return; }
       const id = String(row.dataset.modelRow);
       const model = DATA[id] || DATA[Number(id)];
-      if (!model) {
-        allModelsMoved = false;
-        return;
-      }
-
+      if (!model) { allModelsMoved = false; return; }
       const typeGroup = typeGroupsById.get(String(model.equipment_type_id));
       const nested = typeGroup?.querySelector(':scope > .children');
-      if (!nested) {
-        allModelsMoved = false;
-        return;
-      }
-
+      if (!nested) { allModelsMoved = false; return; }
       let modelsLabel = nested.querySelector(':scope > .master-models-label');
       if (!modelsLabel) {
         modelsLabel = document.createElement('div');
@@ -188,22 +185,17 @@
   const setupModelWorkspace = () => {
     const panel = document.getElementById('modelPanel');
     if (!panel || panel.dataset.workspaceReady === '1') return;
-
     const boxes = Array.from(panel.children).filter((child) => child.classList?.contains('box'));
     if (!boxes.length) return;
-
     const nav = document.createElement('nav');
     nav.className = 'model-workspace-nav';
     nav.setAttribute('aria-label', 'أقسام الطراز');
-
     const icons = ['📄', '🛞', '🔋', '⚙'];
-    const labels = [];
     boxes.forEach((box, index) => {
       box.classList.add('model-workspace-box');
       box.dataset.workspaceSection = String(index);
       const heading = box.querySelector(':scope > .box-head h3');
       const text = heading?.textContent.trim() || `القسم ${index + 1}`;
-      labels.push(text);
       const tab = document.createElement('button');
       tab.type = 'button';
       tab.className = 'model-workspace-tab';
@@ -218,32 +210,32 @@
       });
       nav.appendChild(tab);
     });
-
     const summary = document.createElement('div');
     summary.className = 'model-workspace-summary';
     summary.innerHTML = '<strong>مساحة عمل الطراز</strong><span>البيانات والإطارات والبطاريات والخصائص التابعة في صفحة واحدة</span>';
     panel.insertBefore(summary, boxes[0]);
     panel.insertBefore(nav, boxes[0]);
-
-    const activateByScroll = () => {
-      const navRect = nav.getBoundingClientRect();
-      let activeIndex = 0;
-      let best = Number.POSITIVE_INFINITY;
-      boxes.forEach((box, index) => {
-        const distance = Math.abs(box.getBoundingClientRect().top - navRect.bottom - 12);
-        if (box.getBoundingClientRect().top <= navRect.bottom + 120 && distance < best) {
-          best = distance;
-          activeIndex = index;
-        }
-      });
-      nav.querySelectorAll('.model-workspace-tab').forEach((tab, index) => tab.classList.toggle('active', index === activeIndex));
-    };
-    window.addEventListener('scroll', activateByScroll, {passive:true});
-    activateByScroll();
     panel.dataset.workspaceReady = '1';
   };
-
   setupModelWorkspace();
+
+  const openModelCreate = () => {
+    if (typeof resetModel === 'function') resetModel();
+    if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
+    if (typeof show === 'function') show(document.getElementById('modelPanel'));
+    document.getElementById('modelPanel')?.scrollIntoView({behavior:'smooth', block:'start'});
+  };
+
+  const deleteModel = (id) => {
+    if (!id) return;
+    if (!window.confirm('حذف الطراز؟ سيتم تطبيق حماية النظام الحالية ولن يتم حذف طراز مرتبط ببيانات تمنع الحذف.')) return;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = `/equipment-types/models/${encodeURIComponent(id)}/delete`;
+    form.style.display = 'none';
+    document.body.appendChild(form);
+    form.submit();
+  };
 
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
@@ -254,6 +246,22 @@
       node.setAttribute('aria-expanded', group.classList.contains('open') ? 'true' : 'false');
     });
   };
+
+  tree.addEventListener('click', (event) => {
+    const add = event.target.closest('[data-add="model"],[data-new-ref="model"]');
+    if (add && tree.contains(add)) {
+      event.preventDefault();
+      event.stopPropagation();
+      openModelCreate();
+      return;
+    }
+    const del = event.target.closest('[data-delete]');
+    if (del && tree.contains(del)) {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteModel(del.dataset.delete);
+    }
+  }, true);
 
   tree.addEventListener('click', (event) => {
     const toggle = event.target.closest('.tree-toggle');
@@ -269,8 +277,8 @@
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
-    if (event.target.closest('.tree-toggle')) return;
-    if (node.matches('[data-model-row], [data-model]')) return;
+    if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-delete],[data-copy],[data-tree-add]')) return;
+    if (node.matches('[data-model-row],[data-model]')) return;
     if (node.matches('[data-ref]')) {
       event.preventDefault();
       event.stopPropagation();
@@ -290,23 +298,15 @@
     }
   };
 
-  const searchableNodes = () => Array.from(tree.querySelectorAll('.tree-node')).filter((node) => {
-    return !node.matches('[data-add], [data-tree-add], [data-copy], [data-delete]');
-  });
-
+  const searchableNodes = () => Array.from(tree.querySelectorAll('.tree-node')).filter((node) => !node.matches('[data-add],[data-tree-add],[data-copy],[data-delete]'));
   const searchTree = (q) => {
     const query = String(q || '').trim().toLocaleLowerCase();
     const nodes = searchableNodes();
-    if (!query) {
-      nodes.forEach((node) => { node.hidden = false; });
-      syncArrows();
-      return;
-    }
+    if (!query) { nodes.forEach((node) => { node.hidden = false; }); syncArrows(); return; }
     nodes.forEach((node) => { node.hidden = !node.textContent.toLocaleLowerCase().includes(query); });
     nodes.forEach((node) => { if (!node.hidden) revealAncestors(node); });
     syncArrows();
   };
-
   const searchInput = document.getElementById('treeSearch');
   if (searchInput) searchInput.addEventListener('input', () => searchTree(searchInput.value));
 
