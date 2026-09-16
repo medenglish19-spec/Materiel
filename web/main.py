@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
@@ -26,6 +26,7 @@ from app.modules.users.router import router as users_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = PROJECT_ROOT / "static"
+MASTER_DATA_SCRIPT = '<script src="/static/js/master-data-tree.js"></script>'
 
 
 def create_app() -> FastAPI:
@@ -62,6 +63,21 @@ def create_app() -> FastAPI:
             response.headers["Cache-Control"] = "private, no-cache, max-age=0, must-revalidate"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
+
+        content_type = response.headers.get("content-type", "")
+        if request.url.path == "/equipment-types" and "text/html" in content_type:
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            text = body.decode("utf-8")
+            if MASTER_DATA_SCRIPT not in text:
+                text = text.replace("</body>", MASTER_DATA_SCRIPT + "</body>", 1)
+            headers = dict(response.headers)
+            headers.pop("content-length", None)
+            response = HTMLResponse(
+                content=text,
+                status_code=response.status_code,
+                headers=headers,
+            )
+
         return response
 
     app.include_router(users_router, tags=["users"])
