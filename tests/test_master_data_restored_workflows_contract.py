@@ -1,7 +1,11 @@
 from pathlib import Path
+from types import SimpleNamespace
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
-TEMPLATE = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
+TEMPLATE_PATH = Path("app/modules/equipment_types/templates/master_data_workspace.html")
+TEMPLATE = TEMPLATE_PATH.read_text(encoding="utf-8")
 TREE_SCRIPT = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
 MAIN = Path("web/main.py").read_text(encoding="utf-8")
 
@@ -22,13 +26,13 @@ def test_master_data_keeps_model_copy_and_delete_actions():
     assert "$('modelForm').action='/equipment-types/models/create'" in TEMPLATE
 
 
-def test_tree_interaction_layer_is_loaded_without_replacing_editor_workflows():
-    assert 'MASTER_DATA_SCRIPT = \'<script src="/static/js/master-data-tree.js"></script>\'' in MAIN
-    assert 'request.url.path == "/equipment-types"' in MAIN
+def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
+    assert '<script src="/static/js/master-data-tree.js"></script>' in TEMPLATE
+    assert "MASTER_DATA_SCRIPT" not in MAIN
+    assert 'request.url.path == "/equipment-types"' not in MAIN
     assert "tree.addEventListener('click'" in TREE_SCRIPT
     assert "}, true);" in TREE_SCRIPT
     assert "[data-model-row], [data-model]" in TREE_SCRIPT
-    assert "tree-context" in TREE_SCRIPT
 
 
 def test_tree_arrow_owns_group_toggle_and_stops_legacy_workspace_actions():
@@ -47,3 +51,27 @@ def test_search_reveals_matching_nodes_and_every_ancestor_before_one_arrow_sync(
     assert "node.hidden = !node.textContent.toLocaleLowerCase().includes(query);" in TREE_SCRIPT
     assert "if (!node.hidden) revealAncestors(node);" in TREE_SCRIPT
     assert "searchInput.addEventListener('input'" in TREE_SCRIPT
+
+
+def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tree_branch():
+    """Execute the real Jinja template with a NULL category type; it must remain in the rendered tree input."""
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATE_PATH.parent)),
+        autoescape=select_autoescape(["html", "xml"]),
+    )
+    template = env.get_template(TEMPLATE_PATH.name)
+    html = template.render(
+        request=SimpleNamespace(query_params={}),
+        types=[SimpleNamespace(id=901, name="نوع تجريبي غير مصنف", category_id=None)],
+        categories=[],
+        brands=[],
+        models=[],
+        tire_master_data={},
+        spec_definitions=[],
+        user=None,
+    )
+    assert "نوع تجريبي غير مصنف" in html
+    assert 'data-category=""' in html
+    assert "أنواع عتاد غير مصنّفة" in TREE_SCRIPT
+    assert "if (!categoryNode) hasUncategorized = true;" in TREE_SCRIPT
+    assert "if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);" in TREE_SCRIPT
