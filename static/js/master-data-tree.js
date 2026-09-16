@@ -6,7 +6,6 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    /* Professional Admin workspace: hierarchy left, selected workspace right. */
     .mdx .layout{direction:ltr;grid-template-columns:minmax(320px,380px) minmax(0,1fr);gap:16px;align-items:stretch}
     .mdx .tree-card,.mdx .editor{direction:rtl}
     .mdx .tree-card{background:#fbfcfe;border-color:#dbe3ec;box-shadow:0 8px 24px rgba(15,23,42,.06);padding:14px;min-width:0}
@@ -116,6 +115,34 @@
     if (addType) addType.remove();
     if (addModel) addModel.remove();
 
+    /* Convert every category item into a real tree group before moving types. */
+    const categoryItems = Array.from(categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]'));
+    categoryItems.forEach((categoryNode) => {
+      const categoryGroup = document.createElement('div');
+      categoryGroup.className = 'tree-group master-hierarchy-group open';
+      const categoryId = String(categoryNode.dataset.id || '');
+      const categoryNested = document.createElement('div');
+      categoryNested.className = 'children';
+      categoryGroup.appendChild(categoryNode);
+      categoryGroup.appendChild(categoryNested);
+      categoryChildren.appendChild(categoryGroup);
+
+      const typeSection = document.createElement('div');
+      typeSection.className = 'master-category-types-section';
+      const typeLabel = document.createElement('div');
+      typeLabel.className = 'tree-node master-category-types-label';
+      typeLabel.textContent = '🗂 أنواع العتاد';
+      const typeList = document.createElement('div');
+      typeList.className = 'children';
+      const addTypeForCategory = document.createElement('button');
+      addTypeForCategory.type = 'button';
+      addTypeForCategory.className = 'tree-node master-inline-add-type';
+      addTypeForCategory.dataset.newTypeForCategory = categoryId;
+      addTypeForCategory.textContent = '＋ إضافة نوع عتاد';
+      typeSection.append(typeLabel, typeList, addTypeForCategory);
+      categoryNested.appendChild(typeSection);
+    });
+
     const uncategorizedGroup = document.createElement('div');
     uncategorizedGroup.className = 'tree-group master-uncategorized open';
     const uncategorizedNode = document.createElement('button');
@@ -128,7 +155,6 @@
 
     const typeGroupsById = new Map();
     let hasUncategorized = false;
-    let hasTypes = false;
     const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
 
     const getTypeCategoryId = (typeNode) => {
@@ -140,35 +166,12 @@
     typeNodes.forEach((typeNode) => {
       const typeId = String(typeNode.dataset.id || '');
       if (!typeId) return;
-      hasTypes = true;
       const categoryId = getTypeCategoryId(typeNode);
       const categoryNode = categoryId ? findCategoryNode(categoryId) : null;
       const categoryGroup = categoryNode?.closest('.tree-group');
-      const destination = categoryGroup?.querySelector(':scope > .children') || uncategorizedChildren;
-      if (!categoryNode) hasUncategorized = true;
-
-      let typeSection = destination.querySelector(':scope > .master-category-types-section');
-      if (!typeSection) {
-        typeSection = document.createElement('div');
-        typeSection.className = 'master-category-types-section';
-        destination.appendChild(typeSection);
-        const label = document.createElement('div');
-        label.className = 'tree-node master-category-types-label';
-        label.textContent = '🗂 أنواع العتاد';
-        typeSection.appendChild(label);
-        const typeList = document.createElement('div');
-        typeList.className = 'children';
-        typeSection.appendChild(typeList);
-        if (categoryNode) {
-          const addTypeForCategory = document.createElement('button');
-          addTypeForCategory.type = 'button';
-          addTypeForCategory.className = 'tree-node master-inline-add-type';
-          addTypeForCategory.dataset.newTypeForCategory = categoryId;
-          addTypeForCategory.textContent = '＋ إضافة نوع عتاد';
-          typeSection.appendChild(addTypeForCategory);
-        }
-      }
-      const typeList = typeSection.querySelector(':scope > .children');
+      const typeSection = categoryGroup?.querySelector(':scope > .children > .master-category-types-section');
+      const destination = typeSection?.querySelector(':scope > .children') || uncategorizedChildren;
+      if (!typeSection) hasUncategorized = true;
 
       const typeGroup = document.createElement('div');
       typeGroup.className = 'tree-group master-hierarchy-group open';
@@ -176,7 +179,7 @@
       const typeNested = document.createElement('div');
       typeNested.className = 'children';
       typeGroup.append(typeClone, typeNested);
-      typeList.appendChild(typeGroup);
+      destination.appendChild(typeGroup);
       typeNode.remove();
       typeGroupsById.set(typeId, typeGroup);
 
@@ -185,49 +188,35 @@
       const modelLabel = document.createElement('div');
       modelLabel.className = 'tree-node master-type-models-label';
       modelLabel.textContent = '🚙 الطرازات';
-      modelSection.appendChild(modelLabel);
       const modelList = document.createElement('div');
       modelList.className = 'children';
-      modelSection.appendChild(modelList);
-      typeNested.appendChild(modelSection);
-
       const addForType = document.createElement('button');
       addForType.className = 'tree-node master-inline-add';
       addForType.type = 'button';
       addForType.dataset.newModelForType = typeId;
       addForType.textContent = '＋ إضافة طراز';
-      modelList.appendChild(addForType);
+      modelSection.append(modelLabel, modelList, addForType);
+      typeNested.appendChild(modelSection);
     });
 
     if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);
 
     const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
-    let allModelsMoved = true;
     modelGroups.forEach((modelGroup) => {
       const row = modelGroup.querySelector(':scope > [data-model-row]');
-      if (!row) { allModelsMoved = false; return; }
+      if (!row) return;
       const id = String(row.dataset.modelRow || '');
       const model = DATA[id] || DATA[Number(id)];
-      if (!model) { allModelsMoved = false; return; }
+      if (!model) return;
       const typeGroup = typeGroupsById.get(String(model.equipment_type_id));
       const modelSection = typeGroup?.querySelector(':scope > .children > .master-type-models-section');
       const modelList = modelSection?.querySelector(':scope > .children');
-      if (!modelList) { allModelsMoved = false; return; }
-      modelList.appendChild(modelGroup);
+      if (modelList) modelList.appendChild(modelGroup);
     });
 
-    if (hasTypes && addModel) {
-      addModel.dataset.globalModelFallback = '1';
-      addModel.style.display = 'none';
-      modelChildren.appendChild(addModel);
-    } else if (!hasTypes && addModel) {
-      modelChildren.appendChild(addModel);
-    }
-
-    const remainingTypes = typeChildren.querySelectorAll(':scope > [data-ref-item="type"]');
-    const remainingModels = modelChildren.querySelectorAll(':scope > .model-group');
-    if (remainingTypes.length === 0) typeRoot.remove();
-    if (remainingModels.length === 0 && allModelsMoved) modelRoot.remove();
+    if (addModel) modelChildren.appendChild(addModel);
+    typeRoot.remove();
+    modelRoot.remove();
     categoryRoot.dataset.hierarchyBuilt = '1';
   };
 
@@ -251,7 +240,6 @@
       button.textContent = icon;
       actions.appendChild(button);
     };
-
     tree.querySelectorAll('[data-ref-item="category"]').forEach((node) => {
       appendAction(node, 'edit', node.dataset.id, 'تعديل الفئة', '✏');
       appendAction(node, 'delete', node.dataset.id, 'حذف الفئة', '🗑');
@@ -261,7 +249,6 @@
       appendAction(node, 'delete', node.dataset.id, 'حذف نوع العتاد', '🗑');
     });
   };
-
   setupHierarchyActions();
 
   const setupModelWorkspace = () => {
@@ -335,28 +322,17 @@
     document.body.appendChild(form);
     form.submit();
   };
-
-  const deleteModel = (id) => {
-    postDelete('model', id, 'حذف الطراز؟ سيتم تطبيق حماية النظام الحالية ولن يتم حذف طراز مرتبط ببيانات تمنع الحذف.', `/equipment-types/models/${encodeURIComponent(id)}/delete`);
-  };
-
+  const deleteModel = (id) => postDelete('model', id, 'حذف الطراز؟ سيتم تطبيق حماية النظام الحالية ولن يتم حذف طراز مرتبط ببيانات تمنع الحذف.', `/equipment-types/models/${encodeURIComponent(id)}/delete`);
   const deleteHierarchyItem = (kind, id) => {
-    if (kind === 'category') {
-      postDelete(kind, id, 'حذف الفئة؟ إذا كانت مرتبطة بأنواع عتاد سيمنع النظام الحذف.', `/equipment-types/categories/${encodeURIComponent(id)}/delete`);
-      return;
-    }
-    if (kind === 'type') {
-      postDelete(kind, id, 'حذف نوع العتاد؟ إذا كان مرتبطاً بطرازات سيمنع النظام الحذف.', `/equipment-types/${encodeURIComponent(id)}/delete`);
-    }
+    if (kind === 'category') postDelete(kind, id, 'حذف الفئة؟ إذا كانت مرتبطة بأنواع عتاد سيمنع النظام الحذف.', `/equipment-types/categories/${encodeURIComponent(id)}/delete`);
+    if (kind === 'type') postDelete(kind, id, 'حذف نوع العتاد؟ إذا كان مرتبطاً بطرازات سيمنع النظام الحذف.', `/equipment-types/${encodeURIComponent(id)}/delete`);
   };
-
   const editHierarchyItem = (kind, id) => {
     const node = tree.querySelector(`[data-ref-item="${kind}"][data-id="${CSS.escape(String(id))}"]`);
     if (!node || typeof refPanel !== 'function') return;
     refPanel(kind, id, node.dataset.name || '');
     selectNode(node);
   };
-
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
       const node = group.querySelector(':scope > .tree-node');
@@ -369,52 +345,17 @@
 
   tree.addEventListener('click', (event) => {
     const addForType = event.target.closest('[data-new-model-for-type]');
-    if (addForType && tree.contains(addForType)) {
-      event.preventDefault();
-      event.stopPropagation();
-      openModelCreate(addForType.dataset.newModelForType);
-      return;
-    }
+    if (addForType && tree.contains(addForType)) { event.preventDefault(); event.stopPropagation(); openModelCreate(addForType.dataset.newModelForType); return; }
     const addForCategory = event.target.closest('[data-new-type-for-category]');
-    if (addForCategory && tree.contains(addForCategory)) {
-      event.preventDefault();
-      event.stopPropagation();
-      openTypeCreate(addForCategory.dataset.newTypeForCategory);
-      return;
-    }
+    if (addForCategory && tree.contains(addForCategory)) { event.preventDefault(); event.stopPropagation(); openTypeCreate(addForCategory.dataset.newTypeForCategory); return; }
     const edit = event.target.closest('[data-tree-edit]');
-    if (edit && tree.contains(edit)) {
-      event.preventDefault();
-      event.stopPropagation();
-      const key = edit.dataset.treeEdit;
-      const node = edit.closest('[data-ref-item]');
-      const kind = node?.dataset.refItem;
-      if (kind) editHierarchyItem(kind, key);
-      return;
-    }
+    if (edit && tree.contains(edit)) { event.preventDefault(); event.stopPropagation(); const key = edit.dataset.treeEdit; const node = edit.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) editHierarchyItem(kind, key); return; }
     const hierarchyDelete = event.target.closest('[data-tree-delete]');
-    if (hierarchyDelete && tree.contains(hierarchyDelete)) {
-      event.preventDefault();
-      event.stopPropagation();
-      const key = hierarchyDelete.dataset.treeDelete;
-      const node = hierarchyDelete.closest('[data-ref-item]');
-      const kind = node?.dataset.refItem;
-      if (kind) deleteHierarchyItem(kind, key);
-      return;
-    }
+    if (hierarchyDelete && tree.contains(hierarchyDelete)) { event.preventDefault(); event.stopPropagation(); const key = hierarchyDelete.dataset.treeDelete; const node = hierarchyDelete.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) deleteHierarchyItem(kind, key); return; }
     const add = event.target.closest('[data-add="model"],[data-new-ref="model"]');
-    if (add && tree.contains(add)) {
-      event.preventDefault();
-      event.stopPropagation();
-      openModelCreate();
-      return;
-    }
+    if (add && tree.contains(add)) { event.preventDefault(); event.stopPropagation(); openModelCreate(); return; }
     const del = event.target.closest('[data-delete]');
-    if (del && tree.contains(del)) {
-      event.preventDefault();
-      event.stopPropagation();
-      deleteModel(del.dataset.delete);
-    }
+    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); }
   }, true);
 
   tree.addEventListener('click', (event) => {
@@ -422,10 +363,7 @@
     if (!toggle || !tree.contains(toggle)) return;
     const group = toggle.closest('.tree-group');
     if (!group) return;
-    event.preventDefault();
-    event.stopPropagation();
-    group.classList.toggle('open');
-    syncArrows();
+    event.preventDefault(); event.stopPropagation(); group.classList.toggle('open'); syncArrows();
   }, true);
 
   tree.addEventListener('click', (event) => {
@@ -434,8 +372,7 @@
     if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-new-model-for-type],[data-new-type-for-category],[data-delete],[data-tree-delete],[data-tree-edit],[data-copy],[data-tree-add]')) return;
     if (node.matches('[data-model-row], [data-model]')) return;
     if (node.matches('[data-ref]')) {
-      event.preventDefault();
-      event.stopPropagation();
+      event.preventDefault(); event.stopPropagation();
       if (typeof selectNode === 'function') selectNode(node);
       const labels = {categories:'الفئات',types:'أنواع العتاد',brands:'العلامات التجارية',specs:'الخصائص',models:'الطرازات'};
       if (typeof title === 'function') title(labels[node.dataset.ref] || node.textContent.trim());
@@ -451,7 +388,6 @@
       group = group.parentElement?.closest('.tree-group');
     }
   };
-
   const searchableNodes = () => Array.from(tree.querySelectorAll('.tree-node')).filter((node) => !node.matches('[data-add],[data-tree-add],[data-copy],[data-delete],[data-tree-edit],[data-tree-delete]'));
   const searchTree = (q) => {
     const query = String(q || '').trim().toLocaleLowerCase();
@@ -463,7 +399,6 @@
   };
   const searchInput = document.getElementById('treeSearch');
   if (searchInput) searchInput.addEventListener('input', () => searchTree(searchInput.value));
-
   new MutationObserver(syncArrows).observe(tree, {subtree:true,attributes:true,attributeFilter:['class']});
   syncArrows();
 })();
