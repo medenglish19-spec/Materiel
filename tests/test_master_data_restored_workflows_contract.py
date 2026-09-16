@@ -35,6 +35,14 @@ def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
     assert "[data-model-row], [data-model]" in TREE_SCRIPT
 
 
+def test_measurement_unit_is_server_rendered_from_the_existing_allowed_values():
+    assert '<template id="typeRefFormTemplate">' in TEMPLATE
+    assert '<select name="measurement_unit" required>' in TEMPLATE
+    assert '<option value="km">كم</option>' in TEMPLATE
+    assert '<option value="hours">ساعات</option>' in TEMPLATE
+    assert "MEASUREMENT_UNITS" in Path("app/modules/equipment_types/schemas.py").read_text(encoding="utf-8")
+
+
 def test_tree_arrow_owns_group_toggle_and_stops_legacy_workspace_actions():
     assert "const toggle = event.target.closest('.tree-toggle')" in TREE_SCRIPT
     assert "const group = toggle.closest('.tree-group')" in TREE_SCRIPT
@@ -56,7 +64,10 @@ def test_search_reveals_matching_nodes_and_every_ancestor_before_one_arrow_sync(
 def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tree_branch():
     """Execute the real Jinja template with a NULL category type; it must remain in the rendered tree input."""
     env = Environment(
-        loader=FileSystemLoader(str(TEMPLATE_PATH.parent)),
+        loader=FileSystemLoader([
+            str(TEMPLATE_PATH.parent),
+            "web/templates",
+        ]),
         autoescape=select_autoescape(["html", "xml"]),
     )
     template = env.get_template(TEMPLATE_PATH.name)
