@@ -432,7 +432,7 @@
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
     if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-new-model-for-type],[data-new-type-for-category],[data-delete],[data-tree-delete],[data-tree-edit],[data-copy],[data-tree-add]')) return;
-    if (node.matches('[data-model-row],[data-model]')) return;
+    if (node.matches('[data-model-row], [data-model]')) return;
     if (node.matches('[data-ref]')) {
       event.preventDefault();
       event.stopPropagation();
