@@ -68,5 +68,5 @@ def test_tree_has_inline_tire_add_actions():
 def test_inline_tire_add_action_loads_model_then_adds_row():
     template = _template()
     script = template[template.index("const treeAdd=e.target.closest('[data-tree-add]')"):]
-    assert "editModel(modelId,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in script
-    assert "if(treeAdd.dataset.treeAdd==='position')addPos();else addSize();" in script
+    assert "editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in script
+    assert "treeAdd.dataset.treeAdd==='position'?addPos():addSize();" in script
