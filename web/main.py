@@ -69,14 +69,12 @@ def create_app() -> FastAPI:
             body = b"".join([chunk async for chunk in response.body_iterator])
             text = body.decode("utf-8")
             if MASTER_DATA_SCRIPT not in text:
-                text = text.replace("</body>", MASTER_DATA_SCRIPT + "</body>", 1)
+                marker = "</body>" if "</body>" in text else "</html>"
+                if marker in text:
+                    text = text.replace(marker, MASTER_DATA_SCRIPT + marker, 1)
             headers = dict(response.headers)
             headers.pop("content-length", None)
-            response = HTMLResponse(
-                content=text,
-                status_code=response.status_code,
-                headers=headers,
-            )
+            response = HTMLResponse(content=text, status_code=response.status_code, headers=headers)
 
         return response
 
