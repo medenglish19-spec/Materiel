@@ -31,9 +31,19 @@ def test_tree_interaction_layer_is_loaded_without_replacing_editor_workflows():
     assert "tree-context" in TREE_SCRIPT
 
 
-def test_search_expands_matching_ancestors_in_dedicated_tree_layer():
-    assert "const openAncestors = (node)" in TREE_SCRIPT
-    assert "const parent = group.parentElement?.closest('.tree-group')" in TREE_SCRIPT
+def test_tree_arrow_owns_group_toggle_and_stops_legacy_workspace_actions():
+    assert "const toggle = event.target.closest('.tree-toggle')" in TREE_SCRIPT
+    assert "const group = toggle.closest('.tree-group')" in TREE_SCRIPT
+    assert "group.classList.toggle('open')" in TREE_SCRIPT
+    assert "event.stopPropagation()" in TREE_SCRIPT
+    assert "syncArrows();" in TREE_SCRIPT
+
+
+def test_search_reveals_matching_nodes_and_every_ancestor_before_one_arrow_sync():
+    assert "const revealAncestors = (node)" in TREE_SCRIPT
+    assert "const parentNode = group.querySelector(':scope > .tree-node')" in TREE_SCRIPT
+    assert "parentNode.hidden = false" in TREE_SCRIPT
     assert "group.classList.add('open')" in TREE_SCRIPT
-    assert "node.hidden = !match" in TREE_SCRIPT
+    assert "node.hidden = !node.textContent.toLocaleLowerCase().includes(query);" in TREE_SCRIPT
+    assert "if (!node.hidden) revealAncestors(node);" in TREE_SCRIPT
     assert "searchInput.addEventListener('input'" in TREE_SCRIPT
