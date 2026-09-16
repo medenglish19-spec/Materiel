@@ -12,7 +12,6 @@
     #tree .master-hierarchy-group{margin-bottom:3px}
     #tree .master-hierarchy-group>.children{padding-right:20px}
     #tree .master-models-label{font-weight:800;color:#475569}
-    #tree .master-reference-root{margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb}
   `;
   document.head.appendChild(style);
 
@@ -67,15 +66,12 @@
       const categoryNested = categoryGroup?.querySelector(':scope > .children');
       if (!categoryNested) return;
 
-      let typeGroup = document.createElement('div');
+      const typeGroup = document.createElement('div');
       typeGroup.className = 'tree-group master-hierarchy-group open';
-      const typeButton = typeNode.cloneNode(true);
-      typeGroup.appendChild(typeButton);
-      const nested = document.createElement('div');
-      nested.className = 'children';
-      typeGroup.appendChild(nested);
-      categoryNested.appendChild(typeGroup);
+      typeGroup.appendChild(typeNode.cloneNode(true));
       typeNode.remove();
+      typeGroup.appendChild(Object.assign(document.createElement('div'), { className: 'children' }));
+      categoryNested.appendChild(typeGroup);
     });
 
     const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
@@ -101,8 +97,8 @@
       nested.appendChild(modelGroup);
     });
 
-    // Brands and specs remain separate top-level reference groups.
-    typeRoot.classList.add('master-reference-root');
+    // Brands and specs stay as the only independent reference sections.
+    typeRoot.remove();
     modelRoot.remove();
     categoryRoot.dataset.hierarchyBuilt = '1';
   };
