@@ -23,8 +23,7 @@
   const categories = textById('[data-ref-item="category"]');
   const types = textById('[data-ref-item="type"]');
 
-  // Add the real classification path to every model without duplicating the model tree.
-  // DATA is supplied by master_data_workspace.html and contains the persisted model/type/category ids.
+  // Add the persisted classification path to every model without duplicating the model tree.
   if (typeof DATA !== 'undefined') {
     tree.querySelectorAll('[data-model-row]').forEach((row) => {
       if (row.querySelector('.tree-context')) return;
@@ -39,23 +38,21 @@
       context.className = 'tree-context';
       context.textContent = `(${parts.join(' / ')})`;
       row.appendChild(context);
-      row.title = `${row.textContent.trim()}`;
+      row.title = row.textContent.trim();
     });
   }
 
   // The arrow is the only control that expands/collapses a group.
-  // Clicking the label of a model/section continues to open its workspace.
+  // Labels remain workspace actions and existing editor handlers keep ownership of them.
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
 
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) return; // Existing delegated handler owns the actual toggle.
+    if (toggle) return;
 
-    // Model and model-section labels are actionable workspace entries.
     if (node.matches('[data-model-row], [data-model]')) return;
 
-    // Root/reference branch labels must never toggle just because they contain an arrow.
     if (node.matches('[data-ref]')) {
       event.preventDefault();
       event.stopPropagation();
@@ -81,6 +78,47 @@
     });
   };
 
-  new MutationObserver(syncArrows).observe(tree, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  const openAncestors = (node) => {
+    let group = node.parentElement?.closest('.tree-group');
+    while (group && tree.contains(group)) {
+      group.classList.add('open');
+      const parent = group.parentElement?.closest('.tree-group');
+      if (!parent) break;
+      group = parent;
+    }
+    syncArrows();
+  };
+
+  const searchableNodes = () => Array.from(tree.querySelectorAll('.tree-node')).filter((node) => {
+    return !node.matches('[data-add], [data-tree-add], [data-copy], [data-delete]');
+  });
+
+  const searchTree = (q) => {
+    const query = String(q || '').trim().toLocaleLowerCase();
+    const nodes = searchableNodes();
+
+    if (!query) {
+      nodes.forEach((node) => { node.hidden = false; });
+      syncArrows();
+      return;
+    }
+
+    nodes.forEach((node) => {
+      const match = node.textContent.toLocaleLowerCase().includes(query);
+      node.hidden = !match;
+      if (match) openAncestors(node);
+    });
+  };
+
+  const searchInput = document.getElementById('treeSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => searchTree(searchInput.value));
+  }
+
+  new MutationObserver(syncArrows).observe(tree, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+  });
   syncArrows();
 })();
