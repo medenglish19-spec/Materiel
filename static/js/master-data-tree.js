@@ -9,6 +9,10 @@
     #tree .tree-context{margin-right:6px;color:#64748b;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #tree .tree-node[data-model-row]{min-height:38px}
     #tree .tree-node[data-model-row] .tree-toggle{font-size:14px}
+    #tree .master-hierarchy-group{margin-bottom:3px}
+    #tree .master-hierarchy-group>.children{padding-right:20px}
+    #tree .master-models-label{font-weight:800;color:#475569}
+    #tree .master-reference-root{margin-top:8px;padding-top:8px;border-top:1px solid #e5e7eb}
   `;
   document.head.appendChild(style);
 
@@ -23,24 +27,126 @@
   const categories = textById('[data-ref-item="category"]');
   const types = textById('[data-ref-item="type"]');
 
-  // Add the persisted classification path to every model without duplicating the model tree.
-  if (typeof DATA !== 'undefined') {
-    tree.querySelectorAll('[data-model-row]').forEach((row) => {
-      if (row.querySelector('.tree-context')) return;
+  const findTypeNode = (id) => tree.querySelector(`[data-ref-item="type"][data-id="${CSS.escape(String(id))}"]`);
+  const findCategoryNode = (id) => tree.querySelector(`[data-ref-item="category"][data-id="${CSS.escape(String(id))}"]`);
+
+  // Build the visible hierarchy from the real persisted relations:
+  // category -> equipment type -> model. Brands and spec definitions remain
+  // independent reference data and are never attached to a category.
+  const buildRealHierarchy = () => {
+    const categoryRoot = tree.querySelector('[data-ref="categories"]')?.closest('.tree-group');
+    const typeRoot = tree.querySelector('[data-ref="types"]')?.closest('.tree-group');
+    const modelRoot = tree.querySelector('[data-ref="models"]')?.closest('.tree-group');
+    if (!categoryRoot || !typeRoot || !modelRoot || typeof DATA === 'undefined') return;
+
+    const categoryChildren = categoryRoot.querySelector(':scope > .children');
+    const typeChildren = typeRoot.querySelector(':scope > .children');
+    const modelChildren = modelRoot.querySelector(':scope > .children');
+    if (!categoryChildren || !typeChildren || !modelChildren) return;
+    if (categoryRoot.dataset.hierarchyBuilt === '1') return;
+
+    // Preserve the existing add actions without inventing new data relations.
+    const addType = typeChildren.querySelector('[data-new-ref="type"]');
+    if (addType) categoryChildren.appendChild(addType);
+
+    // Move each real type under its persisted category_id.
+    const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
+    typeNodes.forEach((typeNode) => {
+      const categoryId = typeNode.dataset.categoryId || typeNode.dataset.category || '';
+      let categoryNode = categoryId ? findCategoryNode(categoryId) : null;
+      if (!categoryNode) {
+        const typeId = typeNode.dataset.id;
+        const model = Object.values(DATA).find((m) => String(m.equipment_type_id) === String(typeId));
+        categoryNode = model?.category_id ? findCategoryNode(model.category_id) : null;
+      }
+      if (!categoryNode) return;
+      const categoryGroup = categoryNode.closest('.tree-group');
+      const children = categoryGroup?.querySelector(':scope > .children');
+      if (!children) return;
+
+      let typeGroup = typeNode.closest('.tree-group');
+      if (!typeGroup || typeGroup === typeRoot) {
+        typeGroup = document.createElement('div');
+        typeGroup.className = 'tree-group master-hierarchy-group open';
+        const clone = typeNode.cloneNode(true);
+        typeGroup.appendChild(clone);
+        typeNode.remove();
+      } else {
+        typeGroup.classList.add('master-hierarchy-group');
+      }
+
+      let nested = typeGroup.querySelector(':scope > .children');
+      if (!nested) {
+        nested = document.createElement('div');
+        nested.className = 'children';
+        typeGroup.appendChild(nested);
+      }
+      children.appendChild(typeGroup);
+    });
+
+    // Move each model below the type it actually references.
+    const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
+    modelGroups.forEach((modelGroup) => {
+      const row = modelGroup.querySelector(':scope > [data-model-row]');
+      if (!row) return;
       const id = String(row.dataset.modelRow);
       const model = DATA[id] || DATA[Number(id)];
       if (!model) return;
-      const category = categories.get(String(model.category_id));
-      const type = types.get(String(model.equipment_type_id));
-      const parts = [category, type].filter(Boolean);
-      if (!parts.length) return;
-      const context = document.createElement('span');
-      context.className = 'tree-context';
-      context.textContent = `(${parts.join(' / ')})`;
-      row.appendChild(context);
-      row.title = row.textContent.trim();
+      const typeNode = findTypeNode(model.equipment_type_id);
+      const typeGroup = typeNode?.closest('.master-hierarchy-group');
+      const nested = typeGroup?.querySelector(':scope > .children');
+      if (!nested) return;
+
+      let modelsLabel = nested.querySelector(':scope > .master-models-label');
+      if (!modelsLabel) {
+        modelsLabel = document.createElement('button');
+        modelsLabel.type = 'button';
+        modelsLabel.className = 'tree-node master-models-label';
+        modelsLabel.textContent = '🚙 الطرازات';
+        modelsLabel.disabled = true;
+        nested.appendChild(modelsLabel);
+      }
+      nested.appendChild(modelGroup);
     });
-  }
+
+    // Brands and specs remain separate top-level reference groups.
+    typeRoot.classList.add('master-reference-root');
+    modelRoot.remove();
+    categoryRoot.dataset.hierarchyBuilt = '1';
+  };
+
+  buildRealHierarchy();
+
+  // Restore the historical measurement-unit selector. The selector and its values
+  // are deliberately the existing ones from the previous Master Data implementation;
+  // no new unit table, model, API, or database relation is introduced.
+  const restoreMeasurementUnitSelect = () => {
+    const input = document.querySelector('#refBody input[name="measurement_unit"]');
+    if (!input || document.querySelector('#refBody select[name="measurement_unit"]')) return;
+    const select = document.createElement('select');
+    select.name = 'measurement_unit';
+    select.required = true;
+    const units = [
+      ['km', 'كم'],
+      ['hours', 'ساعات'],
+    ];
+    units.forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    });
+    const previous = input.value;
+    input.replaceWith(select);
+    if (units.some(([value]) => value === previous)) select.value = previous;
+  };
+
+  tree.addEventListener('click', (event) => {
+    if (event.target.closest('[data-ref-item="type"], [data-new-ref="type"], [data-add="type"]')) {
+      setTimeout(restoreMeasurementUnitSelect, 0);
+    }
+  }, true);
+  setTimeout(restoreMeasurementUnitSelect, 0);
 
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
@@ -52,8 +158,6 @@
     });
   };
 
-  // The arrow owns expansion/collapse. Stop propagation so legacy workspace handlers
-  // cannot also interpret the same click as a node action.
   tree.addEventListener('click', (event) => {
     const toggle = event.target.closest('.tree-toggle');
     if (!toggle || !tree.contains(toggle)) return;
@@ -67,7 +171,6 @@
     syncArrows();
   }, true);
 
-  // Labels remain workspace actions and existing editor handlers keep ownership of them.
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
@@ -114,7 +217,6 @@
       return;
     }
 
-    // Do the visibility pass first, then reveal/open ancestors, and sync arrows once.
     nodes.forEach((node) => {
       node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
     });
