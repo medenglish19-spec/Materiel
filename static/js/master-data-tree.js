@@ -22,10 +22,12 @@
     #tree .tree-node[data-model-row] .tree-toggle{font-size:14px}
     #tree .master-hierarchy-group{margin-bottom:3px}
     #tree .master-hierarchy-group>.children{padding-right:20px}
-    #tree .master-models-label{font-weight:800;color:#475569}
+    #tree .master-category-types-label,#tree .master-type-models-label{font-weight:800;color:#475569}
     #tree .master-uncategorized{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
+    #tree .master-unassigned-models{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-reference-group{margin-top:6px}
     #tree .master-reference-label{font-size:11px;color:#94a3b8;font-weight:800;padding:5px 8px}
+    #tree .master-inline-add{margin:4px 0 4px}
     .mdx #tree{font-size:13px;color:#25364d}
     .mdx #tree .tree-node{min-height:36px;padding:7px 8px;gap:7px;color:#26384e;font-weight:600;transition:background .12s ease,border-color .12s ease,color .12s ease}
     .mdx #tree .tree-node:hover{background:#edf4fa;color:#173b63}
@@ -106,15 +108,9 @@
     if (categoryRoot.dataset.hierarchyBuilt === '1') return;
 
     const addType = typeChildren.querySelector('[data-new-ref="type"]');
-    if (addType) categoryChildren.appendChild(addType);
-
     const addModel = modelChildren.querySelector('[data-new-ref="model"]');
-    if (addModel) {
-      const actionGroup = document.createElement('div');
-      actionGroup.className = 'master-reference-group';
-      actionGroup.appendChild(addModel);
-      categoryChildren.appendChild(actionGroup);
-    }
+    if (addType) addType.remove();
+    if (addModel) addModel.remove();
 
     const uncategorizedGroup = document.createElement('div');
     uncategorizedGroup.className = 'tree-group master-uncategorized open';
@@ -128,15 +124,39 @@
 
     const typeGroupsById = new Map();
     let hasUncategorized = false;
+    let hasTypes = false;
     const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
+
+    const getTypeCategoryId = (typeNode) => {
+      const id = String(typeNode.dataset.id || '');
+      return typeCategoryMap.get(id)
+        || String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+    };
+
     typeNodes.forEach((typeNode) => {
       const typeId = String(typeNode.dataset.id || '');
-      const categoryId = typeCategoryMap.get(typeId) || '';
+      if (!typeId) return;
+      hasTypes = true;
+      const categoryId = getTypeCategoryId(typeNode);
       const categoryNode = categoryId ? findCategoryNode(categoryId) : null;
-      const destination = categoryNode
-        ? categoryNode.closest('.tree-group')?.querySelector(':scope > .children')
-        : uncategorizedChildren;
-      if (!destination) return;
+      const categoryGroup = categoryNode?.closest('.tree-group');
+      const destination = categoryGroup?.querySelector(':scope > .children') || uncategorizedChildren;
+      if (!categoryNode) hasUncategorized = true;
+
+      let typeSection = destination.querySelector(':scope > .master-category-types-section');
+      if (!typeSection) {
+        typeSection = document.createElement('div');
+        typeSection.className = 'master-category-types-section';
+        destination.appendChild(typeSection);
+        const label = document.createElement('div');
+        label.className = 'tree-node master-category-types-label';
+        label.textContent = '🗂 أنواع العتاد';
+        typeSection.appendChild(label);
+        const typeList = document.createElement('div');
+        typeList.className = 'children';
+        typeSection.appendChild(typeList);
+      }
+      const typeList = typeSection.querySelector(':scope > .children');
 
       const typeGroup = document.createElement('div');
       typeGroup.className = 'tree-group master-hierarchy-group open';
@@ -144,10 +164,27 @@
       const typeNested = document.createElement('div');
       typeNested.className = 'children';
       typeGroup.append(typeClone, typeNested);
-      destination.appendChild(typeGroup);
+      typeList.appendChild(typeGroup);
       typeNode.remove();
       typeGroupsById.set(typeId, typeGroup);
-      if (!categoryNode) hasUncategorized = true;
+
+      const modelSection = document.createElement('div');
+      modelSection.className = 'master-type-models-section';
+      const modelLabel = document.createElement('div');
+      modelLabel.className = 'tree-node master-type-models-label';
+      modelLabel.textContent = '🚙 الطرازات';
+      modelSection.appendChild(modelLabel);
+      const modelList = document.createElement('div');
+      modelList.className = 'children';
+      modelSection.appendChild(modelList);
+      typeNested.appendChild(modelSection);
+
+      const addForType = document.createElement('button');
+      addForType.className = 'tree-node master-inline-add';
+      addForType.type = 'button';
+      addForType.dataset.newModelForType = typeId;
+      addForType.textContent = '＋ إضافة طراز';
+      modelList.appendChild(addForType);
     });
 
     if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);
@@ -157,21 +194,23 @@
     modelGroups.forEach((modelGroup) => {
       const row = modelGroup.querySelector(':scope > [data-model-row]');
       if (!row) { allModelsMoved = false; return; }
-      const id = String(row.dataset.modelRow);
+      const id = String(row.dataset.modelRow || '');
       const model = DATA[id] || DATA[Number(id)];
       if (!model) { allModelsMoved = false; return; }
       const typeGroup = typeGroupsById.get(String(model.equipment_type_id));
-      const nested = typeGroup?.querySelector(':scope > .children');
-      if (!nested) { allModelsMoved = false; return; }
-      let modelsLabel = nested.querySelector(':scope > .master-models-label');
-      if (!modelsLabel) {
-        modelsLabel = document.createElement('div');
-        modelsLabel.className = 'tree-node master-models-label';
-        modelsLabel.textContent = '🚙 الطرازات';
-        nested.appendChild(modelsLabel);
-      }
-      nested.appendChild(modelGroup);
+      const modelSection = typeGroup?.querySelector(':scope > .children > .master-type-models-section');
+      const modelList = modelSection?.querySelector(':scope > .children');
+      if (!modelList) { allModelsMoved = false; return; }
+      modelList.appendChild(modelGroup);
     });
+
+    if (hasTypes && addModel) {
+      addModel.dataset.globalModelFallback = '1';
+      addModel.style.display = 'none';
+      modelChildren.appendChild(addModel);
+    } else if (!hasTypes && addModel) {
+      modelChildren.appendChild(addModel);
+    }
 
     const remainingTypes = typeChildren.querySelectorAll(':scope > [data-ref-item="type"]');
     const remainingModels = modelChildren.querySelectorAll(':scope > .model-group');
@@ -219,8 +258,17 @@
   };
   setupModelWorkspace();
 
-  const openModelCreate = () => {
+  const openModelCreate = (typeId) => {
     if (typeof resetModel === 'function') resetModel();
+    if (typeId) {
+      const typeSelect = document.getElementById('modelType');
+      const categorySelect = document.getElementById('modelCategory');
+      const option = typeSelect?.querySelector(`option[value="${CSS.escape(String(typeId))}"]`);
+      if (typeSelect && option) {
+        typeSelect.value = String(typeId);
+        if (categorySelect && option.dataset.category) categorySelect.value = option.dataset.category;
+      }
+    }
     if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
     if (typeof show === 'function') show(document.getElementById('modelPanel'));
     document.getElementById('modelPanel')?.scrollIntoView({behavior:'smooth', block:'start'});
@@ -248,6 +296,13 @@
   };
 
   tree.addEventListener('click', (event) => {
+    const addForType = event.target.closest('[data-new-model-for-type]');
+    if (addForType && tree.contains(addForType)) {
+      event.preventDefault();
+      event.stopPropagation();
+      openModelCreate(addForType.dataset.newModelForType);
+      return;
+    }
     const add = event.target.closest('[data-add="model"],[data-new-ref="model"]');
     if (add && tree.contains(add)) {
       event.preventDefault();
@@ -277,7 +332,7 @@
   tree.addEventListener('click', (event) => {
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
-    if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-delete],[data-copy],[data-tree-add]')) return;
+    if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-new-model-for-type],[data-delete],[data-copy],[data-tree-add]')) return;
     if (node.matches('[data-model-row],[data-model]')) return;
     if (node.matches('[data-ref]')) {
       event.preventDefault();
