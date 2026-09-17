@@ -72,3 +72,33 @@ def test_model_editor_payload_is_model_scoped_for_tires_and_specs():
 def test_model_editor_requires_driver_defaults_to_false_in_post_form():
     parameter = inspect.signature(create_model_form).parameters["requires_driver"]
     assert parameter.default.default is False
+
+
+def test_model_editor_payload_contains_model_scoped_battery_configuration():
+    source = inspect.getsource(model_editor_payload)
+    for field in (
+        '"has_batteries": model.has_batteries',
+        '"battery_count_required": model.battery_count_required',
+        '"battery_capacity_ah": model.battery_capacity_ah',
+        '"battery_voltage_v": model.battery_voltage_v',
+    ):
+        assert field in source
+
+
+def test_model_editor_form_preserves_battery_configuration_fields():
+    template = _template()
+    for field in (
+        'name="has_batteries"',
+        'name="battery_count_required"',
+        'name="battery_capacity_ah"',
+        'name="battery_voltage_v"',
+    ):
+        assert field in template
+    router_source = inspect.getsource(create_model_form)
+    for field in (
+        "has_batteries:bool=Form(False)",
+        "battery_count_required:int=Form(0)",
+        "battery_capacity_ah:str=Form(\"\")",
+        "battery_voltage_v:str=Form(\"\")",
+    ):
+        assert field in router_source
