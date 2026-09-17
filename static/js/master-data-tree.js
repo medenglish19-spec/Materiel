@@ -168,6 +168,7 @@
       if (!typeId) return;
       const categoryId = getTypeCategoryId(typeNode);
       const categoryNode = categoryId ? findCategoryNode(categoryId) : null;
+      if (!categoryNode) hasUncategorized = true;
       const categoryGroup = categoryNode?.closest('.tree-group');
       const typeSection = categoryGroup?.querySelector(':scope > .children > .master-category-types-section');
       const destination = typeSection?.querySelector(':scope > .children') || uncategorizedChildren;
