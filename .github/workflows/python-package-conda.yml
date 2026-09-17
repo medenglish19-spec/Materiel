@@ -98,21 +98,22 @@ jobs:
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
       - name: Persist verified template fix and remove temporary repair workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git show 531fe1ebb40afb7ac1d17dd25e269eaa97773fed:.github/workflows/python-package-conda.yml > .github/workflows/python-package-conda.yml
-          rm -f .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml
-          git add app/modules/equipment_types/templates/master_data_workspace.html
-          git add .github/workflows/python-package-conda.yml
-          git add -u .github/workflows
-          if git diff --cached --quiet; then
-            echo "No repository change required."
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix: load master data tree script directly'
-          git push
+          repo="$GITHUB_REPOSITORY"
+          template="app/modules/equipment_types/templates/master_data_workspace.html"
+          template_sha=$(gh api "repos/$repo/contents/$template" --jq .sha)
+          template_b64=$(base64 -w0 "$template")
+          gh api --method PUT "repos/$repo/contents/$template" -f message='fix: load master data tree script directly' -f content="$template_b64" -f sha="$template_sha" >/dev/null
+          for wf in .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml; do
+            if gh api "repos/$repo/contents/$wf" >/dev/null 2>&1; then
+              wf_sha=$(gh api "repos/$repo/contents/$wf" --jq .sha)
+              gh api --method DELETE "repos/$repo/contents/$wf" -f message='chore: remove temporary master data repair workflow' -f sha="$wf_sha" >/dev/null
+            fi
+          done
+          echo 'Verified template persisted through GitHub API.'
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
