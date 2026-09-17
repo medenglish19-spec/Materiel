@@ -262,6 +262,26 @@
     nav.className = 'model-workspace-nav';
     nav.setAttribute('aria-label', 'أقسام الطراز');
     const icons = ['📄', '🛞', '🔋', '⚙'];
+    const tabs = [];
+    const selectSection = (index, options = {}) => {
+      const safeIndex = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
+      boxes.forEach((box, boxIndex) => {
+        box.hidden = boxIndex !== safeIndex;
+        box.dataset.workspaceActive = boxIndex === safeIndex ? '1' : '0';
+      });
+      tabs.forEach((tab, tabIndex) => {
+        const active = tabIndex === safeIndex;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      if (options.focus) {
+        const box = boxes[safeIndex];
+        box.classList.add('workspace-focus');
+        window.setTimeout(() => box.classList.remove('workspace-focus'), 900);
+      }
+      if (options.scroll) boxes[safeIndex]?.scrollIntoView({behavior:'smooth', block:'start'});
+      panel.dataset.workspaceSection = String(safeIndex);
+    };
     boxes.forEach((box, index) => {
       box.classList.add('model-workspace-box');
       box.dataset.workspaceSection = String(index);
@@ -271,22 +291,22 @@
       tab.type = 'button';
       tab.className = 'model-workspace-tab';
       tab.dataset.workspaceTarget = String(index);
+      tab.setAttribute('aria-controls', `model-workspace-section-${index}`);
+      tab.setAttribute('aria-selected', 'false');
+      box.id = box.id || `model-workspace-section-${index}`;
       tab.innerHTML = `<span class="tab-icon">${icons[index] || '•'}</span>${text}`;
-      tab.addEventListener('click', () => {
-        box.scrollIntoView({behavior:'smooth', block:'start'});
-        boxes.forEach((item) => item.classList.remove('workspace-focus'));
-        box.classList.add('workspace-focus');
-        nav.querySelectorAll('.model-workspace-tab').forEach((item) => item.classList.toggle('active', item === tab));
-        window.setTimeout(() => box.classList.remove('workspace-focus'), 900);
-      });
+      tab.addEventListener('click', () => selectSection(index, {focus:true}));
+      tabs.push(tab);
       nav.appendChild(tab);
     });
     const summary = document.createElement('div');
     summary.className = 'model-workspace-summary';
-    summary.innerHTML = '<strong>مساحة عمل الطراز</strong><span>البيانات والإطارات والبطاريات والخصائص التابعة في صفحة واحدة</span>';
+    summary.innerHTML = '<strong>مساحة عمل الطراز</strong><span>اختر قسمًا واحدًا لإدارة بياناته دون ازدحام باقي الأقسام</span>';
     panel.insertBefore(summary, boxes[0]);
     panel.insertBefore(nav, boxes[0]);
     panel.dataset.workspaceReady = '1';
+    window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
+    selectSection(0);
   };
   setupModelWorkspace();
 
@@ -303,6 +323,7 @@
     }
     if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
     if (typeof show === 'function') show(document.getElementById('modelPanel'));
+    window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
     document.getElementById('modelPanel')?.scrollIntoView({behavior:'smooth', block:'start'});
   };
 
