@@ -10,12 +10,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Apply surgical master-data timing fix
-        if: github.sha == '46f41cde8a5e5e4ce62da29feab5f487d27309a3'
+        if: ${{ contains(github.event.head_commit.message, 'retry surgical timing fix') }}
         shell: python
         run: |
           from pathlib import Path
           import re
-
           path = Path('static/js/master-data-tree.js')
           text = path.read_text(encoding='utf-8')
           matches = list(re.finditer(r'(?m)^\s*buildRealHierarchy\(\);\s*$', text))
@@ -26,7 +25,7 @@ jobs:
           path.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
 
       - name: Verify surgical master-data diff
-        if: github.sha == '46f41cde8a5e5e4ce62da29feab5f487d27309a3'
+        if: ${{ contains(github.event.head_commit.message, 'retry surgical timing fix') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -82,31 +81,27 @@ jobs:
           CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL);
           INSERT INTO alembic_version(version_num) VALUES ('0006_model_theoretical_quantity');
           """)
-          db.commit()
-          db.close()
+          db.commit(); db.close()
           PY
           alembic upgrade 0007_faults_repairs
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect("ci_migration_test.db")
-          version = db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-          assert version == "0007_faults_repairs", version
+          assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0007_faults_repairs"
           required = {"faults", "repairs", "spare_parts", "repair_parts"}
           tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-          assert required <= tables, sorted(required - tables)
+          assert required <= tables
           db.execute("UPDATE alembic_version SET version_num = '0006_model_theoretical_quantity'")
-          db.commit()
-          db.close()
+          db.commit(); db.close()
           PY
           alembic upgrade 0007_faults_repairs
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect("ci_migration_test.db")
-          version = db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-          assert version == "0007_faults_repairs", version
+          assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0007_faults_repairs"
           required = {"faults", "repairs", "spare_parts", "repair_parts"}
           tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-          assert required <= tables, sorted(required - tables)
+          assert required <= tables
           db.close()
           print("0007 recovery test passed")
           PY
@@ -115,11 +110,11 @@ jobs:
         run: python -m pytest -q --junitxml=test-results.xml
 
       - name: Finalize surgical fix and restore CI workflow
-        if: github.sha == '46f41cde8a5e5e4ce62da29feab5f487d27309a3'
+        if: ${{ contains(github.event.head_commit.message, 'retry surgical timing fix') }}
         shell: bash
         run: |
           set -euo pipefail
-          git checkout HEAD^ -- .github/workflows/python-package-conda.yml
+          git checkout HEAD~2 -- .github/workflows/python-package-conda.yml
           git rm .github/workflows/_apply_master_data_timing_fix.yml
           git add static/js/master-data-tree.js .github/workflows/python-package-conda.yml
           git diff --cached --check
