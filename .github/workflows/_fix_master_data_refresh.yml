@@ -30,6 +30,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -r requirements.txt
+          pip install pytest
           python -m pytest -q
       - name: Commit fix and remove temporary workflow
         run: |
