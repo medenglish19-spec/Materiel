@@ -99,4 +99,3 @@ jobs:
           if-no-files-found: warn
 
 # Automated verification trigger for the meter-history fix.
-# Final master-data verification marker.
