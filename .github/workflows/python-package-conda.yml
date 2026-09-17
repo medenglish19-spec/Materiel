@@ -2,25 +2,25 @@ name: Python application tests
 
 on: [push, pull_request]
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pip install pytest
+
       - name: Check repository filenames
         shell: bash
         run: |
@@ -36,8 +36,10 @@ jobs:
             printf 'أسماء ملفات غير مسموحة:\n%s\n' "${bad[@]}"
             exit 1
           fi
+
       - name: Syntax check
         run: python -m compileall -q app web run_web.py
+
       - name: SQLite migration 0007 recovery test
         env:
           DATABASE_URL: sqlite:///./ci_migration_test.db
@@ -66,6 +68,8 @@ jobs:
           required = {"faults", "repairs", "spare_parts", "repair_parts"}
           tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
           assert required <= tables, sorted(required - tables)
+          # Simulate an interrupted SQLite migration whose DDL completed but
+          # whose Alembic version update did not persist.
           db.execute("UPDATE alembic_version SET version_num = '0006_model_theoretical_quantity'")
           db.commit()
           db.close()
@@ -82,38 +86,10 @@ jobs:
           db.close()
           print("0007 recovery test passed")
           PY
-      - name: Repair master data script loading in working tree
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path("app/modules/equipment_types/templates/master_data_workspace.html")
-          s = p.read_text(encoding="utf-8")
-          marker = '<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>\n'
-          direct = '<script src="/static/js/master-data-tree.js"></script>\n'
-          if direct not in s:
-              if marker not in s:
-                  raise SystemExit("Excel script marker not found")
-              p.write_text(s.replace(marker, marker + direct, 1), encoding="utf-8")
-          PY
+
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
-      - name: Persist verified template fix and remove temporary repair workflows
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          repo="$GITHUB_REPOSITORY"
-          template="app/modules/equipment_types/templates/master_data_workspace.html"
-          template_sha=$(gh api "repos/$repo/contents/$template" --jq .sha)
-          template_b64=$(base64 -w0 "$template")
-          gh api --method PUT "repos/$repo/contents/$template" -f message='fix: load master data tree script directly' -f content="$template_b64" -f sha="$template_sha" >/dev/null
-          for wf in .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml; do
-            if gh api "repos/$repo/contents/$wf" >/dev/null 2>&1; then
-              wf_sha=$(gh api "repos/$repo/contents/$wf" --jq .sha)
-              gh api --method DELETE "repos/$repo/contents/$wf" -f message='chore: remove temporary master data repair workflow' -f sha="$wf_sha" >/dev/null
-            fi
-          done
-          echo 'Verified template persisted through GitHub API.'
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,4 +97,5 @@ jobs:
           name: pytest-report
           path: test-results.xml
           if-no-files-found: warn
+
 # Automated verification trigger for the meter-history fix.
