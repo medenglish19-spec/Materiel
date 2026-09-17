@@ -27,6 +27,7 @@
 <div class="box" id="specsEditorBox"><div class="box-head"><h3>الخصائص التابعة</h3></div><div class="box-body"><div id="specRows"></div><p class="muted">الخصائص تُعرّف من عقدة «الخصائص» ثم تُسند إلى الطراز هنا.</p><div class="import-help"><button type="button" class="btn soft" id="importSpecs">📥 استيراد قيم الخصائص من Excel</button></div></div></div><div class="save"><button class="btn primary" type="submit">حفظ الطراز</button><button class="btn soft" type="button" id="cancelModel">إلغاء</button></div></form></div>
 </div></main></div>
 <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="/static/js/master-data-tree.js"></script>
 <script>
 'use strict';
 const DATA={{ tire_master_data|tojson }}; const DEFS={{ spec_definitions|tojson }}; const $=id=>document.getElementById(id); let currentModel=null; let importTarget=null;
