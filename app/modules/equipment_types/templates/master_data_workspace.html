@@ -29,6 +29,7 @@
 <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 'use strict';
+const $=id=>document.getElementById(id);
 const DATA={{ tire_master_data|tojson }}; const DEFS={{ spec_definitions|tojson }}; let currentModel=null; let importTarget=null;
 window.MATERIEL_MASTER_DATA_READY=true;
 document.querySelectorAll('[data-model-row]').forEach(row=>{const id=String(row.dataset.modelRow||'');const d=DATA[id]||DATA[Number(id)];if(d&&row.dataset.equipmentTypeId)d.equipment_type_id=Number(row.dataset.equipmentTypeId)});
