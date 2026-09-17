@@ -393,7 +393,16 @@
     const node = event.target.closest('.tree-node');
     if (!node || !tree.contains(node)) return;
     if (event.target.closest('.tree-toggle,[data-add],[data-new-ref],[data-new-model-for-type],[data-new-type-for-category],[data-delete],[data-tree-delete],[data-tree-edit],[data-copy],[data-tree-add]')) return;
-    if (node.matches('[data-model-row], [data-model]')) return;
+    if (node.matches('[data-model-row]')) {
+      window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
+      return;
+    }
+    if (node.matches('[data-model]')) {
+      const section = node.dataset.section || 'basic';
+      const sectionIndex = {basic:0, tires:1, positions:1, sizes:1, batteries:2, specs:3}[section] ?? 0;
+      window.MATERIEL_MODEL_WORKSPACE_SELECT?.(sectionIndex, {focus:true});
+      return;
+    }
     if (node.matches('[data-ref]')) {
       event.preventDefault(); event.stopPropagation();
       if (typeof selectNode === 'function') selectNode(node);
