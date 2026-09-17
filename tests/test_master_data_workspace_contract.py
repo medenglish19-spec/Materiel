@@ -1,6 +1,7 @@
 from pathlib import Path
 import inspect
 
+from app.modules.equipment_types.presenters import model_editor_payload
 from app.modules.equipment_types.router import create_model_form
 
 
@@ -41,6 +42,31 @@ def test_tree_add_controls_route_to_the_existing_create_workflows():
     assert "else if (kind) refPanel(kind);" in script
     assert "openTypeCreate(addForCategory.dataset.newTypeForCategory)" in script
     assert "openModelCreate(addForType.dataset.newModelForType)" in script
+
+
+def test_model_workspace_loads_every_model_field_from_its_own_payload():
+    script = _template()
+    for expression in (
+        "const d=DATA[String(id)]||DATA[id]||{}",
+        "$('modelName').value=d.name||''",
+        "$('modelCategory').value=d.category_id??''",
+        "$('modelType').value=d.equipment_type_id??''",
+        "$('modelBrand').value=d.brand_id??''",
+        "$('hasTires').checked=!!d.has_tires",
+        "$('hasBatteries').checked=!!d.has_batteries",
+        "renderPositions(d.positions||d.master?.positions||[])",
+        "renderSizes(d.sizes||d.master?.sizes||[])",
+        "(d.specs||d.master?.specs||[]).forEach",
+    ):
+        assert expression in script
+
+
+def test_model_editor_payload_is_model_scoped_for_tires_and_specs():
+    source = inspect.getsource(model_editor_payload)
+    assert "TirePosition.equipment_model_id == model.id" in source
+    assert "TireModelSize.equipment_model_id == model.id" in source
+    assert "for value in model.spec_values" in source
+    assert '"equipment_type_id": model.equipment_type_id' in source
 
 
 def test_model_editor_requires_driver_defaults_to_false_in_post_form():
