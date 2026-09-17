@@ -34,7 +34,7 @@
     .mdx #tree .tree-node:hover{background:#edf4fa;color:#173b63}
     .mdx #tree .tree-node.active{background:#e7f0f8;color:#173b63;box-shadow:inset -3px 0 0 #3f729f;font-weight:800}
     .mdx #tree .tree-toggle{color:#64748b;font-weight:800}
-    .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;gap:3px}
+    .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;align-items:center;flex-shrink:0;white-space:nowrap;gap:3px}
     .mdx #tree .tree-node:hover .tree-actions,.mdx #tree .tree-node.active .tree-actions{opacity:1}
     .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
     .mdx #tree .tree-add:hover,.mdx #tree .tree-more:hover,.mdx #tree .tree-action:hover{background:#dbeafe}
@@ -115,7 +115,6 @@
     if (addType) addType.remove();
     if (addModel) addModel.remove();
 
-    /* Convert every category item into a real tree group before moving types. */
     const categoryItems = Array.from(categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]'));
     categoryItems.forEach((categoryNode) => {
       const categoryGroup = document.createElement('div');
@@ -158,9 +157,7 @@
     const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
 
     const getTypeCategoryId = (typeNode) => {
-      const id = String(typeNode.dataset.id || '');
-      return typeCategoryMap.get(id)
-        || String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+      return String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
     };
 
     typeNodes.forEach((typeNode) => {
@@ -331,7 +328,13 @@
   const editHierarchyItem = (kind, id) => {
     const node = tree.querySelector(`[data-ref-item="${kind}"][data-id="${CSS.escape(String(id))}"]`);
     if (!node || typeof refPanel !== 'function') return;
-    refPanel(kind, id, node.dataset.name || '');
+    if (kind === 'category') {
+      refPanel(kind, id, node.dataset.name || '', node.dataset.code || '');
+    } else if (kind === 'type') {
+      refPanel(kind, id, node.dataset.name || '', node.dataset.categoryId || '', node.dataset.measurementUnit || '', node.dataset.theoreticalQuantity || '');
+    } else {
+      refPanel(kind, id, node.dataset.name || '');
+    }
     selectNode(node);
   };
   const syncArrows = () => {
