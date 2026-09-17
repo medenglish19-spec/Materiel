@@ -157,7 +157,9 @@
     const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
 
     const getTypeCategoryId = (typeNode) => {
-      return String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+      const id = String(typeNode.dataset.id || '');
+      const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+      return attr || typeCategoryMap.get(id) || '';
     };
 
     typeNodes.forEach((typeNode) => {
@@ -328,13 +330,7 @@
   const editHierarchyItem = (kind, id) => {
     const node = tree.querySelector(`[data-ref-item="${kind}"][data-id="${CSS.escape(String(id))}"]`);
     if (!node || typeof refPanel !== 'function') return;
-    if (kind === 'category') {
-      refPanel(kind, id, node.dataset.name || '', node.dataset.code || '');
-    } else if (kind === 'type') {
-      refPanel(kind, id, node.dataset.name || '', node.dataset.categoryId || '', node.dataset.measurementUnit || '', node.dataset.theoreticalQuantity || '');
-    } else {
-      refPanel(kind, id, node.dataset.name || '');
-    }
+    refPanel(kind, id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
   const syncArrows = () => {
