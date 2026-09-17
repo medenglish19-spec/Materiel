@@ -110,10 +110,10 @@
     if (!categoryChildren || !typeChildren || !modelChildren) return;
     if (categoryRoot.dataset.hierarchyBuilt === '1') return;
 
+    // Preserve the original controls. They are moved into explicit fallback groups
+    // instead of being removed and recreated.
     const addType = typeChildren.querySelector('[data-new-ref="type"]');
     const addModel = modelChildren.querySelector('[data-new-ref="model"]');
-    if (addType) addType.remove();
-    if (addModel) addModel.remove();
 
     const categoryItems = Array.from(categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]'));
     categoryItems.forEach((categoryNode) => {
@@ -175,12 +175,10 @@
 
       const typeGroup = document.createElement('div');
       typeGroup.className = 'tree-group master-hierarchy-group open';
-      const typeClone = typeNode.cloneNode(true);
       const typeNested = document.createElement('div');
       typeNested.className = 'children';
-      typeGroup.append(typeClone, typeNested);
+      typeGroup.append(typeNode, typeNested);
       destination.appendChild(typeGroup);
-      typeNode.remove();
       typeGroupsById.set(typeId, typeGroup);
 
       const modelSection = document.createElement('div');
@@ -199,9 +197,25 @@
       typeNested.appendChild(modelSection);
     });
 
-    if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);
+    // Keep original type-create control reachable, without deleting it.
+    if (addType) {
+      addType.classList.add('master-inline-add-type');
+      uncategorizedChildren.appendChild(addType);
+    }
+    if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
+
+    const unassignedModelsGroup = document.createElement('div');
+    unassignedModelsGroup.className = 'tree-group master-unassigned-models open';
+    const unassignedModelsNode = document.createElement('button');
+    unassignedModelsNode.className = 'tree-node';
+    unassignedModelsNode.type = 'button';
+    unassignedModelsNode.innerHTML = '<span class="tree-toggle">⌄</span>🚙 طرازات غير مرتبطة بنوع عتاد';
+    const unassignedModelsChildren = document.createElement('div');
+    unassignedModelsChildren.className = 'children';
+    unassignedModelsGroup.append(unassignedModelsNode, unassignedModelsChildren);
 
     const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
+    let hasUnassignedModels = false;
     modelGroups.forEach((modelGroup) => {
       const row = modelGroup.querySelector(':scope > [data-model-row]');
       if (!row) return;
@@ -211,10 +225,22 @@
       const typeGroup = typeGroupsById.get(String(model.equipment_type_id));
       const modelSection = typeGroup?.querySelector(':scope > .children > .master-type-models-section');
       const modelList = modelSection?.querySelector(':scope > .children');
-      if (modelList) modelList.appendChild(modelGroup);
+      if (modelList) {
+        modelList.appendChild(modelGroup);
+      } else {
+        hasUnassignedModels = true;
+        unassignedModelsChildren.appendChild(modelGroup);
+      }
     });
 
-    if (addModel) modelChildren.appendChild(addModel);
+    // Preserve the original model-create control. It remains functional as a
+    // general create action when no parent type is supplied.
+    if (addModel) {
+      addModel.classList.add('master-inline-add');
+      unassignedModelsChildren.appendChild(addModel);
+    }
+    if (hasUnassignedModels || addModel) categoryChildren.appendChild(unassignedModelsGroup);
+
     typeRoot.remove();
     modelRoot.remove();
     categoryRoot.dataset.hierarchyBuilt = '1';
