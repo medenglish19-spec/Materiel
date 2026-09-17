@@ -43,7 +43,7 @@ def test_category_update_form_preserves_code():
         db.expire_all()
         saved = services.get_category(db, category.id)
         assert saved.name == "الفئة المعدلة"
-        assert saved.code == "C-100"
+        assert saved.code == "c-100"
     finally:
         db.close()
 
