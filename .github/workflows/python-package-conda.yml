@@ -114,7 +114,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git checkout HEAD~2 -- .github/workflows/python-package-conda.yml
+          git fetch --unshallow origin main
+          git checkout acc91b4c7814ed73971b9a008b5200a503d8ccd8 -- .github/workflows/python-package-conda.yml
           git rm .github/workflows/_apply_master_data_timing_fix.yml
           git add static/js/master-data-tree.js .github/workflows/python-package-conda.yml
           git diff --cached --check
