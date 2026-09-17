@@ -1,0 +1,28 @@
+name: Repair master data script v2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch template
+        run: python -c "from pathlib import Path; p=Path('app/modules/equipment_types/templates/master_data_workspace.html'); s=p.read_text(encoding='utf-8'); m='<script src=\"https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js\"></script>\\n'; d='<script src=\"/static/js/master-data-tree.js\"></script>\\n'; assert m in s; p.write_text(s if d in s else s.replace(m,m+d,1),encoding='utf-8')"
+      - name: Contract test
+        run: python -m pytest -q tests/test_master_data_restored_workflows_contract.py
+      - name: Full tests
+        run: python -m pytest -q
+      - name: Commit and cleanup
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml
+          git add app/modules/equipment_types/templates/master_data_workspace.html
+          git commit -m 'fix: load master data tree script directly'
+          git push
