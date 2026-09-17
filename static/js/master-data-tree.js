@@ -219,9 +219,11 @@
     modelRoot.remove();
     categoryRoot.dataset.hierarchyBuilt = '1';
   };
-
-  buildRealHierarchy();
-
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', buildRealHierarchy, { once: true });
+  } else {
+    buildRealHierarchy();
+  }
   const setupHierarchyActions = () => {
     const appendAction = (node, action, id, label, icon) => {
       if (!node || node.querySelector(`[data-tree-${action}]`)) return;
