@@ -100,7 +100,7 @@ jobs:
       - name: Persist verified template fix and remove temporary repair workflows
         run: |
           set -euo pipefail
-          git show 043bd8bfc2df9976cd20e1b519f86f11e84f7a98:.github/workflows/python-package-conda.yml > .github/workflows/python-package-conda.yml
+          git show 531fe1ebb40afb7ac1d17dd25e269eaa97773fed:.github/workflows/python-package-conda.yml > .github/workflows/python-package-conda.yml
           rm -f .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml
           git add app/modules/equipment_types/templates/master_data_workspace.html
           git add .github/workflows/python-package-conda.yml
