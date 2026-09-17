@@ -100,4 +100,5 @@ def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tr
     assert 'data-category=""' in html
     assert "أنواع عتاد غير مصنّفة" in TREE_SCRIPT
     assert "if (!categoryNode) hasUncategorized = true;" in TREE_SCRIPT
-    assert "if (hasUncategorized) categoryChildren.appendChild(uncategorizedGroup);" in TREE_SCRIPT
+    assert "if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);" in TREE_SCRIPT
+    assert "addType.classList.add('master-inline-add-type');" in TREE_SCRIPT
