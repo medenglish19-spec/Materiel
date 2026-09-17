@@ -8,6 +8,10 @@ def _template() -> str:
     return Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
 
 
+def _tree_script() -> str:
+    return Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+
+
 def test_model_editor_is_hierarchical_and_excel_grid_oriented():
     template = _template()
     assert "window.scrollTo" not in template
@@ -27,6 +31,16 @@ def test_model_tree_exposes_inline_tire_creation_actions():
     assert 'data-tree-add="size"' in template
     assert "editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in template
     assert "treeAdd.dataset.treeAdd==='position'?addPos():addSize();" in template
+
+
+def test_tree_add_controls_route_to_the_existing_create_workflows():
+    script = _tree_script()
+    assert 'event.target.closest(\'[data-add],[data-new-ref]\')' in script
+    assert "const kind = add.dataset.add || add.dataset.newRef;" in script
+    assert "if (kind === 'model') openModelCreate();" in script
+    assert "else if (kind) refPanel(kind);" in script
+    assert "openTypeCreate(addForCategory.dataset.newTypeForCategory)" in script
+    assert "openModelCreate(addForType.dataset.newModelForType)" in script
 
 
 def test_model_editor_requires_driver_defaults_to_false_in_post_form():
