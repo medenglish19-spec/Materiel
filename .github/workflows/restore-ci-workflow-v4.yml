@@ -1,0 +1,29 @@
+name: Restore CI workflow v4
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore original CI workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          path=".github/workflows/python-package-conda.yml"
+          source_ref="043bd8bfc2df9976cd20e1b519f86f11e84f7a98"
+          content=$(gh api "repos/$repo/contents/$path?ref=$source_ref" --jq .content | tr -d '\n')
+          sha=$(gh api "repos/$repo/contents/$path" --jq .sha)
+          gh api --method PUT "repos/$repo/contents/$path" -f message='chore: restore CI workflow after verification' -f content="$content" -f sha="$sha" >/dev/null
+          self=".github/workflows/restore-ci-workflow-v4.yml"
+          self_sha=$(gh api "repos/$repo/contents/$self" --jq .sha)
+          gh api --method DELETE "repos/$repo/contents/$self" -f message='chore: remove temporary CI restore workflow' -f sha="$self_sha" >/dev/null
