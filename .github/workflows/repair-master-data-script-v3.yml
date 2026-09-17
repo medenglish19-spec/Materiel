@@ -1,0 +1,42 @@
+name: Repair master data script v3
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Persist direct script tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          file="app/modules/equipment_types/templates/master_data_workspace.html"
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("app/modules/equipment_types/templates/master_data_workspace.html")
+          s=p.read_text(encoding="utf-8")
+          marker='<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>\n'
+          direct='<script src="/static/js/master-data-tree.js"></script>\n'
+          if direct not in s:
+              if marker not in s:
+                  raise SystemExit("Excel script marker not found")
+              p.write_text(s.replace(marker, marker+direct, 1), encoding="utf-8")
+          PY
+          sha=$(gh api "repos/$repo/contents/$file" --jq .sha)
+          content=$(base64 -w0 "$file")
+          gh api --method PUT "repos/$repo/contents/$file" -f message='fix: load master data tree script directly' -f content="$content" -f sha="$sha" >/dev/null
+          for wf in .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml .github/workflows/repair-master-data-script-v3.yml; do
+            if gh api "repos/$repo/contents/$wf" >/dev/null 2>&1; then
+              wsha=$(gh api "repos/$repo/contents/$wf" --jq .sha)
+              gh api --method DELETE "repos/$repo/contents/$wf" -f message='chore: remove temporary master data repair workflow' -f sha="$wsha" >/dev/null
+            fi
+          done
