@@ -397,14 +397,21 @@
     if (addForType && tree.contains(addForType)) { event.preventDefault(); event.stopPropagation(); openModelCreate(addForType.dataset.newModelForType); return; }
     const addForCategory = event.target.closest('[data-new-type-for-category]');
     if (addForCategory && tree.contains(addForCategory)) { event.preventDefault(); event.stopPropagation(); openTypeCreate(addForCategory.dataset.newTypeForCategory); return; }
+    const add = event.target.closest('[data-add],[data-new-ref]');
+    if (add && tree.contains(add)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const kind = add.dataset.add || add.dataset.newRef;
+      if (kind === 'model') openModelCreate();
+      else if (kind) refPanel(kind);
+      return;
+    }
     const edit = event.target.closest('[data-tree-edit]');
     if (edit && tree.contains(edit)) { event.preventDefault(); event.stopPropagation(); const key = edit.dataset.treeEdit; const node = edit.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) editHierarchyItem(kind, key); return; }
     const hierarchyDelete = event.target.closest('[data-tree-delete]');
     if (hierarchyDelete && tree.contains(hierarchyDelete)) { event.preventDefault(); event.stopPropagation(); const key = hierarchyDelete.dataset.treeDelete; const node = hierarchyDelete.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) deleteHierarchyItem(kind, key); return; }
-    const add = event.target.closest('[data-add="model"],[data-new-ref="model"]');
-    if (add && tree.contains(add)) { event.preventDefault(); event.stopPropagation(); openModelCreate(); return; }
     const del = event.target.closest('[data-delete]');
-    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); }
+    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); return; }
   }, true);
 
   tree.addEventListener('click', (event) => {
