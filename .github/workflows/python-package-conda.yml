@@ -120,9 +120,10 @@ jobs:
           git fetch --unshallow origin main
           git checkout acc91b4c7814ed73971b9a008b5200a503d8ccd8 -- .github/workflows/python-package-conda.yml
           git rm .github/workflows/_apply_master_data_timing_fix.yml
-          git add static/js/master-data-tree.js
+          git add .github/workflows/python-package-conda.yml static/js/master-data-tree.js
           git diff --cached --check
-          test "$(git diff --cached --name-only | sort)" = ".github/workflows/_apply_master_data_timing_fix.yml\nstatic/js/master-data-tree.js"
+          expected=$'.github/workflows/_apply_master_data_timing_fix.yml\n.github/workflows/python-package-conda.yml\nstatic/js/master-data-tree.js'
+          test "$(git diff --cached --name-only | sort)" = "$expected"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "fix(master-data): run hierarchy after DATA initialization"
