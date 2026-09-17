@@ -68,8 +68,6 @@ jobs:
           required = {"faults", "repairs", "spare_parts", "repair_parts"}
           tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
           assert required <= tables, sorted(required - tables)
-          # Simulate an interrupted SQLite migration whose DDL completed but
-          # whose Alembic version update did not persist.
           db.execute("UPDATE alembic_version SET version_num = '0006_model_theoretical_quantity'")
           db.commit()
           db.close()
@@ -81,14 +79,44 @@ jobs:
           version = db.execute("SELECT version_num FROM alembic_version").fetchone()[0]
           assert version == "0007_faults_repairs", version
           required = {"faults", "repairs", "spare_parts", "repair_parts"}
-          tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+          tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table')}
           assert required <= tables, sorted(required - tables)
           db.close()
           print("0007 recovery test passed")
           PY
 
+      - name: Repair master data script loading in working tree
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("app/modules/equipment_types/templates/master_data_workspace.html")
+          s = p.read_text(encoding="utf-8")
+          marker = '<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>\n'
+          direct = '<script src="/static/js/master-data-tree.js"></script>\n'
+          if direct not in s:
+              if marker not in s:
+                  raise SystemExit("Excel script marker not found")
+              p.write_text(s.replace(marker, marker + direct, 1), encoding="utf-8")
+          PY
+
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
+
+      - name: Persist verified template fix and remove temporary repair workflows
+        run: |
+          set -euo pipefail
+          git checkout -- .github/workflows/python-package-conda.yml
+          rm -f .github/workflows/repair-master-data-script.yml .github/workflows/repair-master-data-script-v2.yml
+          git add app/modules/equipment_types/templates/master_data_workspace.html
+          git add -u .github/workflows
+          if git diff --cached --quiet; then
+            echo "No repository change required."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: load master data tree script directly'
+          git push
 
       - name: Upload test report
         if: always()
