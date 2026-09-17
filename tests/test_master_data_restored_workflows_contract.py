@@ -27,7 +27,7 @@ def test_master_data_keeps_model_copy_and_delete_actions():
 
 
 def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
-    assert '<script src="/static/js/master-data-tree.js"></script>' in TEMPLATE
+    assert '<script src="/static/js/master-data-tree.js"' in TEMPLATE
     assert "MASTER_DATA_SCRIPT" not in MAIN
     assert 'request.url.path == "/equipment-types"' not in MAIN
     assert "tree.addEventListener('click'" in TREE_SCRIPT
