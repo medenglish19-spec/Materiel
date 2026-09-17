@@ -32,7 +32,8 @@ def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
     assert 'request.url.path == "/equipment-types"' not in MAIN
     assert "tree.addEventListener('click'" in TREE_SCRIPT
     assert "}, true);" in TREE_SCRIPT
-    assert "[data-model-row], [data-model]" in TREE_SCRIPT
+    assert "[data-model-row], [data-model]" not in TREE_SCRIPT
+    assert "if (node.matches('[data-model-row]'))" in TREE_SCRIPT
 
 
 def test_measurement_unit_is_server_rendered_from_the_existing_allowed_values():
@@ -59,6 +60,16 @@ def test_search_reveals_matching_nodes_and_every_ancestor_before_one_arrow_sync(
     assert "node.hidden = !node.textContent.toLocaleLowerCase().includes(query);" in TREE_SCRIPT
     assert "if (!node.hidden) revealAncestors(node);" in TREE_SCRIPT
     assert "searchInput.addEventListener('input'" in TREE_SCRIPT
+
+
+def test_model_workspace_switches_real_sections_and_tree_selection_maps_to_them():
+    assert "const selectSection = (index, options = {}) =>" in TREE_SCRIPT
+    assert "box.hidden = boxIndex !== safeIndex;" in TREE_SCRIPT
+    assert "tab.setAttribute('aria-selected', active ? 'true' : 'false');" in TREE_SCRIPT
+    assert "window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;" in TREE_SCRIPT
+    assert "window.MATERIEL_MODEL_WORKSPACE_SELECT?.(sectionIndex, {focus:true});" in TREE_SCRIPT
+    assert "{basic:0, tires:1, positions:1, sizes:1, batteries:2, specs:3}" in TREE_SCRIPT
+    assert "selectSection(0);" in TREE_SCRIPT
 
 
 def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tree_branch():
