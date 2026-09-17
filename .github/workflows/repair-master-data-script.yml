@@ -1,15 +1,12 @@
 name: Repair master data script loading
 
-on:
-  push:
-    branches: [main]
+on: [push]
 
 permissions:
   contents: write
 
 jobs:
   repair:
-    if: github.event.head_commit.message != 'fix: load master data tree script directly'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -26,8 +23,7 @@ jobs:
           if direct not in s:
               if marker not in s:
                   raise SystemExit('Excel script marker not found')
-              s = s.replace(marker, marker + direct, 1)
-              p.write_text(s, encoding='utf-8')
+              p.write_text(s.replace(marker, marker + direct, 1), encoding='utf-8')
           PY
 
       - name: Run focused contract test
