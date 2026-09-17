@@ -30,7 +30,7 @@ jobs:
       - name: Run tests
         run: |
           pip install -r requirements.txt
-          pytest -q
+          python -m pytest -q
       - name: Commit fix and remove temporary workflow
         run: |
           rm .github/workflows/_fix_master_data_refresh.yml
