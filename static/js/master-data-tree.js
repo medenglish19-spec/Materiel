@@ -6,79 +6,17 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    .mdx .layout{direction:ltr;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:12px;align-items:stretch}
-    .mdx .tree-card,.mdx .editor{direction:rtl}
-    .mdx .tree-card{background:#fbfcfe;border-color:#dbe3ec;box-shadow:0 8px 24px rgba(15,23,42,.06);padding:14px;min-width:0}
-    .mdx .editor{background:#fff;border-color:#dbe3ec;box-shadow:0 8px 28px rgba(15,23,42,.07);min-width:0}
-    .mdx .tree-head{padding:5px 4px 13px;border-bottom:1px solid #dfe6ee;color:#172b4d}
-    .mdx .tree-head strong{font-size:14px;letter-spacing:-.1px}
-    .mdx .tree-head .muted{font-size:11px;background:#eef3f8;color:#53657d;padding:4px 8px;border-radius:999px}
-    .mdx .tree-search{margin:12px 0 13px;background:#fff;border-color:#cfd9e5;box-shadow:0 1px 2px rgba(15,23,42,.03);height:40px;color:#1e293b}
-    .mdx .tree-search::placeholder{color:#8a98aa}
-    .mdx .tree-search:focus{outline:none;border-color:#5b8db8;box-shadow:0 0 0 3px rgba(91,141,184,.12)}
-    #tree .tree-context{margin-right:6px;color:#64748b;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #tree .tree-node[data-model-row]{min-height:38px}
-    #tree .tree-node[data-model-row] .tree-toggle{font-size:14px}
     #tree .master-hierarchy-group{margin-bottom:3px}
     #tree .master-hierarchy-group>.children{padding-right:20px}
     #tree .master-category-types-label,#tree .master-type-models-label{font-weight:800;color:#475569}
     #tree .master-category-types-section>.children,#tree .master-type-models-section>.children{display:block}
     #tree .master-uncategorized{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-unassigned-models{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
-    #tree .master-reference-group{margin-top:6px}
-    #tree .master-reference-label{font-size:11px;color:#94a3b8;font-weight:800;padding:5px 8px}
     #tree .master-inline-add{margin:4px 0 4px}
     #tree .master-inline-add-type{margin:4px 0 6px;font-size:12px}
-    #tree .master-tree-action{font-size:12px;line-height:1.2}
-    .mdx #tree{font-size:13px;color:#25364d}
-    .mdx #tree .tree-node{min-height:36px;padding:7px 8px;gap:7px;color:#26384e;font-weight:600;transition:background .12s ease,border-color .12s ease,color .12s ease}
-    .mdx #tree .tree-node:hover{background:#edf4fa;color:#173b63}
-    .mdx #tree .tree-node.active{background:#e7f0f8;color:#173b63;box-shadow:inset -3px 0 0 #3f729f;font-weight:800}
-    .mdx #tree .tree-toggle{color:#64748b;font-weight:800}
-    .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;align-items:center;flex-shrink:0;white-space:nowrap;gap:3px}
-    .mdx #tree .tree-node:hover .tree-actions,.mdx #tree .tree-node.active .tree-actions{opacity:1}
-    .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
-    .mdx #tree .tree-add:hover,.mdx #tree .tree-more:hover,.mdx #tree .tree-action:hover{background:#dbeafe}
-    .mdx #tree .tree-more[data-tree-delete]{color:#a33b3b}
-    .mdx #tree .tree-actions [data-tree-delete]{color:#a33b3b}
-    .mdx #tree .tree-actions [data-tree-edit]{color:#315f88}
-    .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
-    .mdx #tree>.master-reference-block{padding:7px 0 12px;margin-bottom:9px;border-bottom:1px solid #dfe6ee}
-    .mdx .master-reference-heading{color:#66778c;font-size:11px;letter-spacing:.15px;padding:5px 8px;text-transform:none}
-    .mdx .editor-head{padding:18px 22px 16px;background:linear-gradient(to bottom,#fff,#fbfcfe);border-bottom:1px solid #dfe6ee}
-    .mdx .editor-head small{display:block;color:#728197;font-size:11px;margin-bottom:5px}
-    .mdx .editor-head h2{font-size:21px;letter-spacing:-.25px;color:#173b63}
-    .mdx .body{padding:20px 22px;background:#fbfcfe;min-height:640px}
-    .mdx .panel.active{animation:mdxPanelIn .14s ease-out}
-    .mdx .box{background:#fff;border-color:#dfe6ee;border-radius:12px;box-shadow:0 2px 8px rgba(15,23,42,.035)}
-    .mdx .box-head{background:#f7f9fb;padding:11px 14px;border-bottom-color:#dfe6ee}
-    .mdx .box-head h3{color:#203c5c;font-size:14px}
-    .mdx .box-body{padding:15px}
-    .mdx .field{color:#33465d}
-    .mdx .field input,.mdx .field select,.mdx .ref-form input,.mdx .ref-form select,.mdx .tbl input,.mdx .tbl select{background:#fff;color:#26384e;border-color:#ccd7e3}
-    .mdx .field input:focus,.mdx .field select:focus,.mdx .ref-form input:focus,.mdx .ref-form select:focus,.mdx .tbl input:focus,.mdx .tbl select:focus{outline:none;border-color:#5b8db8;box-shadow:0 0 0 3px rgba(91,141,184,.1)}
-    .mdx .check{color:#33465d;background:#f8fafc;border-color:#dfe6ee}
-    .mdx .tbl th{background:#f5f7fa;color:#5b6b80;font-weight:800}
-    .mdx .tbl td{color:#33465d}
-    .mdx .muted{color:#68788d}
-    .mdx .empty{min-height:520px;background:#fff;border:1px dashed #d4dee9;border-radius:12px;color:#64748b;padding:30px}
-    .mdx .soft{background:#edf3f8;color:#234f75;border:1px solid #d6e2ec}
-    .mdx .primary{background:#234f75;color:#fff;box-shadow:0 2px 5px rgba(35,79,117,.16)}
-    .mdx .danger{border:1px solid #fecaca}
-    .mdx .model-workspace-nav{position:sticky;top:10px;z-index:5;display:flex;gap:6px;align-items:center;overflow:auto;padding:7px;margin:0 0 14px;background:rgba(255,255,255,.96);border:1px solid #dfe6ee;border-radius:11px;box-shadow:0 4px 14px rgba(15,23,42,.05);scrollbar-width:thin}
-    .mdx .model-workspace-nav:before{content:'أقسام الطراز';font-size:11px;font-weight:800;color:#718096;padding:0 7px;white-space:nowrap;border-left:1px solid #e2e8f0}
-    .mdx .model-workspace-tab{border:1px solid transparent;background:transparent;color:#52657b;border-radius:8px;padding:8px 11px;white-space:nowrap;font:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .12s ease}
-    .mdx .model-workspace-tab:hover{background:#edf4fa;color:#234f75}
-    .mdx .model-workspace-tab.active{background:#e7f0f8;color:#173b63;border-color:#cbdbea;box-shadow:0 1px 2px rgba(15,23,42,.04)}
-    .mdx .model-workspace-tab .tab-icon{margin-left:5px}
-    .mdx .model-workspace-box{scroll-margin-top:78px}
-    .mdx .model-workspace-box.workspace-focus{outline:2px solid #b7d0e6;outline-offset:2px}
-    .mdx .model-workspace-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 13px;background:#f5f8fb;border:1px solid #dfe7ef;border-radius:10px;color:#53657a;font-size:12px}
-    .mdx .model-workspace-summary strong{color:#234f75;font-size:13px}
-    @keyframes mdxPanelIn{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
-    @media(max-width:640px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
-    @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
-    .master-context-menu{position:fixed;z-index:99999;min-width:180px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384e;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}
+    .master-context-menu{position:fixed;z-index:99999;min-width:180px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}
+    .master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384e;cursor:pointer}
+    .master-context-menu button:hover{background:#edf4fa;color:#173b63}
   `;
   document.head.appendChild(style);
 
@@ -252,38 +190,6 @@
   } else {
     buildRealHierarchy();
   }
-  const setupHierarchyActions = () => {
-    const appendAction = (node, action, id, label, icon) => {
-      if (!node || node.querySelector(`[data-tree-${action}]`)) return;
-      let actions = node.querySelector(':scope > .tree-actions');
-      if (!actions) {
-        actions = document.createElement('span');
-        actions.className = 'tree-actions';
-        node.appendChild(actions);
-      }
-      const button = document.createElement('span');
-      button.className = 'tree-more master-tree-action';
-      button.dataset[`tree${action.charAt(0).toUpperCase()}${action.slice(1)}`] = String(id);
-      button.title = label;
-      button.setAttribute('role', 'button');
-      button.setAttribute('tabindex', '0');
-      button.textContent = icon;
-      actions.appendChild(button);
-    };
-    tree.querySelectorAll('[data-ref-item="category"]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.id, 'تعديل الفئة', '✏');
-      appendAction(node, 'delete', node.dataset.id, 'حذف الفئة', '🗑');
-    });
-    tree.querySelectorAll('[data-ref-item="type"]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.id, 'تعديل نوع العتاد', '✏');
-      appendAction(node, 'delete', node.dataset.id, 'حذف نوع العتاد', '🗑');
-    });
-    tree.querySelectorAll('[data-model-row]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.modelRow, 'تعديل الطراز', '✏');
-    });
-  };
-  setupHierarchyActions();
-
   const setupModelWorkspace = () => {
     const panel = document.getElementById('modelPanel');
     if (!panel || panel.dataset.workspaceReady === '1') return;
@@ -472,34 +378,22 @@
 
   tree.addEventListener('click', (event) => {
     const addForType = event.target.closest('[data-new-model-for-type]');
-    if (addForType && tree.contains(addForType)) { event.preventDefault(); event.stopPropagation(); openModelCreate(addForType.dataset.newModelForType); return; }
+    if (addForType && tree.contains(addForType)) {
+      event.preventDefault(); event.stopPropagation();
+      openModelCreate(addForType.dataset.newModelForType); return;
+    }
     const addForCategory = event.target.closest('[data-new-type-for-category]');
-    if (addForCategory && tree.contains(addForCategory)) { event.preventDefault(); event.stopPropagation(); openTypeCreate(addForCategory.dataset.newTypeForCategory); return; }
+    if (addForCategory && tree.contains(addForCategory)) {
+      event.preventDefault(); event.stopPropagation();
+      openTypeCreate(addForCategory.dataset.newTypeForCategory); return;
+    }
     const add = event.target.closest('[data-add],[data-new-ref]');
     if (add && tree.contains(add)) {
-      event.preventDefault();
-      event.stopPropagation();
+      event.preventDefault(); event.stopPropagation();
       const kind = add.dataset.add || add.dataset.newRef;
       if (kind === 'model') openModelCreate();
       else if (kind) refPanel(kind);
-      return;
     }
-    const edit = event.target.closest('[data-tree-edit]');
-    if (edit && tree.contains(edit)) { event.preventDefault(); event.stopPropagation(); const key = edit.dataset.treeEdit; const node = edit.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) editHierarchyItem(kind, key); return; }
-    const hierarchyDelete = event.target.closest('[data-tree-delete]');
-    if (hierarchyDelete && tree.contains(hierarchyDelete)) { event.preventDefault(); event.stopPropagation(); const key = hierarchyDelete.dataset.treeDelete; const node = hierarchyDelete.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) deleteHierarchyItem(kind, key); return; }
-    const modelEdit = event.target.closest('[data-tree-edit]');
-    if (modelEdit && tree.contains(modelEdit)) {
-      event.preventDefault();
-      event.stopPropagation();
-      if (typeof editModel === 'function') {
-        editModel(modelEdit.dataset.treeEdit);
-      }
-      return;
-    }
-    const del = event.target.closest('[data-delete]');
-
-    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); return; }
   }, true);
 
   tree.addEventListener('click', (event) => {
