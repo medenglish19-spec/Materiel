@@ -156,8 +156,6 @@
     });
     if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
 
-    typeNodes.forEach((node) => node.remove());
-    modelGroups.forEach((group) => group.remove());
 
     function appendType(typeNode, parent, modelMap) {
       const typeId = String(typeNode.dataset.id || '');
