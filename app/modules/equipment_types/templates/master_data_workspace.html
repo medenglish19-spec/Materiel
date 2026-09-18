@@ -91,9 +91,9 @@
 {% set tree_data = tire_master_data %}
 <script>
 window.MATERIEL_MASTER_DATA = {{ tire_master_data|tojson }};
-window.MATERIEL_CATEGORIES = {{ categories|map(attribute='__dict__')|list|tojson }};
-window.MATERIEL_TYPES = {{ types|map(attribute='__dict__')|list|tojson }};
-window.MATERIEL_BRANDS = {{ brands|map(attribute='__dict__')|list|tojson }};
+window.MATERIEL_CATEGORIES = [{% for c in categories %}{"id":{{ c.id }},"name":{{ c.name|tojson }},"code":{{ (c.code or '')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
+window.MATERIEL_TYPES = [{% for t in types %}{"id":{{ t.id }},"name":{{ t.name|tojson }},"category_id":{{ t.category_id if t.category_id is not none else 'null' }},"measurement_unit":{{ (t.measurement_unit or '')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}];
+window.MATERIEL_BRANDS = [{% for b in brands %}{"id":{{ b.id }},"name":{{ b.name|tojson }},"is_active":{{ 'true' if b.is_active else 'false' }}}{% if not loop.last %},{% endif %}{% endfor %}];
 window.MATERIEL_SPEC_DEFS = {{ spec_definitions|tojson }};
 </script>
 {% endblock %}
