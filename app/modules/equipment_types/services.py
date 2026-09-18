@@ -53,6 +53,14 @@ def update_brand(db:Session,obj:EquipmentBrand,data:EquipmentBrandUpdate)->Equip
     if not name: raise ValueError("اسم العلامة التجارية مطلوب")
     if db.query(EquipmentBrand).filter(EquipmentBrand.id!=obj.id,EquipmentBrand.name==name).first(): raise ValueError("العلامة التجارية موجودة مسبقًا")
     obj.name=name;db.commit();db.refresh(obj);return obj
+def delete_brand(db:Session,obj:EquipmentBrand)->None:
+    from app.modules.equipment.models import Equipment
+    if db.query(EquipmentModel.id).filter(EquipmentModel.brand_id==obj.id).first():
+        raise ValueError("لا يمكن حذف علامة تجارية مرتبطة بطرازات؛ غيّر العلامة التجارية للطرازات أولًا")
+    if db.query(Equipment.id).filter(Equipment.brand_id==obj.id).first():
+        raise ValueError("لا يمكن حذف علامة تجارية مرتبطة بعتاد فعلي")
+    db.delete(obj);db.commit()
+
 def set_brand_active(db:Session,obj:EquipmentBrand,active:bool)->EquipmentBrand:
     obj.is_active=active;db.commit();db.refresh(obj);return obj
 
