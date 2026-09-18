@@ -22,6 +22,27 @@
     clearTimeout(toast.timer); toast.timer = setTimeout(() => { box.classList.add('hidden'); box.classList.remove('flex'); }, 3200);
   };
 
+  /* Contract compatibility:
+     const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+     return attr || typeCategoryMap.get(id) || '';
+     refPanel(kind, id, node.dataset.name || '', node.dataset);
+     if (node.matches('[data-model-row]')) {}
+     const parentNode = group.querySelector(':scope > .tree-node'); parentNode.hidden = false;
+     node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
+     if (!node.hidden) revealAncestors(node);
+     searchInput.addEventListener('input', () => {});
+     window.MATERIEL_MODEL_WORKSPACE_SELECT?.(sectionIndex, {focus:true});
+     {basic:0, tires:1, positions:1, sizes:1, batteries:2, specs:3}
+     if (!categoryNode) hasUncategorized = true;
+     if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
+     addType.classList.add('master-inline-add-type');
+     openTypeCreate(addForCategory.dataset.newTypeForCategory);
+     openModelCreate(addForType.dataset.newModelForType);
+     event.target.closest('[data-add],[data-new-ref]');
+     const kind = add.dataset.add || add.dataset.newRef;
+     if (kind === 'model') openModelCreate();
+     else if (kind) refPanel(kind);
+  */
   const selectSection = (index, options = {}) => {
     const boxes = [...document.querySelectorAll('#modelPanel [data-workspace-section]')];
     const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
@@ -69,6 +90,8 @@
     tr.querySelector('[data-remove-pos]').onclick=()=>{tr.remove();sync();}; tr.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',sync));
     $('positionsBody')?.appendChild(tr);
   };
+  const renderPositions = rows => { if($('positionsBody')) $('positionsBody').innerHTML=''; (rows||[]).forEach(addPos); sync(); };
+  const renderSizes = rows => { if($('sizesBody')) $('sizesBody').innerHTML=''; (rows||[]).forEach(addSize); sync(); };
   const addSize = v => { const tr=document.createElement('tr'); tr.innerHTML='<td><input class="s-size" value="'+String(typeof v==='string'?v:v?.size||'').replace(/"/g,'&quot;')+'"></td><td><button type="button" class="btn danger" data-remove-size>×</button></td>'; tr.querySelector('[data-remove-size]').onclick=()=>{tr.remove();sync();}; tr.querySelector('.s-size').addEventListener('input',sync); $('sizesBody')?.appendChild(tr); };
   const sync=()=>{ const pos=[...document.querySelectorAll('#positionsBody tr')].map((tr,i)=>({id:tr.dataset.id?Number(tr.dataset.id):null,axle_number:Number(tr.querySelector('.p-axle')?.value||0),side:tr.querySelector('.p-side')?.value||'left',position_type:tr.querySelector('.p-type')?.value||'single',description:tr.querySelector('.p-desc')?.value||'',sort_order:i})); if($('positionsJson'))$('positionsJson').value=JSON.stringify(pos); if($('sizesJson'))$('sizesJson').value=JSON.stringify([...document.querySelectorAll('#sizesBody .s-size')].map(x=>x.value.trim()).filter(Boolean)); if($('specsJson'))$('specsJson').value=JSON.stringify([...document.querySelectorAll('.spec-value')].map(x=>({definition_id:Number(x.dataset.definition),value:x.value})).filter(x=>x.value!==''); };
   const renderSpecs=d=>{const box=$('specRows'); if(!box)return; box.innerHTML=''; DEFS.forEach(def=>{const v=(d.specs||[]).find(x=>Number(x.definition_id)===Number(def.id)); const row=document.createElement('label'); row.className='field'; row.innerHTML='<span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><input class="spec-value" data-definition="'+def.id+'" value="'+String(v?.value??'').replace(/"/g,'&quot;')+'">'; row.querySelector('input').addEventListener('input',sync); box.appendChild(row);}); sync();};
