@@ -5,6 +5,7 @@
 
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
+  const toast = (message) => { const box=$('tree-toast'), msg=$('toast-message'); if(!box||!msg)return; msg.textContent=message; box.hidden=false; box.classList.remove('hidden'); window.clearTimeout(window.__materielTreeToast); window.__materielTreeToast=window.setTimeout(()=>{box.hidden=true;box.classList.add('hidden');},2600); };
   const selectNode = (node) => {
     tree.querySelectorAll('.tree-node.active').forEach((item) => item.classList.remove('active'));
     node?.classList.add('active');
