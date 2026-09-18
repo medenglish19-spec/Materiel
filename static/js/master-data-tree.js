@@ -1,157 +1,130 @@
 (() => {
   'use strict';
-  const tree = document.getElementById('tree');
+  const tree = document.getElementById('equipment-tree-container');
   if (!tree) return;
-
-  const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
-  const $ = (id) => document.getElementById(id);
-  const selectNode = (node) => {
-    tree.querySelectorAll('.tree-node.active').forEach((item) => item.classList.remove('active'));
-    node?.classList.add('active');
-  };
-  const syncArrows = () => tree.querySelectorAll('.tree-group > .tree-node > .tree-toggle').forEach((toggle) => {
-    toggle.textContent = toggle.closest('.tree-group')?.classList.contains('open') ? '⌄' : '›';
-  });
-  const selectSection = (index, options = {}) => {
-    const boxes = [...document.querySelectorAll('#modelPanel [data-workspace-section]')];
-    const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
-    if (!boxes.length) return;
-    const safe = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
-    boxes.forEach((box, i) => { box.hidden = i !== safe; box.setAttribute('aria-hidden', i === safe ? 'false' : 'true'); });
-    tabs.forEach((tab, i) => { const active = i === safe; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
-    if (options.focus) boxes[safe]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  };
-  window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
-
-  const openTypeCreate = (categoryId) => {
-    if (typeof refPanel !== 'function') return;
-    refPanel('type', null, '', { categoryId: String(categoryId || '') });
-    const input = document.querySelector('#refBody form [name="category_id"]');
-    if (input) input.value = String(categoryId || '');
-  };
-  const openModelCreate = (typeId) => {
-    if (typeof resetModel === 'function') resetModel();
-    const select = $('modelType');
-    const option = select && typeId ? select.querySelector(`option[value="${CSS.escape(String(typeId))}"]`) : null;
-    if (select && option) {
-      select.value = String(typeId);
-      if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
-    }
-    if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
-    if (typeof show === 'function') show($('modelPanel'));
-    selectSection(0);
-  };
-  const editReference = (node) => {
-    if (typeof refPanel !== 'function') return;
-    refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
-    selectNode(node);
-  };
-  const copyModel = (id) => {
-    if (typeof editModel !== 'function') return;
-    editModel(id);
-    if ($('modelName')) $('modelName').value += ' - نسخة';
-    if ($('modelId')) $('modelId').value = '';
-    if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
-  };
-  const postDelete = (url, message) => {
-    if (!confirm(message)) return;
-    const form = document.createElement('form');
-    form.method = 'post'; form.action = url; form.hidden = true;
-    document.body.appendChild(form); form.submit();
-  };
-
-  const menu = document.createElement('div');
-  menu.className = 'master-context-menu'; menu.hidden = true; menu.dir = 'rtl';
-  document.body.appendChild(menu);
-  const closeMenu = () => { menu.hidden = true; menu.replaceChildren(); };
-  const showMenu = (node, x, y) => {
-    const model = node.closest('[data-model-row]');
-    const ref = node.closest('[data-ref-item]');
-    const actions = [];
-    if (model) {
-      const id = model.dataset.modelRow;
-      actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
-      actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
-      actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
-      actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
-    } else if (ref) {
-      const id = ref.dataset.id; const kind = ref.dataset.refItem;
-      const labels = { category: 'الفئة', type: 'نوع العتاد', brand: 'العلامة التجارية', spec: 'الخاصية' };
-      if (!id || !labels[kind]) return;
-      actions.push([`✏️ تعديل ${labels[kind]}`, () => editReference(ref)]);
-      const routes = { category: `/equipment-types/categories/${id}/delete`, type: `/equipment-types/${id}/delete`, brand: `/equipment-types/brands/${id}/delete` };
-      if (routes[kind]) actions.push([`🗑 حذف ${labels[kind]}`, () => postDelete(routes[kind], `حذف ${labels[kind]}؟`)]);
-    } else return;
-    menu.replaceChildren();
-    actions.forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => { closeMenu(); action(); }; menu.appendChild(button); });
-    menu.hidden = false;
-    const rect = menu.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
-    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
-  };
-
-  const buildHierarchy = () => {
-    const root = (name) => tree.querySelector(`[data-ref="${name}"]`)?.closest('.tree-group');
-    const categoryRoot = root('categories'); const typeRoot = root('types'); const modelRoot = root('models');
-    const categoryChildren = categoryRoot?.querySelector(':scope > .children');
-    const typeChildren = typeRoot?.querySelector(':scope > .children');
-    const modelChildren = modelRoot?.querySelector(':scope > .children');
-    if (!categoryChildren || !typeChildren || !modelChildren) return;
-    const categories = [...categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]')];
-    const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
-    const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
-    const byCategory = new Map();
-    types.forEach((node) => { const key = String(node.dataset.categoryId || node.dataset.category || ''); if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(node); });
-    const byType = new Map();
-    models.forEach((group) => { const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || ''); if (!byType.has(key)) byType.set(key, []); byType.get(key).push(group); });
-    const add = (text, data) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-node master-inline-add'; button.textContent = text; Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; }); return button; };
-    const appendType = (node, parent) => {
-      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-type-group open'; group.dataset.typeId = id;
-      node.innerHTML = `<span class="tree-toggle">⌄</span><span>🗂 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="${id}" title="إضافة طراز">＋</span></span>`;
-      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة طراز', { newRef: 'model', newModelForType: id })); (byType.get(id) || []).forEach((model) => children.appendChild(model)); group.append(node, children); parent.appendChild(group);
-    };
-    categories.forEach((node) => {
-      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-category-group open';
-      node.innerHTML = `<span class="tree-toggle">⌄</span><span>📁 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="type" data-new-type-for-category="${id}" title="إضافة نوع">＋</span></span>`;
-      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type', newTypeForCategory: id })); (byCategory.get(id) || []).forEach((type) => appendType(type, children)); group.append(node, children); node.replaceWith(group);
-    });
-    const orphan = document.createElement('div'); orphan.className = 'tree-group master-uncategorized open'; const orphanChildren = document.createElement('div'); orphanChildren.className = 'children'; orphan.append(add('🗂 أنواع عتاد غير مصنّفة', { ref: 'uncategorized' }), orphanChildren); orphanChildren.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type' })); (byCategory.get('') || []).forEach((type) => appendType(type, orphanChildren)); categoryChildren.appendChild(orphan);
-    types.forEach((node) => node.remove()); models.forEach((group) => group.remove());
-  };
-
-  const revealAncestors = (node) => { let group = node.closest('.tree-group'); while (group) { group.classList.add('open'); group.querySelector(':scope > .tree-node')?.removeAttribute('hidden'); group = group.parentElement?.closest('.tree-group'); } };
-  const search = $('treeSearch');
-  search?.addEventListener('input', () => { const q = search.value.trim().toLocaleLowerCase(); const nodes = [...tree.querySelectorAll('.tree-node')]; nodes.forEach((node) => { node.hidden = !!q && !node.textContent.toLocaleLowerCase().includes(q); }); if (q) nodes.filter((node) => !node.hidden).forEach(revealAncestors); syncArrows(); });
-
-  tree.addEventListener('contextmenu', (event) => { const node = event.target.closest('[data-model-row],[data-ref-item]'); if (!node) return; event.preventDefault(); showMenu(node, event.clientX, event.clientY); });
-  let timer; let pressTarget; let sx; let sy;
-  const cancelPress = () => { clearTimeout(timer); timer = null; pressTarget = null; };
-  tree.addEventListener('pointerdown', (event) => { if (event.pointerType !== 'touch') return; const node = event.target.closest('[data-model-row],[data-ref-item]'); if (!node) return; cancelPress(); pressTarget = node; sx = event.clientX; sy = event.clientY; timer = setTimeout(() => { showMenu(pressTarget, sx, sy); cancelPress(); }, 650); });
-  tree.addEventListener('pointermove', (event) => { if (timer && (Math.abs(event.clientX - sx) > 10 || Math.abs(event.clientY - sy) > 10)) cancelPress(); });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => tree.addEventListener(type, cancelPress));
-
+  const DATA = window.MATERIEL_MASTER_DATA || {};
+  const CATEGORIES = window.MATERIEL_CATEGORIES || [];
+  const TYPES = window.MATERIEL_TYPES || [];
+  const BRANDS = window.MATERIEL_BRANDS || [];
+  const DEFS = window.MATERIEL_SPEC_DEFS || [];
+  const $ = id => document.getElementById(id);
+  let currentModel = null;
   let dragged = null;
-  tree.addEventListener('dragstart', (event) => { const row = event.target.closest('[data-model-row]'); if (!row) return; dragged = row; row.classList.add('dragging'); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', row.dataset.modelRow); });
-  tree.addEventListener('dragend', () => { dragged?.classList.remove('dragging'); dragged = null; });
-  tree.addEventListener('dragover', (event) => { const target = event.target.closest('[data-type-id]'); if (dragged && target) { event.preventDefault(); target.classList.add('drop-target'); } });
-  tree.addEventListener('dragleave', (event) => event.target.closest('[data-type-id]')?.classList.remove('drop-target'));
-  tree.addEventListener('drop', (event) => { const target = event.target.closest('[data-type-id]'); if (!dragged || !target) return; event.preventDefault(); target.classList.remove('drop-target'); const id = dragged.dataset.modelRow; const typeId = target.dataset.typeId; if (typeof editModel === 'function') editModel(id); const select = $('modelType'); if (select) select.value = typeId; selectSection(0, { focus: true }); });
+  let dragOrigin = null;
 
-  tree.addEventListener('click', (event) => {
-    const action = event.target.closest('[data-add],[data-new-ref]');
-    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof refPanel === 'function') refPanel(kind); return; }
-    const position = event.target.closest('[data-tree-add]');
-    if (position) { event.preventDefault(); event.stopPropagation(); const model = event.target.closest('[data-model]'); if (model && typeof editModel === 'function') { editModel(model.dataset.model, position.dataset.treeAdd === 'position' ? 'positions' : 'sizes'); position.dataset.treeAdd === 'position' ? window.addPos?.() : window.addSize?.(); } return; }
-    const toggle = event.target.closest('.tree-toggle');
-    if (toggle) { event.preventDefault(); event.stopPropagation(); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
-    const row = event.target.closest('[data-model-row]'); if (row) { selectNode(row); window.viewModel?.(row.dataset.modelRow); return; }
-    const model = event.target.closest('[data-model]'); if (model) { selectNode(model); window.viewModel?.(model.dataset.model); selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true }); return; }
-    const ref = event.target.closest('[data-ref-item]'); if (ref) { editReference(ref); return; }
-    const node = event.target.closest('.tree-node'); if (node) selectNode(node);
-  }, true);
+  const toast = (message, undo) => {
+    const box = $('tree-toast'), msg = $('toast-message'), undoBtn = $('toast-undo-btn');
+    if (!box || !msg) return;
+    msg.textContent = message;
+    if (undo && undoBtn) { undoBtn.hidden = false; undoBtn.onclick = () => { undo(); box.classList.add('hidden'); }; }
+    else if (undoBtn) { undoBtn.hidden = true; undoBtn.onclick = null; }
+    box.classList.remove('hidden'); box.classList.add('flex');
+    clearTimeout(toast.timer); toast.timer = setTimeout(() => { box.classList.add('hidden'); box.classList.remove('flex'); }, 3200);
+  };
 
-  const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 11px;border-radius:7px;font:inherit;font-weight:700;color:#26384a;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #1976d2;background:#edf6ff}@media(max-width:900px){.mdx .layout{grid-template-columns:1fr}.mdx{padding:10px}}@media(max-width:640px){.mdx .tree-node{min-height:42px;padding:10px 12px;font-size:14px}.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style);
-  buildHierarchy();
-  tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = true; });
-  syncArrows(); selectSection(0);
+  const selectNode = node => {
+    tree.querySelectorAll('.tree-node.active').forEach(x => x.classList.remove('active'));
+    node?.classList.add('active');
+    const label = node?.dataset.name || node?.textContent?.trim();
+    if (label && $('current-active-node-name')) $('current-active-node-name').textContent = label;
+  };
+
+  const showPanel = panel => {
+    ['refPanel','modelViewPanel','modelPanel'].forEach(id => $(id)?.classList.add('hidden'));
+    $('empty')?.classList.add('hidden');
+    panel?.classList.remove('hidden');
+  };
+
+  const setTitle = (title, crumb='مركز البيانات الأساسية') => {
+    if ($('title')) $('title').textContent = title;
+    if ($('crumb')) $('crumb').textContent = crumb;
+  };
+
+  window.viewModel = id => {
+    const d = DATA[String(id)] || DATA[id] || {};
+    currentModel = Number(id);
+    setTitle(d.name || 'عرض الطراز', 'الطراز');
+    const map = {viewModelName:d.name||'—',viewModelCategory:CATEGORIES.find(x=>Number(x.id)===Number(d.category_id))?.name||'—',viewModelType:TYPES.find(x=>Number(x.id)===Number(d.equipment_type_id))?.name||'—',viewModelBrand:BRANDS.find(x=>Number(x.id)===Number(d.brand_id))?.name||'—',viewHasTires:d.has_tires?'نعم':'لا',viewTirePositions:d.tire_positions_required ?? '—',viewAxleCount:d.axle_count ?? '—',viewTireSize:d.tire_size||'—',viewHasBatteries:d.has_batteries?'نعم':'لا',viewBatteryCount:d.battery_count_required ?? '—',viewBatteryCapacity:d.battery_capacity_ah ?? '—'};
+    Object.entries(map).forEach(([id,v]) => { if ($(id)) $(id).textContent = v; });
+    if ($('viewPositionsBody')) $('viewPositionsBody').innerHTML=(d.positions||[]).map(x=>'<tr><td>'+ (x.axle_number??'—') +'</td><td>'+ (x.side==='right'?'يمين':'يسار') +'</td><td>'+({single:'مفرد',inner:'داخلي',outer:'خارجي'}[x.position_type||x.type]||'—')+'</td><td>'+(x.description||'—')+'</td></tr>').join('')||'<tr><td colspan="4">لا توجد بيانات</td></tr>';
+    if ($('viewSizesBody')) $('viewSizesBody').innerHTML=(d.sizes||[]).map(x=>'<tr><td>'+(typeof x==='string'?x:x.size||'—')+'</td></tr>').join('')||'<tr><td>لا توجد مقاسات</td></tr>';
+    if ($('viewSpecRows')) $('viewSpecRows').innerHTML=(d.specs||[]).map(x=>{const def=DEFS.find(y=>Number(y.id)===Number(x.definition_id));return def?'<div class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><strong>'+(x.value??'—')+'</strong></div>':''}).join('')||'<div class="field"><span>لا توجد خصائص</span></div>';
+    showPanel($('modelViewPanel'));
+  };
+
+  const addPos = (x={}) => {
+    const tr=document.createElement('tr'); tr.dataset.id=x.id||'';
+    tr.innerHTML='<td><input class="p-axle" type="number" min="1" value="'+(x.axle_number||'')+'"></td><td><select class="p-side"><option value="right">يمين</option><option value="left">يسار</option></select></td><td><select class="p-type"><option value="single">مفرد</option><option value="inner">داخلي</option><option value="outer">خارجي</option></select></td><td><input class="p-desc" value="'+String(x.description||'').replace(/"/g,'&quot;')+'"></td><td><button type="button" class="btn danger" data-remove-pos>×</button></td>';
+    if(x.side)tr.querySelector('.p-side').value=x.side; if(x.position_type||x.type)tr.querySelector('.p-type').value=x.position_type||x.type;
+    tr.querySelector('[data-remove-pos]').onclick=()=>{tr.remove();sync();}; tr.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',sync));
+    $('positionsBody')?.appendChild(tr);
+  };
+  const addSize = v => { const tr=document.createElement('tr'); tr.innerHTML='<td><input class="s-size" value="'+String(typeof v==='string'?v:v?.size||'').replace(/"/g,'&quot;')+'"></td><td><button type="button" class="btn danger" data-remove-size>×</button></td>'; tr.querySelector('[data-remove-size]').onclick=()=>{tr.remove();sync();}; tr.querySelector('.s-size').addEventListener('input',sync); $('sizesBody')?.appendChild(tr); };
+  const sync=()=>{ const pos=[...document.querySelectorAll('#positionsBody tr')].map((tr,i)=>({id:tr.dataset.id?Number(tr.dataset.id):null,axle_number:Number(tr.querySelector('.p-axle')?.value||0),side:tr.querySelector('.p-side')?.value||'left',position_type:tr.querySelector('.p-type')?.value||'single',description:tr.querySelector('.p-desc')?.value||'',sort_order:i})); if($('positionsJson'))$('positionsJson').value=JSON.stringify(pos); if($('sizesJson'))$('sizesJson').value=JSON.stringify([...document.querySelectorAll('#sizesBody .s-size')].map(x=>x.value.trim()).filter(Boolean)); if($('specsJson'))$('specsJson').value=JSON.stringify([...document.querySelectorAll('.spec-value')].map(x=>({definition_id:Number(x.dataset.definition),value:x.value})).filter(x=>x.value!==''); };
+  const renderSpecs=d=>{const box=$('specRows'); if(!box)return; box.innerHTML=''; DEFS.forEach(def=>{const v=(d.specs||[]).find(x=>Number(x.definition_id)===Number(def.id)); const row=document.createElement('label'); row.className='field'; row.innerHTML='<span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><input class="spec-value" data-definition="'+def.id+'" value="'+String(v?.value??'').replace(/"/g,'&quot;')+'">'; row.querySelector('input').addEventListener('input',sync); box.appendChild(row);}); sync();};
+
+  window.editModel=id=>{
+    const d=DATA[String(id)]||DATA[id]||{}; currentModel=Number(id);
+    if($('modelForm'))$('modelForm').action='/equipment-types/models/'+id+'/update';
+    if($('modelId'))$('modelId').value=id;
+    [['modelName',d.name||''],['modelCategory',d.category_id??''],['modelType',d.equipment_type_id??''],['modelBrand',d.brand_id??''],['mobility',d.mobility_type||'mobile'],['tirePositionsRequired',d.tire_positions_required??0],['axleCount',d.axle_count??''],['tireSize',d.tire_size||''],['batteryCountRequired',d.battery_count_required??0],['batteryCapacityAh',d.battery_capacity_ah??''],['batteryVoltageV',d.battery_voltage_v??'']].forEach(([id,v])=>{if($(id))$(id).value=v;});
+    if($('requiresDriver'))$('requiresDriver').checked=!!d.requires_driver; if($('hasTires'))$('hasTires').checked=!!d.has_tires; if($('hasBatteries'))$('hasBatteries').checked=!!d.has_batteries;
+    if($('positionsBody')){$('positionsBody').innerHTML='';(d.positions||[]).forEach(addPos);} if($('sizesBody')){$('sizesBody').innerHTML='';(d.sizes||[]).forEach(addSize);} renderSpecs(d); setTitle(d.name||'تعديل الطراز','الطراز'); showPanel($('modelPanel')); sync();
+  };
+
+  const openNewModel=()=>{ $('modelForm')?.reset(); if($('modelId'))$('modelId').value=''; if($('positionsBody'))$('positionsBody').innerHTML=''; if($('sizesBody'))$('sizesBody').innerHTML=''; renderSpecs({}); if($('modelForm'))$('modelForm').action='/equipment-types/models/create'; currentModel=null; setTitle('إضافة طراز','الطرازات'); showPanel($('modelPanel')); };
+
+  const refPanel=(kind,id=null,name='')=>{
+    const labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};
+    if($('refTitle'))$('refTitle').textContent=id?'تعديل '+labels[kind]:(labels[kind]||'إضافة');
+    const body=$('refBody'); if(!body)return;
+    const routes={category:id?'/equipment-types/categories/'+id+'/update':'/equipment-types/categories/create',type:id?'/equipment-types/'+id+'/update':'/equipment-types/create',brand:id?'/equipment-types/brands/'+id+'/update':'/equipment-types/brands/create',spec:'/equipment-types/specs/create'};
+    if(kind==='type')body.innerHTML='<form class="ref-form" method="post" action="'+routes[kind]+'"><label>الاسم<input name="name" required value="'+String(name).replace(/"/g,'&quot;')+'"></label><label>وحدة القياس<select name="unit"><option value="">بدون وحدة</option><option>كم</option><option>م</option><option>لتر</option><option>ساعة</option></select></label><label>الفئة<select name="category_id"><option value="">غير محدد</option>'+CATEGORIES.map(c=>'<option value="'+c.id+'">'+c.name+'</option>').join('')+'</select></label><button type="submit" class="btn primary">حفظ</button></form>';
+    else if(kind==='spec')body.innerHTML='<form class="ref-form" method="post" action="'+routes[kind]+'"><label>الاسم<input name="name" required value="'+String(name).replace(/"/g,'&quot;')+'"></label><label>النوع<select name="data_type"><option value="text">نص</option><option value="number">رقم</option><option value="boolean">نعم/لا</option></select></label><button type="submit" class="btn primary">حفظ</button></form>';
+    else body.innerHTML='<form class="ref-form" method="post" action="'+routes[kind]+'"><label>الاسم<input name="name" required value="'+String(name).replace(/"/g,'&quot;')+'"></label><button type="submit" class="btn primary">حفظ</button></form>';
+    showPanel($('refPanel'));
+  };
+
+  const renderTree=()=>{
+    tree.innerHTML='';
+    const refs=[['brands','🏷','العلامات التجارية'],['specs','⚙','الخصائص']];
+    const addGroup=(ref,icon,label)=>{const g=document.createElement('div');g.className='tree-group open';const n=document.createElement('button');n.type='button';n.className='tree-node';n.dataset.ref=ref;n.dataset.name=label;n.innerHTML='<span class="tree-toggle">⌄</span><span>'+icon+' '+label+'</span><span class="tree-actions"><span class="tree-add" data-add="'+(ref==='brands'?'brand':'spec')+'">＋</span></span>';g.appendChild(n);const ch=document.createElement('div');ch.className='children';(ref==='brands'?BRANDS:DEFS).forEach(x=>{const b=document.createElement('button');b.type='button';b.className='tree-node';b.dataset.refItem=ref==='brands'?'brand':'spec';b.dataset.id=x.id;b.dataset.name=x.name;b.textContent='• '+x.name;ch.appendChild(b);});g.appendChild(ch);tree.appendChild(g);};
+    refs.forEach(x=>addGroup(...x));
+    const catRoot=document.createElement('div'); catRoot.className='tree-section-title';catRoot.textContent='الشجرة الهرمية';tree.appendChild(catRoot);
+    const categories=[...CATEGORIES].sort((a,b)=>String(a.name).localeCompare(String(b.name),'ar'));
+    categories.forEach(cat=>{const g=document.createElement('div');g.className='tree-group open';g.dataset.categoryId=cat.id;const n=document.createElement('button');n.type='button';n.className='tree-node';n.dataset.refItem='category';n.dataset.id=cat.id;n.dataset.name=cat.name;n.innerHTML='<span class="tree-toggle">⌄</span><span>📁 '+cat.name+'</span><span class="tree-actions"><span class="tree-add" data-add="type">＋</span></span>';g.appendChild(n);const ch=document.createElement('div');ch.className='children';TYPES.filter(t=>Number(t.category_id)===Number(cat.id)).forEach(t=>appendType(ch,t));g.appendChild(ch);tree.appendChild(g);});
+    const orphan=TYPES.filter(t=>t.category_id==null);if(orphan.length){const g=document.createElement('div');g.className='tree-group open';const n=document.createElement('button');n.type='button';n.className='tree-node';n.innerHTML='<span class="tree-toggle">⌄</span><span>🗂 أنواع غير مصنفة</span>';g.appendChild(n);const ch=document.createElement('div');ch.className='children';orphan.forEach(t=>appendType(ch,t));g.appendChild(ch);tree.appendChild(g);}
+    const models=Object.values(DATA); if($('tree-total-count'))$('tree-total-count').textContent=models.length;
+    bindTree();
+  };
+  const appendType=(parent,t)=>{
+    const g=document.createElement('div');g.className='tree-group master-type-group open';g.dataset.typeId=t.id;
+    const n=document.createElement('button');n.type='button';n.className='tree-node';n.dataset.refItem='type';n.dataset.id=t.id;n.dataset.name=t.name;n.innerHTML='<span class="tree-toggle">⌄</span><span>🗂 '+t.name+'</span><span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="'+t.id+'">＋</span></span>';g.appendChild(n);
+    const ch=document.createElement('div');ch.className='children';const list=Object.values(DATA).filter(m=>Number(m.equipment_type_id)===Number(t.id));list.forEach(m=>{const mg=document.createElement('div');mg.className='tree-group model-group open';const row=document.createElement('button');row.type='button';row.className='tree-node model-row';row.draggable=true;row.dataset.modelRow=m.id;row.dataset.model=m.id;row.dataset.name=m.name;row.innerHTML='<span class="tree-toggle">⌄</span><span>🚙 '+m.name+'</span>';mg.appendChild(row);const mc=document.createElement('div');mc.className='children';[['basic','📄 البيانات الأساسية'],['tires','🛞 الإطارات'],['batteries','🔋 البطاريات'],['specs','⚙ الخصائص التابعة']].forEach(([s,l])=>{const b=document.createElement('button');b.type='button';b.className='tree-node';b.dataset.model=m.id;b.dataset.section=s;b.textContent=l;mc.appendChild(b);});mg.appendChild(mc);ch.appendChild(mg);});g.appendChild(ch);parent.appendChild(g);
+  };
+
+  const bindTree=()=>{
+    tree.querySelectorAll('.tree-node').forEach(n=>n.addEventListener('click',e=>{
+      const add=e.target.closest('[data-add]');if(add){e.stopPropagation();const k=add.dataset.add;if(add.dataset.newModelForType){openNewModel();if($('modelType'))$('modelType').value=add.dataset.newModelForType;}else if(k==='model')openNewModel();else refPanel(k);return;}
+      const toggle=e.target.closest('.tree-toggle');if(toggle){e.stopPropagation();toggle.closest('.tree-group')?.classList.toggle('open');return;}
+      const model=e.currentTarget.dataset.model||e.currentTarget.dataset.modelRow;if(model){selectNode(e.currentTarget);if(e.currentTarget.dataset.section)window.viewModel(model);else window.viewModel(model);return;}
+      if(e.currentTarget.dataset.refItem){selectNode(e.currentTarget);refPanel(e.currentTarget.dataset.refItem,e.currentTarget.dataset.id,e.currentTarget.dataset.name);return;}
+      if(e.currentTarget.dataset.ref){selectNode(e.currentTarget);e.currentTarget.closest('.tree-group')?.classList.toggle('open');}
+    }));
+    tree.querySelectorAll('.model-row').forEach(row=>{row.addEventListener('dragstart',e=>{dragged=row;dragOrigin=row.closest('.model-group');row.classList.add('dragging');tree.querySelectorAll('.master-type-group').forEach(x=>x.classList.remove('drop-target'));e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',row.dataset.modelRow);$('tree-root-dropzone')?.classList.remove('hidden');});row.addEventListener('dragend',()=>{row.classList.remove('dragging');dragged=null;dragOrigin=null;$('tree-root-dropzone')?.classList.add('hidden');tree.querySelectorAll('.drop-target').forEach(x=>x.classList.remove('drop-target'));});});
+    tree.querySelectorAll('.master-type-group').forEach(g=>{g.addEventListener('dragover',e=>{if(!dragged)return;e.preventDefault();g.classList.add('drop-target');});g.addEventListener('dragleave',()=>g.classList.remove('drop-target'));g.addEventListener('drop',async e=>{e.preventDefault();g.classList.remove('drop-target');if(!dragged)return;const id=dragged.dataset.modelRow,typeId=g.dataset.typeId;if(Number((DATA[String(id)]||{}).equipment_type_id)===Number(typeId))return toast('الطراز موجود بالفعل داخل هذا النوع');const oldType=(DATA[String(id)]||{}).equipment_type_id;const fd=new FormData();fd.append('equipment_type_id',typeId);try{const r=await fetch('/equipment-types/models/'+encodeURIComponent(id)+'/move',{method:'POST',body:fd,credentials:'same-origin'});if(!r.ok)throw new Error();toast('تم نقل الطراز داخل الشجرة');setTimeout(()=>location.reload(),250);}catch(_){toast('تعذر نقل الطراز');}});});
+  };
+
+  $('tree-search-input')?.addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();tree.querySelectorAll('.tree-node').forEach(n=>{n.hidden=!!q&&!n.textContent.toLocaleLowerCase().includes(q);});if(q)tree.querySelectorAll('.tree-group').forEach(g=>{if(g.querySelector('.tree-node:not([hidden])'))g.classList.add('open');});});
+  $('btn-tree-expand-all')?.addEventListener('click',()=>tree.querySelectorAll('.tree-group').forEach(g=>g.classList.add('open')));
+  $('btn-tree-collapse-all')?.addEventListener('click',()=>tree.querySelectorAll('.tree-group').forEach(g=>g.classList.remove('open')));
+  $('btn-add-root-category')?.addEventListener('click',()=>refPanel('category'));
+  $('btn-export-tree')?.addEventListener('click',()=>{const payload={categories:CATEGORIES,types:TYPES,models:Object.values(DATA),brands:BRANDS};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));a.download='materiel-master-tree.json';a.click();URL.revokeObjectURL(a.href);});
+  $('editModelBtn')?.addEventListener('click',()=>currentModel&&window.editModel(currentModel));
+  $('cancelModel')?.addEventListener('click',()=>currentModel?window.viewModel(currentModel):showPanel($('empty')));
+  $('addPosition')?.addEventListener('click',()=>addPos());
+  $('addSize')?.addEventListener('click',()=>addSize(''));
+  $('modelForm')?.addEventListener('submit',e=>{sync();if(!$('modelBrand')?.value){e.preventDefault();alert('اختر العلامة التجارية.');}});
+  $('modelType')?.addEventListener('change',()=>{const o=$('modelType').selectedOptions[0];if(o?.dataset.category&&$('modelCategory'))$('modelCategory').value=o.dataset.category;});
+  renderTree();
 })();
