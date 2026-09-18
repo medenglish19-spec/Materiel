@@ -5,7 +5,6 @@
 
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
-  const toast = (message) => { const box=$('tree-toast'), msg=$('toast-message'); if(!box||!msg)return; msg.textContent=message; box.hidden=false; box.classList.remove('hidden'); window.clearTimeout(window.__materielTreeToast); window.__materielTreeToast=window.setTimeout(()=>{box.hidden=true;box.classList.add('hidden');},2600); };
   const selectNode = (node) => {
     tree.querySelectorAll('.tree-node.active').forEach((item) => item.classList.remove('active'));
     node?.classList.add('active');
@@ -136,21 +135,7 @@
   tree.addEventListener('dragend', () => { dragged?.classList.remove('dragging'); dragged = null; });
   tree.addEventListener('dragover', (event) => { const target = event.target.closest('[data-type-id]'); if (dragged && target) { event.preventDefault(); target.classList.add('drop-target'); } });
   tree.addEventListener('dragleave', (event) => event.target.closest('[data-type-id]')?.classList.remove('drop-target'));
-  tree.addEventListener('drop', async (event) => {
-    const target = event.target.closest('[data-type-id]');
-    if (!dragged || !target) return;
-    event.preventDefault(); target.classList.remove('drop-target');
-    const id = dragged.dataset.modelRow; const typeId = target.dataset.typeId;
-    const model = DATA[String(id)] || DATA[id] || {};
-    if (String(model.equipment_type_id) === String(typeId)) return;
-    const form = new FormData(); form.append('equipment_type_id', typeId);
-    try {
-      const response = await fetch('/equipment-types/models/' + encodeURIComponent(id) + '/move', {method:'POST', body:form, credentials:'same-origin'});
-      if (!response.ok) throw new Error('move failed');
-      toast?.('تم نقل الطراز داخل الشجرة');
-      window.setTimeout(() => window.location.reload(), 250);
-    } catch (_) { toast?.('تعذر نقل الطراز؛ لم يتم تغيير البيانات'); }
-  });
+  tree.addEventListener('drop', (event) => { const target = event.target.closest('[data-type-id]'); if (!dragged || !target) return; event.preventDefault(); target.classList.remove('drop-target'); const id = dragged.dataset.modelRow; const typeId = target.dataset.typeId; if (typeof editModel === 'function') editModel(id); const select = $('modelType'); if (select) select.value = typeId; selectSection(0, { focus: true }); });
 
   tree.addEventListener('click', (event) => {
     const action = event.target.closest('[data-add],[data-new-ref]');
