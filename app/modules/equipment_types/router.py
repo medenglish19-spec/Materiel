@@ -156,6 +156,13 @@ def update_model_form(model_id:int,name:str=Form(...),equipment_type_id:int=Form
     except (ValueError,TypeError) as exc:
         db.rollback();return _redirect(str(exc),"warning")
     return _redirect("تم حفظ تعديلات الطراز والمواصفات")
+@router.post("/equipment-types/models/{model_id}/move")
+def move_model_form(model_id:int,equipment_type_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_model(db,model_id)
+    if obj is None: raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    try: services.move_model_to_type(db,obj,equipment_type_id)
+    except (ValueError,TypeError) as exc: return _redirect(str(exc),"warning")
+    return _redirect("تم نقل الطراز داخل الشجرة")
 @router.post("/equipment-types/models/{model_id}/brand")
 def set_model_brand_form(model_id:int,brand_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
