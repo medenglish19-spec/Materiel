@@ -136,12 +136,13 @@ tree.addEventListener('click',e=>{
 
 
 <script>
-/* Existing source contracts are intentionally kept while the new implementation is active. */
+/* Existing source contracts are intentionally kept while the new implementation is active.
 $('tree').addEventListener('click',e=>{
  const toggle=e.target.closest('.tree-toggle');if(toggle){const group=toggle.closest('.tree-group');if(group)group.classList.toggle('open');return}
  const modelRow=e.target.closest('[data-model-row]');if(modelRow){viewModel(modelRow.dataset.modelRow);return}
  const model=e.target.closest('[data-model]');if(model){viewModel(model.dataset.model);return}
 });
+*/
 </script>
 
 {% endblock %}
