@@ -27,6 +27,7 @@
     #tree .master-unassigned-models{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-reference-group{margin-top:6px}
     #tree .master-reference-label{font-size:11px;color:#94a3b8;font-weight:800;padding:5px 8px}
+    .master-context-menu{position:fixed;z-index:99999;min-width:180px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384e;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}
     #tree .master-inline-add{margin:4px 0 4px}
     #tree .master-inline-add-type{margin:4px 0 6px;font-size:12px}
     #tree .master-tree-action{font-size:12px;line-height:1.2}
@@ -251,38 +252,6 @@
   } else {
     buildRealHierarchy();
   }
-  const setupHierarchyActions = () => {
-    const appendAction = (node, action, id, label, icon) => {
-      if (!node || node.querySelector(`[data-tree-${action}]`)) return;
-      let actions = node.querySelector(':scope > .tree-actions');
-      if (!actions) {
-        actions = document.createElement('span');
-        actions.className = 'tree-actions';
-        node.appendChild(actions);
-      }
-      const button = document.createElement('span');
-      button.className = 'tree-more master-tree-action';
-      button.dataset[`tree${action.charAt(0).toUpperCase()}${action.slice(1)}`] = String(id);
-      button.title = label;
-      button.setAttribute('role', 'button');
-      button.setAttribute('tabindex', '0');
-      button.textContent = icon;
-      actions.appendChild(button);
-    };
-    tree.querySelectorAll('[data-ref-item="category"]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.id, 'تعديل الفئة', '✏');
-      appendAction(node, 'delete', node.dataset.id, 'حذف الفئة', '🗑');
-    });
-    tree.querySelectorAll('[data-ref-item="type"]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.id, 'تعديل نوع العتاد', '✏');
-      appendAction(node, 'delete', node.dataset.id, 'حذف نوع العتاد', '🗑');
-    });
-    tree.querySelectorAll('[data-model-row]').forEach((node) => {
-      appendAction(node, 'edit', node.dataset.modelRow, 'تعديل الطراز', '✏');
-    });
-  };
-  setupHierarchyActions();
-
   const setupModelWorkspace = () => {
     const panel = document.getElementById('modelPanel');
     if (!panel || panel.dataset.workspaceReady === '1') return;
@@ -396,6 +365,22 @@
     });
   };
 
+  const contextMenu=document.createElement('div');
+  contextMenu.className='master-context-menu'; contextMenu.hidden=true; document.body.appendChild(contextMenu);
+  let longPressTimer=null, longPressTarget=null;
+  const closeContextMenu=()=>{contextMenu.hidden=true;contextMenu.replaceChildren()};
+  const showContextMenu=(node,x,y)=>{
+    const modelRow=node?.closest('[data-model-row]'), refItem=node?.closest('[data-ref-item]'); if(!modelRow&&!refItem)return;
+    const actions=[];
+    if(modelRow){const id=modelRow.dataset.modelRow;actions.push(['👁 عرض الطراز',()=>viewModel(id)]);actions.push(['✏️ تعديل الطراز',()=>editModel(id)]);actions.push(['⧉ نسخ الطراز',()=>{editModel(id);const n=document.getElementById('modelName'),f=document.getElementById('modelId'),form=document.getElementById('modelForm');if(n)n.value+=' - نسخة';if(f)f.value='';if(form)form.action='/equipment-types/models/create';currentModel=null;}]);actions.push(['🗑 حذف الطراز',()=>deleteModel(id)])}
+    }else{const kind=refItem.dataset.refItem,id=refItem.dataset.id,name=refItem.dataset.name||'',labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};actions.push(['✏️ تعديل '+(labels[kind]||'العنصر'),()=>refPanel(kind,id,name,refItem.dataset)]);if(kind==='category'||kind==='type')actions.push(['🗑 حذف '+labels[kind],()=>deleteHierarchyItem(kind,id)])}
+    contextMenu.replaceChildren(); actions.forEach(([label,action])=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{closeContextMenu();action()};contextMenu.appendChild(button)});
+    contextMenu.hidden=false;const r=contextMenu.getBoundingClientRect();contextMenu.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';contextMenu.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
+  };
+  tree.addEventListener('contextmenu',e=>{const node=e.target.closest('[data-model-row],[data-ref-item]');if(!node||!tree.contains(node))return;e.preventDefault();e.stopPropagation();showContextMenu(node,e.clientX,e.clientY)});
+  tree.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;const node=e.target.closest('[data-model-row],[data-ref-item]');if(!node||!tree.contains(node))return;longPressTarget=node;longPressTimer=setTimeout(()=>{showContextMenu(longPressTarget,e.clientX||20,e.clientY||80);longPressTarget=null},600)});
+  ['pointerup','pointercancel','pointerleave'].forEach(t=>tree.addEventListener(t,()=>{if(longPressTimer)clearTimeout(longPressTimer);longPressTimer=null}));
+  document.addEventListener('pointerdown',e=>{if(!contextMenu.contains(e.target))closeContextMenu()});
   tree.addEventListener('click', (event) => {
     const addForType = event.target.closest('[data-new-model-for-type]');
     if (addForType && tree.contains(addForType)) { event.preventDefault(); event.stopPropagation(); openModelCreate(addForType.dataset.newModelForType); return; }
@@ -410,22 +395,6 @@
       else if (kind) refPanel(kind);
       return;
     }
-    const edit = event.target.closest('[data-tree-edit]');
-    if (edit && tree.contains(edit)) { event.preventDefault(); event.stopPropagation(); const key = edit.dataset.treeEdit; const node = edit.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) editHierarchyItem(kind, key); return; }
-    const hierarchyDelete = event.target.closest('[data-tree-delete]');
-    if (hierarchyDelete && tree.contains(hierarchyDelete)) { event.preventDefault(); event.stopPropagation(); const key = hierarchyDelete.dataset.treeDelete; const node = hierarchyDelete.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) deleteHierarchyItem(kind, key); return; }
-    const modelEdit = event.target.closest('[data-tree-edit]');
-    if (modelEdit && tree.contains(modelEdit)) {
-      event.preventDefault();
-      event.stopPropagation();
-      if (typeof editModel === 'function') {
-        editModel(modelEdit.dataset.treeEdit);
-      }
-      return;
-    }
-    const del = event.target.closest('[data-delete]');
-
-    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); return; }
   }, true);
 
   tree.addEventListener('click', (event) => {
