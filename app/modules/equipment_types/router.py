@@ -22,7 +22,7 @@ def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depe
     models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db)
     spec_definitions=[{"id":d.id,"name":d.name,"data_type":d.data_type,"unit":d.unit,"options":d.options} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
-    tire_master_data={p["id"]:{"positions":p["positions"],"sizes":p["sizes"],"specs":p["specs"]} for p in editor_payloads}
+    tire_master_data={p["id"]:p for p in editor_payloads}
     response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
