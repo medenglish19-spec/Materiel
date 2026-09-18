@@ -114,6 +114,20 @@ window.MATERIEL_SPEC_DEFS = {{ spec_definitions|tojson }};
 {% for t in types %}<span data-category="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}">{{ t.name }}</span>{% endfor %}
 </div>
 </template>
+
+<template id="typeRefFormTemplate">
+<form class="ref-form" method="post" action="/equipment-types/create">
+<label>الاسم<input name="name" required></label>
+<label>وحدة القياس<select name="measurement_unit" required><option value="km">كم</option><option value="hours">ساعات</option></select></label>
+<label>الفئة<select name="category_id"><option value="">غير محدد</option></select></label>
+<button type="submit" class="btn primary">حفظ</button>
+</form>
+<div class="tree-node" data-new-ref="category">إضافة فئة</div>
+<div class="tree-node" data-new-ref="type">إضافة نوع</div>
+<div class="tree-node" data-new-ref="brand">إضافة علامة</div>
+<div class="tree-node" data-new-ref="spec">إضافة خاصية</div>
+<div class="tree-node" data-new-ref="model">إضافة طراز</div>
+</template>
 <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" hidden>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
