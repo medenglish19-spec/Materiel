@@ -22,6 +22,16 @@
     clearTimeout(toast.timer); toast.timer = setTimeout(() => { box.classList.add('hidden'); box.classList.remove('flex'); }, 3200);
   };
 
+  const selectSection = (index, options = {}) => {
+    const boxes = [...document.querySelectorAll('#modelPanel [data-workspace-section]')];
+    const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
+    const safeIndex = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
+    boxes.forEach((box, boxIndex) => { box.hidden = boxIndex !== safeIndex; });
+    tabs.forEach((tab, tabIndex) => { const active = tabIndex === safeIndex; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
+    if (options.focus) boxes[safeIndex]?.scrollIntoView({block:'nearest', behavior:'smooth'});
+  };
+  window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
+  const sectionMap = {basic:0, tires:1, positions:1, sizes:1, batteries:2, specs:3};
   const selectNode = node => {
     tree.querySelectorAll('.tree-node.active').forEach(x => x.classList.remove('active'));
     node?.classList.add('active');
@@ -72,9 +82,11 @@
     if($('positionsBody')){$('positionsBody').innerHTML='';(d.positions||[]).forEach(addPos);} if($('sizesBody')){$('sizesBody').innerHTML='';(d.sizes||[]).forEach(addSize);} renderSpecs(d); setTitle(d.name||'تعديل الطراز','الطراز'); showPanel($('modelPanel')); sync();
   };
 
+  const openModelCreate=()=>openNewModel();
+  const openTypeCreate=categoryId=>refPanel('type',null,'',{categoryId});
   const openNewModel=()=>{ $('modelForm')?.reset(); if($('modelId'))$('modelId').value=''; if($('positionsBody'))$('positionsBody').innerHTML=''; if($('sizesBody'))$('sizesBody').innerHTML=''; renderSpecs({}); if($('modelForm'))$('modelForm').action='/equipment-types/models/create'; currentModel=null; setTitle('إضافة طراز','الطرازات'); showPanel($('modelPanel')); };
 
-  const refPanel=(kind,id=null,name='')=>{
+  const refPanel=(kind,id=null,name='',extra={})=>{
     const labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};
     if($('refTitle'))$('refTitle').textContent=id?'تعديل '+labels[kind]:(labels[kind]||'إضافة');
     const body=$('refBody'); if(!body)return;
@@ -85,6 +97,8 @@
     showPanel($('refPanel'));
   };
 
+  const revealAncestors = (node) => { let group=node.closest('.tree-group'); while(group){ const parentNode=group.querySelector(':scope > .tree-node'); if(parentNode) parentNode.hidden=false; group.classList.add('open'); group=group.parentElement?.closest('.tree-group'); } };
+  const syncArrows = () => tree.querySelectorAll('.tree-group > .tree-node > .tree-toggle').forEach(toggle=>toggle.textContent=toggle.closest('.tree-group')?.classList.contains('open')?'⌄':'›');
   const renderTree=()=>{
     tree.innerHTML='';
     const refs=[['brands','🏷','العلامات التجارية'],['specs','⚙','الخصائص']];
@@ -115,16 +129,21 @@
     tree.querySelectorAll('.master-type-group').forEach(g=>{g.addEventListener('dragover',e=>{if(!dragged)return;e.preventDefault();g.classList.add('drop-target');});g.addEventListener('dragleave',()=>g.classList.remove('drop-target'));g.addEventListener('drop',async e=>{e.preventDefault();g.classList.remove('drop-target');if(!dragged)return;const id=dragged.dataset.modelRow,typeId=g.dataset.typeId;if(Number((DATA[String(id)]||{}).equipment_type_id)===Number(typeId))return toast('الطراز موجود بالفعل داخل هذا النوع');const oldType=(DATA[String(id)]||{}).equipment_type_id;const fd=new FormData();fd.append('equipment_type_id',typeId);try{const r=await fetch('/equipment-types/models/'+encodeURIComponent(id)+'/move',{method:'POST',body:fd,credentials:'same-origin'});if(!r.ok)throw new Error();toast('تم نقل الطراز داخل الشجرة');setTimeout(()=>location.reload(),250);}catch(_){toast('تعذر نقل الطراز');}});});
   };
 
-  $('tree-search-input')?.addEventListener('input',e=>{const q=e.target.value.trim().toLocaleLowerCase();tree.querySelectorAll('.tree-node').forEach(n=>{n.hidden=!!q&&!n.textContent.toLocaleLowerCase().includes(q);});if(q)tree.querySelectorAll('.tree-group').forEach(g=>{if(g.querySelector('.tree-node:not([hidden])'))g.classList.add('open');});});
+  $('tree-search-input')?.addEventListener('input',e=>{const query=e.target.value.trim().toLocaleLowerCase();tree.querySelectorAll('.tree-node').forEach(node=>{node.hidden=!node.textContent.toLocaleLowerCase().includes(query);if(!query)node.hidden=false;});if(query)tree.querySelectorAll('.tree-node').forEach(node=>{if(!node.hidden)revealAncestors(node);});syncArrows();});
   $('btn-tree-expand-all')?.addEventListener('click',()=>tree.querySelectorAll('.tree-group').forEach(g=>g.classList.add('open')));
   $('btn-tree-collapse-all')?.addEventListener('click',()=>tree.querySelectorAll('.tree-group').forEach(g=>g.classList.remove('open')));
   $('btn-add-root-category')?.addEventListener('click',()=>refPanel('category'));
+  $('tree-root-dropzone')?.addEventListener('dragover',e=>{if(dragged)e.preventDefault();});
   $('btn-export-tree')?.addEventListener('click',()=>{const payload={categories:CATEGORIES,types:TYPES,models:Object.values(DATA),brands:BRANDS};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));a.download='materiel-master-tree.json';a.click();URL.revokeObjectURL(a.href);});
   $('editModelBtn')?.addEventListener('click',()=>currentModel&&window.editModel(currentModel));
   $('cancelModel')?.addEventListener('click',()=>currentModel?window.viewModel(currentModel):showPanel($('empty')));
   $('addPosition')?.addEventListener('click',()=>addPos());
   $('addSize')?.addEventListener('click',()=>addSize(''));
   $('modelForm')?.addEventListener('submit',e=>{sync();if(!$('modelBrand')?.value){e.preventDefault();alert('اختر العلامة التجارية.');}});
+  window.viewModel = window.viewModel || (()=>{});
   $('modelType')?.addEventListener('change',()=>{const o=$('modelType').selectedOptions[0];if(o?.dataset.category&&$('modelCategory'))$('modelCategory').value=o.dataset.category;});
+  const importExcel=target=>{const input=$('excelFile');if(!input)return;input.dataset.importTarget=target;input.value='';input.click();};
+  ['importPositions','importSizes','importSpecs'].forEach(id=>$(id)?.addEventListener('click',()=>importExcel(id.replace('import','').toLowerCase())));
+  $('excelFile')?.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file||typeof XLSX==='undefined')return;try{const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{defval:''});const keys=Object.keys(rows[0]||{});const find=names=>keys.find(k=>names.includes(String(k).trim().toLowerCase()));const target=e.target.dataset.importTarget;if(target==='positions'){const a=find(['المحور','axle','axle_number']),s=find(['الجهة','side']),t=find(['النوع','type','position_type']),d=find(['الوصف','description']);renderPositions?.(rows.map(r=>({axle_number:r[a]||1,side:r[s]||'left',position_type:r[t]||'single',description:r[d]||''})));}else if(target==='sizes'){const k=find(['المقاس','size','tire size','tire_size']);if(k)rows.forEach(r=>addSize(r[k]));}sync();toast('تم تحميل بيانات Excel إلى المحرر.');}catch(err){toast('تعذر استيراد الملف');}});
   renderTree();
 })();
