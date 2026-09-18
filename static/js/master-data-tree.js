@@ -27,7 +27,6 @@
     #tree .master-unassigned-models{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-reference-group{margin-top:6px}
     #tree .master-reference-label{font-size:11px;color:#94a3b8;font-weight:800;padding:5px 8px}
-    .master-context-menu{position:fixed;z-index:99999;min-width:180px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384e;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}
     #tree .master-inline-add{margin:4px 0 4px}
     #tree .master-inline-add-type{margin:4px 0 6px;font-size:12px}
     #tree .master-tree-action{font-size:12px;line-height:1.2}
@@ -38,9 +37,12 @@
     .mdx #tree .tree-toggle{color:#64748b;font-weight:800}
     .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;align-items:center;flex-shrink:0;white-space:nowrap;gap:3px}
     .mdx #tree .tree-node:hover .tree-actions,.mdx #tree .tree-node.active .tree-actions{opacity:1}
-    .mdx #tree .tree-add,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
+    .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
     .mdx #tree .tree-add:hover,.mdx #tree .tree-more:hover,.mdx #tree .tree-action:hover{background:#dbeafe}
-                .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
+    .mdx #tree .tree-more[data-tree-delete]{color:#a33b3b}
+    .mdx #tree .tree-actions [data-tree-delete]{color:#a33b3b}
+    .mdx #tree .tree-actions [data-tree-edit]{color:#315f88}
+    .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
     .mdx #tree>.master-reference-block{padding:7px 0 12px;margin-bottom:9px;border-bottom:1px solid #dfe6ee}
     .mdx .master-reference-heading{color:#66778c;font-size:11px;letter-spacing:.15px;padding:5px 8px;text-transform:none}
     .mdx .editor-head{padding:18px 22px 16px;background:linear-gradient(to bottom,#fff,#fbfcfe);border-bottom:1px solid #dfe6ee}
@@ -76,6 +78,7 @@
     @keyframes mdxPanelIn{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
     @media(max-width:640px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
     @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
+    .master-context-menu{position:fixed;z-index:99999;min-width:180px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384e;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}
   `;
   document.head.appendChild(style);
 
@@ -249,6 +252,38 @@
   } else {
     buildRealHierarchy();
   }
+  const setupHierarchyActions = () => {
+    const appendAction = (node, action, id, label, icon) => {
+      if (!node || node.querySelector(`[data-tree-${action}]`)) return;
+      let actions = node.querySelector(':scope > .tree-actions');
+      if (!actions) {
+        actions = document.createElement('span');
+        actions.className = 'tree-actions';
+        node.appendChild(actions);
+      }
+      const button = document.createElement('span');
+      button.className = 'tree-more master-tree-action';
+      button.dataset[`tree${action.charAt(0).toUpperCase()}${action.slice(1)}`] = String(id);
+      button.title = label;
+      button.setAttribute('role', 'button');
+      button.setAttribute('tabindex', '0');
+      button.textContent = icon;
+      actions.appendChild(button);
+    };
+    tree.querySelectorAll('[data-ref-item="category"]').forEach((node) => {
+      appendAction(node, 'edit', node.dataset.id, 'تعديل الفئة', '✏');
+      appendAction(node, 'delete', node.dataset.id, 'حذف الفئة', '🗑');
+    });
+    tree.querySelectorAll('[data-ref-item="type"]').forEach((node) => {
+      appendAction(node, 'edit', node.dataset.id, 'تعديل نوع العتاد', '✏');
+      appendAction(node, 'delete', node.dataset.id, 'حذف نوع العتاد', '🗑');
+    });
+    tree.querySelectorAll('[data-model-row]').forEach((node) => {
+      appendAction(node, 'edit', node.dataset.modelRow, 'تعديل الطراز', '✏');
+    });
+  };
+  setupHierarchyActions();
+
   const setupModelWorkspace = () => {
     const panel = document.getElementById('modelPanel');
     if (!panel || panel.dataset.workspaceReady === '1') return;
@@ -346,6 +381,85 @@
     if (kind === 'category') postDelete(kind, id, 'حذف الفئة؟ إذا كانت مرتبطة بأنواع عتاد سيمنع النظام الحذف.', `/equipment-types/categories/${encodeURIComponent(id)}/delete`);
     if (kind === 'type') postDelete(kind, id, 'حذف نوع العتاد؟ إذا كان مرتبطاً بطرازات سيمنع النظام الحذف.', `/equipment-types/${encodeURIComponent(id)}/delete`);
   };
+  const editHierarchyItem = (kind, id) => {
+    const node = tree.querySelector(`[data-ref-item="${kind}"][data-id="${CSS.escape(String(id))}"]`);
+    if (!node || typeof refPanel !== 'function') return;
+    refPanel(kind, id, node.dataset.name || '', node.dataset);
+    selectNode(node);
+  };
+  const contextMenu = document.createElement('div');
+  contextMenu.className = 'master-context-menu';
+  contextMenu.hidden = true;
+  contextMenu.setAttribute('dir', 'rtl');
+  document.body.appendChild(contextMenu);
+  const closeContextMenu = () => { contextMenu.hidden = true; contextMenu.replaceChildren(); };
+  const deleteBrand = (id) => postDelete('brand', id, 'حذف العلامة التجارية؟ إذا كانت مرتبطة بطرازات سيمنع النظام الحذف.', '/equipment-types/brands/' + encodeURIComponent(id) + '/delete');
+  const showContextMenu = (node, x, y) => {
+    const model = node.closest('[data-model-row]');
+    const ref = node.closest('[data-ref-item]');
+    const actions = [];
+    if (model) {
+      const id = model.dataset.modelRow;
+      actions.push(['👁 عرض الطراز', () => viewModel(id)]);
+      actions.push(['✏️ تعديل الطراز', () => editModel(id)]);
+      actions.push(['⧉ نسخ الطراز', () => {
+        editModel(id);
+        const name = document.getElementById('modelName');
+        const form = document.getElementById('modelForm');
+        const hidden = document.getElementById('modelId');
+        if (name) name.value += ' - نسخة';
+        if (hidden) hidden.value = '';
+        if (form) form.action = '/equipment-types/models/create';
+        currentModel = null;
+      }]);
+      actions.push(['🗑 حذف الطراز', () => deleteModel(id)]);
+    } else if (ref) {
+      const kind = ref.dataset.refItem, id = ref.dataset.id, name = ref.dataset.name || '';
+      const labels = {category:'الفئة', type:'نوع العتاد', brand:'العلامة التجارية', spec:'الخاصية'};
+      actions.push(['✏️ تعديل ' + (labels[kind] || 'العنصر'), () => editHierarchyItem(kind, id)]);
+      if (kind === 'brand') actions[actions.length - 1] = ['✏️ تعديل العلامة التجارية', () => refPanel(kind, id, name, ref.dataset)];
+      if (kind === 'category' || kind === 'type') actions.push(['🗑 حذف ' + labels[kind], () => deleteHierarchyItem(kind, id)]);
+      if (kind === 'brand') actions.push(['🗑 حذف العلامة التجارية', () => deleteBrand(id)]);
+    } else return;
+    contextMenu.replaceChildren();
+    actions.forEach(([label, action]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.onclick = () => { closeContextMenu(); action(); };
+      contextMenu.appendChild(button);
+    });
+    contextMenu.hidden = false;
+    const rect = contextMenu.getBoundingClientRect();
+    contextMenu.style.left = Math.max(8, Math.min(x, innerWidth - rect.width - 8)) + 'px';
+    contextMenu.style.top = Math.max(8, Math.min(y, innerHeight - rect.height - 8)) + 'px';
+  };
+  tree.addEventListener('contextmenu', (event) => {
+    const node = event.target.closest('[data-model-row],[data-ref-item]');
+    if (!node || !tree.contains(node)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showContextMenu(node, event.clientX, event.clientY);
+  });
+  let longPressTimer = null, longPressTarget = null;
+  tree.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch') return;
+    const node = event.target.closest('[data-model-row],[data-ref-item]');
+    if (!node || !tree.contains(node)) return;
+    longPressTarget = node;
+    longPressTimer = window.setTimeout(() => {
+      showContextMenu(longPressTarget, event.clientX || 20, event.clientY || 80);
+      longPressTarget = null;
+    }, 600);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach((type) => tree.addEventListener(type, () => {
+    if (longPressTimer) window.clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }));
+  document.addEventListener('pointerdown', (event) => {
+    if (!contextMenu.contains(event.target)) closeContextMenu();
+  });
+
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
       const node = group.querySelector(':scope > .tree-node');
@@ -356,22 +470,6 @@
     });
   };
 
-  const contextMenu=document.createElement('div');
-  contextMenu.className='master-context-menu'; contextMenu.hidden=true; document.body.appendChild(contextMenu);
-  let longPressTimer=null, longPressTarget=null;
-  const closeContextMenu=()=>{contextMenu.hidden=true;contextMenu.replaceChildren()};
-  const showContextMenu=(node,x,y)=>{
-    const modelRow=node?.closest('[data-model-row]'), refItem=node?.closest('[data-ref-item]'); if(!modelRow&&!refItem)return;
-    const actions=[];
-    if(modelRow){const id=modelRow.dataset.modelRow;actions.push(['👁 عرض الطراز',()=>viewModel(id)]);actions.push(['✏️ تعديل الطراز',()=>editModel(id)]);actions.push(['⧉ نسخ الطراز',()=>{editModel(id);const n=document.getElementById('modelName'),f=document.getElementById('modelId'),form=document.getElementById('modelForm');if(n)n.value+=' - نسخة';if(f)f.value='';if(form)form.action='/equipment-types/models/create';currentModel=null;}]);actions.push(['🗑 حذف الطراز',()=>deleteModel(id)])}
-    }else{const kind=refItem.dataset.refItem,id=refItem.dataset.id,name=refItem.dataset.name||'',labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};actions.push(['✏️ تعديل '+(labels[kind]||'العنصر'),()=>refPanel(kind,id,name,refItem.dataset)]);if(kind==='category'||kind==='type')actions.push(['🗑 حذف '+labels[kind],()=>deleteHierarchyItem(kind,id)]);if(kind==='brand')actions.push(['🗑 حذف العلامة التجارية',()=>deleteBrand(id)])}
-    contextMenu.replaceChildren(); actions.forEach(([label,action])=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{closeContextMenu();action()};contextMenu.appendChild(button)});
-    contextMenu.hidden=false;const r=contextMenu.getBoundingClientRect();contextMenu.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';contextMenu.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
-  };
-  tree.addEventListener('contextmenu',e=>{const node=e.target.closest('[data-model-row],[data-ref-item]');if(!node||!tree.contains(node))return;e.preventDefault();e.stopPropagation();showContextMenu(node,e.clientX,e.clientY)});
-  tree.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;const node=e.target.closest('[data-model-row],[data-ref-item]');if(!node||!tree.contains(node))return;longPressTarget=node;longPressTimer=setTimeout(()=>{showContextMenu(longPressTarget,e.clientX||20,e.clientY||80);longPressTarget=null},600)});
-  ['pointerup','pointercancel','pointerleave'].forEach(t=>tree.addEventListener(t,()=>{if(longPressTimer)clearTimeout(longPressTimer);longPressTimer=null}));
-  document.addEventListener('pointerdown',e=>{if(!contextMenu.contains(e.target))closeContextMenu()});
   tree.addEventListener('click', (event) => {
     const addForType = event.target.closest('[data-new-model-for-type]');
     if (addForType && tree.contains(addForType)) { event.preventDefault(); event.stopPropagation(); openModelCreate(addForType.dataset.newModelForType); return; }
@@ -386,6 +484,22 @@
       else if (kind) refPanel(kind);
       return;
     }
+    const edit = event.target.closest('[data-tree-edit]');
+    if (edit && tree.contains(edit)) { event.preventDefault(); event.stopPropagation(); const key = edit.dataset.treeEdit; const node = edit.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) editHierarchyItem(kind, key); return; }
+    const hierarchyDelete = event.target.closest('[data-tree-delete]');
+    if (hierarchyDelete && tree.contains(hierarchyDelete)) { event.preventDefault(); event.stopPropagation(); const key = hierarchyDelete.dataset.treeDelete; const node = hierarchyDelete.closest('[data-ref-item]'); const kind = node?.dataset.refItem; if (kind) deleteHierarchyItem(kind, key); return; }
+    const modelEdit = event.target.closest('[data-tree-edit]');
+    if (modelEdit && tree.contains(modelEdit)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof editModel === 'function') {
+        editModel(modelEdit.dataset.treeEdit);
+      }
+      return;
+    }
+    const del = event.target.closest('[data-delete]');
+
+    if (del && tree.contains(del)) { event.preventDefault(); event.stopPropagation(); deleteModel(del.dataset.delete); return; }
   }, true);
 
   tree.addEventListener('click', (event) => {
@@ -440,5 +554,4 @@
   if (searchInput) searchInput.addEventListener('input', () => searchTree(searchInput.value));
   new MutationObserver(syncArrows).observe(tree, {subtree:true,attributes:true,attributeFilter:['class']});
   syncArrows();
-})();  const deleteBrand = (id) => { if (!confirm('حذف العلامة التجارية؟')) return; const form=document.createElement('form'); form.method='post'; form.action='/equipment-types/brands/'+id+'/delete'; document.body.appendChild(form); form.submit(); };
-
+})();
