@@ -4,6 +4,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
+# Import all models that participate in foreign keys before create_all().
+# User is referenced by the audit columns on several tables (including tires).
+from app.modules.users.models import User  # noqa: F401
 from app.modules.equipment_types import services
 from app.modules.equipment_types.models import (
     EquipmentBrand,
