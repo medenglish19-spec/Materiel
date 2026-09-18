@@ -387,8 +387,8 @@
       event.stopPropagation();
       const modelNode = event.target.closest('[data-model]');
       if (!modelNode) return;
-      editModel(modelNode.dataset.model, treeAdd.dataset.treeAdd === 'position' ? 'positions' : 'sizes');
-      treeAdd.dataset.treeAdd === 'position' ? addPos() : addSize();
+      editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes');
+      treeAdd.dataset.treeAdd==='position'?addPos():addSize();
       return;
     }
 
@@ -400,6 +400,12 @@
       if (group) group.classList.toggle('open');
       syncArrows();
       return;
+    }
+
+    const treeEdit = event.target.closest('[data-tree-edit]');
+    const treeDelete = event.target.closest('[data-tree-delete]');
+    if (treeEdit || treeDelete) {
+      event.stopPropagation();
     }
 
     const modelRow = event.target.closest('[data-model-row]');
@@ -442,5 +448,6 @@
   }, true);
 
   if (typeof setupModelWorkspace === 'function') setupModelWorkspace();
+  selectSection(0);
   window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
 })();
