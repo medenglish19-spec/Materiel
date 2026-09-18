@@ -295,6 +295,18 @@ def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->Equip
     _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
     db.commit();db.refresh(obj);return obj
 
+def move_model_to_type(db:Session,obj:EquipmentModel,equipment_type_id:int)->EquipmentModel:
+    if obj.is_frozen: raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل نقله")
+    target=db.query(EquipmentType).filter(EquipmentType.id==equipment_type_id).first()
+    if target is None: raise ValueError("نوع العتاد الهدف غير موجود")
+    if obj.equipment_type_id==target.id: return obj
+    from app.modules.equipment.models import Equipment
+    if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():
+        raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
+    duplicate=db.query(EquipmentModel).filter(EquipmentModel.id!=obj.id,EquipmentModel.equipment_type_id==target.id,EquipmentModel.brand_id==obj.brand_id,EquipmentModel.name==obj.name).first()
+    if duplicate: raise ValueError("يوجد طراز بالاسم نفسه للعلامة التجارية داخل نوع العتاد الهدف")
+    obj.equipment_type_id=target.id;db.commit();db.refresh(obj);return obj
+
 def set_model_brand(db:Session,obj:EquipmentModel,brand_id:int)->EquipmentModel:
     brand=get_brand(db,brand_id)
     if brand is None or not brand.is_active:raise ValueError("العلامة التجارية غير موجودة أو غير نشطة")
