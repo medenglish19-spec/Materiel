@@ -35,6 +35,7 @@
      data-tree-delete
      const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
   */
+  const typeCategoryMap = new Map();
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const selectNode = (node) => {
