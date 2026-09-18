@@ -43,3 +43,6 @@ body:has(.mdx){background:linear-gradient(135deg,#eef4fb 0%,#f8fafc 48%,#edf3f9 
 .master-context-menu{border:1px solid #d6e4f0!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(15,42,70,.18)!important;padding:6px!important}.master-context-menu button{min-height:40px!important;border-radius:8px!important;color:#214664!important}.master-context-menu button:hover{background:#eaf5ff!important;color:#075b9e!important}
 @media(max-width:1000px){.mdx .layout{grid-template-columns:minmax(280px,350px) minmax(0,1fr)!important;gap:14px!important}.mdx{padding:20px 16px 30px!important}.mdx .tree-card{top:14px!important;max-height:calc(100vh - 28px)!important}}
 @media(max-width:760px){.mdx .layout{grid-template-columns:1fr!important}.mdx .tree-card{position:relative!important;top:auto!important;max-height:none!important}.mdx .editor{margin-top:0!important}.mdx .panel{padding:14px!important}.mdx .editor-head{padding:18px!important}.mdx #empty{min-height:220px!important}.mdx-head{align-items:flex-start!important}.mdx-head h1{font-size:27px!important}}
+
+/* Preserve existing login page contract. */
+.login-body{display:flex;align-items:center;justify-content:center;height:100vh}
