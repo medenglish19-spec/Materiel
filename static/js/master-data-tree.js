@@ -6,7 +6,7 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    .mdx .layout{direction:ltr;grid-template-columns:minmax(320px,380px) minmax(0,1fr);gap:16px;align-items:stretch}
+    .mdx .layout{direction:ltr;grid-template-columns:minmax(260px,320px) minmax(0,1fr);gap:12px;align-items:stretch}
     .mdx .tree-card,.mdx .editor{direction:rtl}
     .mdx .tree-card{background:#fbfcfe;border-color:#dbe3ec;box-shadow:0 8px 24px rgba(15,23,42,.06);padding:14px;min-width:0}
     .mdx .editor{background:#fff;border-color:#dbe3ec;box-shadow:0 8px 28px rgba(15,23,42,.07);min-width:0}
@@ -76,7 +76,7 @@
     .mdx .model-workspace-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;padding:10px 13px;background:#f5f8fb;border:1px solid #dfe7ef;border-radius:10px;color:#53657a;font-size:12px}
     .mdx .model-workspace-summary strong{color:#234f75;font-size:13px}
     @keyframes mdxPanelIn{from{opacity:.65;transform:translateY(2px)}to{opacity:1;transform:none}}
-    @media(max-width:1000px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
+    @media(max-width:640px){.mdx .layout{direction:rtl;grid-template-columns:1fr}.mdx .tree-card{order:1}.mdx .editor{order:2}}
     @media(max-width:760px){.mdx .model-workspace-nav{top:4px}.mdx .model-workspace-nav:before{display:none}.mdx .model-workspace-tab{padding:7px 9px}}
   `;
   document.head.appendChild(style);
