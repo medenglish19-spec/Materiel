@@ -20,7 +20,7 @@
     const safeIndex = Math.min(Math.max(Number(index) || 0, 0), sections.length - 1);
     sections.forEach((box, boxIndex) => {
       const active = boxIndex === safeIndex;
-      box.hidden = !active;
+      box.hidden = boxIndex !== safeIndex;
       box.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
     tabs.forEach((tab, tabIndex) => {
@@ -78,8 +78,9 @@
     const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
 
     const typeByCategory = new Map();
-    typeNodes.forEach((node) => {
-      const key = String(node.dataset.categoryId || '');
+    typeNodes.forEach((typeNode) => {
+      const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+      const key = attr;
       if (!typeByCategory.has(key)) typeByCategory.set(key, []);
       typeByCategory.get(key).push(node);
     });
@@ -133,6 +134,10 @@
       categoryNode.replaceWith(categoryGroup);
     });
 
+    let hasUncategorized = false;
+    categoryNodes.forEach((categoryNode) => {
+      if (!categoryNode) hasUncategorized = true;
+    });
     const uncategorizedTypes = typeByCategory.get('');
     const uncategorizedGroup = document.createElement('div');
     uncategorizedGroup.className = 'tree-group master-uncategorized open';
@@ -145,7 +150,6 @@
     const addType = addButton('＋ إضافة نوع عتاد', {newRef: 'type'});
     addType.classList.add('master-inline-add-type');
     uncategorizedChildren.appendChild(addType);
-    let hasUncategorized = false;
     (uncategorizedTypes || []).forEach((typeNode) => {
       hasUncategorized = true;
       appendType(typeNode, uncategorizedChildren, modelsByType);
@@ -201,8 +205,9 @@
       const query = searchInput.value.trim().toLocaleLowerCase();
       const nodes = Array.from(tree.querySelectorAll('.tree-node'));
       nodes.forEach((node) => {
-        node.hidden = query ? !node.textContent.toLocaleLowerCase().includes(query) : false;
+        node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
       });
+      if (!query) nodes.forEach((node) => { node.hidden = false; });
       if (query) nodes.filter((node) => !node.hidden).forEach((node) => revealAncestors(node));
       syncArrows();
     });
@@ -361,13 +366,14 @@
   tree.addEventListener('click', (event) => {
     const add = event.target.closest('[data-add],[data-new-ref]');
     if (add) {
+      const addForCategory = add;
+      const addForType = add;
       event.preventDefault();
       event.stopPropagation();
       const kind = add.dataset.add || add.dataset.newRef;
-      if (kind === 'model') {
-        openModelCreate(add.dataset.newModelForType || '');
-      } else if (kind === 'type' && add.dataset.newTypeForCategory) {
-        openTypeCreate(add.dataset.newTypeForCategory);
+      if (kind === 'model' && !add.dataset.newModelForType) openModelCreate();
+      else if (kind === 'model') openModelCreate(addForType.dataset.newModelForType);
+      else if (kind === 'type' && addForCategory.dataset.newTypeForCategory) openTypeCreate(addForCategory.dataset.newTypeForCategory);
       } else if (kind) {
         if (typeof refPanel === 'function') refPanel(kind);
       }
@@ -433,7 +439,7 @@
       event.stopPropagation();
       selectNode(node);
     }
-  });
+  }, true);
 
   if (typeof setupModelWorkspace === 'function') setupModelWorkspace();
   window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
