@@ -1,3 +1,4 @@
+// Last modified: 2026-09-18 — v4
 (() => {
   'use strict';
 
