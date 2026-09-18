@@ -88,6 +88,14 @@
 #master-data-workspace{min-height:calc(100vh - 4rem)}#equipment-tree-container{scrollbar-width:thin}.tree-group{transition:all .22s ease}.tree-group>.children{display:grid;grid-template-rows:0fr;overflow:hidden;opacity:.55;transition:grid-template-rows .22s ease,opacity .18s ease}.tree-group.open>.children{grid-template-rows:1fr;opacity:1}.tree-group>.children>*{min-height:0}.tree-node{transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}.tree-node:hover{background:#eef2ff}.tree-node.active{background:#e0e7ff;color:#3730a3;box-shadow:inset -3px 0 #4f46e5}.tree-node.dragging{opacity:.4;transform:scale(.98)}.tree-group.drop-target>.tree-node{outline:2px dashed #6366f1;background:#eef2ff}.tree-root-drop-active{display:block!important}.tree-node[draggable=true]{cursor:grab}.tree-node[draggable=true]:active{cursor:grabbing}.field{display:flex;flex-direction:column;gap:5px;color:#64748b;font-size:12px;font-weight:700}.field input,.field select{width:100%;min-height:38px;padding:8px 10px;border:1px solid #dbe3ee;border-radius:9px;background:#fff;color:#17324d}.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{padding:9px;border-bottom:1px solid #e9eef5;text-align:right;font-size:12px}.tbl th{background:#f5f7fb;color:#52667d}.btn{border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer}.btn.primary{background:#4f46e5;color:#fff}.btn.secondary{background:#eef2ff;color:#3730a3}.btn.danger{background:#fee2e2;color:#991b1b}.check{display:flex;gap:7px;align-items:center;font-size:12px;font-weight:700}.master-context-menu{position:fixed;z-index:99999;min-width:200px;padding:5px;background:#fff;border:1px solid #dbe3ee;border-radius:10px;box-shadow:0 18px 40px rgba(15,23,42,.18);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:9px 10px;border-radius:7px;font-weight:700;color:#26384a;cursor:pointer}.master-context-menu button:hover{background:#eef2ff}
 @media(max-width:900px){#master-data-workspace{min-height:auto}.tree-node{min-height:42px}.w-80{width:100%}aside{max-height:48vh}.flex-1.flex{flex-direction:column}}
 </style>
+{% set tree_data = tire_master_data %}
+<script>
+window.MATERIEL_MASTER_DATA = {{ tire_master_data|tojson }};
+window.MATERIEL_CATEGORIES = {{ categories|map(attribute='__dict__')|list|tojson }};
+window.MATERIEL_TYPES = {{ types|map(attribute='__dict__')|list|tojson }};
+window.MATERIEL_BRANDS = {{ brands|map(attribute='__dict__')|list|tojson }};
+window.MATERIEL_SPEC_DEFS = {{ spec_definitions|tojson }};
+</script>
 {% endblock %}
 
 {% block scripts %}
