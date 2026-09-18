@@ -204,7 +204,35 @@
   tree.addEventListener('dragend', () => { dragged?.classList.remove('dragging'); dragged = null; });
   tree.addEventListener('dragover', (event) => { const target = event.target.closest('[data-type-id]'); if (dragged && target) { event.preventDefault(); target.classList.add('drop-target'); } });
   tree.addEventListener('dragleave', (event) => event.target.closest('[data-type-id]')?.classList.remove('drop-target'));
-  const toast = (message) => { const box=document.getElementById('tree-toast'), msg=document.getElementById('toast-message'); if(!box||!msg)return; msg.textContent=message; box.hidden=false; box.classList.remove('hidden'); clearTimeout(window.__materielTreeToast); window.__materielTreeToast=setTimeout(()=>{box.hidden=true;box.classList.add('hidden');},2600); };
+  const toast = (message, action) => {
+    const box = document.getElementById('tree-toast');
+    const msg = document.getElementById('toast-message');
+    if (!box || !msg) return;
+    msg.textContent = message;
+    let undo = box.querySelector('[data-tree-toast-action]');
+    if (!undo) {
+      undo = document.createElement('button');
+      undo.type = 'button';
+      undo.dataset.treeToastAction = '1';
+      undo.className = 'tree-toast-action';
+      undo.textContent = 'تراجع';
+      box.appendChild(undo);
+    }
+    undo.hidden = typeof action !== 'function';
+    undo.onclick = typeof action === 'function' ? async () => {
+      undo.disabled = true;
+      try { await action(); }
+      finally { undo.disabled = false; }
+    } : null;
+    box.hidden = false;
+    box.classList.remove('hidden');
+    clearTimeout(window.__materielTreeToast);
+    window.__materielTreeToast = setTimeout(() => {
+      box.hidden = true;
+      box.classList.add('hidden');
+      undo.hidden = true;
+    }, 5000);
+  };
   tree.addEventListener('drop', async (event) => {
     const target = event.target.closest('[data-type-id]');
     if (!dragged || !target) return;
@@ -216,8 +244,19 @@
     try {
       const response = await fetch('/equipment-types/models/' + encodeURIComponent(id) + '/move', {method:'POST', body:form, credentials:'same-origin'});
       if (!response.ok) throw new Error('move failed');
-      toast('تم نقل الطراز داخل الشجرة');
-      window.setTimeout(() => window.location.reload(), 250);
+      let undone = false;
+      const undoMove = async () => {
+        if (undone) return;
+        const undoForm = new FormData();
+        undoForm.append('equipment_type_id', String(model.equipment_type_id || ''));
+        const undoResponse = await fetch('/equipment-types/models/' + encodeURIComponent(id) + '/move', { method: 'POST', body: undoForm, credentials: 'same-origin' });
+        if (!undoResponse.ok) throw new Error('undo failed');
+        undone = true;
+        toast('تم التراجع عن نقل الطراز');
+        window.setTimeout(() => window.location.reload(), 250);
+      };
+      toast('تم نقل الطراز داخل الشجرة', undoMove);
+      window.setTimeout(() => { if (!undone) window.location.reload(); }, 5200);
     } catch (_) { toast('تعذر نقل الطراز؛ لم يتم تغيير البيانات'); }
   });
 
