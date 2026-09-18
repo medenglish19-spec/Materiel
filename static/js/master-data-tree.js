@@ -22,6 +22,7 @@
     #tree .master-hierarchy-group{margin-bottom:3px}
     #tree .master-hierarchy-group>.children{padding-right:20px}
     #tree .master-category-types-label,#tree .master-type-models-label{font-weight:800;color:#475569}
+    #tree .master-category-types-section>.children,#tree .master-type-models-section>.children{display:block}
     #tree .master-uncategorized{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-unassigned-models{margin-top:8px;padding-top:6px;border-top:1px dashed #cbd5e1}
     #tree .master-reference-group{margin-top:6px}
@@ -282,7 +283,7 @@
   const setupModelWorkspace = () => {
     const panel = document.getElementById('modelPanel');
     if (!panel || panel.dataset.workspaceReady === '1') return;
-    const boxes = Array.from(panel.children).filter((child) => child.classList?.contains('box'));
+    const boxes = Array.from(panel.querySelectorAll('.box'));
     if (!boxes.length) return;
     const nav = document.createElement('nav');
     nav.className = 'model-workspace-nav';
