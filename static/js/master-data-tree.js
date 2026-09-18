@@ -1,8 +1,7 @@
 (() => {
   'use strict';
   const tree = document.getElementById('tree');
-  if (!tree) return;
-  if (typeof DATA === 'undefined') return;
+  if (!tree || typeof DATA === 'undefined') return;
 
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
@@ -40,9 +39,7 @@
   const openModelCreate = (typeId) => {
     if (typeof resetModel === 'function') resetModel();
     const select = $('modelType');
-    const option = select && typeId
-      ? [...select.options].find((item) => String(item.value) === String(typeId))
-      : null;
+    const option = select && typeId ? [...select.options].find((item) => String(item.value) === String(typeId)) : null;
     if (select && option) {
       select.value = String(typeId);
       if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
@@ -65,6 +62,14 @@
   };
 
   const root = (name) => tree.querySelector(`[data-ref="${name}"]`)?.closest('.tree-group');
+  const makeInlineAction = (label, attributes) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tree-node master-inline-add';
+    button.textContent = label;
+    Object.entries(attributes).forEach(([key, value]) => { button.dataset[key] = String(value); });
+    return button;
+  };
   const buildHierarchy = () => {
     const categoryRoot = root('categories');
     const typeRoot = root('types');
@@ -73,19 +78,14 @@
     const typeChildren = typeRoot?.querySelector(':scope > .children');
     const modelChildren = modelRoot?.querySelector(':scope > .children');
     if (!categoryChildren || !typeChildren || !modelChildren) return;
+    if (tree.dataset.hierarchyBuilt === '1') return;
 
-    // Capture the original controls before moving nodes. They are the canonical controls
-    // and must not be deleted or replaced by synthetic forms.
-    const addCategory = categoryChildren.querySelector(':scope > [data-new-ref="category"]');
-    const addType = typeChildren.querySelector(':scope > [data-new-ref="type"]');
-    const addModel = modelChildren.querySelector(':scope > [data-new-ref="model"]');
     const categories = [...categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]')];
     const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
     const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
     const byCategory = new Map();
     const byType = new Map();
     const categoryOf = (node) => String(node.dataset.categoryId || node.dataset.category || '');
-
     types.forEach((node) => {
       const key = categoryOf(node);
       if (!byCategory.has(key)) byCategory.set(key, []);
@@ -97,14 +97,6 @@
       byType.get(key).push(group);
     });
 
-    const addInline = (label, attributes) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tree-node master-inline-add';
-      button.textContent = label;
-      Object.entries(attributes).forEach(([key, value]) => { button.dataset[key] = String(value); });
-      return button;
-    };
     const appendType = (node, parent) => {
       const id = String(node.dataset.id || '');
       const group = document.createElement('div');
@@ -113,11 +105,7 @@
       node.innerHTML = `<span class="tree-toggle">⌄</span><span>🗂 ${node.dataset.name || ''}</span><span class="tree-actions"><span class="tree-add" data-add="model">＋</span></span>`;
       const children = document.createElement('div');
       children.className = 'children';
-      // Preserve the original model add control and enrich it with the owning type ID.
-      if (addModel && !addModel.parentElement?.isSameNode(children)) {
-        addModel.dataset.newModelForType = id;
-        children.appendChild(addModel);
-      }
+      children.appendChild(makeInlineAction('＋ إضافة طراز', { newRef: 'model', newModelForType: id }));
       children.append(...(byType.get(id) || []));
       group.append(node, children);
       parent.appendChild(group);
@@ -130,10 +118,7 @@
       node.innerHTML = `<span class="tree-toggle">⌄</span><span>📁 ${node.dataset.name || ''}</span><span class="tree-actions"><span class="tree-add" data-add="type">＋</span></span>`;
       const children = document.createElement('div');
       children.className = 'children';
-      if (addType && !addType.parentElement?.isSameNode(children)) {
-        addType.dataset.newTypeForCategory = id;
-        children.appendChild(addType);
-      }
+      children.appendChild(makeInlineAction('＋ إضافة نوع عتاد', { newRef: 'type', newTypeForCategory: id }));
       (byCategory.get(id) || []).forEach((type) => appendType(type, children));
       group.append(node, children);
       categoryChildren.appendChild(group);
@@ -153,8 +138,7 @@
       group.append(heading, children);
       categoryChildren.appendChild(group);
     }
-    if (addCategory && !addCategory.parentElement?.isSameNode(categoryChildren)) categoryChildren.prepend(addCategory);
-    // The old root containers remain as stable anchors, but no source node is deleted.
+    tree.dataset.hierarchyBuilt = '1';
     syncArrows();
   };
 
@@ -186,7 +170,7 @@
       if (action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory);
       else if (action.dataset.newModelForType) openModelCreate(action.dataset.newModelForType);
       else if (kind === 'model') openModelCreate();
-      else if (kind) refPanel?.(kind);
+      else if (kind && typeof refPanel === 'function') refPanel(kind);
       return;
     }
     const position = event.target.closest('[data-tree-add]');
@@ -201,16 +185,22 @@
     if (copy) { event.preventDefault(); event.stopPropagation(); copyModel(copy.dataset.copy); return; }
     const del = event.target.closest('[data-delete]');
     if (del) {
-      event.preventDefault(); event.stopPropagation();
-      if (confirm('حذف الطراز؟')) { const form = document.createElement('form'); form.method = 'post'; form.action = `/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`; document.body.appendChild(form); form.submit(); }
+      event.preventDefault();
+      event.stopPropagation();
+      if (confirm('حذف الطراز؟')) {
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = `/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`;
+        document.body.appendChild(form);
+        form.submit();
+      }
       return;
     }
     const toggle = event.target.closest('.tree-toggle');
     if (toggle) {
       event.preventDefault();
       event.stopPropagation();
-      const group = toggle.closest('.tree-group');
-      group?.classList.toggle('open');
+      toggle.closest('.tree-group')?.classList.toggle('open');
       syncArrows();
       return;
     }
@@ -220,8 +210,7 @@
     if (model) {
       selectNode(model);
       window.viewModel?.(model.dataset.model);
-      const sectionIndex = sectionMap[model.dataset.section || 'basic'] || 0;
-      selectSection(sectionIndex, { focus: true });
+      selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true });
       return;
     }
     const item = event.target.closest('[data-ref-item]');
@@ -230,9 +219,9 @@
     if (node) selectNode(node);
   }, true);
 
-  $('btn-tree-expand-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((g) => g.classList.add('open')); syncArrows(); });
-  $('btn-tree-collapse-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((g) => g.classList.remove('open')); syncArrows(); });
-  $('btn-add-root-category')?.addEventListener('click', () => refPanel?.('category'));
+  $('btn-tree-expand-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.add('open')); syncArrows(); });
+  $('btn-tree-collapse-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.remove('open')); syncArrows(); });
+  $('btn-add-root-category')?.addEventListener('click', () => { if (typeof refPanel === 'function') refPanel('category'); });
   buildHierarchy();
   tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = true; });
   syncArrows();
