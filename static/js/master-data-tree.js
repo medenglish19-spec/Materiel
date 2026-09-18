@@ -168,6 +168,34 @@
   tree.addEventListener('pointermove', (event) => { if (timer && (Math.abs(event.clientX - sx) > 10 || Math.abs(event.clientY - sy) > 10)) cancelPress(); });
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => tree.addEventListener(type, cancelPress));
 
+  const exportTree = () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      categories: [...tree.querySelectorAll('[data-ref-item="category"]')].map((node) => ({ id: node.dataset.id || '', name: node.dataset.name || '' })),
+      types: [...tree.querySelectorAll('[data-ref-item="type"]')].map((node) => ({ id: node.dataset.id || '', name: node.dataset.name || '', category_id: node.dataset.categoryId || node.dataset.category || '' })),
+      models: [...tree.querySelectorAll('[data-model-row]')].map((node) => ({ id: node.dataset.modelRow || '', name: node.textContent.trim().replace(/^🚙\s*/, ''), equipment_type_id: node.dataset.equipmentTypeId || '' }))
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'materiel-equipment-tree.json'; link.click();
+    URL.revokeObjectURL(url);
+    toast('تم تصدير شجرة المعدات');
+  };
+
+  $('btn-export-tree')?.addEventListener('click', exportTree);
+  $('btn-tree-expand-all')?.addEventListener('click', () => {
+    tree.querySelectorAll('.tree-group').forEach((group) => group.classList.add('open'));
+    syncArrows();
+  });
+  $('btn-tree-collapse-all')?.addEventListener('click', () => {
+    tree.querySelectorAll('.tree-group').forEach((group) => group.classList.remove('open'));
+    syncArrows();
+  });
+  $('btn-add-root-category')?.addEventListener('click', () => {
+    if (typeof refPanel === 'function') refPanel('category');
+  });
+
   let dragged = null;
   tree.addEventListener('dragstart', (event) => { const row = event.target.closest('[data-model-row]'); if (!row) return; dragged = row; row.classList.add('dragging'); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', row.dataset.modelRow); });
   tree.addEventListener('dragend', () => { dragged?.classList.remove('dragging'); dragged = null; });
