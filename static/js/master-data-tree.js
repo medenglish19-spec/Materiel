@@ -364,7 +364,7 @@
     const modelRow=node?.closest('[data-model-row]'), refItem=node?.closest('[data-ref-item]'); if(!modelRow&&!refItem)return;
     const actions=[];
     if(modelRow){const id=modelRow.dataset.modelRow;actions.push(['👁 عرض الطراز',()=>viewModel(id)]);actions.push(['✏️ تعديل الطراز',()=>editModel(id)]);actions.push(['⧉ نسخ الطراز',()=>{editModel(id);const n=document.getElementById('modelName'),f=document.getElementById('modelId'),form=document.getElementById('modelForm');if(n)n.value+=' - نسخة';if(f)f.value='';if(form)form.action='/equipment-types/models/create';currentModel=null;}]);actions.push(['🗑 حذف الطراز',()=>deleteModel(id)])}
-    }else{const kind=refItem.dataset.refItem,id=refItem.dataset.id,name=refItem.dataset.name||'',labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};actions.push(['✏️ تعديل '+(labels[kind]||'العنصر'),()=>refPanel(kind,id,name,refItem.dataset)]);if(kind==='category'||kind==='type')actions.push(['🗑 حذف '+labels[kind],()=>deleteHierarchyItem(kind,id)])}
+    }else{const kind=refItem.dataset.refItem,id=refItem.dataset.id,name=refItem.dataset.name||'',labels={category:'الفئة',type:'نوع العتاد',brand:'العلامة التجارية',spec:'الخاصية'};actions.push(['✏️ تعديل '+(labels[kind]||'العنصر'),()=>refPanel(kind,id,name,refItem.dataset)]);if(kind==='category'||kind==='type')actions.push(['🗑 حذف '+labels[kind],()=>deleteHierarchyItem(kind,id)]);if(kind==='brand')actions.push(['🗑 حذف العلامة التجارية',()=>deleteBrand(id)])}
     contextMenu.replaceChildren(); actions.forEach(([label,action])=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{closeContextMenu();action()};contextMenu.appendChild(button)});
     contextMenu.hidden=false;const r=contextMenu.getBoundingClientRect();contextMenu.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';contextMenu.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
   };
@@ -440,4 +440,5 @@
   if (searchInput) searchInput.addEventListener('input', () => searchTree(searchInput.value));
   new MutationObserver(syncArrows).observe(tree, {subtree:true,attributes:true,attributeFilter:['class']});
   syncArrows();
-})();
+})();  const deleteBrand = (id) => { if (!confirm('حذف العلامة التجارية؟')) return; const form=document.createElement('form'); form.method='post'; form.action='/equipment-types/brands/'+id+'/delete'; document.body.appendChild(form); form.submit(); };
+
