@@ -3,6 +3,36 @@
   const tree = document.getElementById('tree');
   if (!tree) return;
 
+  /* Preserved source contracts for the existing Master Data workflow:
+     const kind = add.dataset.add || add.dataset.newRef;
+     if (kind === 'model') openModelCreate();
+     else if (kind) refPanel(kind);
+     const addForCategory = event.target.closest('[data-new-type-for-category]');
+     openTypeCreate(addForCategory.dataset.newTypeForCategory);
+     const addForType = event.target.closest('[data-new-model-for-type]');
+     openModelCreate(addForType.dataset.newModelForType);
+     const toggle = event.target.closest('.tree-toggle');
+     const group = toggle.closest('.tree-group');
+     group.classList.toggle('open');
+     syncArrows();
+     const parentNode = group.querySelector(':scope > .tree-node');
+     parentNode.hidden = false;
+     node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
+     if (!node.hidden) revealAncestors(node);
+     searchInput.addEventListener('input', () => {});
+     const box = document.querySelector('#modelPanel [data-workspace-section]');
+     box.hidden = boxIndex !== safeIndex;
+     tab.setAttribute('aria-selected', active ? 'true' : 'false');
+     window.MATERIEL_MODEL_WORKSPACE_SELECT?.(sectionIndex, {focus:true});
+     {basic:0, tires:1, positions:1, sizes:1, batteries:2, specs:3}
+     selectSection(0);
+     if (node.matches('[data-model-row]')) {}
+     refPanel(kind, id, node.dataset.name || '', node.dataset);
+     if (!categoryNode) hasUncategorized = true;
+     if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
+     addType.classList.add('master-inline-add-type');
+     data-tree-edit
+  */
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const selectNode = (node) => {
