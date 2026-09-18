@@ -82,7 +82,7 @@
       const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
       const key = attr;
       if (!typeByCategory.has(key)) typeByCategory.set(key, []);
-      typeByCategory.get(key).push(node);
+      typeByCategory.get(key).push(typeNode);
     });
 
     const modelsByType = new Map();
@@ -374,7 +374,7 @@
       if (kind === 'model' && !add.dataset.newModelForType) openModelCreate();
       else if (kind === 'model') openModelCreate(addForType.dataset.newModelForType);
       else if (kind === 'type' && addForCategory.dataset.newTypeForCategory) openTypeCreate(addForCategory.dataset.newTypeForCategory);
-      } else if (kind) {
+      else if (kind) {
         if (typeof refPanel === 'function') refPanel(kind);
       }
       syncArrows();
