@@ -1,451 +1,157 @@
 (() => {
   'use strict';
-
   const tree = document.getElementById('tree');
   if (!tree) return;
 
-  const sectionMap = {basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3};
-
-  const syncArrows = () => {
-    tree.querySelectorAll('.tree-group > .tree-node > .tree-toggle').forEach((toggle) => {
-      const group = toggle.closest('.tree-group');
-      toggle.textContent = group?.classList.contains('open') ? '⌄' : '›';
-    });
-  };
-
-  const selectSection = (index, options = {}) => {
-    const sections = Array.from(document.querySelectorAll('#modelPanel [data-workspace-section]'));
-    const tabs = Array.from(document.querySelectorAll('[data-model-workspace-tab]'));
-    if (!sections.length) return;
-    const safeIndex = Math.min(Math.max(Number(index) || 0, 0), sections.length - 1);
-    sections.forEach((box, boxIndex) => {
-      const active = boxIndex === safeIndex;
-      box.hidden = boxIndex !== safeIndex;
-      box.setAttribute('aria-hidden', active ? 'false' : 'true');
-    });
-    tabs.forEach((tab, tabIndex) => {
-      const active = tabIndex === safeIndex;
-      tab.classList.toggle('is-active', active);
-      tab.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    if (options.focus) {
-      const target = sections[safeIndex];
-      if (target) target.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-    }
-  };
-
-  window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
-
-  const openTypeCreate = (categoryId) => {
-    if (typeof resetModel === 'function') resetModel();
-    if (typeof refPanel === 'function') refPanel('type', null, '', {categoryId: String(categoryId || '')});
-    const form = document.querySelector('#refBody form');
-    const categoryInput = form?.querySelector('[name="category_id"]');
-    if (categoryInput && categoryId !== undefined && categoryId !== null && categoryId !== '') {
-      categoryInput.value = String(categoryId);
-    }
-  };
-
-  const openModelCreate = (typeId) => {
-    if (typeof resetModel === 'function') resetModel();
-    const typeSelect = document.getElementById('modelType');
-    const categorySelect = document.getElementById('modelCategory');
-    if (typeId !== undefined && typeId !== null && typeId !== '') {
-      const option = typeSelect?.querySelector(`option[value="${CSS.escape(String(typeId))}"]`);
-      if (option && typeSelect) {
-        typeSelect.value = String(typeId);
-        if (categorySelect && option.dataset.category) categorySelect.value = option.dataset.category;
-      }
-    }
-    if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
-    if (typeof show === 'function') show(document.getElementById('modelPanel'));
-    window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
-  };
-
-  const buildHierarchy = () => {
-    const categoryRoot = tree.querySelector('[data-ref="categories"]')?.closest('.tree-group');
-    const typeRoot = tree.querySelector('[data-ref="types"]')?.closest('.tree-group');
-    const modelRoot = tree.querySelector('[data-ref="models"]')?.closest('.tree-group');
-    if (!categoryRoot || !typeRoot || !modelRoot) return;
-
-    const categoryChildren = categoryRoot.querySelector(':scope > .children');
-    const typeChildren = typeRoot.querySelector(':scope > .children');
-    const modelChildren = modelRoot.querySelector(':scope > .children');
-    if (!categoryChildren || !typeChildren || !modelChildren) return;
-
-    const categoryNodes = Array.from(categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]'));
-    const typeNodes = Array.from(typeChildren.querySelectorAll(':scope > [data-ref-item="type"]'));
-    const modelGroups = Array.from(modelChildren.querySelectorAll(':scope > .model-group'));
-
-    const typeByCategory = new Map();
-    typeNodes.forEach((typeNode) => {
-      const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
-      const key = attr;
-      if (!typeByCategory.has(key)) typeByCategory.set(key, []);
-      typeByCategory.get(key).push(typeNode);
-    });
-
-    const modelsByType = new Map();
-    modelGroups.forEach((group) => {
-      const row = group.querySelector(':scope > [data-model-row]');
-      const key = String(row?.dataset.equipmentTypeId || '');
-      if (!modelsByType.has(key)) modelsByType.set(key, []);
-      modelsByType.get(key).push(group);
-    });
-
-    const addButton = (label, attrs) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tree-node master-inline-add';
-      button.textContent = label;
-      Object.entries(attrs).forEach(([key, value]) => button.dataset[key] = String(value));
-      return button;
-    };
-
-    categoryNodes.forEach((categoryNode) => {
-      const categoryId = String(categoryNode.dataset.id || '');
-      const categoryGroup = document.createElement('div');
-      categoryGroup.className = 'tree-group master-category-group open';
-      categoryGroup.dataset.categoryId = categoryId;
-
-      const categoryButton = categoryNode;
-      categoryButton.classList.add('master-category-node');
-      categoryButton.innerHTML = '<span class="tree-toggle">⌄</span><span>📁 ' +
-        (categoryButton.dataset.name || categoryButton.textContent.replace(/^•\s*/, '').trim()) +
-        '</span><span class="tree-actions"></span>';
-      const actions = categoryButton.querySelector('.tree-actions');
-      const addType = document.createElement('span');
-      addType.className = 'tree-add';
-      addType.textContent = '＋';
-      addType.dataset.add = 'type';
-      addType.dataset.newTypeForCategory = categoryId;
-      addType.title = 'إضافة نوع عتاد داخل هذه الفئة';
-      actions.appendChild(addType);
-
-      const children = document.createElement('div');
-      children.className = 'children';
-      children.appendChild(addButton('＋ إضافة نوع عتاد', {newRef: 'type', newTypeForCategory: categoryId}));
-
-      (typeByCategory.get(categoryId) || []).forEach((typeNode) => {
-        appendType(typeNode, children, modelsByType);
-      });
-
-      categoryGroup.append(categoryButton, children);
-      categoryNode.replaceWith(categoryGroup);
-    });
-
-    let hasUncategorized = false;
-    categoryNodes.forEach((categoryNode) => {
-      if (!categoryNode) hasUncategorized = true;
-    });
-    const uncategorizedTypes = typeByCategory.get('');
-    const uncategorizedGroup = document.createElement('div');
-    uncategorizedGroup.className = 'tree-group master-uncategorized open';
-    const uncategorizedButton = document.createElement('button');
-    uncategorizedButton.type = 'button';
-    uncategorizedButton.className = 'tree-node';
-    uncategorizedButton.innerHTML = '<span class="tree-toggle">⌄</span>🗂 أنواع عتاد غير مصنّفة';
-    const uncategorizedChildren = document.createElement('div');
-    uncategorizedChildren.className = 'children';
-    const addType = addButton('＋ إضافة نوع عتاد', {newRef: 'type'});
-    addType.classList.add('master-inline-add-type');
-    uncategorizedChildren.appendChild(addType);
-    (uncategorizedTypes || []).forEach((typeNode) => {
-      hasUncategorized = true;
-      appendType(typeNode, uncategorizedChildren, modelsByType);
-    });
-    if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
-
-
-    function appendType(typeNode, parent, modelMap) {
-      const typeId = String(typeNode.dataset.id || '');
-      const typeGroup = document.createElement('div');
-      typeGroup.className = 'tree-group master-type-group open';
-      typeGroup.dataset.typeId = typeId;
-      typeNode.classList.add('master-type-node');
-      typeNode.innerHTML = '<span class="tree-toggle">⌄</span><span>🗂 ' +
-        (typeNode.dataset.name || typeNode.textContent.replace(/^•\s*/, '').trim()) +
-        '</span><span class="tree-actions"></span>';
-      const actions = typeNode.querySelector('.tree-actions');
-      const addModel = document.createElement('span');
-      addModel.className = 'tree-add';
-      addModel.textContent = '＋';
-      addModel.dataset.add = 'model';
-      addModel.dataset.newModelForType = typeId;
-      addModel.title = 'إضافة طراز داخل هذا النوع';
-      actions.appendChild(addModel);
-
-      const children = document.createElement('div');
-      children.className = 'children';
-      children.appendChild(addButton('＋ إضافة طراز', {newRef: 'model', newModelForType: typeId}));
-      (modelMap.get(typeId) || []).forEach((group) => {
-        children.appendChild(group);
-      });
-      typeGroup.append(typeNode, children);
-      parent.appendChild(typeGroup);
-    }
-  };
-
-  const revealAncestors = (node) => {
-    let group = node.closest('.tree-group');
-    while (group) {
-      group.classList.add('open');
-      const parentNode = group.querySelector(':scope > .tree-node');
-      if (parentNode) parentNode.hidden = false;
-      group = group.parentElement?.closest('.tree-group');
-    }
-  };
-
-  const setupSearch = () => {
-    const searchInput = document.getElementById('treeSearch');
-    if (!searchInput) return;
-    searchInput.addEventListener('input', () => {
-      const query = searchInput.value.trim().toLocaleLowerCase();
-      const nodes = Array.from(tree.querySelectorAll('.tree-node'));
-      nodes.forEach((node) => {
-        node.hidden = !node.textContent.toLocaleLowerCase().includes(query);
-      });
-      if (!query) nodes.forEach((node) => { node.hidden = false; });
-      if (query) nodes.filter((node) => !node.hidden).forEach((node) => revealAncestors(node));
-      syncArrows();
-    });
-  };
-
+  const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
+  const $ = (id) => document.getElementById(id);
   const selectNode = (node) => {
     tree.querySelectorAll('.tree-node.active').forEach((item) => item.classList.remove('active'));
     node?.classList.add('active');
   };
+  const syncArrows = () => tree.querySelectorAll('.tree-group > .tree-node > .tree-toggle').forEach((toggle) => {
+    toggle.textContent = toggle.closest('.tree-group')?.classList.contains('open') ? '⌄' : '›';
+  });
+  const selectSection = (index, options = {}) => {
+    const boxes = [...document.querySelectorAll('#modelPanel [data-workspace-section]')];
+    const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
+    if (!boxes.length) return;
+    const safe = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
+    boxes.forEach((box, i) => { box.hidden = i !== safe; box.setAttribute('aria-hidden', i === safe ? 'false' : 'true'); });
+    tabs.forEach((tab, i) => { const active = i === safe; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
+    if (options.focus) boxes[safe]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
 
+  const openTypeCreate = (categoryId) => {
+    if (typeof refPanel !== 'function') return;
+    refPanel('type', null, '', { categoryId: String(categoryId || '') });
+    const input = document.querySelector('#refBody form [name="category_id"]');
+    if (input) input.value = String(categoryId || '');
+  };
+  const openModelCreate = (typeId) => {
+    if (typeof resetModel === 'function') resetModel();
+    const select = $('modelType');
+    const option = select && typeId ? select.querySelector(`option[value="${CSS.escape(String(typeId))}"]`) : null;
+    if (select && option) {
+      select.value = String(typeId);
+      if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
+    }
+    if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
+    if (typeof show === 'function') show($('modelPanel'));
+    selectSection(0);
+  };
   const editReference = (node) => {
-    const kind = node.dataset.refItem;
-    const id = node.dataset.id;
-    if (!kind || !id || typeof refPanel !== 'function') return;
-    refPanel(kind, id, node.dataset.name || '', node.dataset);
+    if (typeof refPanel !== 'function') return;
+    refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
-
   const copyModel = (id) => {
     if (typeof editModel !== 'function') return;
     editModel(id);
-    const name = document.getElementById('modelName');
-    const modelId = document.getElementById('modelId');
-    const form = document.getElementById('modelForm');
-    if (name) name.value = `${name.value} - نسخة`;
-    if (modelId) modelId.value = '';
-    if (form) form.action = '/equipment-types/models/create';
-    currentModel = null;
+    if ($('modelName')) $('modelName').value += ' - نسخة';
+    if ($('modelId')) $('modelId').value = '';
+    if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
   };
-
-  const postDelete = (action, message) => {
-    if (!window.confirm(message)) return;
+  const postDelete = (url, message) => {
+    if (!confirm(message)) return;
     const form = document.createElement('form');
-    form.method = 'post';
-    form.action = action;
-    form.hidden = true;
-    document.body.appendChild(form);
-    form.submit();
+    form.method = 'post'; form.action = url; form.hidden = true;
+    document.body.appendChild(form); form.submit();
   };
 
+  const menu = document.createElement('div');
+  menu.className = 'master-context-menu'; menu.hidden = true; menu.dir = 'rtl';
+  document.body.appendChild(menu);
+  const closeMenu = () => { menu.hidden = true; menu.replaceChildren(); };
   const showMenu = (node, x, y) => {
     const model = node.closest('[data-model-row]');
     const ref = node.closest('[data-ref-item]');
     const actions = [];
-
     if (model) {
       const id = model.dataset.modelRow;
-      actions.push(['👁 عرض الطراز', () => typeof viewModel === 'function' && viewModel(id)]);
-      actions.push(['✏️ تعديل الطراز', () => typeof editModel === 'function' && editModel(id)]);
+      actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
+      actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
       actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
-      actions.push(['🗑 حذف الطراز', () => postDelete('/equipment-types/models/' + encodeURIComponent(id) + '/delete', 'حذف الطراز؟ سيتم تطبيق حماية النظام الحالية.')]);
+      actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
     } else if (ref) {
-      const kind = ref.dataset.refItem;
-      const id = ref.dataset.id;
-      const labels = {category:'الفئة', type:'نوع العتاد', brand:'العلامة التجارية', spec:'الخاصية'};
-      if (!labels[kind] || !id) return;
-      actions.push(['✏️ تعديل ' + labels[kind], () => editReference(ref)]);
-      if (kind === 'category') actions.push(['🗑 حذف الفئة', () => postDelete('/equipment-types/categories/' + encodeURIComponent(id) + '/delete', 'حذف الفئة؟ إذا كانت مرتبطة بأنواع عتاد سيمنع النظام الحذف.')]);
-      if (kind === 'type') actions.push(['🗑 حذف نوع العتاد', () => postDelete('/equipment-types/' + encodeURIComponent(id) + '/delete', 'حذف نوع العتاد؟ إذا كان مرتبطاً بطرازات سيمنع النظام الحذف.')]);
-      if (kind === 'brand') actions.push(['🗑 حذف العلامة التجارية', () => postDelete('/equipment-types/brands/' + encodeURIComponent(id) + '/delete', 'حذف العلامة التجارية؟ إذا كانت مرتبطة بطرازات سيمنع النظام الحذف.')]);
-    } else {
-      return;
-    }
-
+      const id = ref.dataset.id; const kind = ref.dataset.refItem;
+      const labels = { category: 'الفئة', type: 'نوع العتاد', brand: 'العلامة التجارية', spec: 'الخاصية' };
+      if (!id || !labels[kind]) return;
+      actions.push([`✏️ تعديل ${labels[kind]}`, () => editReference(ref)]);
+      const routes = { category: `/equipment-types/categories/${id}/delete`, type: `/equipment-types/${id}/delete`, brand: `/equipment-types/brands/${id}/delete` };
+      if (routes[kind]) actions.push([`🗑 حذف ${labels[kind]}`, () => postDelete(routes[kind], `حذف ${labels[kind]}؟`)]);
+    } else return;
     menu.replaceChildren();
-    actions.forEach(([label, action]) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.addEventListener('click', () => { closeMenu(); action(); });
-      menu.appendChild(button);
-    });
+    actions.forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = () => { closeMenu(); action(); }; menu.appendChild(button); });
     menu.hidden = false;
     const rect = menu.getBoundingClientRect();
-    menu.style.left = Math.max(8, Math.min(Number(x) || 8, innerWidth - rect.width - 8)) + 'px';
-    menu.style.top = Math.max(8, Math.min(Number(y) || 8, innerHeight - rect.height - 8)) + 'px';
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
   };
 
-  const menu = document.createElement('div');
-  menu.className = 'master-context-menu';
-  menu.hidden = true;
-  menu.dir = 'rtl';
-  document.body.appendChild(menu);
-
-  const closeMenu = () => {
-    menu.hidden = true;
-    menu.replaceChildren();
+  const buildHierarchy = () => {
+    const root = (name) => tree.querySelector(`[data-ref="${name}"]`)?.closest('.tree-group');
+    const categoryRoot = root('categories'); const typeRoot = root('types'); const modelRoot = root('models');
+    const categoryChildren = categoryRoot?.querySelector(':scope > .children');
+    const typeChildren = typeRoot?.querySelector(':scope > .children');
+    const modelChildren = modelRoot?.querySelector(':scope > .children');
+    if (!categoryChildren || !typeChildren || !modelChildren) return;
+    const categories = [...categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]')];
+    const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
+    const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
+    const byCategory = new Map();
+    types.forEach((node) => { const key = String(node.dataset.categoryId || node.dataset.category || ''); if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(node); });
+    const byType = new Map();
+    models.forEach((group) => { const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || ''); if (!byType.has(key)) byType.set(key, []); byType.get(key).push(group); });
+    const add = (text, data) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-node master-inline-add'; button.textContent = text; Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; }); return button; };
+    const appendType = (node, parent) => {
+      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-type-group open'; group.dataset.typeId = id;
+      node.innerHTML = `<span class="tree-toggle">⌄</span><span>🗂 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="${id}" title="إضافة طراز">＋</span></span>`;
+      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة طراز', { newRef: 'model', newModelForType: id })); (byType.get(id) || []).forEach((model) => children.appendChild(model)); group.append(node, children); parent.appendChild(group);
+    };
+    categories.forEach((node) => {
+      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-category-group open';
+      node.innerHTML = `<span class="tree-toggle">⌄</span><span>📁 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="type" data-new-type-for-category="${id}" title="إضافة نوع">＋</span></span>`;
+      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type', newTypeForCategory: id })); (byCategory.get(id) || []).forEach((type) => appendType(type, children)); group.append(node, children); node.replaceWith(group);
+    });
+    const orphan = document.createElement('div'); orphan.className = 'tree-group master-uncategorized open'; const orphanChildren = document.createElement('div'); orphanChildren.className = 'children'; orphan.append(add('🗂 أنواع عتاد غير مصنّفة', { ref: 'uncategorized' }), orphanChildren); orphanChildren.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type' })); (byCategory.get('') || []).forEach((type) => appendType(type, orphanChildren)); categoryChildren.appendChild(orphan);
+    types.forEach((node) => node.remove()); models.forEach((group) => group.remove());
   };
 
-  tree.addEventListener('contextmenu', (event) => {
-    const node = event.target.closest('[data-model-row],[data-ref-item],[data-model],[data-item]');
-    if (!node || !tree.contains(node)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    showMenu(node, event.clientX, event.clientY);
-  });
+  const revealAncestors = (node) => { let group = node.closest('.tree-group'); while (group) { group.classList.add('open'); group.querySelector(':scope > .tree-node')?.removeAttribute('hidden'); group = group.parentElement?.closest('.tree-group'); } };
+  const search = $('treeSearch');
+  search?.addEventListener('input', () => { const q = search.value.trim().toLocaleLowerCase(); const nodes = [...tree.querySelectorAll('.tree-node')]; nodes.forEach((node) => { node.hidden = !!q && !node.textContent.toLocaleLowerCase().includes(q); }); if (q) nodes.filter((node) => !node.hidden).forEach(revealAncestors); syncArrows(); });
 
-  let timer = null;
-  let target = null;
-  let startX = 0;
-  let startY = 0;
+  tree.addEventListener('contextmenu', (event) => { const node = event.target.closest('[data-model-row],[data-ref-item]'); if (!node) return; event.preventDefault(); showMenu(node, event.clientX, event.clientY); });
+  let timer; let pressTarget; let sx; let sy;
+  const cancelPress = () => { clearTimeout(timer); timer = null; pressTarget = null; };
+  tree.addEventListener('pointerdown', (event) => { if (event.pointerType !== 'touch') return; const node = event.target.closest('[data-model-row],[data-ref-item]'); if (!node) return; cancelPress(); pressTarget = node; sx = event.clientX; sy = event.clientY; timer = setTimeout(() => { showMenu(pressTarget, sx, sy); cancelPress(); }, 650); });
+  tree.addEventListener('pointermove', (event) => { if (timer && (Math.abs(event.clientX - sx) > 10 || Math.abs(event.clientY - sy) > 10)) cancelPress(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => tree.addEventListener(type, cancelPress));
 
-  const cancelLongPress = () => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    target = null;
-  };
-
-  tree.addEventListener('pointerdown', (event) => {
-    if (event.pointerType !== 'touch') return;
-    const node = event.target.closest('[data-model-row],[data-ref-item],[data-model],[data-item]');
-    if (!node || !tree.contains(node)) return;
-    cancelLongPress();
-    target = node;
-    startX = event.clientX;
-    startY = event.clientY;
-    timer = setTimeout(() => {
-      if (!target) return;
-      showMenu(target, startX, startY);
-      timer = null;
-      target = null;
-    }, 650);
-  });
-  tree.addEventListener('pointermove', (event) => {
-    if (!timer || event.pointerType !== 'touch') return;
-    if (Math.abs(event.clientX - startX) > 10 || Math.abs(event.clientY - startY) > 10) cancelLongPress();
-  });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => tree.addEventListener(type, cancelLongPress));
-
-  document.addEventListener('pointerdown', (event) => {
-    if (!menu.hidden && !menu.contains(event.target)) closeMenu();
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeMenu();
-  });
-
-  const style = document.createElement('style');
-  style.textContent = `
-    .master-context-menu{position:fixed;z-index:99999;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}
-    .master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:700;color:#26384a;cursor:pointer;min-height:40px}
-    .master-context-menu button:hover{background:#edf4fa;color:#173b63}
-    .mdx .layout{display:grid;grid-template-columns:minmax(300px,390px) minmax(0,1fr);gap:16px;align-items:start}
-    .mdx .tree-card{min-width:0;overflow:hidden}
-    .mdx .tree-node{min-height:42px;display:flex;align-items:center;gap:8px}
-    .mdx .tree-add,.mdx .tree-toggle{min-width:32px;min-height:32px;display:inline-flex;align-items:center;justify-content:center}
-    .mdx .master-inline-add{font-size:12px;color:#315f88}
-    @media(max-width:900px){.mdx .layout{grid-template-columns:1fr}.mdx{padding:10px}.mdx .tree-card{width:100%}}
-    @media(max-width:640px){.mdx-head h1{font-size:24px}.mdx .tree-node{padding:10px 12px;font-size:14px}.mdx .editor{padding:0}.master-context-menu{max-width:min(300px,calc(100vw - 16px));min-width:170px}}
-  `;
-  document.head.appendChild(style);
-
-  buildHierarchy();
-  setupSearch();
-  syncArrows();
+  let dragged = null;
+  tree.addEventListener('dragstart', (event) => { const row = event.target.closest('[data-model-row]'); if (!row) return; dragged = row; row.classList.add('dragging'); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', row.dataset.modelRow); });
+  tree.addEventListener('dragend', () => { dragged?.classList.remove('dragging'); dragged = null; });
+  tree.addEventListener('dragover', (event) => { const target = event.target.closest('[data-type-id]'); if (dragged && target) { event.preventDefault(); target.classList.add('drop-target'); } });
+  tree.addEventListener('dragleave', (event) => event.target.closest('[data-type-id]')?.classList.remove('drop-target'));
+  tree.addEventListener('drop', (event) => { const target = event.target.closest('[data-type-id]'); if (!dragged || !target) return; event.preventDefault(); target.classList.remove('drop-target'); const id = dragged.dataset.modelRow; const typeId = target.dataset.typeId; if (typeof editModel === 'function') editModel(id); const select = $('modelType'); if (select) select.value = typeId; selectSection(0, { focus: true }); });
 
   tree.addEventListener('click', (event) => {
-    const add = event.target.closest('[data-add],[data-new-ref]');
-    if (add) {
-      const addForCategory = add;
-      const addForType = add;
-      event.preventDefault();
-      event.stopPropagation();
-      const kind = add.dataset.add || add.dataset.newRef;
-      if (kind === 'model' && !add.dataset.newModelForType) openModelCreate();
-      else if (kind === 'model') openModelCreate(addForType.dataset.newModelForType);
-      else if (kind === 'type' && addForCategory.dataset.newTypeForCategory) openTypeCreate(addForCategory.dataset.newTypeForCategory);
-      else if (kind) {
-        if (typeof refPanel === 'function') refPanel(kind);
-      }
-      syncArrows();
-      return;
-    }
-
-    const treeAdd = event.target.closest('[data-tree-add]');
-    if (treeAdd) {
-      event.preventDefault();
-      event.stopPropagation();
-      const modelNode = event.target.closest('[data-model]');
-      if (!modelNode) return;
-      editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes');
-      treeAdd.dataset.treeAdd==='position'?addPos():addSize();
-      return;
-    }
-
+    const action = event.target.closest('[data-add],[data-new-ref]');
+    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof refPanel === 'function') refPanel(kind); return; }
+    const position = event.target.closest('[data-tree-add]');
+    if (position) { event.preventDefault(); event.stopPropagation(); const model = event.target.closest('[data-model]'); if (model && typeof editModel === 'function') { editModel(model.dataset.model, position.dataset.treeAdd === 'position' ? 'positions' : 'sizes'); position.dataset.treeAdd === 'position' ? window.addPos?.() : window.addSize?.(); } return; }
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) {
-      event.preventDefault();
-      event.stopPropagation();
-      const group = toggle.closest('.tree-group');
-      if (group) group.classList.toggle('open');
-      syncArrows();
-      return;
-    }
-
-    const treeEdit = event.target.closest('[data-tree-edit]');
-    const treeDelete = event.target.closest('[data-tree-delete]');
-    if (treeEdit || treeDelete) {
-      event.stopPropagation();
-    }
-
-    const modelRow = event.target.closest('[data-model-row]');
-    if (modelRow) {
-      event.preventDefault();
-      event.stopPropagation();
-      selectNode(modelRow);
-      const group = modelRow.closest('.tree-group');
-      if (group) group.classList.add('open');
-      viewModel(modelRow.dataset.modelRow);
-      return;
-    }
-
-    const model = event.target.closest('[data-model]');
-    if (model) {
-      event.preventDefault();
-      event.stopPropagation();
-      selectNode(model);
-      const section = model.dataset.section || 'basic';
-      viewModel(model.dataset.model);
-      const sectionIndex = sectionMap[section] ?? 0;
-      window.MATERIEL_MODEL_WORKSPACE_SELECT?.(sectionIndex, {focus:true});
-      return;
-    }
-
-    const item = event.target.closest('[data-ref-item]');
-    if (item) {
-      event.preventDefault();
-      event.stopPropagation();
-      editReference(item);
-      return;
-    }
-
-    const node = event.target.closest('.tree-node');
-    if (node) {
-      event.preventDefault();
-      event.stopPropagation();
-      selectNode(node);
-    }
+    if (toggle) { event.preventDefault(); event.stopPropagation(); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
+    const row = event.target.closest('[data-model-row]'); if (row) { selectNode(row); window.viewModel?.(row.dataset.modelRow); return; }
+    const model = event.target.closest('[data-model]'); if (model) { selectNode(model); window.viewModel?.(model.dataset.model); selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true }); return; }
+    const ref = event.target.closest('[data-ref-item]'); if (ref) { editReference(ref); return; }
+    const node = event.target.closest('.tree-node'); if (node) selectNode(node);
   }, true);
 
-  if (typeof setupModelWorkspace === 'function') setupModelWorkspace();
-  selectSection(0);
-  window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0);
+  const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 11px;border-radius:7px;font:inherit;font-weight:700;color:#26384a;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #1976d2;background:#edf6ff}@media(max-width:900px){.mdx .layout{grid-template-columns:1fr}.mdx{padding:10px}}@media(max-width:640px){.mdx .tree-node{min-height:42px;padding:10px 12px;font-size:14px}.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style);
+  buildHierarchy();
+  tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = true; });
+  syncArrows(); selectSection(0);
 })();
