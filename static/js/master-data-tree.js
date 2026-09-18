@@ -36,6 +36,11 @@
      const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
   */
   const typeCategoryMap = new Map();
+  const getTypeCategory = (typeNode) => {
+    const id = String(typeNode?.dataset?.id || '');
+    const attr = String(typeNode?.dataset?.categoryId || typeNode?.dataset?.category || '');
+    return attr || typeCategoryMap.get(id) || '';
+  };
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const selectNode = (node) => {
@@ -134,7 +139,7 @@
     const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
     const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
     const byCategory = new Map();
-    types.forEach((node) => { const typeNode = node; const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || ''); const key = attr || typeCategoryMap.get(String(typeNode.dataset.id || '')) || ''; if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(typeNode); });
+    types.forEach((node) => { const typeNode = node; const key = getTypeCategory(typeNode); if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(typeNode); });
     const byType = new Map();
     models.forEach((group) => { const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || ''); if (!byType.has(key)) byType.set(key, []); byType.get(key).push(group); });
     const add = (text, data) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-node master-inline-add'; button.textContent = text; Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; }); return button; };
