@@ -41,12 +41,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const DATA={{ tire_master_data|tojson }}; const DEFS={{ spec_definitions|tojson }}; let currentModel=null; let importTarget=null;
-const CATEGORIES={{ categories|map(attribute='id')|list|tojson }}; const CATEGORY_NAMES={{ categories|map(attribute='name')|list|tojson }};
-const TYPES={{ types|map(attribute='id')|list|tojson }}; const TYPE_NAMES={{ types|map(attribute='name')|list|tojson }};
-const BRANDS={{ brands|map(attribute='id')|list|tojson }}; const BRAND_NAMES={{ brands|map(attribute='name')|list|tojson }};
-const categoryNames=Object.fromEntries(CATEGORIES.map((id,i)=>[String(id),CATEGORY_NAMES[i]]));
-const typeNames=Object.fromEntries(TYPES.map((id,i)=>[String(id),TYPE_NAMES[i]]));
-const brandNames=Object.fromEntries(BRANDS.map((id,i)=>[String(id),BRAND_NAMES[i]]));
+const CATEGORIES=Object.fromEntries({% for c in categories %}["{{ c.id }}","{{ c.name|replace('"','\\\"') }}"]{% if not loop.last %},{% endif %}{% endfor %});
+const TYPES=Object.fromEntries({% for t in types %}["{{ t.id }}","{{ t.name|replace('"','\\\"') }}"]{% if not loop.last %},{% endif %}{% endfor %});
+const BRANDS=Object.fromEntries({% for b in brands %}["{{ b.id }}","{{ b.name|replace('"','\\\"') }}"]{% if not loop.last %},{% endif %}{% endfor %});
 
 window.MATERIEL_MASTER_DATA_READY=true;
 document.querySelectorAll('[data-model-row]').forEach(row=>{const id=String(row.dataset.modelRow||'');const d=DATA[id]||DATA[Number(id)];if(d&&row.dataset.equipmentTypeId)d.equipment_type_id=Number(row.dataset.equipmentTypeId)});
@@ -72,7 +69,7 @@ function sync(){const pos=[...document.querySelectorAll('#positionsBody tr')].ma
 function editModel(id,section='basic'){const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);$('modelForm').action='/equipment-types/models/'+id+'/update';$('modelId').value=id;title(d.name||'تعديل الطراز','الطراز');$('modelName').value=d.name||'';$('modelCategory').value=d.category_id??'';$('modelType').value=d.equipment_type_id??'';$('modelBrand').value=d.brand_id??'';$('mobility').value=d.mobility_type||'mobile';$('requiresDriver').checked=!!d.requires_driver;$('hasTires').checked=!!d.has_tires;$('tirePositions').value=d.tire_positions_required??0;$('axleCount').value=d.axle_count??'';$('tireSize').value=d.tire_size||'';$('hasBatteries').checked=!!d.has_batteries;$('batteryCount').value=d.battery_count_required??0;$('batteryCapacity').value=d.battery_capacity_ah??'';$('batteryVoltage').value=d.battery_voltage_v??'';renderPositions(d.positions||d.master?.positions||[]);renderSizes(d.sizes||d.master?.sizes||[]);$('specRows').innerHTML='';(d.specs||d.master?.specs||[]).forEach(x=>{const def=DEFS.find(y=>Number(y.id)===Number(x.definition_id));if(!def)return;const row=document.createElement('label');row.className='field';row.style.marginBottom='8px';row.innerHTML=`<span>${def.name}${def.unit?' ('+def.unit+')':''}</span><input class="spec-value" data-definition="${def.id}" value="${String(x.value||'').replaceAll('"','&quot;')}">`;$('specRows').appendChild(row)});show($('modelPanel'));focusModelSection(section);sync()}
 function viewModel(id){
  const d=DATA[String(id)]||DATA[id]||{}; currentModel=Number(id); title(d.name||'عرض الطراز','الطراز');
- $('viewModelName').textContent=d.name||'—'; $('viewModelCategory').textContent=categoryNames[String(d.category_id)]||'—'; $('viewModelType').textContent=typeNames[String(d.equipment_type_id)]||'—'; $('viewModelBrand').textContent=brandNames[String(d.brand_id)]||'—'; $('viewMobility').textContent=d.mobility_type==='towed'?'مجرور':'متحرك'; $('viewRequiresDriver').textContent=d.requires_driver?'نعم':'لا';
+ $('viewModelName').textContent=d.name||'—'; $('viewModelCategory').textContent=CATEGORIES[String(d.category_id)]||'—'; $('viewModelType').textContent=TYPES[String(d.equipment_type_id)]||'—'; $('viewModelBrand').textContent=BRANDS[String(d.brand_id)]||'—'; $('viewMobility').textContent=d.mobility_type==='towed'?'مجرور':'متحرك'; $('viewRequiresDriver').textContent=d.requires_driver?'نعم':'لا';
  $('viewHasTires').textContent=d.has_tires?'نعم':'لا'; $('viewTirePositions').textContent=d.tire_positions_required??0; $('viewAxleCount').textContent=d.axle_count??'—'; $('viewTireSize').textContent=d.tire_size||'—';
  $('viewPositionsBody').innerHTML=(d.positions||[]).map(x=>'<tr><td>'+ (x.axle_number??'—') +'</td><td>'+ (x.side==='right'?'يمين':'يسار') +'</td><td>'+ ({single:'مفرد',inner:'داخلي',outer:'خارجي'}[x.position_type]||x.position_type||'—') +'</td><td>'+ (x.description||'—') +'</td></tr>').join('')||'<tr><td colspan="4" class="muted">لا توجد مواضع</td></tr>';
  $('viewSizesBody').innerHTML=(d.sizes||[]).map(x=>'<tr><td>'+ (typeof x==='string'?x:x.size||'—') +'</td></tr>').join('')||'<tr><td class="muted">لا توجد مقاسات</td></tr>';
