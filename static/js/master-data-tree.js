@@ -134,7 +134,7 @@
     const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
     const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
     const byCategory = new Map();
-    types.forEach((node) => { const key = String(node.dataset.categoryId || node.dataset.category || ''); if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(node); });
+    types.forEach((node) => { const typeNode = node; const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || ''); const key = attr || typeCategoryMap.get(String(typeNode.dataset.id || '')) || ''; if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(typeNode); });
     const byType = new Map();
     models.forEach((group) => { const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || ''); if (!byType.has(key)) byType.set(key, []); byType.get(key).push(group); });
     const add = (text, data) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-node master-inline-add'; button.textContent = text; Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; }); return button; };
