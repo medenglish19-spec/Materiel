@@ -38,12 +38,9 @@
     .mdx #tree .tree-toggle{color:#64748b;font-weight:800}
     .mdx #tree .tree-actions{opacity:.9;margin-right:auto;display:flex;align-items:center;flex-shrink:0;white-space:nowrap;gap:3px}
     .mdx #tree .tree-node:hover .tree-actions,.mdx #tree .tree-node.active .tree-actions{opacity:1}
-    .mdx #tree .tree-add,.mdx #tree .tree-more,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
+    .mdx #tree .tree-add,.mdx #tree .tree-action{color:#315f88;border:0;background:transparent;border-radius:6px;padding:3px 6px;font-weight:900;cursor:pointer}
     .mdx #tree .tree-add:hover,.mdx #tree .tree-more:hover,.mdx #tree .tree-action:hover{background:#dbeafe}
-    .mdx #tree .tree-more[data-tree-delete]{color:#a33b3b}
-    .mdx #tree .tree-actions [data-tree-delete]{color:#a33b3b}
-    .mdx #tree .tree-actions [data-tree-edit]{color:#315f88}
-    .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
+                .mdx #tree .children{padding-right:18px;margin-right:8px;border-right:1px solid #e2e8f0}
     .mdx #tree>.master-reference-block{padding:7px 0 12px;margin-bottom:9px;border-bottom:1px solid #dfe6ee}
     .mdx .master-reference-heading{color:#66778c;font-size:11px;letter-spacing:.15px;padding:5px 8px;text-transform:none}
     .mdx .editor-head{padding:18px 22px 16px;background:linear-gradient(to bottom,#fff,#fbfcfe);border-bottom:1px solid #dfe6ee}
@@ -348,12 +345,6 @@
   const deleteHierarchyItem = (kind, id) => {
     if (kind === 'category') postDelete(kind, id, 'حذف الفئة؟ إذا كانت مرتبطة بأنواع عتاد سيمنع النظام الحذف.', `/equipment-types/categories/${encodeURIComponent(id)}/delete`);
     if (kind === 'type') postDelete(kind, id, 'حذف نوع العتاد؟ إذا كان مرتبطاً بطرازات سيمنع النظام الحذف.', `/equipment-types/${encodeURIComponent(id)}/delete`);
-  };
-  const editHierarchyItem = (kind, id) => {
-    const node = tree.querySelector(`[data-ref-item="${kind}"][data-id="${CSS.escape(String(id))}"]`);
-    if (!node || typeof refPanel !== 'function') return;
-    refPanel(kind, id, node.dataset.name || '', node.dataset);
-    selectNode(node);
   };
   const syncArrows = () => {
     tree.querySelectorAll('.tree-group').forEach((group) => {
