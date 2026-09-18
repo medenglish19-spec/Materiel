@@ -113,6 +113,14 @@ def update_brand_form(brand_id:int,name:str=Form(...),db:Session=Depends(get_db)
     try:services.update_brand(db,obj,EquipmentBrandUpdate(name=name))
     except ValueError as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return _redirect("تم حفظ تعديل العلامة التجارية")
+@router.post("/equipment-types/brands/{brand_id}/delete")
+def delete_brand_form(brand_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    obj=services.get_brand(db,brand_id)
+    if obj is None: raise HTTPException(status_code=404,detail="العلامة التجارية غير موجودة")
+    try: services.delete_brand(db,obj)
+    except ValueError as exc: return _redirect(str(exc),"warning")
+    return _redirect("تم حذف العلامة التجارية")
+
 @router.post("/equipment-types/brands/{brand_id}/toggle")
 def toggle_brand_form(brand_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_brand(db,brand_id)
