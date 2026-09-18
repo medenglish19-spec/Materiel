@@ -32,6 +32,8 @@
      if (hasUncategorized || addType) categoryChildren.appendChild(uncategorizedGroup);
      addType.classList.add('master-inline-add-type');
      data-tree-edit
+     data-tree-delete
+     const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
   */
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
