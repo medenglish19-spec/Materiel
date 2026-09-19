@@ -60,6 +60,54 @@
     if ($('modelId')) $('modelId').value = '';
     if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
   };
+  const postDelete = (url, message) => {
+    if (!confirm(message)) return;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = url;
+    form.hidden = true;
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  const menu = document.createElement('div');
+  menu.className = 'master-context-menu';
+  menu.hidden = true;
+  menu.dir = 'rtl';
+  document.body.appendChild(menu);
+  const closeMenu = () => { menu.hidden = true; menu.replaceChildren(); };
+  const showMenu = (node, x, y) => {
+    const model = node.closest('[data-model-row]');
+    const ref = node.closest('[data-ref-item]');
+    const actions = [];
+    if (model) {
+      const id = model.dataset.modelRow;
+      actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
+      actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
+      actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
+      actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
+    } else if (ref) {
+      const id = ref.dataset.id;
+      const kind = ref.dataset.refItem;
+      const labels = { category: 'الفئة', type: 'نوع العتاد', brand: 'العلامة التجارية', spec: 'الخاصية' };
+      if (!id || !labels[kind]) return;
+      actions.push([`✏️ تعديل ${labels[kind]}`, () => editReference(ref)]);
+      const routes = { category: `/equipment-types/categories/${id}/delete`, type: `/equipment-types/${id}/delete`, brand: `/equipment-types/brands/${id}/delete` };
+      if (routes[kind]) actions.push([`🗑 حذف ${labels[kind]}`, () => postDelete(routes[kind], `حذف ${labels[kind]}؟`)]);
+    } else return;
+    menu.replaceChildren();
+    actions.forEach(([label, action]) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.onclick = () => { closeMenu(); action(); };
+      menu.appendChild(button);
+    });
+    menu.hidden = false;
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
+  };
 
   const root = (name) => tree.querySelector(`[data-ref="${name}"]`)?.closest('.tree-group');
   const makeInlineAction = (label, attributes) => {
@@ -161,6 +209,140 @@
     syncArrows();
   });
 
+  tree.addEventListener('contextmenu', (event) => {
+    const node = event.target.closest('[data-model-row],[data-ref-item]');
+    if (!node) return;
+    event.preventDefault();
+    showMenu(node, event.clientX, event.clientY);
+  });
+
+  let timer; let pressTarget; let sx; let sy;
+  const cancelPress = () => { clearTimeout(timer); timer = null; pressTarget = null; };
+  tree.addEventListener('pointerdown', (event) => {
+    if (event.pointerType !== 'touch') return;
+    const node = event.target.closest('[data-model-row],[data-ref-item]');
+    if (!node) return;
+    cancelPress();
+    pressTarget = node;
+    sx = event.clientX; sy = event.clientY;
+    timer = setTimeout(() => {
+      if (!pressTarget) return;
+      showMenu(pressTarget, event.clientX, event.clientY);
+    }, 500);
+  });
+  tree.addEventListener('pointermove', (event) => {
+    if (timer && (Math.abs(event.clientX - sx) > 10 || Math.abs(event.clientY - sy) > 10)) cancelPress();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => tree.addEventListener(type, cancelPress));
+
+  let dragged = null;
+  tree.addEventListener('dragstart', (event) => {
+    const row = event.target.closest('[data-model-row]');
+    if (!row) return;
+    dragged = row;
+    row.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(row.dataset.modelRow));
+  });
+  tree.addEventListener('dragend', () => {
+    dragged?.classList.remove('dragging');
+    dragged = null;
+  });
+  tree.addEventListener('dragover', (event) => {
+    const target = event.target.closest('[data-type-id]');
+    if (dragged && target) {
+      event.preventDefault();
+      target.classList.add('drop-target');
+    }
+  });
+  tree.addEventListener('dragleave', (event) => event.target.closest('[data-type-id]')?.classList.remove('drop-target'));
+
+  const toast = (message, action) => {
+    const box = document.getElementById('tree-toast');
+    const msg = document.getElementById('toast-message');
+    if (!box || !msg) return;
+    msg.textContent = message;
+    let undo = box.querySelector('[data-tree-toast-action]');
+    if (!undo) {
+      undo = document.createElement('button');
+      undo.type = 'button';
+      undo.dataset.treeToastAction = '1';
+      undo.className = 'tree-toast-action';
+      undo.textContent = 'تراجع';
+      box.appendChild(undo);
+    }
+    undo.hidden = typeof action !== 'function';
+    undo.onclick = typeof action === 'function' ? async () => {
+      undo.disabled = true;
+      try { await action(); }
+      finally { undo.disabled = false; }
+    } : null;
+    box.hidden = false;
+    box.classList.remove('hidden');
+    clearTimeout(window.__materielTreeToast);
+    window.__materielTreeToast = setTimeout(() => {
+      box.hidden = true;
+      box.classList.add('hidden');
+      undo.hidden = true;
+    }, 5000);
+  };
+
+  tree.addEventListener('drop', async (event) => {
+    const target = event.target.closest('[data-type-id]');
+    if (!dragged || !target) return;
+    event.preventDefault();
+    target.classList.remove('drop-target');
+    const id = dragged.dataset.modelRow;
+    const typeId = target.dataset.typeId;
+    const model = DATA[String(id)] || DATA[id] || {};
+    if (String(model.equipment_type_id) === String(typeId)) return;
+    const form = new FormData();
+    form.append('equipment_type_id', typeId);
+    try {
+      const response = await fetch('/equipment-types/models/' + encodeURIComponent(id) + '/move', { method: 'POST', body: form, credentials: 'same-origin' });
+      if (!response.ok) throw new Error('move failed');
+      let undone = false;
+      const undoMove = async () => {
+        if (undone) return;
+        const undoForm = new FormData();
+        undoForm.append('equipment_type_id', String(model.equipment_type_id || ''));
+        const undoResponse = await fetch('/equipment-types/models/' + encodeURIComponent(id) + '/move', { method: 'POST', body: undoForm, credentials: 'same-origin' });
+        if (!undoResponse.ok) throw new Error('undo failed');
+        undone = true;
+        toast('تم التراجع عن نقل الطراز');
+        window.setTimeout(() => window.location.reload(), 250);
+      };
+      toast('تم نقل الطراز داخل الشجرة', undoMove);
+      window.setTimeout(() => { if (!undone) window.location.reload(); }, 5200);
+    } catch (_) {
+      toast('تعذر نقل الطراز؛ لم يتم تغيير البيانات');
+    }
+  });
+
+  const exportTree = () => {
+    const payload = {
+      exported_at: new Date().toISOString(),
+      categories: [...tree.querySelectorAll('[data-ref-item="category"]')].map((node) => ({ id: node.dataset.id || '', name: node.dataset.name || '' })),
+      types: [...tree.querySelectorAll('[data-ref-item="type"]')].map((node) => ({ id: node.dataset.id || '', name: node.dataset.name || '', category_id: node.dataset.categoryId || node.dataset.category || '' })),
+      models: [...tree.querySelectorAll('[data-model-row]')].map((node) => ({ id: node.dataset.modelRow || '', name: node.textContent.trim().replace(/^🚙\s*/, ''), equipment_type_id: node.dataset.equipmentTypeId || '' })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'materiel-equipment-tree.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast('تم تصدير شجرة المعدات');
+  };
+
+  $('btn-export-tree')?.addEventListener('click', exportTree);
+  $('btn-tree-expand-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.add('open')); syncArrows(); });
+  $('btn-tree-collapse-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.remove('open')); syncArrows(); });
+  $('btn-add-root-category')?.addEventListener('click', () => { if (typeof refPanel === 'function') refPanel('category'); });
+
   tree.addEventListener('click', (event) => {
     const action = event.target.closest('[data-add],[data-new-ref],[data-new-type-for-category],[data-new-model-for-type]');
     if (action) {
@@ -219,9 +401,6 @@
     if (node) selectNode(node);
   }, true);
 
-  $('btn-tree-expand-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.add('open')); syncArrows(); });
-  $('btn-tree-collapse-all')?.addEventListener('click', () => { tree.querySelectorAll('.tree-group').forEach((group) => group.classList.remove('open')); syncArrows(); });
-  $('btn-add-root-category')?.addEventListener('click', () => { if (typeof refPanel === 'function') refPanel('category'); });
   buildHierarchy();
   tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = true; });
   syncArrows();
