@@ -93,6 +93,9 @@
     menu.replaceChildren();
   };
 
+  const isInsideContextMenu = (target) => Boolean(target?.closest?.('.master-context-menu'));
+  const isInsideTreeItem = (target) => Boolean(target?.closest?.('[data-model-row],[data-ref-item]'));
+
   const showMenu = (node, x, y) => {
     const model = node.closest('[data-model-row]');
     const ref = node.closest('[data-ref-item]');
@@ -178,17 +181,6 @@
       byType.get(key).push(group);
     });
 
-    const addInline = (label, data) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tree-node master-inline-add';
-      button.textContent = label;
-      Object.entries(data).forEach(([key, value]) => {
-        button.dataset[key] = String(value);
-      });
-      return button;
-    };
-
     const appendType = (node, parent) => {
       const id = String(node.dataset.id || '');
       const group = document.createElement('div');
@@ -197,10 +189,7 @@
       node.innerHTML = `<span class="tree-toggle">⌄</span><span>🗂 ${node.dataset.name || ''}</span><span class="tree-actions"><span class="tree-add" data-add="model">＋</span></span>`;
       const children = document.createElement('div');
       children.className = 'children';
-      if (addModel && !addModel.isConnected) {
-        const addForType = addInline('＋ إضافة طراز', { newRef: 'model', newModelForType: id });
-        children.appendChild(addForType);
-      } else if (addModel && addModel.parentElement !== children) {
+      if (addModel && addModel.parentElement !== children) {
         addModel.dataset.newModelForType = id;
         children.appendChild(addModel);
       }
@@ -275,8 +264,16 @@
   });
 
   document.addEventListener('click', (event) => {
-    if (!event.target.closest('.master-context-menu')) closeMenu();
-  });
+    if (!isInsideContextMenu(event.target) && !isInsideTreeItem(event.target)) {
+      closeMenu();
+    }
+  }, true);
+
+  document.addEventListener('contextmenu', (event) => {
+    if (!isInsideContextMenu(event.target) && !isInsideTreeItem(event.target)) {
+      closeMenu();
+    }
+  }, true);
 
   let dragged = null;
   tree.addEventListener('dragstart', (event) => {
