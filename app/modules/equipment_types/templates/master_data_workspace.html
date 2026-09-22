@@ -8,39 +8,127 @@
 .mdx{min-height:calc(100vh - 4rem);padding:16px 20px}.mdx-head{align-items:center}.mdx-breadcrumb{margin-top:7px;font-size:11px;color:#7b8da1}.mdx-breadcrumb strong{color:#4f46e5}.mdx-head-actions{display:flex;gap:8px;align-items:center}.mdx-action{border:1px solid #d9e2ec;background:#fff;color:#334155;border-radius:9px;padding:9px 12px;font-weight:700;cursor:pointer}.mdx-primary{background:#4f46e5;color:#fff;border-color:#4f46e5}.layout{height:calc(100vh - 155px);min-height:560px;align-items:stretch}.tree-card{height:100%;max-height:none;overflow:hidden;display:flex;flex-direction:column}.tree-card>.master-reference-block{flex:1;min-height:0;overflow-y:auto}.tree-toolbar{padding:8px 12px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;gap:8px;font-size:11px;color:#64748b}.tree-toolbar button{border:0;background:none;color:#475569;font-weight:700;cursor:pointer}.tree-count{margin-right:auto}.tree-root-dropzone{display:none;margin:8px 10px;padding:9px;border:2px dashed #818cf8;border-radius:9px;background:#eef2ff;color:#4338ca;text-align:center;font-size:11px;font-weight:800}.tree-root-dropzone.is-active{display:block;animation:masterDropPulse 1.1s ease-in-out infinite}.tree-node{transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}.tree-group>.children{transition:grid-template-rows .22s ease,opacity .18s ease}.tree-node.dragging{opacity:.42;transform:scale(.985)}@keyframes masterDropPulse{50%{transform:translateY(-1px);box-shadow:0 0 0 4px rgba(99,102,241,.08)}}
 @media(max-width:900px){.layout{height:auto;min-height:0}.tree-card{height:auto;max-height:48vh}.mdx-head{flex-wrap:wrap}.mdx-head-actions{width:100%}}
 </style>
-
-
+<style id="master-data-model-library-v3">
+#model-library-v3{display:flex;flex-direction:column;gap:14px}
+#model-library-v3 .model-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:24px 26px;border:1px solid #dceee5;border-radius:18px;background:linear-gradient(135deg,#ffffff 0%,#f4fbf7 100%);box-shadow:0 8px 28px rgba(15,80,50,.07)}
+#model-library-v3 .model-kicker{font-size:11px;font-weight:900;color:#2d8b68;letter-spacing:.08em;margin-bottom:5px}
+#model-library-v3 .model-hero h2{margin:0;color:#173b32;font-size:25px}
+#model-library-v3 .model-meta{display:flex;gap:8px;align-items:center;margin-top:7px;color:#71827b;font-size:13px}
+#model-library-v3 .model-meta i{font-style:normal;color:#a5b5ae}
+#model-library-v3 .model-summary,#model-library-v3 .technical-card{background:#fff;border:1px solid #e1ebe6;border-radius:18px;box-shadow:0 6px 24px rgba(15,80,50,.055)}
+#model-library-v3 .summary-title{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #edf2ef}
+#model-library-v3 .summary-title span:first-child{display:block;font-size:17px;font-weight:900;color:#21483b}
+#model-library-v3 .summary-title small{display:block;margin-top:4px;color:#83918b;font-size:11px}
+#model-library-v3 .model-badge{font-size:10px!important;color:#318063!important;background:#eaf7f0;padding:6px 9px;border-radius:20px}
+#model-library-v3 .summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#edf2ef}
+#model-library-v3 .summary-grid>div{background:#fff;padding:15px 16px}
+#model-library-v3 .summary-grid small,.mini-stats small{display:block;color:#87958f;font-size:11px;margin-bottom:5px}
+#model-library-v3 .summary-grid strong,.mini-stats strong{color:#26483e;font-size:14px}
+#model-library-v3 .model-jumps{display:flex;gap:8px;flex-wrap:wrap;padding:13px 16px}
+#model-library-v3 .model-jumps a{padding:8px 11px;border:1px solid #dbe9e2;border-radius:9px;text-decoration:none;color:#28765a;background:#f7fbf9;font-size:12px;font-weight:800}
+#model-library-v3 .model-jumps a:hover{background:#eaf7f0}
+#model-library-v3 .technical-card{padding:18px}
+#model-library-v3 .technical-card-head{display:flex;justify-content:space-between;align-items:end;padding:3px 4px 15px;border-bottom:1px solid #edf2ef;margin-bottom:14px}
+#model-library-v3 .technical-eyebrow{font-size:9px;color:#4c9b7a;font-weight:900;letter-spacing:.1em}
+#model-library-v3 .technical-card h3{margin:3px 0 0;color:#21483b;font-size:19px}
+#model-library-v3 .technical-card-head>span{font-size:11px;color:#9aa7a1}
+#model-library-v3 .technical-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#model-library-v3 .tech-section{border:1px solid #e5eee9;border-radius:14px;overflow:hidden;background:#fbfdfc}
+#model-library-v3 .tech-section-head{display:flex;gap:10px;align-items:center;padding:14px 15px;background:#f5faf7;border-bottom:1px solid #e5eee9}
+#model-library-v3 .tech-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#e5f5ec;font-size:17px}
+#model-library-v3 .tech-section h4{margin:0;color:#294d41;font-size:14px}
+#model-library-v3 .tech-section p{margin:3px 0 0;color:#89968f;font-size:10px}
+#model-library-v3 .tech-section>.fields,#model-library-v3 .tech-section>.table-wrap,#model-library-v3 .tech-section>.mini-stats,#model-library-v3 .tech-section>.approved-sizes,#model-library-v3 .tech-empty,#model-library-v3 .maintenance-note{margin:13px 14px}
+#model-library-v3 .mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#model-library-v3 .mini-stats>div{padding:11px;border:1px solid #e4eee9;border-radius:10px;background:#fff}
+#model-library-v3 .approved-sizes{padding:11px;border:1px solid #e4eee9;border-radius:10px;background:#fff;color:#71827b;font-size:11px;font-weight:800}
+#model-library-v3 .approved-sizes #viewSizesBody{margin-top:7px}
+#model-library-v3 .approved-sizes #viewSizesBody tr{display:inline-block;margin:3px}
+#model-library-v3 .approved-sizes #viewSizesBody td{display:block;border:1px solid #dcebe3;border-radius:8px;padding:5px 8px;color:#2d6f58;background:#f3faf6}
+#model-library-v3 .tech-empty{padding:14px;border:1px dashed #dce8e2;border-radius:10px;color:#94a19b;font-size:11px}
+#model-library-v3 .maintenance-note{padding:13px;border-radius:10px;background:#f3faf6;color:#4e7063;font-size:12px;line-height:1.7}
+#model-library-v3 .tech-maintenance{grid-column:1/-1}
+@media(max-width:1000px){#model-library-v3 .summary-grid{grid-template-columns:repeat(3,1fr)}#model-library-v3 .technical-grid{grid-template-columns:1fr}}
+@media(max-width:640px){#model-library-v3 .model-hero{padding:18px;align-items:flex-start;flex-direction:column}#model-library-v3 .summary-grid{grid-template-columns:repeat(2,1fr)}#model-library-v3 .model-jumps a{flex:1;text-align:center}}
+</style>
 <div id="tree-toast" class="tree-toast" hidden><span id="toast-message"></span></div>
 <div class="mdx-head"><div><h1>مركز البيانات الأساسية للمعدات</h1><p>إدارة التصنيف والطرازات والمراجع من مساحة عمل RTL تفاعلية.</p><div class="mdx-breadcrumb">الرئيسية / تصنيف الأسطول والمعدات / <strong>شجرة المعدات</strong></div></div><div class="mdx-head-actions"><button type="button" id="btn-export-tree" class="mdx-action">تصدير الشجرة (JSON)</button><button type="button" id="btn-add-root-category" class="mdx-action mdx-primary">＋ إضافة تصنيف رئيسي</button></div></div>
 {% if request.query_params.get('notice') %}<div class="notice {{ request.query_params.get('notice_type','success') }}">{{ request.query_params.get('notice') }}</div>{% endif %}
 <div class="layout">
 <aside class="card tree-card"><div id="tree-root-dropzone" class="tree-root-dropzone">⬇️ إفلات هنا لنقل الطراز إلى المستوى الرئيسي</div><div class="tree-head"><strong>شجرة مركز البيانات</strong><span class="muted">{{ models|length }} طراز</span></div><input class="tree-search" id="treeSearch" placeholder="بحث..."><div class="tree" id="tree">
 <div class="master-reference-block"><div class="master-reference-heading">المراجع العامة</div>
-<div class="tree-group open"><button class="tree-node" data-ref="brands" type="button"><span class="tree-toggle">⌄</span>🏷 العلامات التجارية <span class="tree-actions"><span class="tree-add" data-add="brand">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="brand" type="button">＋ إضافة علامة</button>{% for b in brands %}<button class="tree-node" data-ref-item="brand" data-id="{{ b.id }}" data-name="{{ b.name }}" type="button">• {{ b.name }}</button>{% endfor %}</div></div>
-<div class="tree-group open"><button class="tree-node" data-ref="specs" type="button"><span class="tree-toggle">⌄</span>⚙ الخصائص <span class="tree-actions"><span class="tree-add" data-add="spec">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="spec" type="button">＋ إضافة خاصية</button>{% for s in spec_definitions %}<button class="tree-node" data-ref-item="spec" data-id="{{ s.id }}" data-name="{{ s.name }}" type="button">• {{ s.name }}</button>{% endfor %}</div></div></div>
+<div class="tree-group open"><button class="tree-node" data-ref="categories" type="button"><span class="tree-toggle">⌄</span>📁 الفئات <span class="tree-actions"><span class="tree-add" data-add="category">＋</span></span></button>
 <div><div class="master-reference-heading">الشجرة الهرمية</div>
 <div class="tree-group open"><button class="tree-node" data-ref="categories" type="button"><span class="tree-toggle">⌄</span>📁 الفئات <span class="tree-actions"><span class="tree-add" data-add="category">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="category" type="button">＋ إضافة فئة</button>{% for c in categories %}<button class="tree-node" data-ref-item="category" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button">• {{ c.name }}</button>{% endfor %}</div></div>
 <div class="tree-group open"><button class="tree-node" data-ref="types" type="button"><span class="tree-toggle">⌄</span>🗂 أنواع العتاد <span class="tree-actions"><span class="tree-add" data-add="type">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="type" type="button">＋ إضافة نوع عتاد</button>{% for t in types %}<button class="tree-node" data-ref-item="type" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category-id="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}" type="button">• {{ t.name }}</button>{% endfor %}</div></div>
-<div class="tree-group open"><button class="tree-node" data-ref="models" type="button"><span class="tree-toggle">⌄</span>🚙 الطرازات <span class="tree-actions"><span class="tree-add" data-add="model">＋</span></span></button><div class="children" id="modelTree"><button class="tree-node" data-new-ref="model" type="button">＋ إضافة طراز</button>{% for m in models %}<div class="tree-group model-group"><button class="tree-node model-row" data-model-row="{{ m.id }}" data-copy="{{ m.id }}" data-delete="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" type="button"><span class="tree-toggle">›</span>🚙 {{ m.name }} </button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📄 البيانات الأساسية</button><div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات <span class="tree-actions"><span class="tree-action" data-tree-add="position">＋ موضع</span><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="positions" type="button">↳ مواضع الإطارات</button><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div><button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button><button class="tree-node" data-model="{{ m.id }}" data-section="specs" type="button">⚙ الخصائص التابعة</button></div></div>{% endfor %}</div></div></div>
+<div class="tree-group open"><button class="tree-node" data-ref="models" type="button"><span class="tree-toggle">⌄</span>🚙 الطرازات <span class="tree-actions"><span class="tree-add" data-add="model">＋</span></span></button><div class="children" id="modelTree"><button class="tree-node" data-new-ref="model" type="button">＋ إضافة طراز</button>{% for m in models %}<div class="tree-group model-group"><button class="tree-node model-row" data-model-row="{{ m.id }}" data-copy="{{ m.id }}" data-delete="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" type="button"><span class="tree-toggle">›</span>🚙 {{ m.name }} </button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📋 البطاقة الفنية المختصرة</button><div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات <span class="tree-actions"><span class="tree-action" data-tree-add="position">＋ موضع</span><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="positions" type="button">↳ مواضع الإطارات</button><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div><button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button><button class="tree-node" data-model="{{ m.id }}" data-section="specs" type="button">⚙ الخصائص التقنية</button></div></div>{% endfor %}</div></div></div>
 </div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>|</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">العناصر: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
 <main class="card editor"><div class="editor-head"><small id="crumb">مركز البيانات الأساسية</small><h2 id="title">اختر عنصراً من الشجرة</h2></div><div class="body">
 <div id="empty" class="empty">الإضافة والتعديل يتمان من داخل الشجرة.<br>اختر عقدة أو «＋» من داخل الشجرة للبدء.</div>
 <div id="refPanel" class="panel"><div class="box"><div class="box-head"><h3 id="refTitle"></h3></div><div class="box-body" id="refBody"></div></div></div>
 <template id="typeRefFormTemplate"><form class="ref-form" method="post" action="/equipment-types/create"><label>الاسم<input name="name" required></label><label>وحدة القياس<select name="measurement_unit" required><option value="km">كم</option><option value="hours">ساعات</option></select></label><label>الفئة<select name="category_id" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label>التعداد النظري<input name="theoretical_quantity" type="number"></label><button class="btn primary">حفظ</button></form></template>
 <div id="modelViewPanel" class="panel">
-<div class="box"><div class="box-head"><h3>بيانات الطراز</h3><button type="button" class="btn primary" id="editModelBtn">✎ تعديل الطراز</button></div><div class="box-body"><div class="fields">
-<div class="field"><span>الاسم</span><strong id="viewModelName">—</strong></div><div class="field"><span>الفئة</span><strong id="viewModelCategory">—</strong></div><div class="field"><span>نوع العتاد</span><strong id="viewModelType">—</strong></div><div class="field"><span>العلامة التجارية</span><strong id="viewModelBrand">—</strong></div><div class="field"><span>الحركة</span><strong id="viewMobility">—</strong></div><div class="field"><span>السائق</span><strong id="viewRequiresDriver">—</strong></div>
-</div></div></div>
-<div class="box"><div class="box-head"><h3>الإطارات</h3></div><div class="box-body"><div class="fields"><div class="field"><span>مجهز بإطارات</span><strong id="viewHasTires">—</strong></div><div class="field"><span>عدد المواضع</span><strong id="viewTirePositions">—</strong></div><div class="field"><span>عدد المحاور</span><strong id="viewAxleCount">—</strong></div><div class="field"><span>المقاس الافتراضي</span><strong id="viewTireSize">—</strong></div></div>
-<div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th></tr></thead><tbody id="viewPositionsBody"></tbody></table></div>
-<div class="table-wrap" style="margin-top:12px"><table class="tbl"><thead><tr><th>المقاسات المعتمدة</th></tr></thead><tbody id="viewSizesBody"></tbody></table></div></div></div>
-<div class="box"><div class="box-head"><h3>البطاريات</h3></div><div class="box-body"><div class="fields"><div class="field"><span>مجهز ببطاريات</span><strong id="viewHasBatteries">—</strong></div><div class="field"><span>العدد</span><strong id="viewBatteryCount">—</strong></div><div class="field"><span>السعة Ah</span><strong id="viewBatteryCapacity">—</strong></div><div class="field"><span>الفولط V</span><strong id="viewBatteryVoltage">—</strong></div></div></div></div>
-<div class="box"><div class="box-head"><h3>الخصائص التابعة</h3></div><div class="box-body"><div id="viewSpecRows" class="fields"></div></div></div>
-</div>
-<div id="modelPanel" class="panel"><form id="modelForm" method="post" action="/equipment-types/models/create"><input type="hidden" id="modelId"><input type="hidden" name="positions_json" id="positionsJson" value="[]"><input type="hidden" name="sizes_json" id="sizesJson" value="[]"><input type="hidden" name="specs_json" id="specsJson" value="[]"><div class="box" data-workspace-section="basic"><div class="box-head"><h3>البيانات الأساسية</h3><span class="muted">الطراز هو المركز</span></div><div class="box-body"><div class="fields"><label class="field">اسم الطراز<input id="modelName" name="name" required></label><label class="field">الفئة<select id="modelCategory" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label class="field">نوع العتاد<select id="modelType" name="equipment_type_id" required><option value="">اختر</option>{% for t in types %}<option value="{{ t.id }}" data-category="{{ t.category_id or '' }}">{{ t.name }}</option>{% endfor %}</select></label><label class="field">العلامة التجارية<select id="modelBrand" name="brand_id" required><option value="">اختر</option>{% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label><label class="field">الحركة<select name="mobility_type" id="mobility"><option value="mobile">متحرك</option><option value="towed">مجرور</option></select></label><label class="check"><input id="requiresDriver" type="checkbox" name="requires_driver" checked> يتطلب سائقاً</label></div></div></div>
+<div class="model-library-shell" id="model-library-v3">
+  <section class="model-hero">
+    <div class="model-hero-main">
+      <div class="model-kicker">مكتبة الطرازات الفنية</div>
+      <h2 id="viewModelName">—</h2>
+      <div class="model-meta"><span id="viewModelBrand">—</span><i>•</i><span id="viewModelCategory">—</span><i>•</i><span id="viewModelType">—</span></div>
+    </div>
+    <button type="button" class="btn primary" id="editModelBtn">✎ تعديل الطراز</button>
+  </section>
+  <section class="model-summary">
+    <div class="summary-title"><div><span>البطاقة الفنية المختصرة</span><small>مرجع سريع للمعلومات الأساسية للطراز</small></div><span class="model-badge">Technical Profile</span></div>
+    <div class="summary-grid">
+      <div><small>الحركة</small><strong id="viewMobility">—</strong></div>
+      <div><small>السائق</small><strong id="viewRequiresDriver">—</strong></div>
+      <div><small>الإطارات</small><strong id="viewHasTires">—</strong></div>
+      <div><small>عدد المواضع</small><strong id="viewTirePositions">—</strong></div>
+      <div><small>البطاريات</small><strong id="viewHasBatteries">—</strong></div>
+      <div><small>عدد البطاريات</small><strong id="viewBatteryCount">—</strong></div>
+    </div>
+    <div class="model-jumps">
+      <a href="#model-full-card">البطاقة الفنية الكاملة ↓</a>
+      <a href="#model-specs-card">الخصائص التقنية</a>
+      <a href="#model-tires-card">الإطارات</a>
+      <a href="#model-batteries-card">البطاريات</a>
+    </div>
+  </section>
+  <section class="technical-card" id="model-full-card">
+    <div class="technical-card-head"><div><span class="technical-eyebrow">TECHNICAL CARD</span><h3>البطاقة الفنية الكاملة</h3></div><span>مرجع الطراز</span></div>
+    <div class="technical-grid">
+      <section class="tech-section" id="model-specs-card">
+        <div class="tech-section-head"><div class="tech-icon">⚙</div><div><h4>الخصائص التقنية</h4><p>المواصفات الفنية المعرفة لهذا الطراز.</p></div></div>
+        <div id="viewSpecRows" class="fields"></div>
+        <div class="tech-empty" id="viewSpecEmpty">لا توجد خصائص تقنية مسجلة.</div>
+      </section>
+      <section class="tech-section" id="model-tires-card">
+        <div class="tech-section-head"><div class="tech-icon">🛞</div><div><h4>الإطارات</h4><p>التهيئة الفنية للإطارات ومواقعها ومقاساتها.</p></div></div>
+        <div class="mini-stats">
+          <div><small>عدد المحاور</small><strong id="viewAxleCount">—</strong></div>
+          <div><small>المقاس الافتراضي</small><strong id="viewTireSize">—</strong></div>
+        </div>
+        <div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th></tr></thead><tbody id="viewPositionsBody"></tbody></table></div>
+        <div class="approved-sizes"><span>المقاسات المعتمدة</span><div id="viewSizesBody"></div></div>
+      </section>
+      <section class="tech-section" id="model-batteries-card">
+        <div class="tech-section-head"><div class="tech-icon">🔋</div><div><h4>البطاريات</h4><p>المواصفات الكهربائية الأساسية للبطاريات.</p></div></div>
+        <div class="mini-stats">
+          <div><small>العدد</small><strong id="viewBatteryCount">—</strong></div>
+          <div><small>السعة Ah</small><strong id="viewBatteryCapacity">—</strong></div>
+          <div><small>الجهد V</small><strong id="viewBatteryVoltage">—</strong></div>
+        </div>
+      </section>
+      <section class="tech-section tech-maintenance">
+        <div class="tech-section-head"><div class="tech-icon">🔧</div><div><h4>شروط الصيانة</h4><p>مرجع الوصول إلى قواعد الصيانة الخاصة بالطراز.</p></div></div>
+        <div class="maintenance-note">تُدار قواعد الصيانة حسب الطراز وتطبّق على العتاد المنتمي إليه.</div>
+      </section>
+    </div>
+  </section>
+</div></div><div id="modelPanel" class="panel"><form id="modelForm" method="post" action="/equipment-types/models/create"><input type="hidden" id="modelId"><input type="hidden" name="positions_json" id="positionsJson" value="[]"><input type="hidden" name="sizes_json" id="sizesJson" value="[]"><input type="hidden" name="specs_json" id="specsJson" value="[]"><div class="box" data-workspace-section="basic"><div class="box-head"><h3>البيانات الأساسية</h3><span class="muted">الطراز هو المركز</span></div><div class="box-body"><div class="fields"><label class="field">اسم الطراز<input id="modelName" name="name" required></label><label class="field">الفئة<select id="modelCategory" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label class="field">نوع العتاد<select id="modelType" name="equipment_type_id" required><option value="">اختر</option>{% for t in types %}<option value="{{ t.id }}" data-category="{{ t.category_id or '' }}">{{ t.name }}</option>{% endfor %}</select></label><label class="field">العلامة التجارية<select id="modelBrand" name="brand_id" required><option value="">اختر</option>{% for b in brands %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></label><label class="field">الحركة<select name="mobility_type" id="mobility"><option value="mobile">متحرك</option><option value="towed">مجرور</option></select></label><label class="check"><input id="requiresDriver" type="checkbox" name="requires_driver" checked> يتطلب سائقاً</label></div></div></div>
 <div class="box" id="tiresEditorBox" data-workspace-section="tires"><div class="box-head"><h3>الإطارات التابعة</h3><label class="check"><input id="hasTires" type="checkbox" name="has_tires"> مجهز بإطارات</label></div><div class="box-body"><div class="fields"><label class="field">عدد المواضع<input id="tirePositions" type="number" min="0" name="tire_positions_required" value="0"></label><label class="field">عدد المحاور<input id="axleCount" type="number" min="1" name="axle_count"></label><label class="field">المقاس الافتراضي<input id="tireSize" name="tire_size"></label></div><div class="box" style="margin-top:13px"><div class="box-head"><h3>مواضع الإطارات</h3><div><button type="button" class="btn soft" id="addPosition">＋ إضافة صف</button><button type="button" class="btn soft" id="importPositions">📥 Excel</button></div></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th><th></th></tr></thead><tbody id="positionsBody"></tbody></table></div></div></div><div class="box"><div class="box-head"><h3>المقاسات المعتمدة</h3><div><button type="button" class="btn soft" id="addSize">＋ إضافة صف</button><button type="button" class="btn soft" id="importSizes">📥 Excel</button></div></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المقاس</th><th></th></tr></thead><tbody id="sizesBody"></tbody></table></div></div></div></div></div>
 <div class="box" id="batteriesEditorBox" data-workspace-section="batteries"><div class="box-head"><h3>البطاريات التابعة</h3><label class="check"><input id="hasBatteries" type="checkbox" name="has_batteries"> مجهز ببطاريات</label></div><div class="box-body"><div class="fields"><label class="field">العدد<input id="batteryCount" type="number" min="0" name="battery_count_required" value="0"></label><label class="field">السعة Ah<input id="batteryCapacity" type="number" step="0.1" name="battery_capacity_ah"></label><label class="field">الفولط V<input id="batteryVoltage" type="number" step="0.1" name="battery_voltage_v"></label></div></div></div>
-<div class="box" id="specsEditorBox" data-workspace-section="specs"><div class="box-head"><h3>الخصائص التابعة</h3></div><div class="box-body"><div id="specRows"></div><p class="muted">الخصائص تُعرّف من عقدة «الخصائص» ثم تُسند إلى الطراز هنا.</p><div class="import-help"><button type="button" class="btn soft" id="importSpecs">📥 استيراد قيم الخصائص من Excel</button></div></div></div><div class="save"><button class="btn primary" type="submit">حفظ الطراز</button><button class="btn soft" type="button" id="cancelModel">إلغاء</button></div></form></div>
+<div class="box" id="specsEditorBox" data-workspace-section="specs"><div class="box-head"><h3>الخصائص التقنية</h3></div><div class="box-body"><div id="specRows"></div><p class="muted">الخصائص التقنية تُسجّل ضمن البطاقة الفنية للطراز.</p><div class="import-help"><button type="button" class="btn soft" id="importSpecs">📥 استيراد قيم الخصائص من Excel</button></div></div></div><div class="save"><button class="btn primary" type="submit">حفظ الطراز</button><button class="btn soft" type="button" id="cancelModel">إلغاء</button></div></form></div>
 </div></main></div>
 <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
