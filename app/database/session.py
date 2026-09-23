@@ -17,7 +17,7 @@ from app.core.config import settings
 # connect_args خاص بـ SQLite فقط (يسمح باستخدامه من أكثر من thread، وهو
 # مطلوب مع FastAPI). لا يُستخدم مع PostgreSQL/MySQL.
 connect_args = (
-    {"check_same_thread": False}
+    {"check_same_thread": False, "timeout": 5}
     if settings.DATABASE_URL.startswith("sqlite")
     else {}
 )
