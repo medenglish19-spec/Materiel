@@ -162,20 +162,26 @@ def upgrade():
     for name, code, group_name, data_type, unit, order in specs:
         if name in existing:
             continue
+        option_map = {
+            "نوع الهيكل": "بيك أب,سيدان,دفع رباعي,شاحنة,حافلة,خاص",
+            "نوع المحرك": "بنزين,ديزل,كهربائي,هجين",
+            "نظام التبريد": "سائل,هواء",
+            "شاحن توربيني": "نعم,لا",
+            "نوع ناقل الحركة": "يدوي,أوتوماتيكي,نصف أوتوماتيكي,CVT",
+            "نظام الدفع": "2x4,4x2,4x4,6x4,6x6,8x8",
+            "نوع الإطار": "صيفي,شتوي,كل التضاريس,طريق وعرة",
+            "نوع العداد الرئيسي": "عداد مسافة,عداد ساعات",
+        }
         bind.execute(
             sa.text("""INSERT INTO equipment_model_spec_definitions
             (name,code,data_type,unit,options,sort_order,group_name,group_sort_order,equipment_type_id,category_id,created_at,updated_at)
             VALUES (:name,:code,:dtype,:unit,:options,:sort,:group,:group_sort,NULL,:category,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"""),
             {
                 "name": name, "code": code, "dtype": data_type, "unit": unit,
-                "options": None, "sort": order, "group": group_name,
+                "options": option_map.get(name), "sort": order, "group": group_name,
                 "group_sort": order // 10, "category": vehicle_category_id,
             },
         )
-        if data_type == "select":
-            opts = next(x[5] for x in specs if x[0] == name)
-            bind.execute(sa.text("UPDATE equipment_model_spec_definitions SET options=:options WHERE name=:name"),
-                         {"options": opts, "name": name})
 
 
 def downgrade():
