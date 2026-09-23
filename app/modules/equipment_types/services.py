@@ -212,10 +212,8 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
                 .where(equipment_type_spec_definitions.c.spec_definition_id == definition.id)
             ).fetchall()
         }
-        if technical_library_type_id:
-            linked_type_ids = linked_type_ids if technical_library_type_id in linked_type_ids else set()
         if linked_type_ids:
-            if model is None or model.equipment_type_id not in linked_type_ids:
+            if model is None or (model.equipment_type_id not in linked_type_ids and technical_library_type_id not in linked_type_ids):
                 raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
         elif definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
             raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
