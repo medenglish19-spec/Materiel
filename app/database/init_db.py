@@ -30,7 +30,7 @@ def _run_alembic_upgrade(config: Config) -> None:
         logger.info("Database startup: running Alembic upgrade to head.")
         command.upgrade(config, "head")
         logger.info("Database startup: Alembic upgrade completed.")
-    except Exception:
+    except BaseException as exc:
         inspector = inspect(engine)
         tables = sorted(inspector.get_table_names())
         logger.exception(
@@ -38,6 +38,8 @@ def _run_alembic_upgrade(config: Config) -> None:
             settings.DATABASE_URL,
             tables,
         )
+        if isinstance(exc, SystemExit):
+            raise RuntimeError("Alembic startup migration exited unexpectedly") from exc
         raise
 
 
