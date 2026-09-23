@@ -38,8 +38,8 @@ def test_tree_add_controls_route_to_the_existing_create_workflows():
     script = _tree_script()
     assert 'event.target.closest(\'[data-add],[data-new-ref]\')' in script
     assert "const kind = add.dataset.add || add.dataset.newRef;" in script
-    assert "if (kind === 'model') openModelCreate();" in script
-    assert "else if (kind) refPanel(kind);" in script
+    assert "if (kind === 'model') openModelCreate(action.dataset.newModelForType);" in script
+    assert "else if (typeof refPanel === 'function') refPanel(kind);" in script
     assert "openTypeCreate(addForCategory.dataset.newTypeForCategory)" in script
     assert "openModelCreate(addForType.dataset.newModelForType)" in script
 
@@ -56,9 +56,26 @@ def test_model_workspace_loads_every_model_field_from_its_own_payload():
         "$('hasBatteries').checked=!!d.has_batteries",
         "renderPositions(d.positions||d.master?.positions||[])",
         "renderSizes(d.sizes||d.master?.sizes||[])",
-        "(d.specs||d.master?.specs||[]).forEach",
+        "renderSpecEditor(d)",
     ):
         assert expression in script
+
+
+
+def test_new_model_creation_is_scoped_to_selected_type_and_loads_applicable_specs():
+    template = _template()
+    assert "data-new-model-for-type=\"{{ t.id }}\"" in template
+    assert "function refreshModelTypeContext(typeId)" in template
+    assert "$('modelType').onchange=()=>refreshModelTypeContext($('modelType').value)" in template
+    assert "renderSpecEditor({equipment_type_id:id?Number(id):0,category_id:categoryId?Number(categoryId):0,specs:[]})" in template
+
+
+def test_brand_is_optional_but_can_be_added_from_model_editor():
+    template = _template()
+    assert 'id="modelBrand" name="brand_id"' in template
+    assert 'id="addBrandFromModel"' in template
+    assert 'value="">بدون علامة تجارية</option>' in template
+    assert "BRANDS[String(d.brand_id)]||'بدون علامة تجارية'" in template
 
 
 def test_model_editor_payload_is_model_scoped_for_tires_and_specs():
