@@ -75,6 +75,7 @@
       select.value = String(typeId);
       if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
     }
+    if (typeof window.refreshModelTypeContext === 'function') window.refreshModelTypeContext(typeId || '');
     if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
     if (typeof show === 'function') show($('modelPanel'));
     selectSection(0);
@@ -144,6 +145,8 @@
       if (id) typeCategoryMap.set(id, categoryId);
       const categoryAdd = typeNode.querySelector('[data-new-type-for-category]');
       if (categoryAdd) categoryAdd.dataset.newTypeForCategory = categoryId;
+      const modelAdds = typeNode.querySelectorAll('[data-add="model"], [data-new-ref="model"]');
+      modelAdds.forEach((button) => { if (id) button.dataset.newModelForType = id; });
     });
 
     categoryNodes.forEach((categoryNode) => {
