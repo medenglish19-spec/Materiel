@@ -165,7 +165,7 @@ function applicableDefs(d){
 function specInput(def,value=''){
   const safe=String(value||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
   if(def.data_type==='select'){
-    const opts=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean).map(v=>'<option value="'+v.replaceAll('"','&quot;')+'">'+v+'</option>').join('');
+    const opts=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean).map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===String(value)?' selected':'')+'>'+v+'</option>').join('');
     return '<select class="spec-value" data-definition="'+def.id+'"><option value="">اختر</option>'+opts+'</select>';
   }
   return '<input class="spec-value" data-definition="'+def.id+'" type="'+(def.data_type==='number'?'number':'text')+'" value="'+safe+'">';
@@ -184,6 +184,7 @@ function renderSpecView(d){
   const groups=new Map();
   defs.filter(def=>values[Number(def.id)]!==undefined && values[Number(def.id)]!=='').forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
   $('viewSpecRows').innerHTML=groups.size?[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<div class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><strong>'+String(values[Number(def.id)]).replaceAll('<','&lt;')+'</strong></div>').join('')+'</div></div>').join(''):'<span class="muted">لا توجد خصائص مسجلة لهذا الطراز.</span>';
+  $('viewSpecEmpty').style.display=groups.size?'none':'block';
 }
 
 
