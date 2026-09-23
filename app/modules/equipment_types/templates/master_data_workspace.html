@@ -75,11 +75,35 @@
 {% if request.query_params.get('notice') %}<div class="notice {{ request.query_params.get('notice_type','success') }}">{{ request.query_params.get('notice') }}</div>{% endif %}
 <div class="layout">
 <aside class="card tree-card"><div id="tree-root-dropzone" class="tree-root-dropzone">⬇️ إفلات هنا لنقل الطراز إلى المستوى الرئيسي</div><div class="tree-head"><strong>شجرة مركز البيانات</strong><span class="muted">{{ models|length }} طراز</span></div><input class="tree-search" id="treeSearch" placeholder="بحث..."><div class="tree" id="tree">
-<div class="master-reference-block"><div class="master-reference-heading">الشجرة الهرمية</div>
-<div class="tree-group open"><button class="tree-node" data-ref="categories" type="button"><span class="tree-toggle">⌄</span>📁 الفئات <span class="tree-actions"><span class="tree-add" data-add="category">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="category" type="button">＋ إضافة فئة</button>{% for c in categories %}<button class="tree-node" data-ref-item="category" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button">• {{ c.name }}</button>{% endfor %}</div></div>
-<div class="tree-group open"><button class="tree-node" data-ref="types" type="button"><span class="tree-toggle">⌄</span>🗂 أنواع العتاد <span class="tree-actions"><span class="tree-add" data-add="type">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="type" type="button">＋ إضافة نوع عتاد</button>{% for t in types %}<button class="tree-node" data-ref-item="type" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category-id="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}" type="button">• {{ t.name }}</button>{% endfor %}</div></div>
-<div class="tree-group open"><button class="tree-node" data-ref="models" type="button"><span class="tree-toggle">⌄</span>🚙 الطرازات <span class="tree-actions"><span class="tree-add" data-add="model">＋</span></span></button><div class="children" id="modelTree"><button class="tree-node" data-new-ref="model" type="button">＋ إضافة طراز</button>{% for m in models %}<div class="tree-group model-group"><button class="tree-node model-row" data-model-row="{{ m.id }}" data-copy="{{ m.id }}" data-delete="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" type="button"><span class="tree-toggle">›</span>🚙 {{ m.name }} </button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📋 البطاقة الفنية المختصرة</button><div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات <span class="tree-actions"><span class="tree-action" data-tree-add="position">＋ موضع</span><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="positions" type="button">↳ مواضع الإطارات</button><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div><button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button><button class="tree-node" data-model="{{ m.id }}" data-section="specs" type="button">⚙ الخصائص التقنية</button></div></div>{% endfor %}</div></div></div>
-</div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>|</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">العناصر: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
+<div class="master-reference-block"><div class="master-reference-heading">الشجرة الفنية</div>
+<div class="tree-group open"><button class="tree-node" data-ref="categories" type="button"><span class="tree-toggle">⌄</span>📚 مكتبة المعدات <span class="tree-actions"><span class="tree-add" data-add="category">＋</span></span></button><div class="children">
+<button class="tree-node" data-new-ref="category" type="button">＋ إضافة تصنيف رئيسي</button>
+{% for c in categories %}
+<div class="tree-group open">
+<button class="tree-node" data-ref-item="category" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button"><span class="tree-toggle">⌄</span>📁 {{ c.name }}<span class="tree-actions"><span class="tree-add" data-add="type">＋ نوع</span></span></button>
+<div class="children">
+<button class="tree-node" data-new-ref="type" type="button">＋ إضافة نوع عتاد</button>
+{% for t in types if t.category_id == c.id %}
+<div class="tree-group">
+<button class="tree-node" data-ref-item="type" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category-id="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}" type="button"><span class="tree-toggle">›</span>🗂 {{ t.name }}<span class="tree-actions"><span class="tree-add" data-add="model">＋ طراز</span></span></button>
+<div class="children">
+<button class="tree-node" data-new-ref="model" type="button">＋ إضافة طراز</button>
+{% for m in models if m.equipment_type_id == t.id %}
+<div class="tree-group model-group">
+<button class="tree-node model-row" data-model-row="{{ m.id }}" data-copy="{{ m.id }}" data-delete="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" type="button"><span class="tree-toggle">›</span>🚙 {{ m.name }}</button>
+<div class="children">
+<button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📋 البطاقة الفنية المختصرة</button>
+<div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات <span class="tree-actions"><span class="tree-action" data-tree-add="position">＋ موضع</span><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="positions" type="button">↳ مواضع الإطارات</button><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div>
+<button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button>
+<button class="tree-node" data-model="{{ m.id }}" data-section="specs" type="button">⚙ الخصائص التقنية</button>
+</div></div>
+{% endfor %}
+</div></div>
+{% endfor %}
+</div></div>
+{% endfor %}
+</div></div>
+</div></div></div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>|</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">العناصر: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
 <main class="card editor"><div class="editor-head"><small id="crumb">مركز البيانات الأساسية</small><h2 id="title">اختر عنصراً من الشجرة</h2></div><div class="body">
 <div id="empty" class="empty">الإضافة والتعديل يتمان من داخل الشجرة.<br>اختر عقدة أو «＋» من داخل الشجرة للبدء.</div>
 <div id="refPanel" class="panel"><div class="box"><div class="box-head"><h3 id="refTitle"></h3></div><div class="box-body" id="refBody"></div></div></div>
