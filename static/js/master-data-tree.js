@@ -129,34 +129,108 @@
   };
 
   const buildHierarchy = () => {
+    /* The current template already renders the hierarchy server-side:
+       مكتبة المعدات → التصنيف → نوع العتاد → الطراز.
+       Do not rebuild/remove those nodes. Normalize their data attributes
+       so the existing interactions (create, move, export) keep the
+       correct parent relationships. */
+    const categoryNodes = [...tree.querySelectorAll('[data-ref-item="category"]')];
+    const typeNodes = [...tree.querySelectorAll('[data-ref-item="type"]')];
+    const modelRows = [...tree.querySelectorAll('[data-model-row]')];
+
+    typeNodes.forEach((typeNode) => {
+      const id = String(typeNode.dataset.id || '');
+      const categoryId = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');
+      if (id) typeCategoryMap.set(id, categoryId);
+      const categoryAdd = typeNode.querySelector('[data-new-type-for-category]');
+      if (categoryAdd) categoryAdd.dataset.newTypeForCategory = categoryId;
+    });
+
+    categoryNodes.forEach((categoryNode) => {
+      const categoryId = String(categoryNode.dataset.id || '');
+      const addButtons = categoryNode.querySelectorAll('.tree-add[data-add="type"], .tree-node[data-new-ref="type"]');
+      addButtons.forEach((button) => {
+        if (categoryId) button.dataset.newTypeForCategory = categoryId;
+      });
+    });
+
+    modelRows.forEach((row) => {
+      const modelId = String(row.dataset.modelRow || '');
+      const typeId = String(row.dataset.equipmentTypeId || '');
+      if (modelId && DATA[modelId]) DATA[modelId].equipment_type_id = typeId || DATA[modelId].equipment_type_id;
+      row.draggable = true;
+    });
+
+    /* Legacy flat-tree markup is still supported if a future template
+       supplies separate categories/types/models roots. */
     const root = (name) => tree.querySelector(`[data-ref="${name}"]`)?.closest('.tree-group');
-    const categoryRoot = root('categories'); const typeRoot = root('types'); const modelRoot = root('models');
+    const categoryRoot = root('categories');
+    const typeRoot = root('types');
+    const modelRoot = root('models');
     const categoryChildren = categoryRoot?.querySelector(':scope > .children');
     const typeChildren = typeRoot?.querySelector(':scope > .children');
     const modelChildren = modelRoot?.querySelector(':scope > .children');
     if (!categoryChildren || !typeChildren || !modelChildren) return;
+
     const categories = [...categoryChildren.querySelectorAll(':scope > [data-ref-item="category"]')];
     const types = [...typeChildren.querySelectorAll(':scope > [data-ref-item="type"]')];
     const models = [...modelChildren.querySelectorAll(':scope > .model-group')];
     const byCategory = new Map();
-    types.forEach((node) => { const typeNode = node; const key = getTypeCategory(typeNode); if (!byCategory.has(key)) byCategory.set(key, []); byCategory.get(key).push(typeNode); });
+    types.forEach((node) => {
+      const key = getTypeCategory(node);
+      if (!byCategory.has(key)) byCategory.set(key, []);
+      byCategory.get(key).push(node);
+    });
     const byType = new Map();
-    models.forEach((group) => { const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || ''); if (!byType.has(key)) byType.set(key, []); byType.get(key).push(group); });
-    const add = (text, data) => { const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-node master-inline-add'; button.textContent = text; Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; }); return button; };
+    models.forEach((group) => {
+      const key = String(group.querySelector(':scope > [data-model-row]')?.dataset.equipmentTypeId || '');
+      if (!byType.has(key)) byType.set(key, []);
+      byType.get(key).push(group);
+    });
+    const add = (text, data) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tree-node master-inline-add';
+      button.textContent = text;
+      Object.entries(data).forEach(([k, v]) => { button.dataset[k] = v; });
+      return button;
+    };
     const appendType = (node, parent) => {
-      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-type-group open'; group.dataset.typeId = id;
+      const id = String(node.dataset.id || '');
+      const group = document.createElement('div');
+      group.className = 'tree-group master-type-group open';
+      group.dataset.typeId = id;
       node.innerHTML = `<span class="tree-toggle">⌄</span><span>🗂 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="${id}" title="إضافة طراز">＋</span></span>`;
-      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة طراز', { newRef: 'model', newModelForType: id })); (byType.get(id) || []).forEach((model) => children.appendChild(model)); group.append(node, children); parent.appendChild(group);
+      const children = document.createElement('div');
+      children.className = 'children';
+      children.appendChild(add('＋ إضافة طراز', { newRef: 'model', newModelForType: id }));
+      (byType.get(id) || []).forEach((model) => children.appendChild(model));
+      group.append(node, children);
+      parent.appendChild(group);
     };
     categories.forEach((node) => {
-      const id = String(node.dataset.id || ''); const group = document.createElement('div'); group.className = 'tree-group master-category-group open';
+      const id = String(node.dataset.id || '');
+      const group = document.createElement('div');
+      group.className = 'tree-group master-category-group open';
       node.innerHTML = `<span class="tree-toggle">⌄</span><span>📁 ${node.dataset.name || node.textContent.trim()}</span><span class="tree-actions"><span class="tree-add" data-add="type" data-new-type-for-category="${id}" title="إضافة نوع">＋</span></span>`;
-      const children = document.createElement('div'); children.className = 'children'; children.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type', newTypeForCategory: id })); (byCategory.get(id) || []).forEach((type) => appendType(type, children)); group.append(node, children); node.replaceWith(group);
+      const children = document.createElement('div');
+      children.className = 'children';
+      children.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type', newTypeForCategory: id }));
+      (byCategory.get(id) || []).forEach((type) => appendType(type, children));
+      group.append(node, children);
+      node.replaceWith(group);
     });
-    const orphan = document.createElement('div'); orphan.className = 'tree-group master-uncategorized open'; const orphanChildren = document.createElement('div'); orphanChildren.className = 'children'; orphan.append(add('🗂 أنواع عتاد غير مصنّفة', { ref: 'uncategorized' }), orphanChildren); orphanChildren.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type' })); (byCategory.get('') || []).forEach((type) => appendType(type, orphanChildren)); categoryChildren.appendChild(orphan);
-    types.forEach((node) => node.remove()); models.forEach((group) => group.remove());
+    const orphan = document.createElement('div');
+    orphan.className = 'tree-group master-uncategorized open';
+    const orphanChildren = document.createElement('div');
+    orphanChildren.className = 'children';
+    orphan.append(add('🗂 أنواع عتاد غير مصنّفة', { ref: 'uncategorized' }), orphanChildren);
+    orphanChildren.appendChild(add('＋ إضافة نوع عتاد', { newRef: 'type' }));
+    (byCategory.get('') || []).forEach((type) => appendType(type, orphanChildren));
+    categoryChildren.appendChild(orphan);
+    types.forEach((node) => node.remove());
+    models.forEach((group) => group.remove());
   };
-
   const revealAncestors = (node) => { let group = node.closest('.tree-group'); while (group) { group.classList.add('open'); group.querySelector(':scope > .tree-node')?.removeAttribute('hidden'); group = group.parentElement?.closest('.tree-group'); } };
   const search = $('treeSearch');
   search?.addEventListener('input', () => { const q = search.value.trim().toLocaleLowerCase(); const nodes = [...tree.querySelectorAll('.tree-node')]; nodes.forEach((node) => { node.hidden = !!q && !node.textContent.toLocaleLowerCase().includes(q); }); if (q) nodes.filter((node) => !node.hidden).forEach(revealAncestors); syncArrows(); });
