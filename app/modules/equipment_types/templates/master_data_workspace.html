@@ -193,12 +193,22 @@ function applicableDefs(d){
 }
 function renderSpecLibrary(d){
   const picker=$('specLibraryPicker'); if(!picker)return;
-  const defs=applicableDefs(d); const selected=new Set((d.specs||d.master?.specs||[]).map(x=>Number(x.definition_id)));
-  if(!defs.length){picker.innerHTML='<div class="muted">لا توجد خصائص متاحة. اربط نوع العتاد بمصدر من المكتبة الفنية أولاً.</div>';picker.hidden=false;return}
-  const groups=new Map(); defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
-  picker.innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
+  const defs=applicableDefs(d);
+  const selected=new Set((d.specs||d.master?.specs||[]).map(x=>Number(x.definition_id)));
   picker.hidden=false;
-  picker.querySelectorAll('.spec-pick').forEach(x=>x.addEventListener('change',()=>{const values=Object.fromEntries([...document.querySelectorAll('#specRows .spec-value')].map(v=>[Number(v.dataset.definition),v.value]));renderSpecEditor({...d,specs:[...picker.querySelectorAll('.spec-pick:checked')].map(y=>({definition_id:Number(y.dataset.definition),value:values[Number(y.dataset.definition)]||''}))});sync()}));
+  if(!defs.length){
+    picker.innerHTML='<div class="spec-library-empty"><strong>لا توجد خصائص لهذا النوع بعد.</strong><span>افتح نوع العتاد واربطه بنوع مناسب من المكتبة الفنية، ثم عد إلى الطراز.</span></div>';
+    return;
+  }
+  const groups=new Map(); defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
+  const total=defs.length, chosen=defs.filter(def=>selected.has(Number(def.id))).length;
+  picker.innerHTML='<div class="spec-library-toolbar"><strong>مكتبة خصائص هذا النوع</strong><span>'+chosen+' / '+total+' محددة</span></div>'+
+    [...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
+  picker.querySelectorAll('.spec-pick').forEach(x=>x.addEventListener('change',()=>{
+    const values=Object.fromEntries([...document.querySelectorAll('#specRows .spec-value')].map(v=>[Number(v.dataset.definition),v.value]));
+    const specs=[...picker.querySelectorAll('.spec-pick:checked')].map(y=>({definition_id:Number(y.dataset.definition),value:values[Number(y.dataset.definition)]||''}));
+    renderSpecEditor({...d,specs}); sync(); renderSpecLibrary({...d,specs});
+  }));
 }
 function specInput(def,value=''){
   const safe=String(value||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
@@ -283,7 +293,7 @@ $('tree').addEventListener('click',e=>{
  const node=e.target.closest('.tree-node');if(node){selectNode(node);const g=node.closest('.tree-group');if(g&&node.querySelector('.tree-toggle'))g.classList.toggle('open')}
 });
 $('modelForm').addEventListener('submit',e=>{sync();if(!$('modelType').value){e.preventDefault();alert('اختر نوع العتاد أولاً.')}});$('editModelBtn').onclick=()=>editModel(currentModel);$('cancelModel').onclick=()=>{if(currentModel)viewModel(currentModel);else{document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$('empty').style.display='grid';title('اختر عنصراً من الشجرة')}};$('addPosition').onclick=()=>addPos();$('addSize').onclick=()=>addSize();$('importPositions').onclick=()=>importExcel('positions');$('importSizes').onclick=()=>importExcel('sizes');$('importSpecs').onclick=()=>importExcel('specs');function refreshModelTypeContext(typeId){const id=String(typeId||$('modelType').value||'');const o=$('modelType').selectedOptions[0];const categoryId=o?.dataset.category||'';const libraryCategoryId=o?.dataset.libraryCategory||'';$('modelCategory').value=categoryId;const libraryTypeId=o?.dataset.libraryTypeId||o?.dataset.libraryType||"";const context={equipment_type_id:id?Number(id):0,technical_library_type_id:libraryTypeId?Number(libraryTypeId):0,category_id:categoryId?Number(categoryId):0,technical_library_category_id:libraryCategoryId?Number(libraryCategoryId):0,specs:[]};renderSpecEditor(context);renderSpecLibrary(context);}
-$('modelType').onchange=()=>refreshModelTypeContext($('modelType').value);$('chooseSpecs').onclick=()=>{const p=$('specLibraryPicker');if(p) p.hidden=!p.hidden;};
+$('modelType').onchange=()=>refreshModelTypeContext($('modelType').value);$('chooseSpecs').onclick=()=>{const p=$('specLibraryPicker');if(!p)return;const o=$('modelType').selectedOptions[0];const d=DATA[String(currentModel)]||DATA[currentModel]||{equipment_type_id:Number($('modelType').value||0),category_id:Number($('modelCategory').value||0),technical_library_type_id:Number(o?.dataset.libraryType||0),technical_library_category_id:Number(o?.dataset.libraryCategory||0),specs:[]};renderSpecLibrary(d);p.hidden=false;p.scrollIntoView({behavior:'smooth',block:'nearest'});};
 
 $('addBrandFromModel').onclick=()=>{refPanel('brand');};
 $('excelFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(typeof XLSX==='undefined'){alert('تعذر تحميل قارئ Excel.');return}try{const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{defval:''});if(!rows.length)throw Error('الملف لا يحتوي بيانات.');const norm=k=>String(k).trim().toLowerCase();const keys=Object.keys(rows[0]);const find=names=>keys.find(k=>names.includes(norm(k)));if(importTarget==='sizes'){const k=find(['المقاس','size','tire size','tire_size']);if(!k)throw Error('لم أجد عمود المقاس.');renderSizes(rows.map(r=>r[k]))}else if(importTarget==='positions'){const a=find(['المحور','axle','axle_number']),s=find(['الجهة','side']),t=find(['النوع','type','position_type']),d=find(['الوصف','description']);if(!a&&!s&&!t&&!d)throw Error('لم أجد أعمدة المواضع.');renderPositions(rows.map(r=>({axle_number:r[a]||1,side:r[s]||'left',position_type:r[t]||'single',description:r[d]||''})))}else{const sizeK=find(['المقاس','size','tire size','tire_size']);if(sizeK)renderSizes(rows.map(r=>r[sizeK]));const a=find(['المحور','axle','axle_number']);if(a)renderPositions(rows.map(r=>({axle_number:r[a]||1,side:r[find(['الجهة','side'])]||'left',position_type:r[find(['النوع','type','position_type'])]||'single',description:r[find(['الوصف','description'])||'']||''})));DEFS.forEach(d=>{const k=keys.find(x=>norm(x)===norm(d.name));if(k){const el=document.querySelector('[data-definition="'+d.id+'"]');if(el)el.value=rows[0][k]||''}});sync()}alert('تم تحميل البيانات إلى المحرر. راجعها ثم اضغط حفظ الطراز.')}catch(err){alert('تعذر استيراد الملف: '+err.message)}});
