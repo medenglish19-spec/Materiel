@@ -30,8 +30,10 @@ class EquipmentType(Base, TimestampMixin):
     measurement_unit = Column(String(10), nullable=False)
     theoretical_quantity = Column(Integer, nullable=True, default=None)
     category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    technical_library_category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     is_frozen = Column(Boolean, nullable=False, default=False)
-    category = relationship("EquipmentCategory", back_populates="equipment_types")
+    category = relationship("EquipmentCategory", back_populates="equipment_types", foreign_keys=[category_id])
+    technical_library_category = relationship("EquipmentCategory", foreign_keys=[technical_library_category_id])
     models = relationship("EquipmentModel", back_populates="equipment_type", cascade="all, delete-orphan")
 
 
