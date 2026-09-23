@@ -1,0 +1,188 @@
+"""technical specification dictionary and global equipment taxonomy
+
+revision: 0032
+down_revision: 0031_model_custom_specs
+"""
+from alembic import op
+import sqlalchemy as sa
+
+revision = "0032_technical_spec_dictionary"
+down_revision = "0031_model_custom_specs"
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    cols = {c["name"] for c in insp.get_columns("equipment_model_spec_definitions")}
+
+    with op.batch_alter_table("equipment_model_spec_definitions") as batch:
+        if "code" not in cols:
+            batch.add_column(sa.Column("code", sa.String(100), nullable=True))
+        if "group_name" not in cols:
+            batch.add_column(sa.Column("group_name", sa.String(100), nullable=True))
+        if "group_sort_order" not in cols:
+            batch.add_column(sa.Column("group_sort_order", sa.Integer(), nullable=False, server_default="0"))
+        if "equipment_type_id" not in cols:
+            batch.add_column(sa.Column("equipment_type_id", sa.Integer(), nullable=True))
+        if "category_id" not in cols:
+            batch.add_column(sa.Column("category_id", sa.Integer(), nullable=True))
+
+    insp = sa.inspect(bind)
+    indexes = {i["name"] for i in insp.get_indexes("equipment_model_spec_definitions")}
+    if "ix_equipment_model_spec_definitions_code" not in indexes:
+        op.create_index("ix_equipment_model_spec_definitions_code", "equipment_model_spec_definitions", ["code"], unique=True)
+
+    categories = sa.table(
+        "equipment_categories",
+        sa.column("id", sa.Integer),
+        sa.column("name", sa.String),
+        sa.column("code", sa.String),
+        sa.column("sort_order", sa.Integer),
+        sa.column("is_system", sa.Boolean),
+    )
+    types = sa.table(
+        "equipment_types",
+        sa.column("id", sa.Integer),
+        sa.column("name", sa.String),
+        sa.column("measurement_unit", sa.String),
+        sa.column("theoretical_quantity", sa.Integer),
+        sa.column("category_id", sa.Integer),
+        sa.column("is_frozen", sa.Boolean),
+    )
+    now = sa.func.now()
+
+    taxonomy = [
+        ("العربات", "vehicles", 10, [
+            ("سيارات ركوب", "km"), ("سيارات نفعية", "km"), ("سيارات دفع رباعي", "km"),
+            ("شاحنات خفيفة", "km"), ("شاحنات متوسطة", "km"), ("شاحنات ثقيلة", "km"),
+            ("جرارات", "hours"), ("حافلات", "km"), ("مقطورات وأنصاف مقطورات", "km"), ("مركبات خاصة", "km"),
+        ]),
+        ("معدات المناولة والرفع", "handling_lifting", 20, [
+            ("رافعات شوكية", "hours"), ("رافعات متنقلة", "hours"), ("رافعات ثابتة", "hours"),
+            ("منصات رفع", "hours"), ("معدات سحب وجر", "hours"),
+        ]),
+        ("معدات الأشغال والهندسة", "construction_engineering", 30, [
+            ("حفارات", "hours"), ("جرافات", "hours"), ("لوادر", "hours"), ("ممهدات", "hours"),
+            ("مداحل", "hours"), ("آلات حفر وضغط", "hours"), ("معدات إنشاء الطرق", "hours"),
+        ]),
+        ("معدات الطاقة", "power", 40, [
+            ("مولدات كهربائية", "hours"), ("ضواغط", "hours"), ("وحدات طاقة", "hours"), ("معدات توزيع الطاقة", "hours"),
+        ]),
+        ("المعدات الزراعية", "agriculture", 50, [
+            ("جرارات زراعية", "hours"), ("حصادات", "hours"), ("آلات حرث", "hours"),
+            ("آلات رش", "hours"), ("معدات زراعية مسحوبة", "hours"),
+        ]),
+        ("المعدات المتخصصة", "specialized", 60, [
+            ("معدات إطفاء", "hours"), ("معدات إنقاذ", "hours"), ("معدات ورش", "hours"),
+            ("معدات اتصالات", "hours"), ("معدات ميدانية", "hours"), ("معدات خدمات خاصة", "hours"),
+        ]),
+    ]
+
+    category_ids = {}
+    for name, code, order, type_rows in taxonomy:
+        row = bind.execute(sa.text("SELECT id FROM equipment_categories WHERE code=:code"), {"code": code}).fetchone()
+        if row:
+            category_id = row[0]
+        else:
+            category_id = bind.execute(
+                sa.text("INSERT INTO equipment_categories(name,code,sort_order,is_system,created_at,updated_at) VALUES (:name,:code,:sort_order,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id"),
+                {"name": name, "code": code, "sort_order": order},
+            ).scalar_one()
+        category_ids[code] = category_id
+        for type_name, unit in type_rows:
+            exists = bind.execute(
+                sa.text("SELECT id FROM equipment_types WHERE name=:name"), {"name": type_name}
+            ).fetchone()
+            if not exists:
+                bind.execute(
+                    sa.text("INSERT INTO equipment_types(name,measurement_unit,theoretical_quantity,category_id,is_frozen,created_at,updated_at) VALUES (:name,:unit,NULL,:category,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"),
+                    {"name": type_name, "unit": unit, "category": category_id},
+                )
+
+    vehicle_category_id = category_ids["vehicles"]
+    specs = [
+        ("الصانع","manufacturer","التعريف الفني","text",None,1),
+        ("الطراز","model","التعريف الفني","text",None,2),
+        ("الجيل","generation","التعريف الفني","text",None,3),
+        ("سنة الصنع","model_year","التعريف الفني","number","سنة",4),
+        ("بلد الصنع","country_of_origin","التعريف الفني","text",None,5),
+        ("نوع الهيكل","body_type","التعريف الفني","select","بيك أب,سيدان,دفع رباعي,شاحنة,حافلة,خاص",6),
+        ("نوع المحرك","engine_type","المحرك / مصدر الطاقة","select","بنزين,ديزل,كهربائي,هجين",10),
+        ("عدد الأسطوانات","cylinder_count","المحرك / مصدر الطاقة","number","أسطوانة",11),
+        ("سعة المحرك","engine_displacement","المحرك / مصدر الطاقة","number","سم³",12),
+        ("القدرة القصوى","max_power","المحرك / مصدر الطاقة","number","kW",13),
+        ("عزم الدوران الأقصى","max_torque","المحرك / مصدر الطاقة","number","Nm",14),
+        ("نظام الحقن","injection_system","المحرك / مصدر الطاقة","text",None,15),
+        ("نظام التبريد","cooling_system","المحرك / مصدر الطاقة","select","سائل,هواء",16),
+        ("شاحن توربيني","turbocharged","المحرك / مصدر الطاقة","select","نعم,لا",17),
+        ("نوع ناقل الحركة","transmission_type","الحركة / ناقل الحركة","select","يدوي,أوتوماتيكي,نصف أوتوماتيكي,CVT",20),
+        ("عدد سرعات ناقل الحركة","gear_count","الحركة / ناقل الحركة","number","سرعة",21),
+        ("نظام الدفع","drive_system","الحركة / ناقل الحركة","select","2x4,4x2,4x4,6x4,6x6,8x8",22),
+        ("علبة التحويل","transfer_case","الحركة / ناقل الحركة","text",None,23),
+        ("نسبة التخفيض","reduction_ratio","الحركة / ناقل الحركة","text",None,24),
+        ("الطول الكلي","overall_length","الأبعاد والأوزان","number","mm",30),
+        ("العرض الكلي","overall_width","الأبعاد والأوزان","number","mm",31),
+        ("الارتفاع الكلي","overall_height","الأبعاد والأوزان","number","mm",32),
+        ("قاعدة العجلات","wheelbase","الأبعاد والأوزان","number","mm",33),
+        ("الوزن الفارغ","curb_weight","الأبعاد والأوزان","number","kg",34),
+        ("الوزن الإجمالي المسموح","gross_vehicle_weight","الأبعاد والأوزان","number","kg",35),
+        ("الحمولة الصافية","payload","الأبعاد والأوزان","number","kg",36),
+        ("جهد النظام الكهربائي","electrical_voltage","الكهرباء","number","V",40),
+        ("سعة المولد","alternator_capacity","الكهرباء","number","A",41),
+        ("عدد البطاريات","battery_count","الكهرباء","number","بطارية",42),
+        ("سعة البطارية","battery_capacity","الكهرباء","number","Ah",43),
+        ("سعة خزان الوقود","fuel_tank_capacity","السوائل والسعات","number","L",50),
+        ("زيت المحرك","engine_oil_capacity","السوائل والسعات","number","L",51),
+        ("زيت ناقل الحركة","transmission_oil_capacity","السوائل والسعات","number","L",52),
+        ("سائل التبريد","coolant_capacity","السوائل والسعات","number","L",53),
+        ("سائل الفرامل","brake_fluid_capacity","السوائل والسعات","number","L",54),
+        ("مقاس الإطار","tire_size","الإطارات والعجلات","text",None,60),
+        ("عدد المحاور","axle_count","الإطارات والعجلات","number","محور",61),
+        ("ضغط الإطار","tire_pressure","الإطارات والعجلات","number","bar",62),
+        ("نوع الإطار","tire_type","الإطارات والعجلات","select","صيفي,شتوي,كل التضاريس,طريق وعرة",63),
+        ("السرعة القصوى","max_speed","الأداء التشغيلي","number","km/h",70),
+        ("مدى التشغيل","operating_range","الأداء التشغيلي","number","km",71),
+        ("استهلاك الوقود","fuel_consumption","الأداء التشغيلي","number","L/100km",72),
+        ("قابلية التسلق","gradeability","الأداء التشغيلي","number","%",73),
+        ("نصف قطر الدوران","turning_radius","الأداء التشغيلي","number","m",74),
+        ("نوع العداد الرئيسي","primary_meter_type","العدادات / الأجهزة","select","عداد مسافة,عداد ساعات",80),
+        ("فترة الصيانة الدورية","service_interval","الصيانة","number","km/ساعة",90),
+        ("الصيانة الأولى","first_service_interval","الصيانة","number","km/ساعة",91),
+        ("فترة تغيير زيت المحرك","engine_oil_service_interval","الصيانة","number","km/ساعة",92),
+        ("فترة تغيير المرشحات","filter_service_interval","الصيانة","number","km/ساعة",93),
+        ("نقاط التشحيم","lubrication_points","الصيانة","number","نقطة",94),
+        ("درجة حرارة التشغيل","operating_temperature","ظروف التشغيل","text",None,100),
+        ("الارتفاع التشغيلي الأقصى","maximum_operating_altitude","ظروف التشغيل","number","m",101),
+        ("معيار الانبعاثات","emission_standard","المعايير / الامتثال","text",None,110),
+    ]
+
+    existing = {r[0] for r in bind.execute(sa.text("SELECT name FROM equipment_model_spec_definitions")).fetchall()}
+    for name, code, group_name, data_type, unit, order in specs:
+        if name in existing:
+            continue
+        bind.execute(
+            sa.text("""INSERT INTO equipment_model_spec_definitions
+            (name,code,data_type,unit,options,sort_order,group_name,group_sort_order,equipment_type_id,category_id,created_at,updated_at)
+            VALUES (:name,:code,:dtype,:unit,:options,:sort,:group,:group_sort,NULL,:category,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"""),
+            {
+                "name": name, "code": code, "dtype": data_type, "unit": unit,
+                "options": None, "sort": order, "group": group_name,
+                "group_sort": order // 10, "category": vehicle_category_id,
+            },
+        )
+        if data_type == "select":
+            opts = next(x[5] for x in specs if x[0] == name)
+            bind.execute(sa.text("UPDATE equipment_model_spec_definitions SET options=:options WHERE name=:name"),
+                         {"options": opts, "name": name})
+
+
+def downgrade():
+    op.drop_index("ix_equipment_model_spec_definitions_code", table_name="equipment_model_spec_definitions")
+    with op.batch_alter_table("equipment_model_spec_definitions") as batch:
+        batch.drop_column("category_id")
+        batch.drop_column("equipment_type_id")
+        batch.drop_column("group_sort_order")
+        batch.drop_column("group_name")
+        batch.drop_column("code")
