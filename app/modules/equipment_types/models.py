@@ -61,10 +61,15 @@ class EquipmentModelSpecDefinition(Base, TimestampMixin):
     __tablename__ = "equipment_model_spec_definitions"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, nullable=False)
+    code = Column(String(100), unique=True, nullable=True, index=True)
     data_type = Column(String(20), nullable=False, default="text")
     unit = Column(String(20), nullable=True)
     options = Column(String(500), nullable=True)
     sort_order = Column(Integer, nullable=False, default=0)
+    group_name = Column(String(100), nullable=True)
+    group_sort_order = Column(Integer, nullable=False, default=0)
+    equipment_type_id = Column(Integer, ForeignKey("equipment_types.id", ondelete="SET NULL"), nullable=True, index=True)
+    category_id = Column(Integer, ForeignKey("equipment_categories.id", ondelete="SET NULL"), nullable=True, index=True)
     values = relationship("EquipmentModelSpecValue", back_populates="definition", cascade="all, delete-orphan")
 
 class EquipmentModelSpecValue(Base, TimestampMixin):
