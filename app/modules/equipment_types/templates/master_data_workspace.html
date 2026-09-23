@@ -180,8 +180,12 @@ const CATEGORIES=Object.fromEntries({% for c in categories %}["{{ c.id }}","{{ c
 const TYPES=Object.fromEntries({% for t in types %}["{{ t.id }}","{{ t.name|replace('"','\\\"') }}"]{% if not loop.last %},{% endif %}{% endfor %});
 const BRANDS=Object.fromEntries({% for b in brands %}["{{ b.id }}","{{ b.name|replace('"','\\\"') }}"]{% if not loop.last %},{% endif %}{% endfor %});
 function applicableDefs(d){
-  const typeId=Number(d.equipment_type_id||0), categoryId=Number(d.category_id||0), libraryCategoryId=Number(d.technical_library_category_id||0);
+  const typeId=Number(d.equipment_type_id||0);
+  const categoryId=Number(d.category_id||0);
+  const libraryCategoryId=Number(d.technical_library_category_id||0);
   return DEFS.filter(def=>{
+    const linked=Array.isArray(def.equipment_type_ids)?def.equipment_type_ids.map(Number).filter(Boolean):[];
+    if(linked.length) return linked.includes(typeId);
     const tid=Number(def.equipment_type_id||0), cid=Number(def.category_id||0);
     return (!tid&&!cid) || (tid&&tid===typeId) || (!tid&&cid===categoryId) || (!tid&&cid===libraryCategoryId);
   });
