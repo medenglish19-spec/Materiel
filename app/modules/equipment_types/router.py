@@ -65,7 +65,7 @@ def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return _redirect("تمت إضافة نوع العتاد")
 @router.post("/equipment-types/{type_id}/update")
-def update_type_form(type_id:int,name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),technical_library_category_id:str=Form(""),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+def update_type_form(type_id:int,name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),technical_library_category_id:str=Form(""),technical_library_type_id:str=Form(""),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_type(db,type_id)
     if obj is None:raise HTTPException(status_code=404,detail="نوع العتاد غير موجود")
     try:services.update_type(db,obj,EquipmentTypeUpdate(name=name,measurement_unit=measurement_unit,category_id=category_id,technical_library_category_id=int(technical_library_category_id) if technical_library_category_id.strip() else None,technical_library_type_id=int(technical_library_type_id) if technical_library_type_id.strip() else None,theoretical_quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)))
