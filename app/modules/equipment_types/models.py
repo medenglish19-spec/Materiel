@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 from app.shared.mixins import TimestampMixin
@@ -58,6 +58,13 @@ class EquipmentModel(Base, TimestampMixin):
     equipment_type = relationship("EquipmentType", back_populates="models")
     brand = relationship("EquipmentBrand", back_populates="models")
     spec_values = relationship("EquipmentModelSpecValue", back_populates="model", cascade="all, delete-orphan")
+
+equipment_type_spec_definitions = Table(
+    "equipment_type_spec_definitions",
+    Base.metadata,
+    Column("equipment_type_id", Integer, ForeignKey("equipment_types.id", ondelete="CASCADE"), primary_key=True),
+    Column("spec_definition_id", Integer, ForeignKey("equipment_model_spec_definitions.id", ondelete="CASCADE"), primary_key=True),
+)
 
 class EquipmentModelSpecDefinition(Base, TimestampMixin):
     __tablename__ = "equipment_model_spec_definitions"
