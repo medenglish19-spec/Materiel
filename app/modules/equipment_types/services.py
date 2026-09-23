@@ -171,6 +171,8 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
 
 def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[SpecValueInput]):
     definitions={d.id:d for d in db.query(EquipmentModelSpecDefinition).all()}
+    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id==equipment_model_id).first()
+    category_id = model.equipment_type.category_id if model and model.equipment_type else None
     seen=set();normalized=[]
     for item in specs:
         if item.definition_id not in definitions: raise ValueError("توجد خاصية في النموذج لم تعد معرّفة في النظام")
@@ -178,8 +180,6 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
         seen.add(item.definition_id);value=(item.value or "").strip()
         if not value: continue
         definition=definitions[item.definition_id]
-        model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id==equipment_model_id).first()
-        category_id = model.equipment_type.category_id if model and model.equipment_type else None
         if definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
             raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
         if definition.category_id is not None and definition.category_id != category_id:
