@@ -103,18 +103,39 @@ def delete_type(db:Session,obj:EquipmentType)->None:
     db.delete(obj);db.commit()
 
 def list_spec_definitions(db: Session) -> list[EquipmentModelSpecDefinition]:
-    return db.query(EquipmentModelSpecDefinition).order_by(EquipmentModelSpecDefinition.sort_order, EquipmentModelSpecDefinition.name).all()
+    return db.query(EquipmentModelSpecDefinition).order_by(
+        EquipmentModelSpecDefinition.group_sort_order,
+        EquipmentModelSpecDefinition.group_name,
+        EquipmentModelSpecDefinition.sort_order,
+        EquipmentModelSpecDefinition.name,
+    ).all()
 
 def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
-    if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first(): raise ValueError("توجد خاصية بهذا الاسم مسبقًا")
+    if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first():
+        raise ValueError("توجد خاصية بهذا الاسم مسبقًا")
+    code=(data.code or "").strip().lower().replace(" ","_") or None
+    if code and db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.code==code).first():
+        raise ValueError("رمز الخاصية مستخدم مسبقًا")
+    if data.equipment_type_id is not None and get_type(db,data.equipment_type_id) is None:
+        raise ValueError("نوع العتاد المحدد للخاصية غير موجود")
+    if data.category_id is not None and get_category(db,data.category_id) is None:
+        raise ValueError("فئة العتاد المحددة للخاصية غير موجودة")
     options=None
     if data.data_type=="select":
         vals=[o.strip() for o in (data.options or "").split(",") if o.strip()]
         if len(vals)<2: raise ValueError("خاصية من نوع اختيار تحتاج قيمتين على الأقل مفصولتين بفاصلة")
-        options=",".join(vals)
-    obj=EquipmentModelSpecDefinition(name=name,data_type=data.data_type,unit=(data.unit or "").strip() or None,options=options,sort_order=db.query(EquipmentModelSpecDefinition).count())
+        options=",".join(dict.fromkeys(vals))
+    obj=EquipmentModelSpecDefinition(
+        name=name, code=code, data_type=data.data_type,
+        unit=(data.unit or "").strip() or None, options=options,
+        group_name=(data.group_name or "").strip() or "التعريف الفني",
+        group_sort_order=max(0,data.group_sort_order),
+        equipment_type_id=data.equipment_type_id,
+        category_id=data.category_id,
+        sort_order=db.query(EquipmentModelSpecDefinition).count(),
+    )
     db.add(obj);db.commit();db.refresh(obj);return obj
 
 def delete_spec_definition(db: Session, definition_id: int) -> None:
@@ -132,9 +153,8 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if equipment_type is None: raise ValueError("نوع العتاد المحدد غير موجود")
     if equipment_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ فك التجميد أولًا قبل إضافة أو نقل الطراز إليه")
     if equipment_type.category_id is None: raise ValueError("لا يمكن إضافة طراز قبل ربط النوع بفئة")
-    brand=get_brand(db,data.brand_id)
-    if brand is None: raise ValueError("العلامة التجارية مطلوبة ويجب أن تكون موجودة")
-    if not brand.is_active: raise ValueError("العلامة التجارية غير نشطة؛ أعد تفعيلها أولًا")
+    brand=get_brand(db,data.brand_id) if data.brand_id is not None else None
+    if brand is not None and not brand.is_active: raise ValueError("العلامة التجارية غير نشطة؛ أعد تفعيلها أولًا")
     if data.has_tires and data.tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
     if data.has_tires and data.axle_count is not None and data.axle_count < 1: raise ValueError("عدد المحاور يجب أن يكون رقمًا موجبًا")
     if not data.has_tires and data.axle_count is not None: raise ValueError("لا يمكن تحديد عدد محاور لطراز غير مزود بالإطارات")
