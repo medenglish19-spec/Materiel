@@ -12,7 +12,7 @@ class EquipmentCategory(Base, TimestampMixin):
     code = Column(String(30), nullable=False)
     sort_order = Column(Integer, nullable=False, default=0)
     is_system = Column(Boolean, nullable=False, default=True)
-    equipment_types = relationship("EquipmentType", back_populates="category")
+    equipment_types = relationship("EquipmentType", back_populates="category", foreign_keys="EquipmentType.category_id")
 
 
 class EquipmentBrand(Base, TimestampMixin):
