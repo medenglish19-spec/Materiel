@@ -75,9 +75,14 @@ class TirePositionInput(BaseModel):
 
 class SpecDefinitionCreate(BaseModel):
     name: str
+    code: Optional[str] = None
     data_type: str = "text"
     unit: Optional[str] = None
     options: Optional[str] = None
+    group_name: Optional[str] = None
+    group_sort_order: int = 0
+    equipment_type_id: Optional[int] = None
+    category_id: Optional[int] = None
     @field_validator("data_type")
     @classmethod
     def data_type_valid(cls,v: str) -> str:
@@ -88,9 +93,14 @@ class SpecDefinitionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
+    code: Optional[str]
     data_type: str
     unit: Optional[str]
     options: Optional[str]
+    group_name: Optional[str]
+    group_sort_order: int
+    equipment_type_id: Optional[int]
+    category_id: Optional[int]
     sort_order: int
 
 class SpecValueInput(BaseModel):
@@ -100,7 +110,7 @@ class SpecValueInput(BaseModel):
 class EquipmentModelCreate(BaseModel):
     name: str
     equipment_type_id: int
-    brand_id: int
+    brand_id: Optional[int] = None
     has_tires: bool = False
     tire_positions_required: int = 0
     axle_count: Optional[int] = None
