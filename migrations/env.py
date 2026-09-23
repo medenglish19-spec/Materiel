@@ -31,7 +31,8 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.DATABASE_URL
-    connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
+    connect_args = {"timeout": 5} if settings.DATABASE_URL.startswith("sqlite") else {}
+    connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool, connect_args=connect_args)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True, compare_server_default=True, render_as_batch=settings.DATABASE_URL.startswith("sqlite"))
         with context.begin_transaction(): context.run_migrations()
