@@ -19,7 +19,7 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db, active_only=True)
+    models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db)
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
     tire_master_data={p["id"]:p for p in editor_payloads}
