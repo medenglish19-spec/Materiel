@@ -14,24 +14,29 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("equipment_types", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("technical_library_category_id", sa.Integer(), nullable=True))
-        batch_op.create_index(
-            batch_op.f("ix_equipment_types_technical_library_category_id"),
-            ["technical_library_category_id"],
-            unique=False,
-        )
-        batch_op.create_foreign_key(
-            "fk_equipment_type_technical_library_category",
-            "equipment_categories",
-            ["technical_library_category_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
+    # SQLite can add this nullable FK column directly; avoid batch table rebuilds
+    # during application startup, which can block on existing SQLite databases.
+    op.add_column(
+        "equipment_types",
+        sa.Column(
+            "technical_library_category_id",
+            sa.Integer(),
+            sa.ForeignKey(
+                "equipment_categories.id",
+                name="fk_equipment_type_technical_library_category",
+                ondelete="SET NULL",
+            ),
+            nullable=True,
+        ),
+    )
+    op.create_index(
+        "ix_equipment_types_technical_library_category_id",
+        "equipment_types",
+        ["technical_library_category_id"],
+        unique=False,
+    )
 
 
 def downgrade():
-    with op.batch_alter_table("equipment_types", schema=None) as batch_op:
-        batch_op.drop_constraint("fk_equipment_type_technical_library_category", type_="foreignkey")
-        batch_op.drop_index(batch_op.f("ix_equipment_types_technical_library_category_id"))
-        batch_op.drop_column("technical_library_category_id")
+    op.drop_index("ix_equipment_types_technical_library_category_id", table_name="equipment_types")
+    op.drop_column("equipment_types", "technical_library_category_id")
