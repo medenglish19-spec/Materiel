@@ -14,29 +14,32 @@ depends_on = None
 
 
 def upgrade():
-    # SQLite can add this nullable FK column directly; avoid batch table rebuilds
-    # during application startup, which can block on existing SQLite databases.
-    op.add_column(
-        "equipment_types",
-        sa.Column(
-            "technical_library_category_id",
-            sa.Integer(),
-            sa.ForeignKey(
-                "equipment_categories.id",
-                name="fk_equipment_type_technical_library_category",
-                ondelete="SET NULL",
-            ),
-            nullable=True,
-        ),
-    )
-    op.create_index(
-        "ix_equipment_types_technical_library_category_id",
-        "equipment_types",
-        ["technical_library_category_id"],
-        unique=False,
-    )
+    bind = op.get_bind()
+    columns = {row[1] for row in bind.execute(sa.text("PRAGMA table_info(equipment_types)"))}
+    if "technical_library_category_id" not in columns:
+        bind.execute(sa.text(
+            "ALTER TABLE equipment_types ADD COLUMN "
+            "technical_library_category_id INTEGER "
+            "REFERENCES equipment_categories(id) ON DELETE SET NULL"
+        ))
+
+    indexes = {row[1] for row in bind.execute(sa.text("PRAGMA index_list(equipment_types)"))}
+    if "ix_equipment_types_technical_library_category_id" not in indexes:
+        op.create_index(
+            "ix_equipment_types_technical_library_category_id",
+            "equipment_types",
+            ["technical_library_category_id"],
+            unique=False,
+        )
 
 
 def downgrade():
-    op.drop_index("ix_equipment_types_technical_library_category_id", table_name="equipment_types")
-    op.drop_column("equipment_types", "technical_library_category_id")
+    bind = op.get_bind()
+    indexes = {row[1] for row in bind.execute(sa.text("PRAGMA index_list(equipment_types)"))}
+    if "ix_equipment_types_technical_library_category_id" in indexes:
+        op.drop_index(
+            "ix_equipment_types_technical_library_category_id",
+            table_name="equipment_types",
+        )
+    # SQLite cannot reliably drop a column without rebuilding the table.
+    # Keep the column on downgrade rather than risking data loss.
