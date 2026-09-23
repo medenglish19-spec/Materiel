@@ -178,6 +178,12 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
         seen.add(item.definition_id);value=(item.value or "").strip()
         if not value: continue
         definition=definitions[item.definition_id]
+        model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id==equipment_model_id).first()
+        category_id = model.equipment_type.category_id if model and model.equipment_type else None
+        if definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
+            raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
+        if definition.category_id is not None and definition.category_id != category_id:
+            raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لفئة هذا الطراز")
         if definition.data_type=="number":
             try: float(value)
             except ValueError as exc: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون رقمًا") from exc
