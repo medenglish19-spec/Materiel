@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
-from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType, EquipmentModelSpecDefinition, EquipmentModelSpecValue
+from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType, EquipmentModelSpecDefinition, EquipmentModelSpecValue, equipment_type_spec_definitions
 from app.modules.tires.models import TirePosition, TireModelSize, TireMovement
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentTypeCreate, EquipmentTypeUpdate, SpecDefinitionCreate, SpecValueInput
 
@@ -117,6 +117,15 @@ def list_spec_definitions(db: Session) -> list[EquipmentModelSpecDefinition]:
         EquipmentModelSpecDefinition.name,
     ).all()
 
+def list_spec_definition_type_ids(db: Session) -> dict[int, list[int]]:
+    rows = db.execute(
+        equipment_type_spec_definitions.select()
+    ).fetchall()
+    result: dict[int, list[int]] = {}
+    for type_id, definition_id in rows:
+        result.setdefault(definition_id, []).append(type_id)
+    return result
+
 def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
@@ -188,9 +197,19 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
         seen.add(item.definition_id);value=(item.value or "").strip()
         if not value: continue
         definition=definitions[item.definition_id]
-        if definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
+        linked_type_ids = {
+            row[0] for row in db.execute(
+                equipment_type_spec_definitions.select()
+                .with_only_columns(equipment_type_spec_definitions.c.equipment_type_id)
+                .where(equipment_type_spec_definitions.c.spec_definition_id == definition.id)
+            ).fetchall()
+        }
+        if linked_type_ids:
+            if model is None or model.equipment_type_id not in linked_type_ids:
+                raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
+        elif definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
             raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
-        if definition.category_id is not None and definition.category_id not in {category_id, technical_library_category_id}:
+        elif definition.category_id is not None and definition.category_id not in {category_id, technical_library_category_id}:
             raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لفئة هذا الطراز")
         if definition.data_type=="number":
             try: float(value)
