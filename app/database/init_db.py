@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 def _run_alembic_upgrade(config: Config) -> None:
     """Run migrations and expose the real database failure instead of a bare exit code."""
     try:
+        logger.info("Database startup: running Alembic upgrade to head.")
         command.upgrade(config, "head")
+        logger.info("Database startup: Alembic upgrade completed.")
     except Exception:
         inspector = inspect(engine)
         tables = sorted(inspector.get_table_names())
@@ -215,6 +217,7 @@ def init_db() -> None:
         else:
             _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); _run_alembic_upgrade(config)
     else: _run_alembic_upgrade(config)
+    logger.info("Database startup: applying post-migration normalization.")
     _normalize_equipment_classification_defaults()
     from app.database.session import SessionLocal
     from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
