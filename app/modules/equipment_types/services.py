@@ -70,8 +70,8 @@ def delete_brand(db: Session, obj: EquipmentBrand) -> None:
 def set_brand_active(db:Session,obj:EquipmentBrand,active:bool)->EquipmentBrand:
     obj.is_active=active;db.commit();db.refresh(obj);return obj
 
-def list_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_category)).order_by(EquipmentType.name).all()
-def list_user_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).join(EquipmentCategory, EquipmentType.category_id == EquipmentCategory.id, isouter=True).filter((EquipmentCategory.is_system.is_(False)) | (EquipmentType.category_id.is_(None))).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_category)).order_by(EquipmentType.name).all()
+def list_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_category),joinedload(EquipmentType.technical_library_type)).order_by(EquipmentType.name).all()
+def list_user_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).join(EquipmentCategory, EquipmentType.category_id == EquipmentCategory.id, isouter=True).filter((EquipmentCategory.is_system.is_(False)) | (EquipmentType.category_id.is_(None))).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_category),joinedload(EquipmentType.technical_library_type)).order_by(EquipmentType.name).all()
 def get_type(db:Session,type_id:int)->Optional[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_category)).filter(EquipmentType.id==type_id).first()
 def get_type_by_name(db:Session,name:str)->Optional[EquipmentType]: return db.query(EquipmentType).filter(EquipmentType.name==name).first()
 def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
@@ -82,7 +82,11 @@ def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
     library_category=get_category(db,data.technical_library_category_id) if data.technical_library_category_id is not None else None
     if library_category is not None and not library_category.is_system: raise ValueError("مصدر المكتبة الفنية يجب أن يكون من المكتبة الفنية")
-    obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id,technical_library_category_id=data.technical_library_category_id);db.add(obj);db.commit();db.refresh(obj);return obj
+    library_type=db.query(EquipmentType).filter(EquipmentType.id==data.technical_library_type_id).first() if data.technical_library_type_id is not None else None
+    if library_type is not None:
+        if library_type.id == getattr(data, "id", None) or not library_type.category or not library_type.category.is_system:
+            raise ValueError("نوع مصدر المكتبة الفنية يجب أن يكون نوعًا من المكتبة الفنية")
+    obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id,technical_library_category_id=data.technical_library_category_id,technical_library_type_id=data.technical_library_type_id);db.add(obj);db.commit();db.refresh(obj);return obj
 def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->EquipmentType:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
     name=data.name.strip()
@@ -91,11 +95,14 @@ def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->Equipmen
     if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
     library_category=get_category(db,data.technical_library_category_id) if data.technical_library_category_id is not None else None
     if library_category is not None and not library_category.is_system: raise ValueError("مصدر المكتبة الفنية يجب أن يكون من المكتبة الفنية")
+    library_type=db.query(EquipmentType).filter(EquipmentType.id==data.technical_library_type_id).first() if data.technical_library_type_id is not None else None
+    if library_type is not None and (library_type.id==obj.id or not library_type.category or not library_type.category.is_system):
+        raise ValueError("نوع مصدر المكتبة الفنية يجب أن يكون نوعًا من المكتبة الفنية")
     if db.query(EquipmentType).filter(EquipmentType.id!=obj.id,EquipmentType.name==name).first(): raise ValueError("نوع العتاد موجود مسبقًا")
     if data.measurement_unit != obj.measurement_unit:
         from app.modules.equipment.models import Equipment
         if db.query(Equipment.id).filter(Equipment.equipment_type_id==obj.id).first(): raise ValueError("لا يمكن تغيير وحدة القياس لنوع مرتبط بعتاد فعلي؛ حفاظًا على تاريخ القراءات")
-    obj.name=name;obj.measurement_unit=data.measurement_unit;obj.category_id=data.category_id;obj.technical_library_category_id=data.technical_library_category_id;obj.theoretical_quantity=data.theoretical_quantity;db.commit();db.refresh(obj);return obj
+    obj.name=name;obj.measurement_unit=data.measurement_unit;obj.category_id=data.category_id;obj.technical_library_category_id=data.technical_library_category_id;obj.technical_library_type_id=data.technical_library_type_id;obj.theoretical_quantity=data.theoretical_quantity;db.commit();db.refresh(obj);return obj
 def set_type_category(db:Session,obj:EquipmentType,category_id:int)->EquipmentType:
     if get_category(db,category_id) is None: raise ValueError("فئة العتاد مطلوبة ويجب أن تكون موجودة")
     obj.category_id=category_id;db.commit();db.refresh(obj);return obj
@@ -190,6 +197,7 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
     model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id==equipment_model_id).first()
     category_id = model.equipment_type.category_id if model and model.equipment_type else None
     technical_library_category_id = model.equipment_type.technical_library_category_id if model and model.equipment_type else None
+    technical_library_type_id = model.equipment_type.technical_library_type_id if model and model.equipment_type else None
     seen=set();normalized=[]
     for item in specs:
         if item.definition_id not in definitions: raise ValueError("توجد خاصية في النموذج لم تعد معرّفة في النظام")
@@ -204,6 +212,8 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
                 .where(equipment_type_spec_definitions.c.spec_definition_id == definition.id)
             ).fetchall()
         }
+        if technical_library_type_id:
+            linked_type_ids = linked_type_ids if technical_library_type_id in linked_type_ids else set()
         if linked_type_ids:
             if model is None or model.equipment_type_id not in linked_type_ids:
                 raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
