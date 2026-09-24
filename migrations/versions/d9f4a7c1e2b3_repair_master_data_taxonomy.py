@@ -131,8 +131,8 @@ def upgrade():
             if row:
                 bind.execute(sa.text(
                     "UPDATE equipment_types SET category_id=:category, measurement_unit=:unit "
-                    "WHERE id=:id AND (category_id IS NULL OR category_id=:old_category)"
-                ), {"category": category_id, "unit": unit, "id": row[0], "old_category": category_id})
+                    "WHERE id=:id"
+                ), {"category": category_id, "unit": unit, "id": row[0]})
             else:
                 bind.execute(sa.text(
                     "INSERT INTO equipment_types "
