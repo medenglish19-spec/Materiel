@@ -82,7 +82,7 @@
 <div class="tree-group open">
 <button class="tree-node" data-ref-item="category" data-system="{{ 1 if c.is_system else 0 }}" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button"><span class="tree-toggle">⌄</span>📁 {{ c.name }}{% if not c.is_system %}<span class="tree-actions"><span class="tree-add" data-add="type">＋ نوع</span></span>{% endif %}</button>
 <div class="children">
-<button class="tree-node" data-new-ref="type" type="button">＋ إضافة نوع عتاد</button>
+{% if not c.is_system %}<button class="tree-node" data-new-ref="type" type="button">＋ إضافة نوع عتاد</button>{% endif %}
 {% for t in types if t.category_id == c.id %}
 <div class="tree-group">
 <button class="tree-node" data-ref-item="type" data-system="{{ 1 if t.category and t.category.is_system else 0 }}" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category-id="{{ t.category_id or '' }}" data-library-category-id="{{ t.technical_library_category_id or '' }}" data-library-type-id="{{ t.technical_library_type_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}" type="button"><span class="tree-toggle">›</span>🗂 {{ t.name }}<span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="{{ t.id }}">＋ طراز</span></span></button>
