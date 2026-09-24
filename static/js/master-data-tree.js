@@ -62,13 +62,13 @@
   window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
 
   const openTypeCreate = (categoryId) => {
-    if (typeof refPanel !== 'function') return;
-    refPanel('type', null, '', { categoryId: String(categoryId || '') });
+    if (typeof window.refPanel !== 'function') return;
+    window.refPanel('type', null, '', { categoryId: String(categoryId || '') });
     const input = document.querySelector('#refBody form [name="category_id"]');
     if (input) input.value = String(categoryId || '');
   };
   const openModelCreate = (typeId) => {
-    if (typeof resetModel === 'function') resetModel();
+    if (typeof window.resetModel === 'function') window.resetModel();
     const select = $('modelType');
     const option = select && typeId ? select.querySelector(`option[value="${CSS.escape(String(typeId))}"]`) : null;
     if (select && option) {
@@ -76,18 +76,18 @@
       if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
     }
     if (typeof window.refreshModelTypeContext === 'function') window.refreshModelTypeContext(typeId || '');
-    if (typeof title === 'function') title('إضافة طراز', 'الطرازات');
-    if (typeof show === 'function') show($('modelPanel'));
+    if (typeof window.title === 'function') window.title('إضافة طراز', 'الطرازات');
+    if (typeof window.show === 'function') window.show($('modelPanel'));
     selectSection(0);
   };
   const editReference = (node) => {
-    if (typeof refPanel !== 'function') return;
-    refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
+    if (typeof window.refPanel !== 'function') return;
+    window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
   const copyModel = (id) => {
-    if (typeof editModel !== 'function') return;
-    editModel(id);
+    if (typeof window.editModel !== 'function') return;
+    window.editModel(id);
     if ($('modelName')) $('modelName').value += ' - نسخة';
     if ($('modelId')) $('modelId').value = '';
     if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
@@ -339,7 +339,7 @@
 
   tree.addEventListener('click', (event) => {
     const action = event.target.closest('[data-add],[data-new-ref]');
-    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof refPanel === 'function') refPanel(kind); return; }
+    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof window.refPanel === 'function') window.refPanel(kind); return; }
     const position = event.target.closest('[data-tree-add]');
     if (position) { event.preventDefault(); event.stopPropagation(); const model = event.target.closest('[data-model]'); if (model && typeof editModel === 'function') { editModel(model.dataset.model, position.dataset.treeAdd === 'position' ? 'positions' : 'sizes'); position.dataset.treeAdd === 'position' ? window.addPos?.() : window.addSize?.(); } return; }
     const toggle = event.target.closest('.tree-toggle');
