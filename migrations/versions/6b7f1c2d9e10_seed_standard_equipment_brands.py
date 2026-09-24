@@ -39,6 +39,8 @@ def upgrade() -> None:
         "equipment_brands",
         sa.column("name", sa.String),
         sa.column("is_active", sa.Boolean),
+        sa.column("created_at", sa.DateTime),
+        sa.column("updated_at", sa.DateTime),
     )
     for name in DEFAULT_BRANDS:
         exists = bind.execute(
@@ -46,7 +48,7 @@ def upgrade() -> None:
         ).first()
         if exists is None:
             bind.execute(
-                brands.insert().values(name=name, is_active=True)
+                brands.insert().values(name=name, is_active=True, created_at=sa.func.current_timestamp(), updated_at=sa.func.current_timestamp())
             )
 
 
