@@ -177,6 +177,7 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if equipment_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ فك التجميد أولًا قبل إضافة أو نقل الطراز إليه")
     if equipment_type.category_id is None: raise ValueError("لا يمكن إضافة طراز قبل ربط النوع بفئة")
     brand=get_brand(db,data.brand_id) if data.brand_id is not None else None
+    if data.brand_id is not None and brand is None: raise ValueError("العلامة التجارية المحددة غير موجودة")
     if brand is not None and not brand.is_active: raise ValueError("العلامة التجارية غير نشطة؛ أعد تفعيلها أولًا")
     if data.has_tires and data.tire_positions_required<1: raise ValueError("هذا الطراز يملك إطارات؛ يجب تحديد عدد مواضع الإطارات")
     if data.has_tires and data.axle_count is not None and data.axle_count < 1: raise ValueError("عدد المحاور يجب أن يكون رقمًا موجبًا")
