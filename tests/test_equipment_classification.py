@@ -26,7 +26,7 @@ def test_equipment_classification_hierarchy_and_model_brand():
             name="المركبات الثقيلة",
             code="HEAVY",
             sort_order=20,
-            is_system=True,
+            is_system=False,
         )
         brand = EquipmentBrand(name="Mercedes-Benz")
         db.add_all([category, brand])
