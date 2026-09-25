@@ -27,3 +27,9 @@ def test_update_same_row():
 def test_missing_definition():
  db=newdb();t,b=base(db);
  with pytest.raises(ValueError,match="لم تعد معرّفة"):services.create_model(db,data(t,b,[SpecValueInput(definition_id=99999,value="x")]));db.rollback();assert db.query(EquipmentModel).count()==0;db.close()
+def test_library_property_can_be_selected_even_when_applicability_differs():
+ db=newdb();t,b=base(db);other=EquipmentCategory(name="other-cat",code="OTHER",is_system=True);db.add(other);db.flush()
+ d=services.create_spec_definition(db,SpecDefinitionCreate(name="payload",category_id=other.id))
+ m=services.create_model(db,data(t,b,[SpecValueInput(definition_id=d.id,value="250")]))
+ assert db.query(EquipmentModelSpecValue).filter_by(equipment_model_id=m.id,spec_definition_id=d.id).one().value=="250"
+ db.close()
