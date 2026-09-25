@@ -78,17 +78,56 @@ def test_model_can_be_deleted_after_equipment_is_no_longer_linked():
         db.close()
 
 
-def test_equipment_type_cannot_be_deleted_while_models_use_it():
+def test_equipment_type_can_be_deleted_when_only_master_data_children_exist():
     db = _fresh_db()
     try:
-        equipment_type = EquipmentType(name="نوع محمي", measurement_unit="km")
+        equipment_type = EquipmentType(name="نوع قابل للحذف", measurement_unit="km")
         db.add(equipment_type); db.flush()
         model = EquipmentModel(name="طراز تابع", equipment_type_id=equipment_type.id)
         db.add(model); db.commit()
-        with pytest.raises(ValueError, match="لا يمكن حذف نوع عتاد مرتبط بطرازات مسجلة"):
+        model_services.delete_type(db, equipment_type)
+        assert db.query(EquipmentType).filter(EquipmentType.id == equipment_type.id).first() is None
+        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is None
+    finally:
+        db.close()
+
+
+def test_equipment_type_cannot_be_deleted_while_equipment_uses_it():
+    db = _fresh_db()
+    try:
+        equipment_type = EquipmentType(name="نوع مستخدم", measurement_unit="km")
+        db.add(equipment_type); db.flush()
+        model = EquipmentModel(name="طراز مستخدم", equipment_type_id=equipment_type.id)
+        db.add(model); db.flush()
+        equipment = Equipment(asset_code="TYPE-GUARD-1", equipment_type_id=equipment_type.id, equipment_model_id=model.id)
+        db.add(equipment); db.commit()
+        with pytest.raises(ValueError, match="مستخدم في سجلات العتاد"):
             model_services.delete_type(db, equipment_type)
         assert db.query(EquipmentType).filter(EquipmentType.id == equipment_type.id).first() is not None
-        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is not None
+    finally:
+        db.close()
+
+
+def test_equipment_type_cannot_be_deleted_while_maintenance_rule_exists():
+    db = _fresh_db()
+    try:
+        from app.modules.maintenance.models import MaintenanceRule
+
+        equipment_type = EquipmentType(name="نوع صيانة", measurement_unit="km")
+        db.add(equipment_type); db.flush()
+        model = EquipmentModel(name="طراز صيانة", equipment_type_id=equipment_type.id)
+        db.add(model); db.flush()
+        rule = MaintenanceRule(
+            name="فحص دوري",
+            equipment_type_id=equipment_type.id,
+            equipment_model_id=model.id,
+            interval_km=1000,
+            is_active=True,
+        )
+        db.add(rule); db.commit()
+        with pytest.raises(ValueError, match="قواعد صيانة مسجلة"):
+            model_services.delete_type(db, equipment_type)
+        assert db.query(EquipmentType).filter(EquipmentType.id == equipment_type.id).first() is not None
     finally:
         db.close()
 
