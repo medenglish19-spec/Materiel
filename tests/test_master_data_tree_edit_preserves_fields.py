@@ -69,8 +69,6 @@ def test_type_update_form_preserves_category_measurement_unit_and_quantity():
             measurement_unit="hours",
             category_id=category.id,
             theoretical_quantity="10",
-            technical_library_category_id="",
-            technical_library_type_id="",
             db=db,
             current_user=object(),
         )
