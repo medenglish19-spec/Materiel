@@ -11,7 +11,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
+from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule, MaintenanceOperationRuleMap
 from app.modules.maintenance.services import (
     chronology_error,
     contradiction_for,
@@ -240,7 +240,8 @@ def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form
         if meter is None: return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
     chronology = chronology_error(db, equipment_id, maintenance_date, meter)
     if chronology: return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
-    rec = MaintenanceRecord(equipment_id=equipment_id, rule_id=rule_id, maintenance_date=maintenance_date, meter_value=meter, work_order=work_order.strip() or None, workshop=workshop.strip() or None, description=description.strip() or None, status="completed", created_by_id=current_user.id if current_user else None)
+    mapping = db.query(MaintenanceOperationRuleMap).filter(MaintenanceOperationRuleMap.old_rule_id == rule_id).first()
+    rec = MaintenanceRecord(equipment_id=equipment_id, rule_id=rule_id, operation_id=mapping.operation_id if mapping else None, maintenance_date=maintenance_date, meter_value=meter, work_order=work_order.strip() or None, workshop=workshop.strip() or None, description=description.strip() or None, status="completed", created_by_id=current_user.id if current_user else None)
     db.add(rec); db.commit()
     return RedirectResponse(f"{records_url}?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -263,7 +264,8 @@ def maintenance_record_update(record_id: int, equipment_id: int = Form(...), rul
         if meter is None: return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
     chronology = chronology_error(db, equipment_id, maintenance_date, meter, exclude_id=record_id)
     if chronology: return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
-    rec.equipment_id = equipment_id; rec.rule_id = rule_id; rec.maintenance_date = maintenance_date; rec.meter_value = meter; rec.work_order = work_order.strip() or None; rec.workshop = workshop.strip() or None; rec.description = description.strip() or None
+    mapping = db.query(MaintenanceOperationRuleMap).filter(MaintenanceOperationRuleMap.old_rule_id == rule_id).first()
+    rec.equipment_id = equipment_id; rec.rule_id = rule_id; rec.operation_id = mapping.operation_id if mapping else rec.operation_id; rec.maintenance_date = maintenance_date; rec.meter_value = meter; rec.work_order = work_order.strip() or None; rec.workshop = workshop.strip() or None; rec.description = description.strip() or None
     db.commit()
     return RedirectResponse(f"{records_url}?saved=updated", status_code=status.HTTP_303_SEE_OTHER)
 
