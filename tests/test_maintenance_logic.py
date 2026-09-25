@@ -186,3 +186,41 @@ def test_plan_status_uses_plan_cadence_without_operation_warning_axes():
     assert remaining == Decimal("1000")
     assert meta["remaining_days"] == 0
     assert meta["next_meter"] == Decimal("50000")
+
+
+def test_effective_operations_includes_standalone_and_deduplicates_planned():
+    from app.modules.maintenance.services import effective_operations_for_equipment
+
+    class FakeQuery:
+        def __init__(self, rows):
+            self.rows = rows
+        def join(self, *args):
+            return self
+        def filter(self, *args):
+            return self
+        def order_by(self, *args):
+            return self
+        def all(self):
+            return list(self.rows)
+
+    class FakeDB:
+        def __init__(self, planned, standalone):
+            self.planned = planned
+            self.standalone = standalone
+            self.calls = 0
+        def query(self, model):
+            self.calls += 1
+            return FakeQuery(self.planned if self.calls == 1 else self.standalone)
+
+    class Op:
+        def __init__(self, id, name):
+            self.id, self.name = id, name
+
+    equipment_model = SimpleNamespace(equipment_model_id=7)
+    first = Op(1, "زيت المحرك")
+    duplicate = Op(1, "زيت المحرك")
+    standalone = Op(2, "فحص الفرامل")
+    db = FakeDB([first, duplicate], [standalone])
+
+    rows = effective_operations_for_equipment(db, equipment_model)
+    assert [row.id for row in rows] == [1, 2]
