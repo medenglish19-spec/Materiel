@@ -209,54 +209,23 @@ def _validate_model_data(db:Session,data:EquipmentModelCreate,obj:EquipmentModel
     if q.first(): raise ValueError("الطراز موجود مسبقًا لهذا النوع والعلامة")
 
 def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[SpecValueInput]):
+    # Central technical-properties library: category/type applicability is suggestion only.
     definitions={d.id:d for d in db.query(EquipmentModelSpecDefinition).all()}
-    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id==equipment_model_id).first()
-    category_id = model.equipment_type.category_id if model and model.equipment_type else None
-    technical_library_category_id = model.equipment_type.technical_library_category_id if model and model.equipment_type else None
-    technical_library_type_id = model.equipment_type.technical_library_type_id if model and model.equipment_type else None
     seen=set();normalized=[]
     for item in specs:
-        if item.definition_id not in definitions: raise ValueError("توجد خاصية في النموذج لم تعد معرّفة في النظام")
-        if item.definition_id in seen: raise ValueError("لا يمكن إدخال نفس الخاصية أكثر من مرة لنفس الطراز")
-        seen.add(item.definition_id);value=(item.value or "").strip()
+        if item.definition_id not in definitions:
+            raise ValueError("توجد خاصية في النموذج لم تعد معرّفة في مكتبة الخصائص الفنية")
+        if item.definition_id in seen:
+            raise ValueError("لا يمكن إدخال نفس الخاصية أكثر من مرة لنفس الطراز")
+        seen.add(item.definition_id)
+        value=(item.value or "").strip()
         if not value: continue
         definition=definitions[item.definition_id]
-        linked_type_ids = {
-            row[0] for row in db.execute(
-                equipment_type_spec_definitions.select()
-                .with_only_columns(equipment_type_spec_definitions.c.equipment_type_id)
-                .where(equipment_type_spec_definitions.c.spec_definition_id == definition.id)
-            ).fetchall()
-        }
-        is_private_model = bool(
-            model
-            and model.equipment_type
-            and model.equipment_type.category
-            and not model.equipment_type.category.is_system
-        )
-        if is_private_model:
-            if linked_type_ids:
-                if technical_library_type_id not in linked_type_ids:
-                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
-            elif definition.equipment_type_id is not None:
-                if definition.equipment_type_id != technical_library_type_id:
-                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
-            elif definition.category_id is not None:
-                if definition.category_id != technical_library_category_id:
-                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
-        else:
-            if linked_type_ids:
-                if model is None or (model.equipment_type_id not in linked_type_ids and technical_library_type_id not in linked_type_ids):
-                    raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
-            elif definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
-                raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
-            elif definition.category_id is not None and definition.category_id not in {category_id, technical_library_category_id}:
-                raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لفئة هذا الطراز")
         if definition.data_type=="number":
             try: float(value)
             except ValueError as exc: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون رقمًا") from exc
         elif definition.data_type=="select":
-            allowed={o.strip() for o in (definition.options or "").split(",")}
+            allowed={o.strip() for o in (definition.options or "").split(",") if o.strip()}
             if value not in allowed: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون إحدى: {definition.options}")
         normalized.append((item.definition_id,value))
     existing={r.spec_definition_id:r for r in db.query(EquipmentModelSpecValue).filter(EquipmentModelSpecValue.equipment_model_id==equipment_model_id).all()}
