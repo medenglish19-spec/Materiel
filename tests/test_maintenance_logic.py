@@ -139,3 +139,36 @@ def test_same_day_update_respects_record_id_order():
 
     connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 2)])
     _validate_record(connection, _validation_target(90, record_id=1), exclude_id=1)
+
+
+def test_status_uses_calendar_axis_even_when_meter_axis_is_not_due():
+    r = rule(interval_km=Decimal("10000"), interval_days=30)
+    service_record = record(days_ago=10, meter=45000)
+    state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("50000"), today=date.today())
+    assert state == "ضمن الموعد"
+    assert meta["remaining_days"] == 20
+    assert meta["next_meter"] == Decimal("55000")
+
+
+def test_status_uses_hours_axis_for_hours_equipment():
+    r = rule(interval_km=Decimal("10000"), interval_hours=Decimal("500"), interval_days=None)
+    service_record = record(meter=1000)
+    state, css, remaining, meta = status_for(r, equipment("hours"), service_record, Decimal("1499"), today=date.today())
+    assert state == "ضمن الموعد"
+    assert remaining == Decimal("1")
+    assert meta["remaining_hours"] == Decimal("1")
+    assert meta["remaining_km"] is None
+
+
+def test_plan_operation_overrides_only_selected_axes():
+    r = rule(interval_km=Decimal("10000"), interval_days=180)
+    override = SimpleNamespace(
+        interval_km_override=Decimal("5000"),
+        interval_hours_override=None,
+        interval_days_override=None,
+    )
+    service_record = record(meter=45000)
+    state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("49500"), plan_operation=override, today=date.today())
+    assert state == "مستحقة الآن"
+    assert remaining == Decimal("500")
+    assert meta["next_meter"] == Decimal("50000")
