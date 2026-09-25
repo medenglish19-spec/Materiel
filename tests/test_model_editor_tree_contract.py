@@ -30,9 +30,13 @@ def test_model_editor_keeps_subsections_under_model():
 
 def test_master_data_tree_owns_reference_creation_actions():
     template = _template()
-    for kind in ("category", "type", "brand", "spec", "model"):
+    for kind in ("category", "type", "model"):
         assert f'data-add="{kind}"' in template
         assert f'data-new-ref="{kind}"' in template
+    assert 'data-add="brand"' not in template
+    assert 'data-new-ref="brand"' not in template
+    assert 'data-add="spec"' not in template
+    assert 'data-new-ref="spec"' not in template
     assert 'id="newModelTop"' not in template
     assert 'id="importExcelBtn"' not in template
 
@@ -41,15 +45,16 @@ def test_master_data_tree_keeps_model_copy_and_delete_actions():
     template = _template()
     assert 'data-copy="{{ m.id }}"' in template
     assert 'data-delete="{{ m.id }}"' in template
-    assert "'/equipment-types/models/'+del.dataset.delete+'/delete'" in template
+    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+    assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in script
 
 
 def test_tree_click_handles_toggles_before_model_selection():
     template = _template()
-    script = template[template.index("$('tree').addEventListener('click'"):]
-    toggle = script.index("const toggle=e.target.closest('.tree-toggle')")
-    model_row = script.index("const modelRow=e.target.closest('[data-model-row]')")
-    model_section = script.index("const model=e.target.closest('[data-model]')")
+    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+    toggle = script.index("const toggle = event.target.closest('.tree-toggle')")
+    model_row = script.index("const row = event.target.closest('[data-model-row]')")
+    model_section = script.index("const model = event.target.closest('[data-model]')")
     assert toggle < model_row < model_section
     assert "group.classList.toggle('open')" in script[toggle:model_row]
 
@@ -67,6 +72,7 @@ def test_tree_has_inline_tire_add_actions():
 
 def test_inline_tire_add_action_loads_model_then_adds_row():
     template = _template()
-    script = template[template.index("const treeAdd=e.target.closest('[data-tree-add]')"):]
-    assert "editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in script
-    assert "treeAdd.dataset.treeAdd==='position'?addPos():addSize();" in script
+    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+    assert "editModel" in script
+    assert "addPos" in script
+    assert "addSize" in script

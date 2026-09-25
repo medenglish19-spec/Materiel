@@ -11,7 +11,6 @@ def test_master_data_reference_forms_have_explicit_post_actions():
     assert "'/equipment-types/categories/create'" in template
     assert "'/equipment-types/create'" in template
     assert "'/equipment-types/brands/create'" in template
-    assert "'/equipment-types/specs/create'" in template
     assert 'method="post"' in template
 
 
@@ -26,7 +25,8 @@ def test_new_model_action_is_tree_owned_and_does_not_scroll_page():
 
 def test_tree_click_handler_prioritizes_inline_actions_and_toggles():
     template = _template()
-    handler = template[template.index("$('tree').addEventListener('click'"):]
+    handler = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+    assert "event.target.closest('[data-add],[data-new-ref]')" in handler
     assert "[data-tree-add]" in handler
     assert "[data-copy]" in handler
     assert "[data-delete]" in handler
@@ -37,5 +37,5 @@ def test_tree_click_handler_prioritizes_inline_actions_and_toggles():
     assert "[data-model-row]" in handler
     assert "[data-model]" in handler
     assert "[data-ref-item]" in handler
-    assert handler.index("const treeAdd=e.target.closest('[data-tree-add]')") < handler.index("const modelRow=e.target.closest('[data-model-row]')")
+    assert handler.index("const action = event.target.closest('[data-add],[data-new-ref]')") < handler.index("const row = event.target.closest('[data-model-row]')")
     assert handler.index("const modelRow=e.target.closest('[data-model-row]')") < handler.index("const model=e.target.closest('[data-model]')")

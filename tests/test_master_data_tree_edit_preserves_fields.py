@@ -69,6 +69,8 @@ def test_type_update_form_preserves_category_measurement_unit_and_quantity():
             measurement_unit="hours",
             category_id=category.id,
             theoretical_quantity="10",
+            technical_library_category_id="",
+            technical_library_type_id="",
             db=db,
             current_user=object(),
         )
@@ -125,7 +127,7 @@ def test_ref_panel_accepts_dataset_as_extra_argument():
     assert "extra.categoryId" in template
     assert "extra.measurementUnit" in template
     assert "extra.theoreticalQuantity" in template
-    assert "refPanel(item.dataset.refItem,item.dataset.id,item.dataset.name,item.dataset)" in template
+    assert "refPanel(kind, id, node.dataset.name || '', node.dataset)" in script
 
 
 def test_tree_editor_passes_dataset_and_category_attribute_is_primary_source():

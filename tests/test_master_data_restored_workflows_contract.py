@@ -22,7 +22,7 @@ def test_master_data_keeps_excel_import_entry_points_and_reader():
 def test_master_data_keeps_model_copy_and_delete_actions():
     assert 'data-copy="{{ m.id }}"' in TEMPLATE
     assert 'data-delete="{{ m.id }}"' in TEMPLATE
-    assert "'/equipment-types/models/'+del.dataset.delete+'/delete'" in TEMPLATE
+    assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in TREE_SCRIPT
     assert "$('modelForm').action='/equipment-types/models/create'" in TEMPLATE
 
 

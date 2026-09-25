@@ -41,7 +41,7 @@ def test_brand_edit_and_deactivation_prevents_new_model_assignment():
 def test_type_edit_respects_frozen_state():
     db=setup_db()
     try:
-        category=EquipmentCategory(name="فئة الأنواع",code="types-test"); db.add(category); db.flush()
+        category=EquipmentCategory(name="فئة الأنواع",code="types-test",is_system=False); db.add(category); db.flush()
         equipment_type=EquipmentType(name="نوع قابل للتعديل",measurement_unit="km",category_id=category.id); db.add(equipment_type); db.commit()
         services.update_type(db,equipment_type,EquipmentTypeUpdate(name="نوع محدث",measurement_unit="km",category_id=category.id,theoretical_quantity=8))
         assert equipment_type.name=="نوع محدث"; assert equipment_type.theoretical_quantity==8
@@ -52,7 +52,7 @@ def test_type_edit_respects_frozen_state():
 def test_type_measurement_unit_change_is_blocked_when_equipment_exists():
     db=setup_db()
     try:
-        category=EquipmentCategory(name="فئة القياس",code="measurement-test"); db.add(category); db.flush()
+        category=EquipmentCategory(name="فئة القياس",code="measurement-test",is_system=False); db.add(category); db.flush()
         equipment_type=EquipmentType(name="نوع مرتبط",measurement_unit="km",category_id=category.id); db.add(equipment_type); db.flush()
         model=EquipmentModel(name="طراز مرتبط",equipment_type_id=equipment_type.id); db.add(model); db.flush()
         equipment=Equipment(asset_code="REF-001",equipment_type_id=equipment_type.id,equipment_model_id=model.id); db.add(equipment); db.commit()

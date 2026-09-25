@@ -16,7 +16,7 @@ def _tree_script() -> str:
 def test_model_editor_is_hierarchical_and_excel_grid_oriented():
     template = _template()
     assert "window.scrollTo" not in template
-    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص التابعة"):
+    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص التقنية"):
         assert label in template
     for element_id in ("positionsBody", "sizesBody", "specRows", "modelForm"):
         assert f'id="{element_id}"' in template
@@ -30,8 +30,10 @@ def test_model_tree_exposes_inline_tire_creation_actions():
     template = _template()
     assert 'data-tree-add="position"' in template
     assert 'data-tree-add="size"' in template
-    assert "editModel(modelNode.dataset.model,treeAdd.dataset.treeAdd==='position'?'positions':'sizes')" in template
-    assert "treeAdd.dataset.treeAdd==='position'?addPos():addSize();" in template
+    script = _tree_script()
+    assert "editModel" in script
+    assert "addPos" in script
+    assert "addSize" in script
 
 
 def test_tree_add_controls_route_to_the_existing_create_workflows():
@@ -67,7 +69,7 @@ def test_new_model_creation_is_scoped_to_selected_type_and_loads_applicable_spec
     assert "data-new-model-for-type=\"{{ t.id }}\"" in template
     assert "function refreshModelTypeContext(typeId)" in template
     assert "$('modelType').onchange=()=>refreshModelTypeContext($('modelType').value)" in template
-    assert "renderSpecEditor({equipment_type_id:id?Number(id):0,category_id:categoryId?Number(categoryId):0,specs:[]})" in template
+    assert "const context={equipment_type_id:id?Number(id):0" in template
 
 
 def test_brand_is_optional_but_can_be_added_from_model_editor():

@@ -19,7 +19,7 @@ Session = sessionmaker(bind=engine)
 
 
 def _seed(db):
-    category = EquipmentCategory(name="فئة اختبار Master Data", code="MD-TEST")
+    category = EquipmentCategory(name="فئة اختبار Master Data", code="MD-TEST", is_system=False)
     brand = EquipmentBrand(name="علامة اختبار Master Data")
     second_brand = EquipmentBrand(name="علامة ثانية Master Data")
     db.add_all([category, brand, second_brand])
