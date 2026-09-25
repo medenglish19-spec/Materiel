@@ -244,6 +244,14 @@ def _validate_record(connection, target, exclude_id=None):
     if rule_model_id != equipment_model_id:
         raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
+    if target.operation_id is not None:
+        operation_row = connection.execute(
+            select(MaintenanceOperation.id)
+            .where(MaintenanceOperation.id == target.operation_id)
+        ).first()
+        if operation_row is None:
+            raise ValueError("عملية الصيانة المحددة غير موجودة.")
+
     if target.meter_value is None:
         return
 
