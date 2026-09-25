@@ -34,7 +34,7 @@ class EquipmentTypeCreate(BaseModel):
         if v is not None and v < 0: raise ValueError("التعداد النظري لا يمكن أن يكون سالبًا")
         return v
 class EquipmentTypeUpdate(BaseModel):
-    name: str; measurement_unit: str; category_id: int; technical_library_category_id: Optional[int] = None; technical_library_type_id: Optional[int] = None; theoretical_quantity: Optional[int] = None
+    name: str; measurement_unit: str; category_id: int; theoretical_quantity: Optional[int] = None
     @field_validator("measurement_unit")
     @classmethod
     def measurement_unit_valid(cls, v: str) -> str:
@@ -47,7 +47,7 @@ class EquipmentTypeUpdate(BaseModel):
         return v
 class EquipmentTypeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    id: int; name: str; measurement_unit: str; theoretical_quantity: Optional[int] = None; category_id: Optional[int] = None; technical_library_category_id: Optional[int] = None; technical_library_type_id: Optional[int] = None; is_frozen: bool
+    id: int; name: str; measurement_unit: str; theoretical_quantity: Optional[int] = None; category_id: Optional[int] = None; is_frozen: bool
 POSITION_SIDES = {"left", "right"}
 POSITION_TYPES = {"single", "inner", "outer"}
 
