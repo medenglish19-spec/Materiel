@@ -22,6 +22,38 @@ class MaintenanceOperationGroup(Base):
     name = Column(String(100), nullable=False)
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
 
+    operations = relationship("MaintenanceOperation", back_populates="group")
+
+
+class MaintenanceOperation(Base):
+    __tablename__ = "maintenance_operations"
+    __table_args__ = (
+        CheckConstraint("interval_km IS NOT NULL OR interval_hours IS NOT NULL OR interval_days IS NOT NULL", name="ck_maintenance_operation_has_interval"),
+        CheckConstraint("interval_km IS NULL OR interval_km > 0", name="ck_maintenance_operation_interval_km_positive"),
+        CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_operation_interval_hours_positive"),
+        CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_operation_interval_days_positive"),
+        CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_operation_warning_km_nonnegative"),
+        CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_operation_warning_days_nonnegative"),
+        UniqueConstraint("old_rule_id", name="uq_maintenance_operation_old_rule"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(120), nullable=False)
+    interval_km = Column(Numeric(10, 1), nullable=True)
+    interval_hours = Column(Numeric(10, 1), nullable=True)
+    interval_days = Column(Integer, nullable=True)
+    warning_km = Column(Numeric(10, 1), nullable=True)
+    warning_days = Column(Integer, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    description = Column(Text, nullable=True)
+    group_id = Column(Integer, ForeignKey("maintenance_operation_groups.id", name="fk_maintenance_operations_group", ondelete="SET NULL"), nullable=True, index=True)
+    old_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", name="fk_maintenance_operations_old_rule", ondelete="RESTRICT"), nullable=True, index=True, unique=True)
+
+    group = relationship("MaintenanceOperationGroup", back_populates="operations")
+    old_rule = relationship("MaintenanceRule", foreign_keys=[old_rule_id])
+    plan_operations = relationship("MaintenancePlanOperation", back_populates="operation")
+    records = relationship("MaintenanceRecord", back_populates="operation")
+
 
 class MaintenancePlan(Base):
     __tablename__ = "maintenance_plans"
@@ -70,7 +102,7 @@ class MaintenancePlanOperation(Base):
     )
     operation_id = Column(
         Integer,
-        ForeignKey("maintenance_rules.id", name="fk_maintenance_plan_operations_operation", ondelete="RESTRICT"),
+        ForeignKey("maintenance_operations.id", name="fk_maintenance_plan_operations_operation", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
@@ -80,7 +112,7 @@ class MaintenancePlanOperation(Base):
     interval_days_override = Column(Integer, nullable=True)
 
     plan = relationship("MaintenancePlan", back_populates="plan_operations")
-    operation = relationship("MaintenanceRule")
+    operation = relationship("MaintenanceOperation", back_populates="plan_operations")
 
 
 class MaintenanceRule(Base):
@@ -126,7 +158,7 @@ class MaintenanceRecord(Base):
     rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=False, index=True)
     operation_id = Column(
         Integer,
-        ForeignKey("maintenance_rules.id", name="fk_maintenance_records_operation", ondelete="RESTRICT"),
+        ForeignKey("maintenance_operations.id", name="fk_maintenance_records_operation", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )
@@ -149,7 +181,7 @@ class MaintenanceRecord(Base):
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
     rule = relationship("MaintenanceRule", back_populates="records", foreign_keys=[rule_id])
-    operation = relationship("MaintenanceRule", foreign_keys=[operation_id])
+    operation = relationship("MaintenanceOperation", back_populates="records", foreign_keys=[operation_id])
     plan = relationship("MaintenancePlan", back_populates="records")
     created_by = relationship("User", foreign_keys=[created_by_id])
 
