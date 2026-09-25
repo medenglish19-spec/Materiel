@@ -40,3 +40,26 @@ def test_plan_allows_optional_cadence_fields_for_compatibility():
 def test_plan_operation_rejects_nonpositive_override():
     with pytest.raises(ValidationError):
         MaintenancePlanOperationCreate(plan_id=1, operation_id=1, interval_days_override=0)
+
+def test_execution_record_accepts_operation_without_legacy_rule():
+    from datetime import date
+    from app.modules.maintenance.schemas import MaintenanceRecordCreate
+
+    item = MaintenanceRecordCreate(
+        equipment_id=1,
+        operation_id=7,
+        maintenance_date=date(2026, 9, 25),
+    )
+    assert item.operation_id == 7
+    assert item.rule_id is None
+
+
+def test_execution_record_requires_operation_or_legacy_rule():
+    from datetime import date
+    from app.modules.maintenance.schemas import MaintenanceRecordCreate
+
+    with pytest.raises(ValidationError):
+        MaintenanceRecordCreate(
+            equipment_id=1,
+            maintenance_date=date(2026, 9, 25),
+        )
