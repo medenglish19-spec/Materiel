@@ -416,5 +416,8 @@ def delete_model(db:Session,obj:EquipmentModel)->None:
     from app.modules.tires.models import TireModelSize,TirePosition
     if obj.is_frozen:raise ValueError("طراز العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
     if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن حذف طراز مرتبط بعتاد مسجل؛ غيّر ارتباط العتاد أو احذف السجل وفق إجراءات النظام أولًا")
-    if db.query(TirePosition.id).filter(TirePosition.equipment_model_id==obj.id).first() or db.query(TireModelSize.id).filter(TireModelSize.equipment_model_id==obj.id).first():raise ValueError("لا يمكن حذف طراز يحتوي على إعدادات إطارات؛ احذف الإعدادات المرجعية أولًا")
+    # إعدادات الإطارات جزء من بيانات الطراز المرجعية، لذلك تُزال معه.
+    # حركات الإطارات التاريخية لا تُحذف؛ position_id فيها يتحول إلى NULL بسبب FK SET NULL.
+    db.query(TireModelSize).filter(TireModelSize.equipment_model_id==obj.id).delete(synchronize_session=False)
+    db.query(TirePosition).filter(TirePosition.equipment_model_id==obj.id).delete(synchronize_session=False)
     db.delete(obj);db.commit()
