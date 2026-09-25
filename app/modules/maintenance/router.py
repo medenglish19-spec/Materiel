@@ -12,7 +12,7 @@ from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenanceOperationRuleMap, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, MaintenanceRule)
-from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate)
+from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut)
 from app.modules.maintenance.services import (
     chronology_error,
     contradiction_for,
@@ -375,3 +375,113 @@ def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate
     try: db.commit(); db.refresh(link)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
     return link
+
+@router.get("/api/maintenance/execution", response_model=list[MaintenanceRecordOut])
+def api_execution_records(
+    equipment_id: int | None = None,
+    operation_id: int | None = None,
+    plan_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = db.query(MaintenanceRecord)
+    if equipment_id is not None: query = query.filter(MaintenanceRecord.equipment_id == equipment_id)
+    if operation_id is not None: query = query.filter(MaintenanceRecord.operation_id == operation_id)
+    if plan_id is not None: query = query.filter(MaintenanceRecord.plan_id == plan_id)
+    return query.order_by(MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()).all()
+
+
+@router.post("/api/maintenance/execution", response_model=MaintenanceRecordOut, status_code=status.HTTP_201_CREATED)
+def api_execution_create(
+    payload: MaintenanceRecordCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).filter(Equipment.id == payload.equipment_id).first()
+    if equipment is None:
+        raise HTTPException(status_code=404, detail="العتاد المحدد غير موجود.")
+    if payload.maintenance_date > date.today():
+        raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
+
+    operation = db.get(MaintenanceOperation, payload.operation_id) if payload.operation_id is not None else None
+    rule = db.get(MaintenanceRule, payload.rule_id) if payload.rule_id is not None else None
+    plan = db.get(MaintenancePlan, payload.plan_id) if payload.plan_id is not None else None
+
+    if operation is None and rule is None:
+        raise HTTPException(status_code=400, detail="يجب تحديد عملية الصيانة أو الصيانة الدورية.")
+    if operation is not None and not operation.is_active:
+        raise HTTPException(status_code=409, detail="عملية الصيانة غير مفعلة.")
+    if plan is not None and plan.equipment_model_id != equipment.equipment_model_id:
+        raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
+
+    if operation is not None:
+        if rule is not None:
+            mapping = db.query(MaintenanceOperationRuleMap).filter(
+                MaintenanceOperationRuleMap.old_rule_id == rule.id,
+                MaintenanceOperationRuleMap.operation_id == operation.id,
+            ).first()
+            if mapping is None:
+                raise HTTPException(status_code=409, detail="الصيانة الدورية القديمة لا تقابل عملية الصيانة المختارة.")
+        membership = (
+            db.query(MaintenancePlanOperation)
+            .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+            .filter(
+                MaintenancePlanOperation.operation_id == operation.id,
+                MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
+                MaintenancePlan.is_active.is_(True),
+            )
+            .first()
+        )
+        standalone = not db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.operation_id == operation.id).first()
+        if membership is None and not standalone and plan is None:
+            raise HTTPException(status_code=409, detail="عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز ولا هي مستقلة.")
+        if plan is not None and db.query(MaintenancePlanOperation.id).filter(
+            MaintenancePlanOperation.plan_id == plan.id,
+            MaintenancePlanOperation.operation_id == operation.id,
+        ).first() is None:
+            raise HTTPException(status_code=409, detail="العملية المختارة غير مرتبطة بالخطة المحددة.")
+
+        if rule is None and operation.old_rule_id is not None:
+            rule = db.get(MaintenanceRule, operation.old_rule_id)
+
+    if rule is not None and rule.equipment_model_id != equipment.equipment_model_id:
+        raise HTTPException(status_code=409, detail="الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
+
+    unit = measurement_unit(equipment)
+    if payload.meter_value is not None and payload.meter_value < 0:
+        raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
+    if operation is not None:
+        interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
+        if interval is not None and payload.meter_value is None:
+            raise HTTPException(status_code=400, detail="يجب إدخال قراءة العداد لهذه العملية.")
+
+    chronology = chronology_error(db, payload.equipment_id, payload.maintenance_date, payload.meter_value)
+    if chronology:
+        raise HTTPException(status_code=409, detail=chronology)
+
+    record = MaintenanceRecord(
+        equipment_id=payload.equipment_id,
+        rule_id=rule.id if rule is not None else None,
+        operation_id=operation.id if operation is not None else None,
+        plan_id=payload.plan_id,
+        maintenance_date=payload.maintenance_date,
+        reported_date=payload.reported_date or payload.maintenance_date,
+        meter_value=payload.meter_value,
+        work_order=payload.work_order,
+        workshop=payload.workshop,
+        status=payload.status or "completed",
+        is_scheduled=payload.is_scheduled,
+        description=payload.description,
+        created_by_id=current_user.id if current_user else None,
+    )
+    db.add(record)
+    try:
+        db.commit()
+        db.refresh(record)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر تسجيل تنفيذ الصيانة؛ تحقق من عدم تكرار السجل والبيانات المرتبطة.") from exc
+    return record
