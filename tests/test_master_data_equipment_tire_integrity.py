@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
+from app.modules.users.models import User
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment import services as equipment_services
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
