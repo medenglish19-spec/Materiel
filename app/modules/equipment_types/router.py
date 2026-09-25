@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 import json
+from pathlib import Path
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -14,6 +15,10 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandOut, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryOut, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentModelOut, EquipmentTypeCreate, EquipmentTypeOut, EquipmentTypeUpdate, SpecDefinitionCreate, SpecDefinitionOut, SpecValueInput
 from app.modules.users.models import User
 router=APIRouter();templates=get_module_templates("app/modules/equipment_types/templates")
+_TREE_JS=Path(__file__).resolve().parents[3]/"static"/"js"/"master-data-tree.js"
+def _tree_js_version()->str:
+    try:return "mtime-"+str(int(_TREE_JS.stat().st_mtime))
+    except OSError:return "master-data-workspace-7"
 def _redirect(notice:str|None=None,notice_type:str="success"):
     if notice is None:return RedirectResponse(url="/equipment-types",status_code=303)
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
@@ -24,7 +29,7 @@ def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depe
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id,"equipment_type_ids":spec_type_ids.get(d.id,[])} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
     tire_master_data={p["id"]:p for p in editor_payloads}
-    response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"technical_library_categories":technical_library_categories,"technical_library_types":technical_library_types,"user":current_user})
+    response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"technical_library_categories":technical_library_categories,"technical_library_types":technical_library_types,"tree_js_version":_tree_js_version(),"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"

@@ -344,7 +344,7 @@ def delete_position(db:Session,position_id:int):
 def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
     _validate_model_data(db,data);_validate_tire_positions_and_sizes(db,data,None)
     obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,axle_count=data.axle_count,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
-    db.add(obj);db.flush();_sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
+    db.add(obj);db.flush();_sync_positions(db,obj.id,[p.model_copy(update={"id":None}) for p in data.positions] if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
     db.commit();db.refresh(obj);return obj
 
 def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->EquipmentModel:

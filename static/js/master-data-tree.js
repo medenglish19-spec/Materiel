@@ -43,6 +43,16 @@
   };
   const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
+  const masterData = () => (window.MATERIEL_MASTER_DATA && window.MATERIEL_MASTER_DATA.DATA) || {};
+  /* The inline workspace script owns refPanel/editModel/viewModel/... and publishes them on window.
+     If it failed to run, say so instead of leaving the buttons silently dead. */
+  const workspaceReady = (...names) => {
+    const missing = names.filter((name) => typeof window[name] !== 'function');
+    if (!missing.length) return true;
+    console.error('Master Data workspace API missing:', missing.join(', '));
+    toast('تعذر تحميل مساحة العمل بالكامل؛ أعد تحميل الصفحة (Ctrl+F5).');
+    return false;
+  };
   const selectNode = (node) => {
     tree.querySelectorAll('.tree-node.active').forEach((item) => item.classList.remove('active'));
     node?.classList.add('active');
@@ -55,39 +65,39 @@
     const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
     if (!boxes.length) return;
     const safe = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
-    boxes.forEach((box, i) => { box.hidden = i !== safe; box.setAttribute('aria-hidden', i === safe ? 'false' : 'true'); });
+    const showAll = options.all === true;
+    boxes.forEach((box, i) => { const visible = showAll || i === safe; box.hidden = !visible; box.setAttribute('aria-hidden', visible ? 'false' : 'true'); });
     tabs.forEach((tab, i) => { const active = i === safe; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
     if (options.focus) boxes[safe]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
 
+  /* "＋ نوع" beside a category  ->  refPanel('type', null, '', {categoryId: CATEGORY_ID}) with the category preselected. */
   const openTypeCreate = (categoryId) => {
-    if (typeof window.refPanel !== 'function') return;
-    window.refPanel('type', null, '', { categoryId: String(categoryId || '') });
+    if (!workspaceReady('refPanel')) return;
+    const id = String(categoryId || '');
+    window.refPanel('type', null, '', { categoryId: id });
     const input = document.querySelector('#refBody form [name="category_id"]');
-    if (input) input.value = String(categoryId || '');
+    if (input && id) input.value = id;
+    document.querySelector('#refBody form [name="name"]')?.focus();
   };
+  /* "＋ طراز" beside a type  ->  new model form with equipment_type_id AND category_id preselected from that type. */
   const openModelCreate = (typeId) => {
-    if (typeof window.resetModel === 'function') window.resetModel();
-    const select = $('modelType');
-    const option = select && typeId ? select.querySelector(`option[value="${CSS.escape(String(typeId))}"]`) : null;
-    if (select && option) {
-      select.value = String(typeId);
-      if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
-    }
-    if (typeof window.refreshModelTypeContext === 'function') window.refreshModelTypeContext(typeId || '');
-    if (typeof window.title === 'function') window.title('إضافة طراز', 'الطرازات');
-    if (typeof window.show === 'function') window.show($('modelPanel'));
-    selectSection(0);
+    if (!workspaceReady('openNewModel')) return;
+    window.openNewModel(typeId ? String(typeId) : '');
+    selectSection(0, { all: true });
   };
+  window.openTypeCreate = openTypeCreate;
+  window.openModelCreate = openModelCreate;
   const editReference = (node) => {
-    if (typeof window.refPanel !== 'function') return;
+    if (!workspaceReady('refPanel')) return;
     window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
   const copyModel = (id) => {
-    if (typeof window.editModel !== 'function') return;
+    if (!workspaceReady('editModel')) return;
     window.editModel(id);
+    selectSection(0, { all: true });
     if ($('modelName')) $('modelName').value += ' - نسخة';
     if ($('modelId')) $('modelId').value = '';
     if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
@@ -160,7 +170,8 @@
     modelRows.forEach((row) => {
       const modelId = String(row.dataset.modelRow || '');
       const typeId = String(row.dataset.equipmentTypeId || '');
-      if (modelId && DATA[modelId]) DATA[modelId].equipment_type_id = typeId || DATA[modelId].equipment_type_id;
+      const store = masterData();
+      if (modelId && store[modelId]) store[modelId].equipment_type_id = typeId || store[modelId].equipment_type_id;
       row.draggable = true;
     });
 
@@ -273,7 +284,7 @@
     syncArrows();
   });
   $('btn-add-root-category')?.addEventListener('click', () => {
-    if (typeof refPanel === 'function') refPanel('category');
+    if (workspaceReady('refPanel')) refPanel('category');
   });
 
   let dragged = null;
@@ -315,7 +326,7 @@
     if (!dragged || !target) return;
     event.preventDefault(); target.classList.remove('drop-target');
     const id = dragged.dataset.modelRow; const typeId = target.dataset.typeId;
-    const model = DATA[String(id)] || DATA[id] || {};
+    const model = masterData()[String(id)] || {};
     if (String(model.equipment_type_id) === String(typeId)) return;
     const form = new FormData(); form.append('equipment_type_id', typeId);
     try {
@@ -337,17 +348,64 @@
     } catch (_) { toast('تعذر نقل الطراز؛ لم يتم تغيير البيانات'); }
   });
 
+  /* Single owner of every click inside #tree (the inline workspace script no longer binds one).
+     Capture phase + stopPropagation on the "action" branches guarantees that a "＋" inside a node
+     <button> never also selects/toggles/edits that node. */
+  const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
   tree.addEventListener('click', (event) => {
     const action = event.target.closest('[data-add],[data-new-ref]');
-    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof window.refPanel === 'function') window.refPanel(kind); return; }
+    if (action) {
+      stop(event);
+      const kind = action.dataset.add || action.dataset.newRef;
+      if (kind === 'type') openTypeCreate(action.dataset.newTypeForCategory);
+      else if (kind === 'model') openModelCreate(action.dataset.newModelForType);
+      else if (typeof refPanel === 'function') refPanel(kind);
+      else workspaceReady('refPanel');
+      return;
+    }
     const position = event.target.closest('[data-tree-add]');
-    if (position) { event.preventDefault(); event.stopPropagation(); const model = event.target.closest('[data-model]'); if (model && typeof editModel === 'function') { editModel(model.dataset.model, position.dataset.treeAdd === 'position' ? 'positions' : 'sizes'); position.dataset.treeAdd === 'position' ? window.addPos?.() : window.addSize?.(); } return; }
+    if (position) {
+      stop(event);
+      const model = event.target.closest('[data-model]');
+      if (model && workspaceReady('editModel', 'addPos', 'addSize')) {
+        const isPosition = position.dataset.treeAdd === 'position';
+        window.editModel(model.dataset.model, isPosition ? 'positions' : 'sizes');
+        selectSection(sectionMap.tires, { focus: true });
+        isPosition ? window.addPos() : window.addSize();
+      }
+      return;
+    }
+    const copy = event.target.closest('[data-copy]');
+    if (copy) { stop(event); copyModel(copy.dataset.copy); return; }
+    const del = event.target.closest('[data-delete]');
+    if (del) { stop(event); postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`, 'حذف الطراز؟'); return; }
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) { event.preventDefault(); event.stopPropagation(); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
-    const row = event.target.closest('[data-model-row]'); if (row) { selectNode(row); window.viewModel?.(row.dataset.modelRow); return; }
-    const model = event.target.closest('[data-model]'); if (model) { selectNode(model); window.viewModel?.(model.dataset.model); selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true }); return; }
-    const ref = event.target.closest('[data-ref-item]'); if (ref) { editReference(ref); return; }
-    const node = event.target.closest('.tree-node'); if (node) selectNode(node);
+    if (toggle) { stop(event); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
+    const row = event.target.closest('[data-model-row]');
+    if (row) {
+      selectNode(row); row.closest('.tree-group')?.classList.add('open'); syncArrows();
+      if (workspaceReady('viewModel')) { window.viewModel(row.dataset.modelRow); selectSection(0, { all: true }); }
+      return;
+    }
+    const model = event.target.closest('[data-model]');
+    if (model) {
+      stop(event); selectNode(model);
+      if (workspaceReady('viewModel')) { window.viewModel(model.dataset.model); selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true }); }
+      return;
+    }
+    const ref = event.target.closest('[data-ref-item]');
+    if (ref) {
+      selectNode(ref);
+      if (ref.dataset.system === '1') { ref.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
+      editReference(ref);
+      return;
+    }
+    const node = event.target.closest('.tree-node');
+    if (node) {
+      selectNode(node);
+      const group = node.closest('.tree-group');
+      if (group && node.querySelector('.tree-toggle')) { group.classList.toggle('open'); syncArrows(); }
+    }
   }, true);
 
   const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 11px;border-radius:7px;font:inherit;font-weight:700;color:#26384a;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #1976d2;background:#edf6ff}@media(max-width:900px){.mdx .layout{grid-template-columns:1fr}.mdx{padding:10px}}@media(max-width:640px){.mdx .tree-node{min-height:42px;padding:10px 12px;font-size:14px}.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style);
