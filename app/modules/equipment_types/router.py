@@ -24,12 +24,12 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
     return RedirectResponse(url="/equipment-types?notice_type="+notice_type+"&notice="+quote(notice),status_code=303)
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    models=services.list_models(db);types=services.list_types(db);technical_library_types=services.list_types(db);categories=services.list_categories(db);technical_library_categories=services.list_technical_library_categories(db);brands=services.list_brands(db)
+    models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db)
     spec_type_ids=services.list_spec_definition_type_ids(db)
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id,"equipment_type_ids":spec_type_ids.get(d.id,[])} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
     tire_master_data={p["id"]:p for p in editor_payloads}
-    response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"technical_library_categories":technical_library_categories,"technical_library_types":technical_library_types,"tree_js_version":_tree_js_version(),"user":current_user})
+    response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -65,8 +65,8 @@ def delete_category_form(category_id:int,db:Session=Depends(get_db),current_user
         except ValueError as exc:raise HTTPException(status_code=409,detail=str(exc)) from exc
     return _redirect("تم حذف الفئة")
 @router.post("/equipment-types/create")
-def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),technical_library_category_id:str=Form(""),technical_library_type_id:str=Form(""),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
-    try:services.create_type(db,EquipmentTypeCreate(name=name,measurement_unit=measurement_unit,category_id=category_id,technical_library_category_id=int(technical_library_category_id) if technical_library_category_id.strip() else None,technical_library_type_id=int(technical_library_type_id) if technical_library_type_id.strip() else None,theoretical_quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)))
+def create_type_form(name:str=Form(...),measurement_unit:str=Form(...),category_id:int=Form(...),theoretical_quantity:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    try:services.create_type(db,EquipmentTypeCreate(name=name,measurement_unit=measurement_unit,category_id=category_id,theoretical_quantity=None if not theoretical_quantity.strip() else int(theoretical_quantity)))
     except (ValueError,TypeError) as exc:raise HTTPException(status_code=400,detail=str(exc)) from exc
     return _redirect("تمت إضافة نوع العتاد")
 @router.post("/equipment-types/{type_id}/update")
