@@ -7,6 +7,14 @@ from app.database.base import Base
 from app.modules.users.models import User
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentBrand,EquipmentCategory,EquipmentModel,EquipmentModelSpecValue,EquipmentType
+# Register all project model modules so SQLAlchemy can resolve cross-module relationships in the isolated test schema.
+from app.modules.batteries import models as _batteries_models
+from app.modules.faults_repairs import models as _faults_repairs_models
+from app.modules.fuel import models as _fuel_models
+from app.modules.maintenance import models as _maintenance_models
+from app.modules.meter_readings import models as _meter_readings_models
+from app.modules.missions import models as _missions_models
+from app.modules.tires import models as _tires_models
 from app.modules.equipment_types.schemas import EquipmentModelCreate,SpecDefinitionCreate,SpecValueInput
 from app.modules.equipment_types import services
 engine=create_engine("sqlite:///:memory:",connect_args={"check_same_thread":False},poolclass=StaticPool);Session=sessionmaker(bind=engine)
