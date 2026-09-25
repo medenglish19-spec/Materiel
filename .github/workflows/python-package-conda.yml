@@ -87,6 +87,14 @@ jobs:
           print("0007 recovery test passed")
           PY
 
+      - name: Repeat technical properties regression 10x
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            echo "=== technical properties regression run $i/10 ==="
+            python -m pytest -q tests/test_equipment_model_custom_specs.py
+          done
+
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
 
