@@ -15,6 +15,7 @@ def model_editor_payload(db: Session, model: EquipmentModel) -> dict:
         "category_id": equipment_type.category_id if equipment_type else None,
         "technical_library_category_id": equipment_type.technical_library_category_id if equipment_type else None,
         "technical_library_type_id": equipment_type.technical_library_type_id if equipment_type else None,
+        "type_is_system": bool(equipment_type.category.is_system) if equipment_type and equipment_type.category else False,
         "equipment_type_id": model.equipment_type_id,
         "brand_id": model.brand_id,
         "has_tires": model.has_tires,

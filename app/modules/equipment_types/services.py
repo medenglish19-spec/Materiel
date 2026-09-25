@@ -213,13 +213,30 @@ def _validate_and_sync_specs(db: Session, equipment_model_id: int, specs: list[S
                 .where(equipment_type_spec_definitions.c.spec_definition_id == definition.id)
             ).fetchall()
         }
-        if linked_type_ids:
-            if model is None or (model.equipment_type_id not in linked_type_ids and technical_library_type_id not in linked_type_ids):
+        is_private_model = bool(
+            model
+            and model.equipment_type
+            and model.equipment_type.category
+            and not model.equipment_type.category.is_system
+        )
+        if is_private_model:
+            if linked_type_ids:
+                if technical_library_type_id not in linked_type_ids:
+                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
+            elif definition.equipment_type_id is not None:
+                if definition.equipment_type_id != technical_library_type_id:
+                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
+            elif definition.category_id is not None:
+                if definition.category_id != technical_library_category_id:
+                    raise ValueError(f"الخاصية '{definition.name}' ليست من مكتبة الطرازات المرتبطة بهذا النوع")
+        else:
+            if linked_type_ids:
+                if model is None or (model.equipment_type_id not in linked_type_ids and technical_library_type_id not in linked_type_ids):
+                    raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
+            elif definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
                 raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
-        elif definition.equipment_type_id is not None and (model is None or definition.equipment_type_id != model.equipment_type_id):
-            raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لنوع العتاد لهذا الطراز")
-        elif definition.category_id is not None and definition.category_id not in {category_id, technical_library_category_id}:
-            raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لفئة هذا الطراز")
+            elif definition.category_id is not None and definition.category_id not in {category_id, technical_library_category_id}:
+                raise ValueError(f"الخاصية '{definition.name}' غير مخصصة لفئة هذا الطراز")
         if definition.data_type=="number":
             try: float(value)
             except ValueError as exc: raise ValueError(f"قيمة '{definition.name}' يجب أن تكون رقمًا") from exc
