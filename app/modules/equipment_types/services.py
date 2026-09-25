@@ -71,7 +71,7 @@ def set_brand_active(db:Session,obj:EquipmentBrand,active:bool)->EquipmentBrand:
     obj.is_active=active;db.commit();db.refresh(obj);return obj
 
 def list_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category)).order_by(EquipmentType.name).all()
-def list_user_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).join(EquipmentCategory, EquipmentType.category_id == EquipmentCategory.id, isouter=True).filter((EquipmentCategory.is_system.is_(False)) | (EquipmentType.category_id.is_(None))).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category),joinedload(EquipmentType.technical_library_type)).order_by(EquipmentType.name).all()
+def list_user_types(db:Session)->list[EquipmentType]: return db.query(EquipmentType).join(EquipmentCategory, EquipmentType.category_id == EquipmentCategory.id, isouter=True).filter((EquipmentCategory.is_system.is_(False)) | (EquipmentType.category_id.is_(None))).options(joinedload(EquipmentType.models).joinedload(EquipmentModel.brand),joinedload(EquipmentType.category)).order_by(EquipmentType.name).all()
 def get_type(db:Session,type_id:int)->Optional[EquipmentType]: return db.query(EquipmentType).options(joinedload(EquipmentType.category)).filter(EquipmentType.id==type_id).first()
 def get_type_by_name(db:Session,name:str)->Optional[EquipmentType]: return db.query(EquipmentType).filter(EquipmentType.name==name).first()
 def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
