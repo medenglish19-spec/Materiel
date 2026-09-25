@@ -14,7 +14,7 @@ from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment import services as equipment_services
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.equipment_types import services as model_services
-from app.modules.tires.models import Tire, TireMovement, TirePosition
+from app.modules.tires.models import Tire, TireModelSize, TireMovement, TirePosition
 
 
 engine = create_engine(
@@ -133,19 +133,23 @@ def test_equipment_type_cannot_be_deleted_while_maintenance_rule_exists():
         db.close()
 
 
-def test_model_cannot_be_deleted_while_tire_configuration_exists():
+def test_model_deletes_its_tire_reference_configuration():
     db = _fresh_db()
     try:
-        equipment_type = EquipmentType(name="نوع إعدادات إطارات", measurement_unit="km")
+        equipment_type = EquipmentType(name="نوع حذف إعدادات الإطارات", measurement_unit="km")
         db.add(equipment_type); db.flush()
-        model = EquipmentModel(name="طراز إعدادات محمية", equipment_type_id=equipment_type.id, has_tires=True, tire_positions_required=1, tire_size="315/80R22.5")
+        model = EquipmentModel(name="طراز إعدادات قابلة للحذف", equipment_type_id=equipment_type.id, has_tires=True, tire_positions_required=1, tire_size="315/80R22.5")
         db.add(model); db.flush()
-        position = TirePosition(equipment_model_id=model.id, code="CONFIG-GUARD-POS-1", name="موضع إعدادات محمي", axle_number=1, side="left", position_type="single", sort_order=1)
-        db.add(position); db.commit()
-        with pytest.raises(ValueError, match="لا يمكن حذف طراز يحتوي على إعدادات إطارات"):
-            model_services.delete_model(db, model)
-        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is not None
-        assert db.query(TirePosition).filter(TirePosition.id == position.id).first() is not None
+        position = TirePosition(equipment_model_id=model.id, code="CONFIG-DELETE-POS-1", name="موضع إعدادات قابل للحذف", axle_number=1, side="left", position_type="single", sort_order=1)
+        size = TireModelSize(equipment_model_id=model.id, size="315/80R22.5")
+        db.add_all([position, size]); db.commit()
+        position_id, size_id = position.id, size.id
+
+        model_services.delete_model(db, model)
+
+        assert db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first() is None
+        assert db.query(TirePosition).filter(TirePosition.id == position_id).first() is None
+        assert db.query(TireModelSize).filter(TireModelSize.id == size_id).first() is None
     finally:
         db.close()
 
