@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.modules.maintenance.router import status_for, priority_for
+from app.modules.maintenance.services import plan_status_for
 from app.modules.maintenance.models import _validate_record
 
 
@@ -171,4 +172,17 @@ def test_plan_operation_overrides_only_selected_axes():
     state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("49500"), plan_operation=override, today=date.today())
     assert state == "تقترب"
     assert remaining == Decimal("500")
+    assert meta["next_meter"] == Decimal("50000")
+
+
+
+def test_plan_status_uses_plan_cadence_without_operation_warning_axes():
+    plan = SimpleNamespace(interval_km=Decimal("5000"), interval_hours=None, interval_days=30)
+    service_record = record(days_ago=30, meter=45000)
+    state, css, remaining, meta = plan_status_for(
+        plan, equipment("km"), service_record, Decimal("49000"), today=date.today()
+    )
+    assert state == "مستحقة الآن"
+    assert remaining == Decimal("1000")
+    assert meta["remaining_days"] == 0
     assert meta["next_meter"] == Decimal("50000")
