@@ -39,4 +39,4 @@ def test_tree_click_handler_prioritizes_inline_actions_and_toggles():
     assert "[data-ref-item]" in handler
     click_handler = handler.split("tree.addEventListener('click'", 1)[1]
     assert click_handler.index("const action = event.target.closest('[data-add],[data-new-ref]')") < click_handler.index("const row = event.target.closest('[data-model-row]')")
-    assert handler.index("const modelRow=e.target.closest('[data-model-row]')") < handler.index("const model=e.target.closest('[data-model]')")
+    assert click_handler.index("const row = event.target.closest('[data-model-row]')") < click_handler.index("const model = event.target.closest('[data-model]')")
