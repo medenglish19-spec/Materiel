@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def _positive(value, field_name):
@@ -70,6 +70,7 @@ class MaintenanceOperationBase(BaseModel):
     def warning_days_valid(cls, value):
         return _nonnegative(value, "تنبيه الأيام")
 
+    @model_validator(mode="after")
     def validate_interval_presence(self):
         if self.interval_km is None and self.interval_hours is None and self.interval_days is None:
             raise ValueError("يجب تحديد شرط زمني واحد على الأقل للعملية")
