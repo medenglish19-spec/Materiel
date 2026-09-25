@@ -366,10 +366,10 @@
     const position = event.target.closest('[data-tree-add]');
     if (position) {
       stop(event);
-      const model = event.target.closest('[data-model]');
-      if (model && workspaceReady('editModel', 'addPos', 'addSize')) {
+      const targetModel = event.target.closest('[data-model]');
+      if (targetModel && workspaceReady('editModel', 'addPos', 'addSize')) {
         const isPosition = position.dataset.treeAdd === 'position';
-        window.editModel(model.dataset.model, isPosition ? 'positions' : 'sizes');
+        window.editModel(targetModel.dataset.model, isPosition ? 'positions' : 'sizes');
         selectSection(sectionMap.tires, { focus: true });
         isPosition ? window.addPos() : window.addSize();
       }
