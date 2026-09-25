@@ -169,6 +169,6 @@ def test_plan_operation_overrides_only_selected_axes():
     )
     service_record = record(meter=45000)
     state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("49500"), plan_operation=override, today=date.today())
-    assert state == "مستحقة الآن"
+    assert state == "تقترب"
     assert remaining == Decimal("500")
     assert meta["next_meter"] == Decimal("50000")
