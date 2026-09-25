@@ -8,6 +8,8 @@ from sqlalchemy.pool import StaticPool
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.users.models import User
+from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
+from app.modules.faults_repairs.models import Fault
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment import services as equipment_services
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
@@ -112,8 +114,6 @@ def test_equipment_type_cannot_be_deleted_while_equipment_uses_it():
 def test_equipment_type_cannot_be_deleted_while_maintenance_rule_exists():
     db = _fresh_db()
     try:
-        from app.modules.maintenance.models import MaintenanceRule
-
         equipment_type = EquipmentType(name="نوع صيانة", measurement_unit="km")
         db.add(equipment_type); db.flush()
         model = EquipmentModel(name="طراز صيانة", equipment_type_id=equipment_type.id)
