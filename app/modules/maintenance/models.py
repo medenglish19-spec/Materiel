@@ -115,6 +115,20 @@ class MaintenancePlanOperation(Base):
     operation = relationship("MaintenanceOperation", back_populates="plan_operations")
 
 
+class MaintenanceOperationRuleMap(Base):
+    __tablename__ = "maintenance_operation_rule_map"
+    __table_args__ = (
+        UniqueConstraint("old_rule_id", name="uq_maintenance_operation_rule_map_old_rule"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    old_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", name="fk_maintenance_operation_rule_map_old_rule", ondelete="CASCADE"), nullable=False, index=True)
+    operation_id = Column(Integer, ForeignKey("maintenance_operations.id", name="fk_maintenance_operation_rule_map_operation", ondelete="CASCADE"), nullable=False, index=True)
+
+    old_rule = relationship("MaintenanceRule", foreign_keys=[old_rule_id])
+    operation = relationship("MaintenanceOperation", foreign_keys=[operation_id])
+
+
 class MaintenanceRule(Base):
     __tablename__ = "maintenance_rules"
     __table_args__ = (
