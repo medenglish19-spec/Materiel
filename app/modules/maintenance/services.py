@@ -154,8 +154,12 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
         .all()
     )
 
-    seen = {operation.id for operation in rows}
-    result = list(rows)
+    seen = set()
+    result = []
+    for operation in rows:
+        if operation.id not in seen:
+            seen.add(operation.id)
+            result.append(operation)
 
     if include_standalone:
         standalone = (
