@@ -113,7 +113,22 @@ def set_type_frozen(db:Session,obj:EquipmentType,frozen:bool)->EquipmentType:
     obj.is_frozen=frozen;db.commit();db.refresh(obj);return obj
 def delete_type(db:Session,obj:EquipmentType)->None:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
-    if db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).first(): raise ValueError("لا يمكن حذف نوع عتاد مرتبط بطرازات مسجلة؛ احذف أو انقل الطرازات وفق إجراءات النظام أولًا")
+
+    from app.modules.equipment.models import Equipment
+    from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
+
+    # وجود سجل فعلي أو تاريخ تشغيلي في وحدة أخرى يمنع الحذف حفاظًا على التاريخ.
+    if db.query(Equipment.id).filter(Equipment.equipment_type_id==obj.id).first():
+        raise ValueError("لا يمكن حذف نوع عتاد مستخدم في سجلات العتاد؛ احذف أو انقل السجلات وفق إجراءات النظام أولًا")
+
+    model_ids=[row[0] for row in db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).all()]
+    if model_ids:
+        rule_ids=[row[0] for row in db.query(MaintenanceRule.id).filter(MaintenanceRule.equipment_type_id==obj.id).all()]
+        if rule_ids and db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id.in_(rule_ids)).first():
+            raise ValueError("لا يمكن حذف نوع عتاد له سجلات صيانة محفوظة؛ حافظ على التاريخ أولًا")
+        if db.query(MaintenanceRule.id).filter(MaintenanceRule.equipment_model_id.in_(model_ids)).first():
+            raise ValueError("لا يمكن حذف نوع عتاد له قواعد صيانة مسجلة؛ احذف أو انقل قواعد الصيانة وفق إجراءات النظام أولًا")
+
     db.delete(obj);db.commit()
 
 def list_spec_definitions(db: Session) -> list[EquipmentModelSpecDefinition]:
