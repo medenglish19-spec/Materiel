@@ -21,6 +21,10 @@ def _tables(bind):
     return set(inspect(bind).get_table_names())
 
 
+def _fk_names(bind, table):
+    return {fk.get("name") for fk in inspect(bind).get_foreign_keys(table)}
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     tables = _tables(bind)
@@ -62,23 +66,14 @@ def upgrade() -> None:
             sa.Column("description", sa.Text(), nullable=True),
             sa.Column("group_id", sa.Integer(), nullable=True),
             sa.Column("old_rule_id", sa.Integer(), nullable=True),
-            sa.CheckConstraint(
-                "interval_km IS NOT NULL OR interval_hours IS NOT NULL OR interval_days IS NOT NULL",
-                name="ck_maintenance_operation_has_interval",
-            ),
+            sa.CheckConstraint("interval_km IS NOT NULL OR interval_hours IS NOT NULL OR interval_days IS NOT NULL", name="ck_maintenance_operation_has_interval"),
             sa.CheckConstraint("interval_km IS NULL OR interval_km > 0", name="ck_maintenance_operation_interval_km_positive"),
             sa.CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_operation_interval_hours_positive"),
             sa.CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_operation_interval_days_positive"),
             sa.CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_operation_warning_km_nonnegative"),
             sa.CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_operation_warning_days_nonnegative"),
-            sa.ForeignKeyConstraint(
-                ["group_id"], ["maintenance_operation_groups.id"],
-                name="fk_maintenance_operations_group", ondelete="SET NULL",
-            ),
-            sa.ForeignKeyConstraint(
-                ["old_rule_id"], ["maintenance_rules.id"],
-                name="fk_maintenance_operations_old_rule", ondelete="RESTRICT",
-            ),
+            sa.ForeignKeyConstraint(["group_id"], ["maintenance_operation_groups.id"], name="fk_maintenance_operations_group", ondelete="SET NULL"),
+            sa.ForeignKeyConstraint(["old_rule_id"], ["maintenance_rules.id"], name="fk_maintenance_operations_old_rule", ondelete="RESTRICT"),
             sa.UniqueConstraint("old_rule_id", name="uq_maintenance_operation_old_rule"),
         )
         op.create_index("ix_maintenance_operations_group_id", "maintenance_operations", ["group_id"], unique=False)
@@ -89,152 +84,145 @@ def upgrade() -> None:
     operations = sa.Table("maintenance_operations", meta, autoload_with=bind)
     audit = sa.Table("maintenance_operation_merge_audit", meta, autoload_with=bind)
 
-    existing_ops = bind.execute(sa.select(operations.c.id, operations.c.old_rule_id)).mappings().all()
-    mapped_rules = {row["old_rule_id"] for row in existing_ops if row["old_rule_id"] is not None}
     rows = bind.execute(sa.select(rules)).mappings().all()
+    existing = bind.execute(sa.select(operations.c.id, operations.c.old_rule_id)).mappings().all()
+    mapped_rules = {r["old_rule_id"] for r in existing if r["old_rule_id"] is not None}
 
-    # Stage 3-a audit: the merge key is exactly the agreed technical signature.
-    # With the current production database there are zero rules, so this audit
-    # is empty and no manual merge conflict exists.
     signatures = {}
     for row in rows:
-        key_values = (
-            row["name"], row["interval_km"], row["interval_hours"],
-            row["interval_days"], row["warning_km"], row["warning_days"],
-        )
-        signature = "|".join("" if value is None else str(value) for value in key_values)
-        signatures.setdefault(key_values, []).append(row)
+        key = (row["name"], row["interval_km"], row["interval_hours"], row["interval_days"], row["warning_km"], row["warning_days"])
+        signatures.setdefault(key, []).append(row)
 
-    for key_values, group in signatures.items():
+    # Stage 3-a: exact technical signature audit. Existing production data has
+    # zero maintenance rules, so this audit is empty and has no merge conflict.
+    for key, group in signatures.items():
         operation_id = None
         eligible = [r for r in group if r["id"] not in mapped_rules]
         if eligible:
             source = eligible[0]
             operation_id = bind.execute(
                 sa.insert(operations).values(
-                    name=source["name"],
-                    interval_km=source["interval_km"],
-                    interval_hours=source["interval_hours"],
-                    interval_days=source["interval_days"],
-                    warning_km=source["warning_km"],
-                    warning_days=source["warning_days"],
-                    is_active=bool(source["is_active"]),
-                    description=source["description"],
+                    name=source["name"], interval_km=source["interval_km"],
+                    interval_hours=source["interval_hours"], interval_days=source["interval_days"],
+                    warning_km=source["warning_km"], warning_days=source["warning_days"],
+                    is_active=bool(source["is_active"]), description=source["description"],
                     old_rule_id=source["id"],
                 )
             ).inserted_primary_key[0]
-            # The legacy rule remains preserved; additional identical rules
-            # are recorded in the audit and linked to the same reusable operation.
             for duplicate in eligible[1:]:
-                bind.execute(
-                    sa.insert(audit).values(
-                        source_rule_id=duplicate["id"],
-                        signature_key=signature,
-                        operation_id=operation_id,
-                        note="merged identical technical signature",
-                    )
-                )
+                bind.execute(sa.insert(audit).values(
+                    source_rule_id=duplicate["id"],
+                    signature_key="|".join("" if v is None else str(v) for v in key),
+                    operation_id=operation_id,
+                    note="merged identical technical signature",
+                ))
         for source in group:
             if source["id"] in mapped_rules:
-                existing = bind.execute(
+                operation_id = bind.execute(
                     sa.select(operations.c.id).where(operations.c.old_rule_id == source["id"])
                 ).scalar_one_or_none()
-                operation_id = existing
-            if operation_id is not None and source["id"] not in mapped_rules:
-                bind.execute(
-                    sa.insert(audit).values(
-                        source_rule_id=source["id"],
-                        signature_key=signature,
-                        operation_id=operation_id,
-                        note="source rule mapped to reusable operation",
-                    )
-                )
+            if operation_id is not None and not bind.execute(
+                sa.select(audit.c.id).where(audit.c.source_rule_id == source["id"]).limit(1)
+            ).first():
+                bind.execute(sa.insert(audit).values(
+                    source_rule_id=source["id"],
+                    signature_key="|".join("" if v is None else str(v) for v in key),
+                    operation_id=operation_id,
+                    note="source rule mapped to reusable operation",
+                ))
 
-    # Populate Stage 2's operation_id using the permanent mapping. The column
-    # still points to maintenance_rules at this moment, so it is safe to copy
-    # the source rule id until the FK is switched to maintenance_operations.
+    # Switch maintenance_records.operation_id from legacy rule IDs to operation IDs.
+    tables = _tables(bind)
     if "maintenance_records" in tables:
         records = sa.Table("maintenance_records", meta, autoload_with=bind)
-        op_columns = {c["name"] for c in inspect(bind).get_columns("maintenance_records")}
-        if "operation_id" in op_columns:
-            bind.execute(
-                sa.update(records)
-                .where(records.c.operation_id.is_(None))
-                .values(operation_id=records.c.rule_id)
-            )
+        if "operation_id" in {c["name"] for c in inspect(bind).get_columns("maintenance_records")}:
+            for rec in bind.execute(sa.select(records.c.id, records.c.rule_id, records.c.operation_id)).mappings():
+                if rec["operation_id"] is not None:
+                    mapped = bind.execute(sa.select(operations.c.id).where(operations.c.old_rule_id == rec["rule_id"])).scalar_one_or_none()
+                    if mapped is None:
+                        mapped = bind.execute(sa.select(audit.c.operation_id).where(audit.c.source_rule_id == rec["rule_id"]).limit(1)).scalar_one_or_none()
+                    if mapped is not None:
+                        bind.execute(sa.update(records).where(records.c.id == rec["id"]).values(operation_id=mapped))
+            fks = _fk_names(bind, "maintenance_records")
+            with op.batch_alter_table("maintenance_records", naming_convention=_NAMING) as batch:
+                if "fk_maintenance_records_operation" in fks:
+                    batch.drop_constraint("fk_maintenance_records_operation", type_="foreignkey")
+                batch.create_foreign_key("fk_maintenance_records_operation", "maintenance_operations", ["operation_id"], ["id"], ondelete="RESTRICT")
 
-    # Create one default plan per model that has active model-specific rules.
-    if "maintenance_plans" in tables and "maintenance_plan_operations" in tables and "equipment_models" in tables:
+    # Create one default plan per model with active rules and attach the reusable operation.
+    tables = _tables(bind)
+    if "maintenance_plans" in tables and "maintenance_plan_operations" in tables:
         plans = sa.Table("maintenance_plans", meta, autoload_with=bind)
         plan_ops = sa.Table("maintenance_plan_operations", meta, autoload_with=bind)
-        models = sa.Table("equipment_models", meta, autoload_with=bind)
         model_ids = bind.execute(
-            sa.select(rules.c.equipment_model_id)
-            .where(rules.c.equipment_model_id.is_not(None), rules.c.is_active == True)
-            .distinct()
+            sa.select(rules.c.equipment_model_id).where(rules.c.equipment_model_id.is_not(None), rules.c.is_active == True).distinct()
         ).scalars().all()
         for model_id in model_ids:
-            plan_id = bind.execute(
-                sa.select(plans.c.id).where(plans.c.equipment_model_id == model_id).limit(1)
-            ).scalar_one_or_none()
+            plan_id = bind.execute(sa.select(plans.c.id).where(plans.c.equipment_model_id == model_id).limit(1)).scalar_one_or_none()
             if plan_id is None:
-                plan_id = bind.execute(
-                    sa.insert(plans).values(
-                        equipment_model_id=model_id,
-                        name="خطة الصيانة الافتراضية",
-                        is_active=True,
-                        description="خطة أنشأتها عملية تحويل الصيانة القديمة؛ يمكن تعديلها لاحقًا.",
-                    )
-                ).inserted_primary_key[0]
-            active_rules = bind.execute(
-                sa.select(rules).where(
-                    rules.c.equipment_model_id == model_id,
-                    rules.c.is_active == True,
-                )
-            ).mappings().all()
+                plan_id = bind.execute(sa.insert(plans).values(
+                    equipment_model_id=model_id,
+                    name="خطة الصيانة الافتراضية",
+                    is_active=True,
+                    description="خطة أنشأتها عملية تحويل الصيانة القديمة؛ يمكن تعديلها لاحقًا.",
+                )).inserted_primary_key[0]
+            active_rules = bind.execute(sa.select(rules).where(rules.c.equipment_model_id == model_id, rules.c.is_active == True)).mappings().all()
             for rule in active_rules:
-                operation_id = bind.execute(
-                    sa.select(operations.c.id).where(operations.c.old_rule_id == rule["id"])
-                ).scalar_one_or_none()
+                operation_id = bind.execute(sa.select(operations.c.id).where(operations.c.old_rule_id == rule["id"])).scalar_one_or_none()
                 if operation_id is None:
-                    # A duplicate source may be represented only in the audit.
-                    operation_id = bind.execute(
-                        sa.select(audit.c.operation_id).where(audit.c.source_rule_id == rule["id"]).limit(1)
-                    ).scalar_one_or_none()
+                    operation_id = bind.execute(sa.select(audit.c.operation_id).where(audit.c.source_rule_id == rule["id"]).limit(1)).scalar_one_or_none()
                 if operation_id is None:
                     continue
-                exists = bind.execute(
-                    sa.select(plan_ops.c.id).where(
-                        plan_ops.c.plan_id == plan_id,
-                        plan_ops.c.operation_id == rule["id"],
-                    )
-                ).scalar_one_or_none()
+                exists = bind.execute(sa.select(plan_ops.c.id).where(plan_ops.c.plan_id == plan_id, plan_ops.c.operation_id == operation_id)).scalar_one_or_none()
                 if exists is None:
-                    bind.execute(
-                        sa.insert(plan_ops).values(
-                            plan_id=plan_id,
-                            operation_id=rule["id"],
-                            sort_order=0,
-                        )
-                    )
+                    bind.execute(sa.insert(plan_ops).values(plan_id=plan_id, operation_id=operation_id, sort_order=0))
+
+        fks = _fk_names(bind, "maintenance_plan_operations")
+        with op.batch_alter_table("maintenance_plan_operations", naming_convention=_NAMING) as batch:
+            if "fk_maintenance_plan_operations_operation" in fks:
+                batch.drop_constraint("fk_maintenance_plan_operations_operation", type_="foreignkey")
+            batch.create_foreign_key("fk_maintenance_plan_operations_operation", "maintenance_operations", ["operation_id"], ["id"], ondelete="RESTRICT")
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     tables = _tables(bind)
-    if "maintenance_records" in tables:
-        columns = {c["name"] for c in inspect(bind).get_columns("maintenance_records")}
-        fks = {fk.get("name") for fk in inspect(bind).get_foreign_keys("maintenance_records")}
-        if "operation_id" in columns:
-            with op.batch_alter_table("maintenance_records", naming_convention=_NAMING) as batch:
-                if "fk_maintenance_records_operation" in fks:
-                    batch.drop_constraint("fk_maintenance_records_operation", type_="foreignkey")
-                batch.create_foreign_key(
-                    "fk_maintenance_records_operation",
-                    "maintenance_rules", ["operation_id"], ["id"], ondelete="RESTRICT",
-                )
+    if "maintenance_operations" not in tables:
+        return
+    meta = sa.MetaData()
+    operations = sa.Table("maintenance_operations", meta, autoload_with=bind)
+    audit = sa.Table("maintenance_operation_merge_audit", meta, autoload_with=bind) if "maintenance_operation_merge_audit" in tables else None
 
-    if "maintenance_operations" in tables:
+    if "maintenance_plan_operations" in tables:
+        plan_ops = sa.Table("maintenance_plan_operations", meta, autoload_with=bind)
+        for row in bind.execute(sa.select(plan_ops.c.id, plan_ops.c.operation_id)).mappings().all():
+            old_rule = bind.execute(sa.select(operations.c.old_rule_id).where(operations.c.id == row["operation_id"])).scalar_one_or_none()
+            if old_rule is None and audit is not None:
+                old_rule = bind.execute(sa.select(audit.c.source_rule_id).where(audit.c.operation_id == row["operation_id"]).limit(1)).scalar_one_or_none()
+            if old_rule is None:
+                bind.execute(sa.delete(plan_ops).where(plan_ops.c.id == row["id"]))
+            else:
+                bind.execute(sa.update(plan_ops).where(plan_ops.c.id == row["id"]).values(operation_id=old_rule))
+        fks = _fk_names(bind, "maintenance_plan_operations")
+        with op.batch_alter_table("maintenance_plan_operations", naming_convention=_NAMING) as batch:
+            if "fk_maintenance_plan_operations_operation" in fks:
+                batch.drop_constraint("fk_maintenance_plan_operations_operation", type_="foreignkey")
+            batch.create_foreign_key("fk_maintenance_plan_operations_operation", "maintenance_rules", ["operation_id"], ["id"], ondelete="RESTRICT")
+
+    if "maintenance_records" in tables:
+        records = sa.Table("maintenance_records", meta, autoload_with=bind)
+        for row in bind.execute(sa.select(records.c.id, records.c.operation_id)).mappings().all():
+            old_rule = bind.execute(sa.select(operations.c.old_rule_id).where(operations.c.id == row["operation_id"])).scalar_one_or_none()
+            if old_rule is None and audit is not None:
+                old_rule = bind.execute(sa.select(audit.c.source_rule_id).where(audit.c.operation_id == row["operation_id"]).limit(1)).scalar_one_or_none()
+            bind.execute(sa.update(records).where(records.c.id == row["id"]).values(operation_id=old_rule))
+        fks = _fk_names(bind, "maintenance_records")
+        with op.batch_alter_table("maintenance_records", naming_convention=_NAMING) as batch:
+            if "fk_maintenance_records_operation" in fks:
+                batch.drop_constraint("fk_maintenance_records_operation", type_="foreignkey")
+            batch.create_foreign_key("fk_maintenance_records_operation", "maintenance_rules", ["operation_id"], ["id"], ondelete="RESTRICT")
+
+    if "maintenance_operations" in _tables(bind):
         op.drop_table("maintenance_operations")
-    if "maintenance_operation_merge_audit" in tables:
+    if "maintenance_operation_merge_audit" in _tables(bind):
         op.drop_table("maintenance_operation_merge_audit")
