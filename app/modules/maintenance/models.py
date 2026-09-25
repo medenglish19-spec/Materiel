@@ -111,7 +111,7 @@ class MaintenanceRule(Base):
     equipment_type = relationship("EquipmentType")
     equipment_model = relationship("EquipmentModel", foreign_keys=[equipment_model_id])
     parent_rule = relationship("MaintenanceRule", remote_side=[id], foreign_keys=[parent_rule_id])
-    records = relationship("MaintenanceRecord", back_populates="rule")
+    records = relationship("MaintenanceRecord", back_populates="rule", foreign_keys="MaintenanceRecord.rule_id")
 
 
 class MaintenanceRecord(Base):
@@ -148,7 +148,7 @@ class MaintenanceRecord(Base):
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
-    rule = relationship("MaintenanceRule", back_populates="records")
+    rule = relationship("MaintenanceRule", back_populates="records", foreign_keys=[rule_id])
     operation = relationship("MaintenanceRule", foreign_keys=[operation_id])
     plan = relationship("MaintenancePlan", back_populates="records")
     created_by = relationship("User", foreign_keys=[created_by_id])
