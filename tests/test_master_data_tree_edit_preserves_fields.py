@@ -127,6 +127,7 @@ def test_ref_panel_accepts_dataset_as_extra_argument():
     assert "extra.categoryId" in template
     assert "extra.measurementUnit" in template
     assert "extra.theoreticalQuantity" in template
+    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
     assert "refPanel(kind, id, node.dataset.name || '', node.dataset)" in script
 
 
