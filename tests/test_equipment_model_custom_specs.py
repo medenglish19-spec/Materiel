@@ -17,6 +17,9 @@ from app.modules.missions import models as _missions_models
 from app.modules.tires import models as _tires_models
 from app.modules.equipment_types.schemas import EquipmentModelCreate,SpecDefinitionCreate,SpecValueInput
 from app.modules.equipment_types import services
+# Load the full application model registry before Base.metadata.create_all().
+# services imports tires, whose relationships reference equipment and other cross-module models.
+from web.main import app as _app
 engine=create_engine("sqlite:///:memory:",connect_args={"check_same_thread":False},poolclass=StaticPool);Session=sessionmaker(bind=engine)
 def newdb():
     # Register cross-module audit FK target before creating the isolated test schema.
