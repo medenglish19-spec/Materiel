@@ -216,11 +216,14 @@ function specInput(def,value=''){
   return '<input class="spec-value" data-definition="'+def.id+'" type="'+(def.data_type==='number'?'number':'text')+'" value="'+safe+'">';
 }
 function renderSpecEditor(d){
-  const values=Object.fromEntries((d.specs||d.master?.specs||[]).map(x=>[Number(x.definition_id),x.value]));
-  const defs=DEFS;
+  const specs=d.specs||d.master?.specs||[];
+  const values=Object.fromEntries(specs.map(x=>[Number(x.definition_id),x.value]));
+  const selectedIds=new Set(specs.map(x=>Number(x.definition_id)));
+  const defs=DEFS.filter(def=>selectedIds.has(Number(def.id)));
   const groups=new Map();
   defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
-  if(!defs.length){$('specRows').innerHTML='<span class="muted">مكتبة الخصائص الفنية لا تحتوي خصائص بعد.</span>';return}
+  if(!DEFS.length){$('specRows').innerHTML='<span class="muted">مكتبة الخصائص الفنية لا تحتوي خصائص بعد.</span>';return}
+  if(!defs.length){$('specRows').innerHTML='<span class="muted">لم يتم اختيار خصائص لهذا الطراز بعد. اضغط «＋ اختيار الخصائص من مكتبة الخصائص الفنية» لإضافة الخصائص المطلوبة.</span>';return}
   $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
 }
 function renderSpecView(d){
