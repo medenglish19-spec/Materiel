@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Form, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
@@ -11,7 +11,8 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule, MaintenanceOperationRuleMap
+from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenanceOperationRuleMap, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, MaintenanceRule)
+from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate)
 from app.modules.maintenance.services import (
     chronology_error,
     contradiction_for,
@@ -288,3 +289,89 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
                 due_rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     due_rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999)); return templates.TemplateResponse("maintenance_due.html", {"request": request, "user": current_user, "rows": due_rows})
+
+# JSON API for the new maintenance library. Legacy HTML routes above remain unchanged.
+@router.get("/api/maintenance/operation-groups", response_model=list[MaintenanceOperationGroupOut])
+def api_operation_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(MaintenanceOperationGroup).order_by(MaintenanceOperationGroup.sort_order, MaintenanceOperationGroup.name, MaintenanceOperationGroup.id).all()
+
+@router.post("/api/maintenance/operation-groups", response_model=MaintenanceOperationGroupOut, status_code=status.HTTP_201_CREATED)
+def api_operation_group_create(payload: MaintenanceOperationGroupCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = MaintenanceOperationGroup(**payload.model_dump()); db.add(group)
+    try: db.commit(); db.refresh(group)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="اسم مجموعة شروط الصيانة مستخدم مسبقًا.") from exc
+    return group
+
+@router.put("/api/maintenance/operation-groups/{group_id}", response_model=MaintenanceOperationGroupOut)
+def api_operation_group_update(group_id: int, payload: MaintenanceOperationGroupUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = db.get(MaintenanceOperationGroup, group_id)
+    if group is None: raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+    for key, value in payload.model_dump().items(): setattr(group, key, value)
+    try: db.commit(); db.refresh(group)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="اسم مجموعة شروط الصيانة مستخدم مسبقًا.") from exc
+    return group
+
+@router.get("/api/maintenance/operations", response_model=list[MaintenanceOperationOut])
+def api_operations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
+
+@router.post("/api/maintenance/operations", response_model=MaintenanceOperationOut, status_code=status.HTTP_201_CREATED)
+def api_operation_create(payload: MaintenanceOperationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    data = payload.model_dump()
+    if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
+        raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+    operation = MaintenanceOperation(**data); db.add(operation)
+    try: db.commit(); db.refresh(operation)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر إنشاء عملية الصيانة.") from exc
+    return operation
+
+@router.put("/api/maintenance/operations/{operation_id}", response_model=MaintenanceOperationOut)
+def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    data = payload.model_dump()
+    if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
+        raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+    for key, value in data.items(): setattr(operation, key, value)
+    try: db.commit(); db.refresh(operation)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل عملية الصيانة.") from exc
+    return operation
+
+@router.get("/api/maintenance/plans", response_model=list[MaintenancePlanOut])
+def api_plans(equipment_model_id: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(MaintenancePlan)
+    if equipment_model_id is not None: query = query.filter(MaintenancePlan.equipment_model_id == equipment_model_id)
+    return query.order_by(MaintenancePlan.name, MaintenancePlan.id).all()
+
+@router.post("/api/maintenance/plans", response_model=MaintenancePlanOut, status_code=status.HTTP_201_CREATED)
+def api_plan_create(payload: MaintenancePlanCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if db.get(EquipmentModel, payload.equipment_model_id) is None: raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+    plan = MaintenancePlan(**payload.model_dump()); db.add(plan)
+    try: db.commit(); db.refresh(plan)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر إنشاء خطة الصيانة.") from exc
+    return plan
+
+@router.put("/api/maintenance/plans/{plan_id}", response_model=MaintenancePlanOut)
+def api_plan_update(plan_id: int, payload: MaintenancePlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if db.get(EquipmentModel, payload.equipment_model_id) is None: raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+    for key, value in payload.model_dump().items(): setattr(plan, key, value)
+    try: db.commit(); db.refresh(plan)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل خطة الصيانة.") from exc
+    return plan
+
+@router.get("/api/maintenance/plans/{plan_id}/operations", response_model=list[MaintenancePlanOperationOut])
+def api_plan_operations(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if db.get(MaintenancePlan, plan_id) is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    return db.query(MaintenancePlanOperation).filter(MaintenancePlanOperation.plan_id == plan_id).order_by(MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id).all()
+
+@router.post("/api/maintenance/plans/{plan_id}/operations", response_model=MaintenancePlanOperationOut, status_code=status.HTTP_201_CREATED)
+def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if payload.plan_id != plan_id: raise HTTPException(status_code=400, detail="رقم الخطة في الطلب لا يطابق المسار.")
+    if db.get(MaintenancePlan, plan_id) is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if db.get(MaintenanceOperation, payload.operation_id) is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    link = MaintenancePlanOperation(**payload.model_dump()); db.add(link)
+    try: db.commit(); db.refresh(link)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
+    return link
