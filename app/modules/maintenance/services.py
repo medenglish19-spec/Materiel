@@ -82,7 +82,7 @@ def contradiction_for(equipment, record, current_value, db):
 
 def _condition_values(source, plan_operation=None):
     if plan_operation is None:
-        return (source.interval_km, source.interval_hours, source.interval_days, source.warning_km, source.warning_days)
+        return (getattr(source, "interval_km", None), getattr(source, "interval_hours", None), getattr(source, "interval_days", None), getattr(source, "warning_km", None), getattr(source, "warning_days", None))
     return (
         plan_operation.interval_km_override if plan_operation.interval_km_override is not None else source.interval_km,
         plan_operation.interval_hours_override if plan_operation.interval_hours_override is not None else source.interval_hours,
@@ -122,6 +122,11 @@ def status_for(condition, equipment, record, current_value, plan_operation=None,
 
 
 def plan_status_for(plan, equipment, last_record, current_value, today=None):
+    """Calculate the plan trigger independently from operation due status.
+
+    Plan cadence fields are used only for plan-level due/display state;
+    operation-specific conditions remain authoritative for each operation.
+    """
     return status_for(plan, equipment, last_record, current_value, today=today)
 
 
