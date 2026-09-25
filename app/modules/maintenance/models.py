@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, event, select, desc
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, event, select, desc
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -164,12 +164,13 @@ class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
     __table_args__ = (
         UniqueConstraint("equipment_id", "rule_id", "maintenance_date", name="uq_maintenance_record_equipment_rule_date"),
+        Index("uq_maintenance_record_equipment_operation_date", "equipment_id", "operation_id", "maintenance_date", unique=True),
         CheckConstraint("meter_value IS NULL OR meter_value >= 0", name="ck_maintenance_record_meter_nonnegative"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False, index=True)
-    rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=False, index=True)
+    rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=True, index=True)
     operation_id = Column(
         Integer,
         ForeignKey("maintenance_operations.id", name="fk_maintenance_records_operation", ondelete="RESTRICT"),
@@ -203,8 +204,8 @@ class MaintenanceRecord(Base):
 def _validate_record(connection, target, exclude_id=None):
     if target.equipment_id is None:
         raise ValueError("يجب تحديد العتاد قبل تسجيل الصيانة.")
-    if target.rule_id is None:
-        raise ValueError("يجب تحديد الصيانة الدورية قبل تسجيل السجل.")
+    if target.rule_id is None and getattr(target, "operation_id", None) is None:
+        raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية قبل تسجيل السجل.")
     if target.maintenance_date is None:
         raise ValueError("يجب تحديد تاريخ الصيانة.")
     if target.maintenance_date > datetime.now(timezone.utc).date():
@@ -225,24 +226,28 @@ def _validate_record(connection, target, exclude_id=None):
     if unit not in ("km", "hours"):
         raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح (km أو hours).")
 
-    rule_row = connection.execute(
-        select(MaintenanceRule.equipment_model_id)
-        .where(MaintenanceRule.id == target.rule_id)
-    ).first()
     equipment_row = connection.execute(
         select(Equipment.equipment_model_id)
         .where(Equipment.id == target.equipment_id)
     ).first()
-    if rule_row is None or equipment_row is None:
-        raise ValueError("الصيانة الدورية أو العتاد المحدد غير موجود.")
-    rule_model_id = rule_row[0]
+    if equipment_row is None:
+        raise ValueError("العتاد المحدد غير موجود.")
     equipment_model_id = equipment_row[0]
-    if rule_model_id is None:
-        raise ValueError("لا يمكن تسجيل صيانة بقاعدة قديمة غير مرتبطة بطراز.")
     if equipment_model_id is None:
         raise ValueError("يجب تحديد طراز العتاد قبل تسجيل الصيانة.")
-    if rule_model_id != equipment_model_id:
-        raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
+
+    if target.rule_id is not None:
+        rule_row = connection.execute(
+            select(MaintenanceRule.equipment_model_id)
+            .where(MaintenanceRule.id == target.rule_id)
+        ).first()
+        if rule_row is None:
+            raise ValueError("الصيانة الدورية المحددة غير موجودة.")
+        rule_model_id = rule_row[0]
+        if rule_model_id is None:
+            raise ValueError("لا يمكن تسجيل صيانة بقاعدة قديمة غير مرتبطة بطراز.")
+        if rule_model_id != equipment_model_id:
+            raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
     if getattr(target, "operation_id", None) is not None:
         operation_row = connection.execute(
