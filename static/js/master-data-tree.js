@@ -55,30 +55,39 @@
     const tabs = [...document.querySelectorAll('[data-model-workspace-tab]')];
     if (!boxes.length) return;
     const safe = Math.max(0, Math.min(Number(index) || 0, boxes.length - 1));
+    if (options.all) {
+      boxes.forEach((box) => { box.hidden = false; box.setAttribute('aria-hidden', 'false'); });
+      tabs.forEach((tab, i) => { const active = i === safe; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
+      return;
+    }
     boxes.forEach((box, i) => { box.hidden = i !== safe; box.setAttribute('aria-hidden', i === safe ? 'false' : 'true'); });
     tabs.forEach((tab, i) => { const active = i === safe; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', active ? 'true' : 'false'); });
     if (options.focus) boxes[safe]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
 
+  const workspaceReady = (...names) => {
+    const missing = names.filter((name) => typeof window[name] !== 'function');
+    if (missing.length) {
+      toast('تعذر فتح الإجراء؛ لم تجهز وظائف مساحة العمل: ' + missing.join('، '));
+      return false;
+    }
+    return true;
+  };
   const openTypeCreate = (categoryId) => {
-    if (typeof window.refPanel !== 'function') return;
-    window.refPanel('type', null, '', { categoryId: String(categoryId || '') });
+    if (!workspaceReady('refPanel')) return;
+    const value = String(categoryId || '');
+    window.refPanel('type', null, '', { categoryId: value });
     const input = document.querySelector('#refBody form [name="category_id"]');
-    if (input) input.value = String(categoryId || '');
+    if (input) input.value = value;
   };
   const openModelCreate = (typeId) => {
-    if (typeof window.resetModel === 'function') window.resetModel();
-    const select = $('modelType');
-    const option = select && typeId ? select.querySelector(`option[value="${CSS.escape(String(typeId))}"]`) : null;
-    if (select && option) {
-      select.value = String(typeId);
-      if ($('modelCategory') && option.dataset.category) $('modelCategory').value = option.dataset.category;
-    }
-    if (typeof window.refreshModelTypeContext === 'function') window.refreshModelTypeContext(typeId || '');
-    if (typeof window.title === 'function') window.title('إضافة طراز', 'الطرازات');
-    if (typeof window.show === 'function') window.show($('modelPanel'));
-    selectSection(0);
+    if (!workspaceReady('resetModel', 'openNewModel', 'refreshModelTypeContext', 'title', 'show')) return;
+    window.openNewModel(typeId || '');
+    window.refreshModelTypeContext(typeId || '');
+    window.title('إضافة طراز', 'الطرازات');
+    window.show($('modelPanel'));
+    selectSection(0, { all: true });
   };
   const editReference = (node) => {
     if (typeof window.refPanel !== 'function') return;
@@ -339,15 +348,72 @@
 
   tree.addEventListener('click', (event) => {
     const action = event.target.closest('[data-add],[data-new-ref]');
-    if (action) { event.preventDefault(); event.stopPropagation(); const kind = action.dataset.add || action.dataset.newRef; if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory); else if (kind === 'model') openModelCreate(action.dataset.newModelForType); else if (typeof window.refPanel === 'function') window.refPanel(kind); return; }
-    const position = event.target.closest('[data-tree-add]');
-    if (position) { event.preventDefault(); event.stopPropagation(); const model = event.target.closest('[data-model]'); if (model && typeof editModel === 'function') { editModel(model.dataset.model, position.dataset.treeAdd === 'position' ? 'positions' : 'sizes'); position.dataset.treeAdd === 'position' ? window.addPos?.() : window.addSize?.(); } return; }
+    if (action && tree.contains(action)) {
+      event.preventDefault(); event.stopPropagation();
+      const kind = action.dataset.add || action.dataset.newRef;
+      if (kind === 'type' && action.dataset.newTypeForCategory) openTypeCreate(action.dataset.newTypeForCategory);
+      else if (kind === 'model' && action.dataset.newModelForType) openModelCreate(action.dataset.newModelForType);
+      else if (workspaceReady('refPanel')) window.refPanel(kind);
+      return;
+    }
+    const treeAdd = event.target.closest('[data-tree-add]');
+    if (treeAdd && tree.contains(treeAdd)) {
+      event.preventDefault(); event.stopPropagation();
+      const model = event.target.closest('[data-model]');
+      if (!model) return;
+      if (!workspaceReady('editModel')) return;
+      window.editModel(model.dataset.model, treeAdd.dataset.treeAdd === 'position' ? 'positions' : 'sizes');
+      if (treeAdd.dataset.treeAdd === 'position') window.addPos?.(); else window.addSize?.();
+      return;
+    }
+    const copy = event.target.closest('[data-copy]');
+    if (copy && tree.contains(copy)) {
+      event.preventDefault(); event.stopPropagation();
+      copyModel(copy.dataset.copy);
+      return;
+    }
+    const del = event.target.closest('[data-delete]');
+    if (del && tree.contains(del)) {
+      event.preventDefault(); event.stopPropagation();
+      postDelete('/equipment-types/models/' + encodeURIComponent(del.dataset.delete) + '/delete', 'حذف الطراز؟');
+      return;
+    }
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) { event.preventDefault(); event.stopPropagation(); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
-    const row = event.target.closest('[data-model-row]'); if (row) { selectNode(row); window.viewModel?.(row.dataset.modelRow); return; }
-    const model = event.target.closest('[data-model]'); if (model) { selectNode(model); window.viewModel?.(model.dataset.model); selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true }); return; }
-    const ref = event.target.closest('[data-ref-item]'); if (ref) { editReference(ref); return; }
-    const node = event.target.closest('.tree-node'); if (node) selectNode(node);
+    if (toggle && tree.contains(toggle)) {
+      event.preventDefault(); event.stopPropagation();
+      toggle.closest('.tree-group')?.classList.toggle('open');
+      syncArrows();
+      return;
+    }
+    const row = event.target.closest('[data-model-row]');
+    if (row && tree.contains(row)) {
+      event.preventDefault(); event.stopPropagation();
+      if (!workspaceReady('viewModel')) return;
+      selectNode(row);
+      window.viewModel(row.dataset.modelRow);
+      return;
+    }
+    const model = event.target.closest('[data-model]');
+    if (model && tree.contains(model)) {
+      event.preventDefault(); event.stopPropagation();
+      if (!workspaceReady('viewModel')) return;
+      selectNode(model);
+      window.viewModel(model.dataset.model);
+      selectSection(sectionMap[model.dataset.section || 'basic'] || 0, { focus: true });
+      return;
+    }
+    const ref = event.target.closest('[data-ref-item]');
+    if (ref && tree.contains(ref)) {
+      event.preventDefault(); event.stopPropagation();
+      if (!workspaceReady('refPanel')) return;
+      editReference(ref);
+      return;
+    }
+    const node = event.target.closest('.tree-node');
+    if (node && tree.contains(node)) {
+      event.preventDefault(); event.stopPropagation();
+      selectNode(node);
+    }
   }, true);
 
   const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:190px;padding:5px;background:#fff;border:1px solid #dbe3ec;border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.16);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 11px;border-radius:7px;font:inherit;font-weight:700;color:#26384a;cursor:pointer}.master-context-menu button:hover{background:#edf4fa;color:#173b63}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #1976d2;background:#edf6ff}@media(max-width:900px){.mdx .layout{grid-template-columns:1fr}.mdx{padding:10px}}@media(max-width:640px){.mdx .tree-node{min-height:42px;padding:10px 12px;font-size:14px}.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style);
