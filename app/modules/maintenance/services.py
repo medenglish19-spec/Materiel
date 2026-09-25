@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
+from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule, MaintenanceOperation, MaintenancePlanOperation, MaintenancePlan
 from app.modules.meter_readings.models import MeterReading
 
 
@@ -25,12 +25,11 @@ def latest_records(db: Session):
     result = {}
     rows = db.query(MaintenanceRecord).order_by(
         MaintenanceRecord.equipment_id,
-        MaintenanceRecord.rule_id,
         desc(MaintenanceRecord.maintenance_date),
         desc(MaintenanceRecord.id),
     ).all()
     for row in rows:
-        key = (row.equipment_id, row.rule_id)
+        key = (row.equipment_id, row.operation_id or row.rule_id)
         if key not in result:
             result[key] = row
     return result
@@ -81,48 +80,74 @@ def contradiction_for(equipment, record, current_value, db):
     return None
 
 
-def status_for(rule, equipment, record, current_value):
+def _condition_values(source, plan_operation=None):
+    if plan_operation is None:
+        return (source.interval_km, source.interval_hours, source.interval_days, source.warning_km, source.warning_days)
+    return (
+        plan_operation.interval_km_override if plan_operation.interval_km_override is not None else source.interval_km,
+        plan_operation.interval_hours_override if plan_operation.interval_hours_override is not None else source.interval_hours,
+        plan_operation.interval_days_override if plan_operation.interval_days_override is not None else source.interval_days,
+        source.warning_km,
+        source.warning_days,
+    )
+
+
+def status_for(condition, equipment, record, current_value, plan_operation=None, today=None):
+    """Calculate due state with independent km, hours, and calendar axes."""
     if record is None:
-        return "بلا سجل", "neutral", None, {
-            "remaining_days": None,
-            "next_meter": None,
-            "next_date": None,
-        }
+        return "بلا سجل", "neutral", None, {"remaining_days": None, "next_meter": None, "next_date": None, "remaining_km": None, "remaining_hours": None}
+    today = today or date.today()
+    interval_km, interval_hours, interval_days, warning_km, warning_days = _condition_values(condition, plan_operation)
     unit = measurement_unit(equipment)
-    interval = rule.interval_hours if unit == "hours" else rule.interval_km
-    warning_meter = rule.warning_km if unit == "km" else None
-    remaining_meter = None
-    remaining_days = None
-    next_meter = None
-    next_date = None
-    if interval is not None and current_value is not None and record.meter_value is not None:
-        next_meter = Decimal(str(record.meter_value)) + Decimal(str(interval))
-        remaining_meter = next_meter - Decimal(str(current_value))
-    if rule.interval_days is not None:
-        next_date = record.maintenance_date + timedelta(days=int(rule.interval_days))
-        remaining_days = (next_date - date.today()).days
+    current = Decimal(str(current_value)) if current_value is not None else None
+    meter_at_service = Decimal(str(record.meter_value)) if record.meter_value is not None else None
+    next_km = meter_at_service + Decimal(str(interval_km)) if interval_km is not None and meter_at_service is not None else None
+    next_hours = meter_at_service + Decimal(str(interval_hours)) if interval_hours is not None and meter_at_service is not None else None
+    next_date = record.maintenance_date + timedelta(days=int(interval_days)) if interval_days is not None else None
+    remaining_km = next_km - current if next_km is not None and current is not None and unit == "km" else None
+    remaining_hours = next_hours - current if next_hours is not None and current is not None and unit == "hours" else None
+    remaining_days = (next_date - today).days if next_date is not None else None
+    remaining_meter = remaining_km if unit == "km" else remaining_hours
+    warning_meter = warning_km if unit == "km" else None
     overdue_meter = remaining_meter is not None and remaining_meter <= 0
     overdue_days = remaining_days is not None and remaining_days <= 0
-    near_meter = (
-        warning_meter is not None
-        and remaining_meter is not None
-        and remaining_meter <= Decimal(str(warning_meter))
-    )
-    near_days = (
-        rule.warning_days is not None
-        and remaining_days is not None
-        and remaining_days <= int(rule.warning_days)
-    )
-    meta = {
-        "remaining_days": remaining_days,
-        "next_meter": next_meter,
-        "next_date": next_date,
-    }
+    near_meter = warning_meter is not None and remaining_meter is not None and remaining_meter <= Decimal(str(warning_meter))
+    near_days = warning_days is not None and remaining_days is not None and remaining_days <= int(warning_days)
+    meta = {"remaining_days": remaining_days, "next_meter": next_km if unit == "km" else next_hours, "next_date": next_date, "remaining_km": remaining_km, "remaining_hours": remaining_hours}
     if overdue_meter or overdue_days:
         return "مستحقة الآن", "danger", remaining_meter, meta
     if near_meter or near_days:
         return "تقترب", "warning", remaining_meter, meta
     return "ضمن الموعد", "success", remaining_meter, meta
+
+
+def plan_status_for(plan, equipment, last_record, current_value, today=None):
+    return status_for(plan, equipment, last_record, current_value, today=today)
+
+
+def effective_operations_for_equipment(db: Session, equipment):
+    model_id = getattr(equipment, "equipment_model_id", None)
+    if model_id is None:
+        return []
+    rows = (
+        db.query(MaintenanceOperation)
+        .join(MaintenancePlanOperation, MaintenancePlanOperation.operation_id == MaintenanceOperation.id)
+        .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+        .filter(
+            MaintenanceOperation.is_active.is_(True),
+            MaintenancePlan.equipment_model_id == model_id,
+            MaintenancePlan.is_active.is_(True),
+        )
+        .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
+        .all()
+    )
+    seen = set()
+    result = []
+    for operation in rows:
+        if operation.id not in seen:
+            seen.add(operation.id)
+            result.append(operation)
+    return result
 
 
 def priority_for(state, remaining_meter, meta):
