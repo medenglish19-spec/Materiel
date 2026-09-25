@@ -22,7 +22,7 @@ class EquipmentBrandOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int; name: str; is_active: bool
 class EquipmentTypeCreate(BaseModel):
-    name: str; measurement_unit: str; category_id: int; technical_library_category_id: Optional[int] = None; technical_library_type_id: Optional[int] = None; theoretical_quantity: Optional[int] = None
+    name: str; measurement_unit: str; category_id: int; theoretical_quantity: Optional[int] = None
     @field_validator("measurement_unit")
     @classmethod
     def measurement_unit_valid(cls, v: str) -> str:
