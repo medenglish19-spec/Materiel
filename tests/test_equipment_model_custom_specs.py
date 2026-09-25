@@ -5,13 +5,14 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database.base import Base
 from app.modules.users.models import User
+from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentBrand,EquipmentCategory,EquipmentModel,EquipmentModelSpecValue,EquipmentType
 from app.modules.equipment_types.schemas import EquipmentModelCreate,SpecDefinitionCreate,SpecValueInput
 from app.modules.equipment_types import services
 engine=create_engine("sqlite:///:memory:",connect_args={"check_same_thread":False},poolclass=StaticPool);Session=sessionmaker(bind=engine)
 def newdb():
     # Register cross-module audit FK target before creating the isolated test schema.
-    _ = User
+    _ = (User, Equipment)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     return Session()
