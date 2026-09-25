@@ -130,10 +130,17 @@ def plan_status_for(plan, equipment, last_record, current_value, today=None):
     return status_for(plan, equipment, last_record, current_value, today=today)
 
 
-def effective_operations_for_equipment(db: Session, equipment):
+def effective_operations_for_equipment(db: Session, equipment, include_standalone=True):
+    """Return active operations applicable to the equipment model.
+
+    Planned operations come from active plans for the model. Standalone
+    operations are included when requested. Plan membership does not alter
+    the operation's own technical condition.
+    """
     model_id = getattr(equipment, "equipment_model_id", None)
     if model_id is None:
         return []
+
     rows = (
         db.query(MaintenanceOperation)
         .join(MaintenancePlanOperation, MaintenancePlanOperation.operation_id == MaintenanceOperation.id)
@@ -146,14 +153,26 @@ def effective_operations_for_equipment(db: Session, equipment):
         .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
         .all()
     )
-    seen = set()
-    result = []
-    for operation in rows:
-        if operation.id not in seen:
-            seen.add(operation.id)
-            result.append(operation)
-    return result
 
+    seen = {operation.id for operation in rows}
+    result = list(rows)
+
+    if include_standalone:
+        standalone = (
+            db.query(MaintenanceOperation)
+            .filter(
+                MaintenanceOperation.is_active.is_(True),
+                ~MaintenanceOperation.plan_operations.any(),
+            )
+            .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
+            .all()
+        )
+        for operation in standalone:
+            if operation.id not in seen:
+                seen.add(operation.id)
+                result.append(operation)
+
+    return sorted(result, key=lambda operation: (operation.name, operation.id))
 
 def priority_for(state, remaining_meter, meta):
     if state == "مستحقة الآن":
