@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from typing import Optional
 
@@ -167,8 +168,8 @@ class MaintenanceRecordCreate(BaseModel):
     rule_id: Optional[int] = None
     operation_id: Optional[int] = None
     plan_id: Optional[int] = None
-    maintenance_date: str
-    reported_date: Optional[str] = None
+    maintenance_date: date
+    reported_date: Optional[date] = None
     meter_value: Optional[Decimal] = None
     work_order: Optional[str] = None
     workshop: Optional[str] = None
@@ -180,6 +181,12 @@ class MaintenanceRecordCreate(BaseModel):
     @classmethod
     def meter_valid(cls, value):
         return _nonnegative(value, "قراءة العداد")
+
+    @model_validator(mode="after")
+    def validate_source(self):
+        if self.rule_id is None and self.operation_id is None:
+            raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية")
+        return self
 
 
 class MaintenanceRecordOut(MaintenanceRecordCreate):
