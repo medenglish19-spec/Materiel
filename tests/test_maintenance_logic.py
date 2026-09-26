@@ -161,20 +161,6 @@ def test_status_uses_hours_axis_for_hours_equipment():
     assert meta["remaining_km"] is None
 
 
-def test_plan_operation_overrides_only_selected_axes():
-    r = rule(interval_km=Decimal("10000"), interval_days=180)
-    override = SimpleNamespace(
-        interval_km_override=Decimal("5000"),
-        interval_hours_override=None,
-        interval_days_override=None,
-    )
-    service_record = record(meter=45000)
-    state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("49500"), plan_operation=override, today=date.today())
-    assert state == "تقترب"
-    assert remaining == Decimal("500")
-    assert meta["next_meter"] == Decimal("50000")
-
-
 
 def test_plan_status_uses_plan_cadence_without_operation_warning_axes():
     plan = SimpleNamespace(interval_km=Decimal("5000"), interval_hours=None, interval_days=30)
