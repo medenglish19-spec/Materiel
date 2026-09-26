@@ -201,13 +201,6 @@ def _has_current_classification_schema(tables: set[str]) -> bool:
     return "category_id" in type_columns and "brand_id" in model_columns
 
 
-def _has_model_exception_schema() -> bool:
-    inspector = inspect(engine)
-    if "maintenance_rules" not in inspector.get_table_names(): return False
-    columns = {c["name"] for c in inspector.get_columns("maintenance_rules")}
-    return {"equipment_model_id", "parent_rule_id"}.issubset(columns)
-
-
 def init_db() -> None:
     inspector = inspect(engine); tables = set(inspector.get_table_names()); config = _alembic_config()
     logger.info("Database startup: url=%s tables=%s", settings.DATABASE_URL, sorted(tables))
