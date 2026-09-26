@@ -18,6 +18,7 @@ from app.modules.maintenance.services import (
     contradiction_for,
     current_meter_value,
     effective_rules_for_equipment,
+    effective_operations_for_equipment,
     get_effective_rule_for_equipment,
     latest_readings,
     latest_records,
@@ -46,10 +47,10 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     rows = []; counts = {"total": 0, "danger": 0, "warning": 0, "success": 0, "neutral": 0}
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for rule in effective_rules_for_equipment(db, eq):
-            rec = records.get((eq.id, rule.id)); state, css, remaining, meta = status_for(rule, eq, rec, current_value)
+        for operation in effective_operations_for_equipment(db, eq):
+            rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             counts["total"] += 1; counts[css] += 1
-            rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
+            rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
     return templates.TemplateResponse("maintenance_dashboard.html", {"request": request, "user": current_user, "rows": rows, "counts": counts})
 
@@ -266,10 +267,10 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all(); readings = latest_readings(db); records = latest_records(db); due_rows = []
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for rule in effective_rules_for_equipment(db, eq):
-            rec = records.get((eq.id, rule.id)); state, css, remaining, meta = status_for(rule, eq, rec, current_value)
+        for operation in effective_operations_for_equipment(db, eq):
+            rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
-                due_rows.append({"equipment": eq, "rule": rule, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
+                due_rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     due_rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999)); return templates.TemplateResponse("maintenance_due.html", {"request": request, "user": current_user, "rows": due_rows})
 
 # JSON API for the new maintenance library. Legacy HTML routes above remain unchanged.
