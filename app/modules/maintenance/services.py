@@ -80,24 +80,16 @@ def contradiction_for(equipment, record, current_value, db):
     return None
 
 
-def _condition_values(source, plan_operation=None):
-    if plan_operation is None:
-        return (getattr(source, "interval_km", None), getattr(source, "interval_hours", None), getattr(source, "interval_days", None), getattr(source, "warning_km", None), getattr(source, "warning_days", None))
-    return (
-        plan_operation.interval_km_override if plan_operation.interval_km_override is not None else source.interval_km,
-        plan_operation.interval_hours_override if plan_operation.interval_hours_override is not None else source.interval_hours,
-        plan_operation.interval_days_override if plan_operation.interval_days_override is not None else source.interval_days,
-        source.warning_km,
-        source.warning_days,
-    )
-
-
 def status_for(condition, equipment, record, current_value, plan_operation=None, today=None):
     """Calculate due state with independent km, hours, and calendar axes."""
     if record is None:
         return "بلا سجل", "neutral", None, {"remaining_days": None, "next_meter": None, "next_date": None, "remaining_km": None, "remaining_hours": None}
     today = today or date.today()
-    interval_km, interval_hours, interval_days, warning_km, warning_days = _condition_values(condition, plan_operation)
+    interval_km = getattr(condition, "interval_km", None)
+    interval_hours = getattr(condition, "interval_hours", None)
+    interval_days = getattr(condition, "interval_days", None)
+    warning_km = getattr(condition, "warning_km", None)
+    warning_days = getattr(condition, "warning_days", None)
     unit = measurement_unit(equipment)
     current = Decimal(str(current_value)) if current_value is not None else None
     meter_at_service = Decimal(str(record.meter_value)) if record.meter_value is not None else None
