@@ -37,6 +37,8 @@ def test_plan_allows_optional_cadence_fields_for_compatibility():
     assert plan.interval_days is None
 
 
-def test_plan_operation_rejects_nonpositive_override():
-    with pytest.raises(ValidationError):
-        MaintenancePlanOperationCreate(plan_id=1, operation_id=1, interval_days_override=0)
+def test_plan_operation_contains_membership_only():
+    item = MaintenancePlanOperationCreate(plan_id=1, operation_id=1, sort_order=2)
+    assert item.plan_id == 1
+    assert item.operation_id == 1
+    assert item.sort_order == 2
