@@ -116,6 +116,7 @@ def _validation_target(meter, record_id=None):
         maintenance_date=date(2026, 9, 5),
         meter_value=Decimal(str(meter)),
         id=record_id,
+        operation_id=1,
     )
 
 
