@@ -105,7 +105,7 @@ class _MaintenanceValidationConnection:
             return _Result(first=(20,))
         if self.calls == 3:
             return _Result(first=(30, True))
-        if self.calls == 4:
+        if self.calls == 6:
             return _Result(rows=self.same_day_rows)
         return _Result(rows=[])
 
