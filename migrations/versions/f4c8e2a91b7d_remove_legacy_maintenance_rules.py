@@ -49,22 +49,28 @@ def upgrade():
                 batch_op.drop_column("old_rule_id")
 
     if "maintenance_records" in tables:
+        # Clean a leftover SQLite temp table from any interrupted batch rebuild.
+        if "_alembic_tmp_maintenance_records" in tables:
+            op.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_maintenance_records"))
+            inspector = sa.inspect(bind)
+            tables = set(inspector.get_table_names())
+
         record_columns = {c["name"] for c in inspector.get_columns("maintenance_records")}
         record_constraints = {c.get("name") for c in inspector.get_unique_constraints("maintenance_records")}
         record_indexes = {i.get("name") for i in inspector.get_indexes("maintenance_records")}
 
-        # A failed SQLite batch rebuild may leave an index for rule_id behind
-        # even when the column itself is already absent. Remove that stale
-        # index before entering batch_alter_table.
-        if "ix_maintenance_records_rule_id" in record_indexes:
-            op.drop_index("ix_maintenance_records_rule_id", table_name="maintenance_records")
-
-        if "rule_id" in record_columns or "uq_maintenance_record_equipment_rule_date" in record_constraints:
+        # If rule_id is already absent, this database is already clean. Remove
+        # only stale legacy indexes/constraints and do NOT enter batch mode.
+        if "rule_id" not in record_columns:
+            if "ix_maintenance_records_rule_id" in record_indexes:
+                op.execute(sa.text("DROP INDEX IF EXISTS ix_maintenance_records_rule_id"))
+            if "uq_maintenance_record_equipment_rule_date" in record_constraints:
+                op.execute(sa.text("DROP INDEX IF EXISTS uq_maintenance_record_equipment_rule_date"))
+        else:
             with op.batch_alter_table("maintenance_records", schema=None) as batch_op:
                 if "uq_maintenance_record_equipment_rule_date" in record_constraints:
                     batch_op.drop_constraint("uq_maintenance_record_equipment_rule_date", type_="unique")
-                if "rule_id" in record_columns:
-                    batch_op.drop_column("rule_id")
+                batch_op.drop_column("rule_id")
 
     if "maintenance_rules" in tables:
         op.drop_table("maintenance_rules")
