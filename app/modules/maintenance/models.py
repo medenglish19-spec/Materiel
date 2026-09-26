@@ -34,7 +34,6 @@ class MaintenanceOperation(Base):
         CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_operation_interval_days_positive"),
         CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_operation_warning_km_nonnegative"),
         CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_operation_warning_days_nonnegative"),
-        UniqueConstraint("old_rule_id", name="uq_maintenance_operation_old_rule"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -47,10 +46,8 @@ class MaintenanceOperation(Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
     description = Column(Text, nullable=True)
     group_id = Column(Integer, ForeignKey("maintenance_operation_groups.id", name="fk_maintenance_operations_group", ondelete="SET NULL"), nullable=True, index=True)
-    old_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", name="fk_maintenance_operations_old_rule", ondelete="RESTRICT"), nullable=True, index=True, unique=True)
 
     group = relationship("MaintenanceOperationGroup", back_populates="operations")
-    old_rule = relationship("MaintenanceRule", foreign_keys=[old_rule_id])
     plan_operations = relationship("MaintenancePlanOperation", back_populates="operation")
     records = relationship("MaintenanceRecord", back_populates="operation")
 
@@ -111,62 +108,15 @@ class MaintenancePlanOperation(Base):
     operation = relationship("MaintenanceOperation", back_populates="plan_operations")
 
 
-class MaintenanceOperationRuleMap(Base):
-    __tablename__ = "maintenance_operation_rule_map"
-    __table_args__ = (
-        UniqueConstraint("old_rule_id", name="uq_maintenance_operation_rule_map_old_rule"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    old_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", name="fk_maintenance_operation_rule_map_old_rule", ondelete="CASCADE"), nullable=False, index=True)
-    operation_id = Column(Integer, ForeignKey("maintenance_operations.id", name="fk_maintenance_operation_rule_map_operation", ondelete="CASCADE"), nullable=False, index=True)
-
-    old_rule = relationship("MaintenanceRule", foreign_keys=[old_rule_id])
-    operation = relationship("MaintenanceOperation", foreign_keys=[operation_id])
-
-
-class MaintenanceRule(Base):
-    __tablename__ = "maintenance_rules"
-    __table_args__ = (
-        CheckConstraint("interval_km IS NOT NULL OR interval_hours IS NOT NULL OR interval_days IS NOT NULL", name="ck_maintenance_rule_has_interval"),
-        CheckConstraint("interval_km IS NULL OR interval_km > 0", name="ck_maintenance_rule_interval_km_positive"),
-        CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_rule_interval_hours_positive"),
-        CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_rule_interval_days_positive"),
-        CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_rule_warning_km_nonnegative"),
-        CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_rule_warning_days_nonnegative"),
-        CheckConstraint("equipment_model_id IS NOT NULL OR is_active = 0", name="ck_maintenance_rule_active_requires_model"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(120), nullable=False)
-    equipment_type_id = Column(Integer, ForeignKey("equipment_types.id", ondelete="CASCADE"), nullable=False, index=True)
-    equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=True, index=True)
-    parent_rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="CASCADE"), nullable=True, index=True)
-    interval_km = Column(Numeric(10, 1), nullable=True)
-    interval_hours = Column(Numeric(10, 1), nullable=True)
-    interval_days = Column(Integer, nullable=True)
-    warning_km = Column(Numeric(10, 1), nullable=True, default=500)
-    warning_days = Column(Integer, nullable=True, default=7)
-    is_active = Column(Boolean, nullable=False, default=True)
-    description = Column(Text, nullable=True)
-
-    equipment_type = relationship("EquipmentType")
-    equipment_model = relationship("EquipmentModel", foreign_keys=[equipment_model_id])
-    parent_rule = relationship("MaintenanceRule", remote_side=[id], foreign_keys=[parent_rule_id])
-    records = relationship("MaintenanceRecord", back_populates="rule", foreign_keys="MaintenanceRecord.rule_id")
-
-
 class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
     __table_args__ = (
-        UniqueConstraint("equipment_id", "rule_id", "maintenance_date", name="uq_maintenance_record_equipment_rule_date"),
         Index("uq_maintenance_record_equipment_operation_date", "equipment_id", "operation_id", "maintenance_date", unique=True),
         CheckConstraint("meter_value IS NULL OR meter_value >= 0", name="ck_maintenance_record_meter_nonnegative"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False, index=True)
-    rule_id = Column(Integer, ForeignKey("maintenance_rules.id", ondelete="RESTRICT"), nullable=True, index=True)
     operation_id = Column(
         Integer,
         ForeignKey("maintenance_operations.id", name="fk_maintenance_records_operation", ondelete="RESTRICT"),
@@ -191,7 +141,6 @@ class MaintenanceRecord(Base):
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
-    rule = relationship("MaintenanceRule", back_populates="records", foreign_keys=[rule_id])
     operation = relationship("MaintenanceOperation", back_populates="records", foreign_keys=[operation_id])
     plan = relationship("MaintenancePlan", back_populates="records")
     created_by = relationship("User", foreign_keys=[created_by_id])
@@ -200,8 +149,8 @@ class MaintenanceRecord(Base):
 def _validate_record(connection, target, exclude_id=None):
     if target.equipment_id is None:
         raise ValueError("يجب تحديد العتاد قبل تسجيل الصيانة.")
-    if target.rule_id is None and getattr(target, "operation_id", None) is None:
-        raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية قبل تسجيل السجل.")
+    if getattr(target, "operation_id", None) is None:
+        raise ValueError("يجب تحديد عملية الصيانة قبل تسجيل السجل.")
     operation_id = getattr(target, "operation_id", None)
     plan_id = getattr(target, "plan_id", None)
     if plan_id is not None and operation_id is None:
@@ -235,19 +184,6 @@ def _validate_record(connection, target, exclude_id=None):
     equipment_model_id = equipment_row[0]
     if equipment_model_id is None:
         raise ValueError("يجب تحديد طراز العتاد قبل تسجيل الصيانة.")
-
-    if target.rule_id is not None:
-        rule_row = connection.execute(
-            select(MaintenanceRule.equipment_model_id)
-            .where(MaintenanceRule.id == target.rule_id)
-        ).first()
-        if rule_row is None:
-            raise ValueError("الصيانة الدورية المحددة غير موجودة.")
-        rule_model_id = rule_row[0]
-        if rule_model_id is None:
-            raise ValueError("لا يمكن تسجيل صيانة بقاعدة قديمة غير مرتبطة بطراز.")
-        if rule_model_id != equipment_model_id:
-            raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
     if operation_id is not None:
         operation_row = connection.execute(
