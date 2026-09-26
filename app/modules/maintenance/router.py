@@ -83,7 +83,6 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model),
         joinedload(MaintenanceRecord.operation),
         joinedload(MaintenanceRecord.plan),
-        joinedload(MaintenanceRecord.rule),
     ).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
     equipment = db.query(Equipment).options(
         joinedload(Equipment.equipment_type),
