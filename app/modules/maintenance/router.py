@@ -11,15 +11,13 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenanceOperationRuleMap, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, MaintenanceRule)
+from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord)
 from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
     chronology_error,
     contradiction_for,
     current_meter_value,
-    effective_rules_for_equipment,
     effective_operations_for_equipment,
-    get_effective_rule_for_equipment,
     latest_readings,
     latest_records,
     measurement_unit,
@@ -77,127 +75,6 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
         "maintenance_rules_model_only.html",
         {"request": request, "user": current_user, "models": models},
     )
-
-@router.post("/maintenance/rules/create")
-def maintenance_rule_create(
-    name: str = Form(...),
-    equipment_model_id: int = Form(...),
-    interval_km: str = Form(""),
-    interval_hours: str = Form(""),
-    interval_days: str = Form(""),
-    warning_km: str = Form("500"),
-    warning_days: str = Form("7"),
-    description: str = Form(""),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    def dec(v):
-        try:
-            return Decimal(v) if v else None
-        except (InvalidOperation, ValueError):
-            return None
-
-    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id == equipment_model_id).first()
-    if model is None:
-        return RedirectResponse("/maintenance/rules?error=equipment_model", status_code=status.HTTP_303_SEE_OTHER)
-
-    km = dec(interval_km)
-    hours = dec(interval_hours)
-    days = int(interval_days) if interval_days else None
-    if model.equipment_type.measurement_unit == "km":
-        hours = None
-    elif model.equipment_type.measurement_unit == "hours":
-        km = None
-    if not name.strip() or not (km or hours or days):
-        return RedirectResponse("/maintenance/rules?error=invalid", status_code=status.HTTP_303_SEE_OTHER)
-
-    rule = MaintenanceRule(
-        name=name.strip(),
-        equipment_type_id=model.equipment_type_id,
-        equipment_model_id=model.id,
-        interval_km=km,
-        interval_hours=hours,
-        interval_days=days,
-        warning_km=dec(warning_km),
-        warning_days=int(warning_days) if warning_days else None,
-        is_active=True,
-        description=description.strip() or None,
-    )
-    db.add(rule)
-    db.commit()
-    return RedirectResponse("/maintenance/rules?saved=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/maintenance/rules/{rule_id}/update")
-def maintenance_rule_update(
-    rule_id: int,
-    name: str = Form(...),
-    equipment_model_id: int = Form(...),
-    interval_km: str = Form(""),
-    interval_hours: str = Form(""),
-    interval_days: str = Form(""),
-    warning_km: str = Form("500"),
-    warning_days: str = Form("7"),
-    description: str = Form(""),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
-    model = db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type)).filter(EquipmentModel.id == equipment_model_id).first()
-    if rule is None or model is None:
-        return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-
-    def dec(v):
-        try:
-            return Decimal(v) if v else None
-        except (InvalidOperation, ValueError):
-            return None
-
-    km = dec(interval_km)
-    hours = dec(interval_hours)
-    days = int(interval_days) if interval_days else None
-    if model.equipment_type.measurement_unit == "km":
-        hours = None
-    elif model.equipment_type.measurement_unit == "hours":
-        km = None
-    if not name.strip() or not (km or hours or days):
-        return RedirectResponse(f"/maintenance/rules?edit={rule_id}&error=invalid", status_code=status.HTTP_303_SEE_OTHER)
-
-    rule.name = name.strip()
-    rule.equipment_type_id = model.equipment_type_id
-    rule.equipment_model_id = model.id
-    rule.interval_km = km
-    rule.interval_hours = hours
-    rule.interval_days = days
-    rule.warning_km = dec(warning_km)
-    rule.warning_days = int(warning_days) if warning_days else None
-    rule.description = description.strip() or None
-    rule.is_active = True
-    db.commit()
-    return RedirectResponse("/maintenance/rules?saved=updated", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/maintenance/rules/{rule_id}/toggle")
-def maintenance_rule_toggle(rule_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
-    if rule is None: return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    rule.is_active = not rule.is_active
-    db.commit()
-    return RedirectResponse("/maintenance/rules?changed=1", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/maintenance/rules/{rule_id}/delete")
-def maintenance_rule_delete(rule_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == rule_id).first()
-    if rule is None: return RedirectResponse("/maintenance/rules?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    used = db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id == rule_id).first()
-    if used:
-        rule.is_active = False
-        db.commit()
-        return RedirectResponse("/maintenance/rules?changed=deactivated", status_code=status.HTTP_303_SEE_OTHER)
-    db.delete(rule); db.commit()
-    return RedirectResponse("/maintenance/rules?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
-
 
 @router.get("/maintenance/records", response_class=HTMLResponse)
 def maintenance_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -322,10 +199,8 @@ def maintenance_record_create(
     if chronology:
         return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
 
-    legacy_rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
     rec = MaintenanceRecord(
         equipment_id=equipment_id,
-        rule_id=legacy_rule.id if legacy_rule is not None else None,
         operation_id=operation.id,
         plan_id=plan.id if plan is not None else None,
         maintenance_date=maintenance_date,
@@ -413,7 +288,6 @@ def maintenance_record_update(
 
     legacy_rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
     rec.equipment_id = equipment_id
-    rec.rule_id = legacy_rule.id if legacy_rule is not None else None
     rec.operation_id = operation.id
     rec.plan_id = plan.id if plan is not None else None
     rec.maintenance_date = maintenance_date
@@ -587,11 +461,10 @@ def api_execution_create(
         raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
 
     operation = db.get(MaintenanceOperation, payload.operation_id) if payload.operation_id is not None else None
-    rule = db.get(MaintenanceRule, payload.rule_id) if payload.rule_id is not None else None
     plan = db.get(MaintenancePlan, payload.plan_id) if payload.plan_id is not None else None
 
-    if operation is None and rule is None:
-        raise HTTPException(status_code=400, detail="يجب تحديد عملية الصيانة أو الصيانة الدورية.")
+    if operation is None:
+        raise HTTPException(status_code=400, detail="يجب تحديد عملية الصيانة.")
     if operation is not None and not operation.is_active:
         raise HTTPException(status_code=409, detail="عملية الصيانة غير مفعلة.")
     if plan is not None:
@@ -601,13 +474,6 @@ def api_execution_create(
             raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
 
     if operation is not None:
-        if rule is not None:
-            mapping = db.query(MaintenanceOperationRuleMap).filter(
-                MaintenanceOperationRuleMap.old_rule_id == rule.id,
-                MaintenanceOperationRuleMap.operation_id == operation.id,
-            ).first()
-            if mapping is None:
-                raise HTTPException(status_code=409, detail="الصيانة الدورية القديمة لا تقابل عملية الصيانة المختارة.")
         membership = (
             db.query(MaintenancePlanOperation)
             .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
@@ -626,12 +492,6 @@ def api_execution_create(
             MaintenancePlanOperation.operation_id == operation.id,
         ).first() is None:
             raise HTTPException(status_code=409, detail="العملية المختارة غير مرتبطة بالخطة المحددة.")
-
-        if rule is None and operation.old_rule_id is not None:
-            rule = db.get(MaintenanceRule, operation.old_rule_id)
-
-    if rule is not None and rule.equipment_model_id != equipment.equipment_model_id:
-        raise HTTPException(status_code=409, detail="الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
@@ -756,7 +616,6 @@ def api_plan_execution_create(
     try:
         for link in links:
             operation = link.operation
-            rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
             record = MaintenanceRecord(
                 equipment_id=payload.equipment_id,
                 rule_id=rule.id if rule is not None else None,
