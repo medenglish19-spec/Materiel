@@ -36,7 +36,7 @@ def test_maintenance_plan_ui_exposes_complete_controls():
     assert 'id="executionEquipment"' in html
     assert 'id="executionDate"' in html
     assert 'id="executionMeter"' in html
-    assert 'api+"/plan-execution"' in html
+    assert "api+'/plan-execution'" in html
     assert "لا يتم تعديل شروط العمليات من هنا." in html
     assert "سيتم إزالة العملية من الخطة فقط" in html
 
