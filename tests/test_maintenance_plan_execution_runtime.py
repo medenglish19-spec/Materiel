@@ -10,6 +10,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
+from app.modules.faults_repairs.models import Fault
+from app.modules.users.models import User
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord
 from app.modules.maintenance.router import api_plan_execution_create
