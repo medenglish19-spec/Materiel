@@ -64,8 +64,6 @@ def _repair_existing_maintenance_schema() -> None:
     with engine.begin() as connection:
         if "updated_at" in columns:
             connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at")); columns.remove("updated_at")
-        if "rule_id" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER")); columns.add("rule_id")
         if "maintenance_date" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
             if "reported_date" in columns: connection.execute(text("UPDATE maintenance_records SET maintenance_date = reported_date WHERE maintenance_date IS NULL"))
