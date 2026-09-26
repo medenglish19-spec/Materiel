@@ -26,6 +26,14 @@ def upgrade():
     tables = set(inspector.get_table_names())
 
     if "maintenance_operations" in tables:
+        # SQLite/Alembic can leave this generated table behind after a failed
+        # batch rebuild. It is never part of the application schema, so remove
+        # only this exact Alembic temporary artifact before retrying.
+        if "_alembic_tmp_maintenance_operations" in tables:
+            op.execute(sa.text("DROP TABLE IF EXISTS _alembic_tmp_maintenance_operations"))
+            inspector = sa.inspect(bind)
+            tables = set(inspector.get_table_names())
+
         operation_columns = {c["name"] for c in inspector.get_columns("maintenance_operations")}
         operation_indexes = {i.get("name") for i in inspector.get_indexes("maintenance_operations")}
 
