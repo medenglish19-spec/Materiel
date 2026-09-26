@@ -51,7 +51,7 @@
       <select id="operationSelect" class="m-select"></select>
       <button id="addOperation" class="m-btn primary" type="button">＋ إضافة العملية للخطة</button>
     </div>
-    <div class="table-wrap"><table class="m-table"><thead><tr><th>العملية</th><th>شرط العملية</th><th>الترتيب</th></tr></thead><tbody id="planOps"></tbody></table></div>
+    <div class="table-wrap"><table class="m-table"><thead><tr><th>العملية</th><th>شرط العملية</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
   </section>
 
   <section class="panel" id="executionPanel" style="display:none;margin-top:16px">
@@ -96,7 +96,7 @@
     const q=$('search').value.toLowerCase().trim(), mf=$('modelFilter').value;
     const rows=state.plans.filter(p=>(!q||p.name.toLowerCase().includes(q))&&(!mf||String(p.equipment_model_id)===mf));
     $('count').textContent=rows.length+' خطة';
-    $('body').innerHTML=rows.length?rows.map((p,i)=>'<tr><td>'+(i+1)+'</td><td><strong>'+esc(p.name)+'</strong></td><td>'+esc(modelName(p.equipment_model_id))+'</td><td>'+esc(condition(p))+'</td><td><button class="m-btn" data-ops="'+p.id+'">إدارة العمليات</button></td><td><span class="badge '+(p.is_active?'success':'neutral')+'">'+(p.is_active?'مفعلة':'متوقفة')+'</span></td><td><button class="m-btn" data-edit="'+p.id+'">✏️ تعديل</button> <button class="m-btn primary" data-execute="'+p.id+'" '+(!p.is_active?'disabled':'')+'>▶ تنفيذ الخطة</button></td></tr>').join(''):'<tr><td colspan="7" class="muted">لا توجد خطط.</td></tr>';
+    $('body').innerHTML=rows.length?rows.map((p,i)=>'<tr><td>'+(i+1)+'</td><td><strong>'+esc(p.name)+'</strong></td><td>'+esc(modelName(p.equipment_model_id))+'</td><td>'+esc(condition(p))+'</td><td><button class="m-btn" data-ops="'+p.id+'">إدارة العمليات</button></td><td><span class="badge '+(p.is_active?'success':'neutral')+'">'+(p.is_active?'مفعلة':'متوقفة')+'</span></td><td><button class="m-btn" data-edit="'+p.id+'">✏️ تعديل</button> <button class="m-btn primary" data-execute="'+p.id+'" '+(!p.is_active?'disabled title="الخطة متوقفة"':'')+'>▶ تنفيذ الخطة</button></td></tr>').join(''):'<tr><td colspan="7" class="muted">لا توجد خطط.</td></tr>';
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(Number(b.dataset.edit)));
     document.querySelectorAll('[data-ops]').forEach(b=>b.onclick=()=>manage(Number(b.dataset.ops)));
     document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>prepareExecution(Number(b.dataset.execute)));
@@ -104,7 +104,22 @@
   function edit(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('planId').value=p.id;$('name').value=p.name;$('model').value=p.equipment_model_id;$('km').value=p.interval_km??'';$('hours').value=p.interval_hours??'';$('days').value=p.interval_days??'';$('description').value=p.description??'';$('active').checked=!!p.is_active;$('editorTitle').textContent='تعديل خطة صيانة';$('editor').style.display='';window.scrollTo({top:$('editor').offsetTop-20,behavior:'smooth'})}
   function newPlan(){$('planId').value='';$('name').value='';$('model').value='';$('km').value='';$('hours').value='';$('days').value='';$('description').value='';$('active').checked=true;$('editorTitle').textContent='إضافة خطة صيانة';$('editor').style.display='';$('operationsPanel').style.display='none';$('executionPanel').style.display='none'}
   async function manage(id){state.currentPlanId=id;const p=state.plans.find(x=>x.id===id);if(!p)return;$('operationsTitle').textContent='عمليات الخطة: '+p.name;$('operationsPanel').style.display='';$('operationSelect').innerHTML='<option value="">اختر عملية</option>'+state.operations.filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');try{state.planOps=await req(api+'/plans/'+id+'/operations');renderOps(id);$('operationsPanel').scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message,true)}}
-  function renderOps(planId){$('planOps').innerHTML=state.planOps.length?state.planOps.map(x=>{const o=state.operations.find(v=>v.id===x.operation_id);return '<tr><td>'+esc(o?.name||'—')+'</td><td>'+esc(condition(o||{}))+'</td><td>'+x.sort_order+'</td></tr>'}).join(''):'<tr><td colspan="3" class="muted">لا توجد عمليات مرتبطة بهذه الخطة.</td></tr>'}
+  function renderOps(planId){
+    $('planOps').innerHTML=state.planOps.length?state.planOps.map(x=>{
+      const o=state.operations.find(v=>v.id===x.operation_id);
+      return '<tr><td>'+esc(o?.name||'—')+'</td><td>'+esc(condition(o||{}))+'</td><td>'+x.sort_order+'</td><td><button class="m-btn" type="button" data-remove-op="'+x.operation_id+'">🗑 إزالة</button></td></tr>'
+    }).join(''):'<tr><td colspan="4" class="muted">لا توجد عمليات مرتبطة بهذه الخطة.</td></tr>';
+    document.querySelectorAll('[data-remove-op]').forEach(b=>b.onclick=()=>removeOperation(planId,Number(b.dataset.removeOp)));
+  }
+  async function removeOperation(planId,operationId){
+    if(!confirm('سيتم إزالة العملية من الخطة فقط، ولن يتم حذف العملية من مكتبة شروط الصيانة. هل أنت متأكد؟'))return;
+    try{
+      await req(api+'/plans/'+planId+'/operations/'+operationId,{method:'DELETE'});
+      state.planOps=await req(api+'/plans/'+planId+'/operations');
+      renderOps(planId);
+      alert('تمت إزالة العملية من الخطة.');
+    }catch(e){alert(e.message,true)}
+  }
   function prepareExecution(id){
     const p=state.plans.find(x=>x.id===id);if(!p)return;
     state.currentPlanId=id;$('executionPlanId').value=id;$('executionTitle').textContent='تنفيذ الخطة: '+p.name;
