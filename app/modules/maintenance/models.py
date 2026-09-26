@@ -247,13 +247,66 @@ def _validate_record(connection, target, exclude_id=None):
         if rule_model_id != equipment_model_id:
             raise ValueError("الصيانة الدورية المختارة مخصصة لطراز آخر من العتاد.")
 
-    if getattr(target, "operation_id", None) is not None:
+    if operation_id is not None:
         operation_row = connection.execute(
-            select(MaintenanceOperation.id)
-            .where(MaintenanceOperation.id == getattr(target, "operation_id"))
+            select(MaintenanceOperation.id, MaintenanceOperation.is_active, MaintenanceOperation.old_rule_id)
+            .where(MaintenanceOperation.id == operation_id)
         ).first()
         if operation_row is None:
             raise ValueError("عملية الصيانة المحددة غير موجودة.")
+        if not operation_row[1]:
+            raise ValueError("عملية الصيانة غير مفعلة.")
+
+        if target.rule_id is not None and operation_row[2] != target.rule_id:
+            mapping = connection.execute(
+                select(MaintenanceOperationRuleMap.id)
+                .where(
+                    MaintenanceOperationRuleMap.old_rule_id == target.rule_id,
+                    MaintenanceOperationRuleMap.operation_id == operation_id,
+                )
+            ).first()
+            if mapping is None:
+                raise ValueError("الصيانة الدورية القديمة لا تقابل عملية الصيانة المختارة.")
+
+        membership = connection.execute(
+            select(MaintenancePlanOperation.id)
+            .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+            .where(
+                MaintenancePlanOperation.operation_id == operation_id,
+                MaintenancePlan.equipment_model_id == equipment_model_id,
+                MaintenancePlan.is_active.is_(True),
+            )
+        ).first()
+        has_any_membership = connection.execute(
+            select(MaintenancePlanOperation.id)
+            .where(MaintenancePlanOperation.operation_id == operation_id)
+        ).first() is not None
+
+        if membership is None and has_any_membership and plan_id is None:
+            raise ValueError("عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز.")
+        if membership is None and not has_any_membership and plan_id is not None:
+            raise ValueError("لا يمكن ربط عملية مستقلة بخطة دون إدراجها فيها.")
+
+        if plan_id is not None:
+            plan_row = connection.execute(
+                select(MaintenancePlan.equipment_model_id, MaintenancePlan.is_active)
+                .where(MaintenancePlan.id == plan_id)
+            ).first()
+            if plan_row is None:
+                raise ValueError("خطة الصيانة المحددة غير موجودة.")
+            if not plan_row[1]:
+                raise ValueError("خطة الصيانة غير مفعلة.")
+            if plan_row[0] != equipment_model_id:
+                raise ValueError("خطة الصيانة لا تخص طراز العتاد المحدد.")
+            linked = connection.execute(
+                select(MaintenancePlanOperation.id)
+                .where(
+                    MaintenancePlanOperation.plan_id == plan_id,
+                    MaintenancePlanOperation.operation_id == operation_id,
+                )
+            ).first()
+            if linked is None:
+                raise ValueError("عملية الصيانة غير مرتبطة بالخطة المحددة.")
 
     if target.meter_value is None:
         return
