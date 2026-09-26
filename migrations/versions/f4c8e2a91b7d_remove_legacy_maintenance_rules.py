@@ -51,6 +51,14 @@ def upgrade():
     if "maintenance_records" in tables:
         record_columns = {c["name"] for c in inspector.get_columns("maintenance_records")}
         record_constraints = {c.get("name") for c in inspector.get_unique_constraints("maintenance_records")}
+        record_indexes = {i.get("name") for i in inspector.get_indexes("maintenance_records")}
+
+        # A failed SQLite batch rebuild may leave an index for rule_id behind
+        # even when the column itself is already absent. Remove that stale
+        # index before entering batch_alter_table.
+        if "ix_maintenance_records_rule_id" in record_indexes:
+            op.drop_index("ix_maintenance_records_rule_id", table_name="maintenance_records")
+
         if "rule_id" in record_columns or "uq_maintenance_record_equipment_rule_date" in record_constraints:
             with op.batch_alter_table("maintenance_records", schema=None) as batch_op:
                 if "uq_maintenance_record_equipment_rule_date" in record_constraints:
