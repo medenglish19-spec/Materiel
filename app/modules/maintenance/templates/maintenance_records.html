@@ -61,7 +61,7 @@
       <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
         <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.asset_code }}</option>{% endfor %}</select>
         <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
-        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
         <input class="m-input" name="maintenance_date" id="maintenanceEditDate" type="date" required value="{{ edit_record.maintenance_date }}">
         <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="العداد عند التنفيذ">
         <input class="m-input" name="work_order" value="{{ edit_record.work_order or '' }}" placeholder="أمر العمل"><input class="m-input" name="workshop" value="{{ edit_record.workshop or '' }}" placeholder="الورشة / الجهة"><input class="m-input" name="description" value="{{ edit_record.description or '' }}" placeholder="الوصف / الأعمال المنجزة">
@@ -79,7 +79,7 @@
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.asset_code }}</option>{% endfor %}</select>
       <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية بعد تحديد العتاد</option>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}">{{ o.name }}</option>{% endfor %}</select>
-      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}">{{ p.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
       <div id="currentMeterHint" class="muted" style="min-width:210px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
       <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="العداد عند التنفيذ"><input class="m-input" name="work_order" placeholder="أمر العمل"><input class="m-input" name="workshop" placeholder="الورشة / الجهة"><input class="m-input" name="description" placeholder="الوصف / الأعمال المنجزة"><button class="m-btn primary" type="submit">حفظ الصيانة</button>
     </form>
@@ -108,14 +108,12 @@
     allOperations.forEach(o=>{const ids=(o.dataset.equipmentIds||'').split(',').filter(Boolean);if(ids.includes(equipmentId))operation.appendChild(o.cloneNode(true))});
     operation.disabled=operation.options.length===1;
     plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>';
-    allPlans.forEach(o=>{if(o.dataset.modelId===modelId)plan.appendChild(o.cloneNode(true))});
+    allPlans.forEach(o=>{if(o.dataset.modelId===modelId && (o.dataset.operationIds||'').split(',').includes(operation.value))plan.appendChild(o.cloneNode(true))});
     plan.disabled=plan.options.length===1;
     if(selected){const unit=selected.dataset.unit,value=unit==='hours'?selected.dataset.currentHours:selected.dataset.currentKm;hint.textContent=value?'العداد الحالي: '+Number(value).toLocaleString('ar-DZ')+' '+(unit==='hours'?'ساعة':'كم'):'لا توجد قراءة حالية للعداد.';meter.placeholder=unit==='hours'?'العداد عند التنفيذ (ساعة)':'العداد عند التنفيذ (كم)'}
   }
   function filterPlanByOperation(){
-    const op=operation.selectedOptions[0], opId=op?.value||'';
-    [...plan.options].forEach(o=>{if(!o.value)return;o.hidden=false});
-    if(opId){const allowed=new Set(allPlans.filter(p=>p.dataset.modelId===(equipment.selectedOptions[0]?.dataset.modelId||'')).map(p=>p.value));if(allowed.size){}}
+    refreshOperationAndPlans();
   }
   function validate(form,isEdit){
     const date=form.querySelector('[name="maintenance_date"]'), meterInput=form.querySelector('[name="meter_value"]'), op=form.querySelector('[name="operation_id"]');
