@@ -27,6 +27,15 @@ def upgrade():
 
     if "maintenance_operations" in tables:
         operation_columns = {c["name"] for c in inspector.get_columns("maintenance_operations")}
+        operation_indexes = {i.get("name") for i in inspector.get_indexes("maintenance_operations")}
+
+        # A previous failed SQLite batch rebuild can leave the legacy index
+        # behind even when old_rule_id has already been removed. Drop that
+        # stale index before entering batch_alter_table; otherwise Alembic
+        # reflects it and attempts to recreate an index on a missing column.
+        if "ix_maintenance_operations_old_rule_id" in operation_indexes:
+            op.drop_index("ix_maintenance_operations_old_rule_id", table_name="maintenance_operations")
+
         if "old_rule_id" in operation_columns:
             with op.batch_alter_table("maintenance_operations", schema=None) as batch_op:
                 batch_op.drop_column("old_rule_id")
