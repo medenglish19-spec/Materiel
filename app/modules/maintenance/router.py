@@ -532,10 +532,32 @@ def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate
     if not plan.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية إلى خطة صيانة غير مفعلة.")
     operation = db.get(MaintenanceOperation, payload.operation_id)
     if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    if not operation.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة.")
     link = MaintenancePlanOperation(**payload.model_dump()); db.add(link)
     try: db.commit(); db.refresh(link)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
     return link
+
+@router.delete("/api/maintenance/plans/{plan_id}/operations/{operation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_plan_operation_remove(
+    plan_id: int,
+    operation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    link = db.query(MaintenancePlanOperation).filter(
+        MaintenancePlanOperation.plan_id == plan_id,
+        MaintenancePlanOperation.operation_id == operation_id,
+    ).first()
+    if link is None:
+        raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذه الخطة.")
+    db.delete(link)
+    db.commit()
+    return None
+
 
 @router.get("/api/maintenance/execution", response_model=list[MaintenanceRecordOut])
 def api_execution_records(
