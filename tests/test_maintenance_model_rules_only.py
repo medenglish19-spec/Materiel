@@ -82,8 +82,9 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     template = Path("app/modules/maintenance/templates/maintenance_rules_model_only.html").read_text(encoding="utf-8")
     router = Path("app/modules/maintenance/router.py").read_text(encoding="utf-8")
 
-    assert "/api/maintenance/operations" in template
-    assert "/api/maintenance/operation-groups" in template
+    assert "const api='/api/maintenance'" in template
+    assert "${api}/operations" in template
+    assert "${api}/operation-groups" in template
     assert "مكتبة شروط الصيانة الدورية" in template
     assert "إضافة عملية صيانة" in template
     assert "equipment_model_id" not in template
