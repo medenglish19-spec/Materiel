@@ -134,25 +134,6 @@ class MaintenancePlanOperationBase(BaseModel):
     plan_id: int
     operation_id: int
     sort_order: int = 0
-    interval_km_override: Optional[Decimal] = None
-    interval_hours_override: Optional[Decimal] = None
-    interval_days_override: Optional[int] = None
-
-    @field_validator("interval_km_override")
-    @classmethod
-    def km_override_valid(cls, value):
-        return _positive(value, "تجاوز فترة الكيلومترات")
-
-    @field_validator("interval_hours_override")
-    @classmethod
-    def hours_override_valid(cls, value):
-        return _positive(value, "تجاوز فترة الساعات")
-
-    @field_validator("interval_days_override")
-    @classmethod
-    def days_override_valid(cls, value):
-        return _positive(value, "تجاوز فترة الأيام")
-
 
 class MaintenancePlanOperationCreate(MaintenancePlanOperationBase):
     pass
