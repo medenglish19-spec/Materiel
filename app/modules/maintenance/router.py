@@ -369,8 +369,11 @@ def api_plan_operations(plan_id: int, db: Session = Depends(get_db), current_use
 @router.post("/api/maintenance/plans/{plan_id}/operations", response_model=MaintenancePlanOperationOut, status_code=status.HTTP_201_CREATED)
 def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if payload.plan_id != plan_id: raise HTTPException(status_code=400, detail="رقم الخطة في الطلب لا يطابق المسار.")
-    if db.get(MaintenancePlan, plan_id) is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
-    if db.get(MaintenanceOperation, payload.operation_id) is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if not plan.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية إلى خطة صيانة غير مفعلة.")
+    operation = db.get(MaintenanceOperation, payload.operation_id)
+    if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
     link = MaintenancePlanOperation(**payload.model_dump()); db.add(link)
     try: db.commit(); db.refresh(link)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
@@ -411,8 +414,11 @@ def api_execution_create(
         raise HTTPException(status_code=400, detail="يجب تحديد عملية الصيانة أو الصيانة الدورية.")
     if operation is not None and not operation.is_active:
         raise HTTPException(status_code=409, detail="عملية الصيانة غير مفعلة.")
-    if plan is not None and plan.equipment_model_id != equipment.equipment_model_id:
-        raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
+    if plan is not None:
+        if not plan.is_active:
+            raise HTTPException(status_code=409, detail="خطة الصيانة غير مفعلة.")
+        if plan.equipment_model_id != equipment.equipment_model_id:
+            raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
 
     if operation is not None:
         if rule is not None:
@@ -433,7 +439,7 @@ def api_execution_create(
             .first()
         )
         standalone = not db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.operation_id == operation.id).first()
-        if membership is None and not standalone and plan is None:
+        if membership is None and not standalone:
             raise HTTPException(status_code=409, detail="عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز ولا هي مستقلة.")
         if plan is not None and db.query(MaintenancePlanOperation.id).filter(
             MaintenancePlanOperation.plan_id == plan.id,
