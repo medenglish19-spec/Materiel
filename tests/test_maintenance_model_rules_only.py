@@ -46,7 +46,7 @@ def test_maintenance_operations_are_model_effective_through_active_plans():
         eq_a = SimpleNamespace(equipment_model_id=model_a.id)
         eq_b = SimpleNamespace(equipment_model_id=model_b.id)
         rows_a = effective_operations_for_equipment(db, eq_a, include_standalone=False)
-        rows_b = effective_operations_for_equipment(db, eq_b)
+        rows_b = effective_operations_for_equipment(db, eq_b, include_standalone=False)
 
         assert [row.id for row in rows_a] == [operation_a.id]
         assert rows_b == []
