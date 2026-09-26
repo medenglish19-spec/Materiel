@@ -79,17 +79,16 @@ class MaintenanceOperationBase(BaseModel):
 
 
 class MaintenanceOperationCreate(MaintenanceOperationBase):
-    old_rule_id: Optional[int] = None
+    pass
 
 
 class MaintenanceOperationUpdate(MaintenanceOperationBase):
-    old_rule_id: Optional[int] = None
+    pass
 
 
 class MaintenanceOperationOut(MaintenanceOperationBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    old_rule_id: Optional[int] = None
 
 
 class MaintenancePlanBase(BaseModel):
@@ -146,7 +145,6 @@ class MaintenancePlanOperationOut(MaintenancePlanOperationBase):
 
 class MaintenanceRecordCreate(BaseModel):
     equipment_id: int
-    rule_id: Optional[int] = None
     operation_id: Optional[int] = None
     plan_id: Optional[int] = None
     maintenance_date: date
@@ -165,8 +163,8 @@ class MaintenanceRecordCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_source(self):
-        if self.rule_id is None and self.operation_id is None:
-            raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية")
+        if self.operation_id is None:
+            raise ValueError("يجب تحديد عملية الصيانة")
         if self.plan_id is not None and self.operation_id is None:
             raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة")
         return self
@@ -195,10 +193,3 @@ class MaintenanceRecordOut(MaintenanceRecordCreate):
     id: int
     created_by_id: Optional[int] = None
     created_at: object
-
-
-class MaintenanceOperationRuleMapOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: int
-    old_rule_id: int
-    operation_id: int
