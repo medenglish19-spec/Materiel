@@ -55,6 +55,17 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     return templates.TemplateResponse("maintenance_dashboard.html", {"request": request, "user": current_user, "rows": rows, "counts": counts})
 
 
+@router.get("/maintenance/plans", response_class=HTMLResponse)
+def maintenance_plans_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    models = db.query(EquipmentModel).options(
+        joinedload(EquipmentModel.brand),
+        joinedload(EquipmentModel.equipment_type),
+    ).order_by(EquipmentModel.name).all()
+    return templates.TemplateResponse(
+        "maintenance_plans.html",
+        {"request": request, "user": current_user, "models": models},
+    )
+
 @router.get("/maintenance/rules", response_class=HTMLResponse)
 def maintenance_rules_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     models = db.query(EquipmentModel).options(
