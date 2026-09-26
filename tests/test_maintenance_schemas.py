@@ -7,6 +7,7 @@ from app.modules.maintenance.schemas import (
     MaintenanceOperationCreate,
     MaintenancePlanCreate,
     MaintenancePlanOperationCreate,
+    MaintenancePlanExecutionCreate,
 )
 
 
@@ -48,3 +49,15 @@ def test_execution_plan_requires_operation():
     from app.modules.maintenance.schemas import MaintenanceRecordCreate
     with pytest.raises(ValidationError):
         MaintenanceRecordCreate(equipment_id=1, plan_id=1, maintenance_date="2026-09-25")
+
+
+def test_plan_execution_requires_plan_and_equipment():
+    item = MaintenancePlanExecutionCreate(
+        equipment_id=7,
+        plan_id=3,
+        maintenance_date="2026-09-25",
+        meter_value=Decimal("10000"),
+    )
+    assert item.equipment_id == 7
+    assert item.plan_id == 3
+    assert item.meter_value == Decimal("10000")
