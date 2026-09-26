@@ -172,6 +172,24 @@ class MaintenanceRecordCreate(BaseModel):
         return self
 
 
+class MaintenancePlanExecutionCreate(BaseModel):
+    equipment_id: int
+    plan_id: int
+    maintenance_date: date
+    meter_value: Optional[Decimal] = None
+    reported_date: Optional[date] = None
+    work_order: Optional[str] = None
+    workshop: Optional[str] = None
+    status: Optional[str] = None
+    is_scheduled: bool = True
+    description: Optional[str] = None
+
+    @field_validator("meter_value")
+    @classmethod
+    def meter_valid(cls, value):
+        return _nonnegative(value, "قراءة العداد")
+
+
 class MaintenanceRecordOut(MaintenanceRecordCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
