@@ -189,68 +189,231 @@ def maintenance_rule_delete(rule_id: int, db: Session = Depends(get_db), current
 
 @router.get("/maintenance/records", response_class=HTMLResponse)
 def maintenance_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    records = db.query(MaintenanceRecord).options(joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_type), joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model), joinedload(MaintenanceRecord.rule)).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    rules = db.query(MaintenanceRule).filter(MaintenanceRule.is_active.is_(True)).order_by(MaintenanceRule.name, MaintenanceRule.id).all()
+    records = db.query(MaintenanceRecord).options(
+        joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_type),
+        joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model),
+        joinedload(MaintenanceRecord.operation),
+        joinedload(MaintenanceRecord.plan),
+        joinedload(MaintenanceRecord.rule),
+    ).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
+    equipment = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type),
+        joinedload(Equipment.equipment_model),
+    ).order_by(Equipment.registration_number, Equipment.asset_code).all()
+
+    operations = db.query(MaintenanceOperation).filter(
+        MaintenanceOperation.is_active.is_(True)
+    ).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
+    plans = db.query(MaintenancePlan).filter(
+        MaintenancePlan.is_active.is_(True)
+    ).order_by(MaintenancePlan.name, MaintenancePlan.id).all()
+
     edit_record = None
     edit_id = request.query_params.get("edit")
-    if edit_id and edit_id.isdigit(): edit_record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == int(edit_id)).first()
-    if edit_record and edit_record.rule_id not in {rule.id for rule in rules}:
-        historical_rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == edit_record.rule_id).first()
-        if historical_rule is not None:
-            rules.append(historical_rule)
-    effective_rule_equipment_ids = {}
+    if edit_id and edit_id.isdigit():
+        edit_record = db.query(MaintenanceRecord).options(
+            joinedload(MaintenanceRecord.operation),
+            joinedload(MaintenanceRecord.plan),
+        ).filter(MaintenanceRecord.id == int(edit_id)).first()
+
+    operation_equipment_ids = {}
     for eq in equipment:
-        for rule in effective_rules_for_equipment(db, eq):
-            effective_rule_equipment_ids.setdefault(rule.id, set()).add(eq.id)
-    effective_rule_equipment_ids = {rule_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids)) for rule_id, equipment_ids in effective_rule_equipment_ids.items()}
-    return templates.TemplateResponse("maintenance_records.html", {"request": request, "user": current_user, "records": records, "equipment": equipment, "rules": rules, "effective_rule_equipment_ids": effective_rule_equipment_ids, "edit_record": edit_record})
+        for operation in effective_operations_for_equipment(db, eq):
+            operation_equipment_ids.setdefault(operation.id, set()).add(eq.id)
+    operation_equipment_ids = {
+        operation_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids))
+        for operation_id, equipment_ids in operation_equipment_ids.items()
+    }
+
+    plan_equipment_ids = {}
+    for plan in plans:
+        plan_equipment_ids.setdefault(plan.id, set()).add(plan.equipment_model_id)
+    return templates.TemplateResponse(
+        "maintenance_records.html",
+        {
+            "request": request,
+            "user": current_user,
+            "records": records,
+            "equipment": equipment,
+            "operations": operations,
+            "plans": plans,
+            "operation_equipment_ids": operation_equipment_ids,
+            "edit_record": edit_record,
+        },
+    )
 
 
 @router.post("/maintenance/records/create")
-def maintenance_record_create(equipment_id: int = Form(...), rule_id: int = Form(...), maintenance_date: date = Form(...), meter_value: str = Form(""), work_order: str = Form(""), workshop: str = Form(""), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def maintenance_record_create(
+    equipment_id: int = Form(...),
+    operation_id: int = Form(...),
+    plan_id: int | None = Form(None),
+    maintenance_date: date = Form(...),
+    meter_value: str = Form(""),
+    work_order: str = Form(""),
+    workshop: str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     records_url = "/maintenance/records"
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).filter(Equipment.id == equipment_id).first()
-    if equipment is None: return RedirectResponse(f"{records_url}?error=equipment", status_code=status.HTTP_303_SEE_OTHER)
-    rule = get_effective_rule_for_equipment(db, equipment, rule_id)
-    if rule is None: return RedirectResponse(f"{records_url}?error=rule_model", status_code=status.HTTP_303_SEE_OTHER)
-    if maintenance_date > date.today(): return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
-    unit = measurement_unit(equipment); meter = None
+    equipment = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type),
+        joinedload(Equipment.equipment_model),
+    ).filter(Equipment.id == equipment_id).first()
+    if equipment is None:
+        return RedirectResponse(f"{records_url}?error=equipment", status_code=status.HTTP_303_SEE_OTHER)
+
+    operation = db.query(MaintenanceOperation).filter(
+        MaintenanceOperation.id == operation_id,
+        MaintenanceOperation.is_active.is_(True),
+    ).first()
+    if operation is None or operation_id not in {
+        item.id for item in effective_operations_for_equipment(db, equipment)
+    }:
+        return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
+    plan = None
+    if plan_id is not None:
+        plan = db.query(MaintenancePlan).filter(
+            MaintenancePlan.id == plan_id,
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
+        ).first()
+        if plan is None:
+            return RedirectResponse(f"{records_url}?error=plan_model", status_code=status.HTTP_303_SEE_OTHER)
+        linked = db.query(MaintenancePlanOperation.id).filter(
+            MaintenancePlanOperation.plan_id == plan.id,
+            MaintenancePlanOperation.operation_id == operation.id,
+        ).first()
+        if linked is None:
+            return RedirectResponse(f"{records_url}?error=plan_operation", status_code=status.HTTP_303_SEE_OTHER)
+
+    if maintenance_date > date.today():
+        return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
+
+    unit = measurement_unit(equipment)
+    meter = None
     if meter_value:
-        try: meter = Decimal(meter_value)
-        except (InvalidOperation, ValueError): return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
-        if meter < 0: return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
-    if (unit == "km" and rule.interval_km is not None) or (unit == "hours" and rule.interval_hours is not None):
-        if meter is None: return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            meter = Decimal(meter_value)
+        except (InvalidOperation, ValueError):
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+        if meter < 0:
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+
+    if (unit == "km" and operation.interval_km is not None) or (unit == "hours" and operation.interval_hours is not None):
+        if meter is None:
+            return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
+
     chronology = chronology_error(db, equipment_id, maintenance_date, meter)
-    if chronology: return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
-    mapping = db.query(MaintenanceOperationRuleMap).filter(MaintenanceOperationRuleMap.old_rule_id == rule_id).first()
-    rec = MaintenanceRecord(equipment_id=equipment_id, rule_id=rule_id, operation_id=mapping.operation_id if mapping else None, maintenance_date=maintenance_date, meter_value=meter, work_order=work_order.strip() or None, workshop=workshop.strip() or None, description=description.strip() or None, status="completed", created_by_id=current_user.id if current_user else None)
-    db.add(rec); db.commit()
+    if chronology:
+        return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
+
+    legacy_rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
+    rec = MaintenanceRecord(
+        equipment_id=equipment_id,
+        rule_id=legacy_rule.id if legacy_rule is not None else None,
+        operation_id=operation.id,
+        plan_id=plan.id if plan is not None else None,
+        maintenance_date=maintenance_date,
+        meter_value=meter,
+        work_order=work_order.strip() or None,
+        workshop=workshop.strip() or None,
+        description=description.strip() or None,
+        status="completed",
+        created_by_id=current_user.id if current_user else None,
+    )
+    db.add(rec)
+    try:
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(f"{records_url}?error=validation", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(f"{records_url}?saved=1", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/maintenance/records/{record_id}/update")
-def maintenance_record_update(record_id: int, equipment_id: int = Form(...), rule_id: int = Form(...), maintenance_date: date = Form(...), meter_value: str = Form(""), work_order: str = Form(""), workshop: str = Form(""), description: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def maintenance_record_update(
+    record_id: int,
+    equipment_id: int = Form(...),
+    operation_id: int = Form(...),
+    plan_id: int | None = Form(None),
+    maintenance_date: date = Form(...),
+    meter_value: str = Form(""),
+    work_order: str = Form(""),
+    workshop: str = Form(""),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     records_url = "/maintenance/records"
     rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).filter(Equipment.id == equipment_id).first()
-    rule = get_effective_rule_for_equipment(db, equipment, rule_id, include_historical=True) if equipment is not None else None
-    if rec is None or equipment is None or rule is None: return RedirectResponse(f"{records_url}?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    if maintenance_date > date.today(): return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
+    equipment = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type),
+        joinedload(Equipment.equipment_model),
+    ).filter(Equipment.id == equipment_id).first()
+    operation = db.query(MaintenanceOperation).filter(
+        MaintenanceOperation.id == operation_id,
+        MaintenanceOperation.is_active.is_(True),
+    ).first()
+    if rec is None or equipment is None or operation is None:
+        return RedirectResponse(f"{records_url}?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
+    if operation_id not in {item.id for item in effective_operations_for_equipment(db, equipment)}:
+        return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
+    plan = None
+    if plan_id is not None:
+        plan = db.query(MaintenancePlan).filter(
+            MaintenancePlan.id == plan_id,
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
+        ).first()
+        if plan is None:
+            return RedirectResponse(f"{records_url}?error=plan_model", status_code=status.HTTP_303_SEE_OTHER)
+        linked = db.query(MaintenancePlanOperation.id).filter(
+            MaintenancePlanOperation.plan_id == plan.id,
+            MaintenancePlanOperation.operation_id == operation.id,
+        ).first()
+        if linked is None:
+            return RedirectResponse(f"{records_url}?error=plan_operation", status_code=status.HTTP_303_SEE_OTHER)
+
+    if maintenance_date > date.today():
+        return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
+
     meter = None
     if meter_value:
-        try: meter = Decimal(meter_value)
-        except (InvalidOperation, ValueError): return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
-        if meter < 0: return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            meter = Decimal(meter_value)
+        except (InvalidOperation, ValueError):
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+        if meter < 0:
+            return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
+
     unit = measurement_unit(equipment)
-    if (unit == "km" and rule.interval_km is not None) or (unit == "hours" and rule.interval_hours is not None):
-        if meter is None: return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
+    if (unit == "km" and operation.interval_km is not None) or (unit == "hours" and operation.interval_hours is not None):
+        if meter is None:
+            return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
+
     chronology = chronology_error(db, equipment_id, maintenance_date, meter, exclude_id=record_id)
-    if chronology: return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
-    mapping = db.query(MaintenanceOperationRuleMap).filter(MaintenanceOperationRuleMap.old_rule_id == rule_id).first()
-    rec.equipment_id = equipment_id; rec.rule_id = rule_id; rec.operation_id = mapping.operation_id if mapping else rec.operation_id; rec.maintenance_date = maintenance_date; rec.meter_value = meter; rec.work_order = work_order.strip() or None; rec.workshop = workshop.strip() or None; rec.description = description.strip() or None
-    db.commit()
+    if chronology:
+        return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
+
+    legacy_rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
+    rec.equipment_id = equipment_id
+    rec.rule_id = legacy_rule.id if legacy_rule is not None else None
+    rec.operation_id = operation.id
+    rec.plan_id = plan.id if plan is not None else None
+    rec.maintenance_date = maintenance_date
+    rec.meter_value = meter
+    rec.work_order = work_order.strip() or None
+    rec.workshop = workshop.strip() or None
+    rec.description = description.strip() or None
+    try:
+        db.commit()
+    except ValueError:
+        db.rollback()
+        return RedirectResponse(f"{records_url}?error=validation", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(f"{records_url}?saved=updated", status_code=status.HTTP_303_SEE_OTHER)
 
 
