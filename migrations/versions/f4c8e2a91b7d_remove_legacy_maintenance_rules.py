@@ -67,7 +67,16 @@ def upgrade():
             if "uq_maintenance_record_equipment_rule_date" in record_constraints:
                 op.execute(sa.text("DROP INDEX IF EXISTS uq_maintenance_record_equipment_rule_date"))
         else:
+            # The existing rule_id path is retained only for genuinely legacy
+            # databases. Explicitly exclude all rule_id indexes from the
+            # recreated SQLite table before dropping the column.
+            legacy_indexes = [
+                name for name in record_indexes
+                if name and "rule_id" in name
+            ]
             with op.batch_alter_table("maintenance_records", schema=None) as batch_op:
+                for index_name in legacy_indexes:
+                    batch_op.drop_index(index_name)
                 if "uq_maintenance_record_equipment_rule_date" in record_constraints:
                     batch_op.drop_constraint("uq_maintenance_record_equipment_rule_date", type_="unique")
                 batch_op.drop_column("rule_id")
