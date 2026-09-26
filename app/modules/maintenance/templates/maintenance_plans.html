@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}خطط الصيانة{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block content %}
+<div class="maintenance-page" dir="rtl">
+  <div class="page-top">
+    <div class="page-heading">
+      <h2>خطط الصيانة</h2>
+      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">خطط الصيانة</span></div>
+    </div>
+    <div class="hero-actions"><button class="m-btn primary" id="newPlan" type="button">＋ إضافة خطة</button></div>
+  </div>
+  <nav class="module-tabs" aria-label="وحدة الصيانة">
+    <a href="/maintenance/periodic">1. الصيانة الدورية</a>
+    <a href="/maintenance/rules">2. شروط الصيانة</a>
+    <a class="active" href="/maintenance/plans">3. خطط الصيانة</a>
+    <a href="/maintenance/records">4. سجل الصيانة</a>
+    <a href="/maintenance/due">5. الصيانة المستحقة</a>
+  </nav>
+
+  <div id="alert" class="alert" style="display:none;margin-bottom:16px"></div>
+  <section class="panel">
+    <div class="panel-head"><div><h3>خطط الصيانة</h3><p>الخطة تحدد ماذا نختار ومتى نعرضه للاستحقاق. شرط العملية الفني يبقى مستقلًا ولا تعدله الخطة.</p></div><span class="badge info" id="count">0 خطة</span></div>
+    <div class="toolbar-card"><div class="toolbar">
+      <input id="search" class="m-input" placeholder="بحث في الخطط...">
+      <select id="modelFilter" class="m-select"><option value="">كل الطرازات</option></select>
+      <button id="refresh" class="m-btn" type="button">↻ تحديث</button>
+    </div></div>
+    <div class="table-wrap"><table class="m-table"><thead><tr><th>#</th><th>الخطة</th><th>الطراز</th><th>شرط الخطة</th><th>العمليات</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+    <tbody id="body"><tr><td colspan="7" class="muted">جارٍ التحميل...</td></tr></tbody></table></div>
+  </section>
+
+  <section class="panel" id="editor" style="display:none;margin-top:16px">
+    <div class="panel-head"><div><h3 id="editorTitle">إضافة خطة صيانة</h3><p>يمكن أن تضم الخطة العملية نفسها الموجودة في خطط أخرى أو تترك العملية مستقلة دون خطة.</p></div></div>
+    <form id="form" class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <input type="hidden" id="planId">
+      <input id="name" class="m-input" required placeholder="اسم الخطة">
+      <select id="model" class="m-select" required></select>
+      <input id="km" class="m-input" type="number" min="0.01" step="0.1" placeholder="شرط الخطة: كل كم">
+      <input id="hours" class="m-input" type="number" min="0.01" step="0.1" placeholder="شرط الخطة: كل ساعة">
+      <input id="days" class="m-input" type="number" min="1" step="1" placeholder="شرط الخطة: كل يوم">
+      <input id="description" class="m-input" placeholder="وصف الخطة">
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input id="active" type="checkbox" checked> مفعلة</label>
+      <button class="m-btn primary" type="submit">حفظ الخطة</button><button class="m-btn" id="cancel" type="button">إلغاء</button>
+    </form>
+  </section>
+
+  <section class="panel" id="operationsPanel" style="display:none;margin-top:16px">
+    <div class="panel-head"><div><h3 id="operationsTitle">عمليات الخطة</h3><p>اختر العمليات التي تنفذ عند تنفيذ الخطة. لا يتم تعديل شروط العمليات من هنا.</p></div></div>
+    <div class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <select id="operationSelect" class="m-select"></select>
+      <button id="addOperation" class="m-btn primary" type="button">＋ إضافة العملية للخطة</button>
+    </div>
+    <div class="table-wrap"><table class="m-table"><thead><tr><th>العملية</th><th>شرط العملية</th><th>الترتيب</th></tr></thead><tbody id="planOps"></tbody></table></div>
+  </section>
+</div>
+<script>
+(function(){
+  const api='/api/maintenance';
+  const models={{ models|tojson }};
+  const state={plans:[],operations:[],planOps:[]};
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+  const modelName=id=>models.find(m=>m.id===id)?.name||'—';
+  const condition=o=>[o.interval_km!=null?Number(o.interval_km).toLocaleString('ar-DZ')+' كم':null,o.interval_hours!=null?o.interval_hours+' ساعة':null,o.interval_days!=null?o.interval_days+' يوم':null].filter(Boolean).join(' أو ')||'—';
+  function alert(msg,bad=false){$('alert').textContent=msg;$('alert').className='alert '+(bad?'danger':'success');$('alert').style.display='';setTimeout(()=>$('alert').style.display='none',3500)}
+  function fillModels(){
+    $('modelFilter').innerHTML='<option value="">كل الطرازات</option>';
+    $('model').innerHTML='<option value="">اختر الطراز</option>';
+    models.forEach(m=>{const o='<option value="'+m.id+'">'+esc(m.name)+'</option>'; $('modelFilter').insertAdjacentHTML('beforeend',o);$('model').insertAdjacentHTML('beforeend',o)});
+  }
+  async function req(url,opt={}){const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d=null;try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d?.detail||'تعذر تنفيذ العملية.');return d}
+  async function load(){
+    try{
+      const [plans,ops]=await Promise.all([req(api+'/plans'),req(api+'/operations')]);state.plans=plans;state.operations=ops;render();
+    }catch(e){$('body').innerHTML='<tr><td colspan="7" class="muted">'+esc(e.message)+'</td></tr>'}
+  }
+  function render(){
+    const q=$('search').value.toLowerCase().trim(), mf=$('modelFilter').value;
+    const rows=state.plans.filter(p=>(!q||p.name.toLowerCase().includes(q))&&(!mf||String(p.equipment_model_id)===mf));
+    $('count').textContent=rows.length+' خطة';
+    $('body').innerHTML=rows.length?rows.map((p,i)=>'<tr><td>'+(i+1)+'</td><td><strong>'+esc(p.name)+'</strong></td><td>'+esc(modelName(p.equipment_model_id))+'</td><td>'+esc(condition(p))+'</td><td><button class="m-btn" data-ops="'+p.id+'">إدارة العمليات</button></td><td><span class="badge '+(p.is_active?'success':'neutral')+'">'+(p.is_active?'مفعلة':'متوقفة')+'</span></td><td><button class="m-btn" data-edit="'+p.id+'">✏️ تعديل</button></td></tr>').join(''):'<tr><td colspan="7" class="muted">لا توجد خطط.</td></tr>';
+    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(Number(b.dataset.edit)));
+    document.querySelectorAll('[data-ops]').forEach(b=>b.onclick=()=>manage(Number(b.dataset.ops)));
+  }
+  function edit(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('planId').value=p.id;$('name').value=p.name;$('model').value=p.equipment_model_id;$('km').value=p.interval_km??'';$('hours').value=p.interval_hours??'';$('days').value=p.interval_days??'';$('description').value=p.description??'';$('active').checked=!!p.is_active;$('editorTitle').textContent='تعديل خطة صيانة';$('editor').style.display='';window.scrollTo({top:$('editor').offsetTop-20,behavior:'smooth'})}
+  function newPlan(){$('planId').value='';$('name').value='';$('model').value='';$('km').value='';$('hours').value='';$('days').value='';$('description').value='';$('active').checked=true;$('editorTitle').textContent='إضافة خطة صيانة';$('editor').style.display='';$('operationsPanel').style.display='none'}
+  async function manage(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('operationsTitle').textContent='عمليات الخطة: '+p.name;$('operationsPanel').style.display='';$('operationSelect').innerHTML='<option value="">اختر عملية</option>'+state.operations.filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');try{state.planOps=await req(api+'/plans/'+id+'/operations');renderOps(id);$('operationsPanel').scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message,true)}}
+  function renderOps(planId){$('planOps').innerHTML=state.planOps.length?state.planOps.map(x=>{const o=state.operations.find(v=>v.id===x.operation_id);return '<tr><td>'+esc(o?.name||'—')+'</td><td>'+esc(condition(o||{}))+'</td><td>'+x.sort_order+'</td></tr>'}).join(''):'<tr><td colspan="3" class="muted">لا توجد عمليات مرتبطة بهذه الخطة.</td></tr>'}
+  $('form').onsubmit=async e=>{e.preventDefault();const id=$('planId').value;const p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};try{await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});alert(id?'تم تعديل الخطة.':'تم إنشاء الخطة.');$('editor').style.display='none';await load()}catch(e){alert(e.message,true)}};
+  $('addOperation').onclick=async()=>{const planId=state.plans.find(p=>p.name===$('operationsTitle').textContent.replace('عمليات الخطة: ',''))?.id;const operationId=Number($('operationSelect').value);if(!planId||!operationId)return alert('اختر عملية أولًا.',true);try{await req(api+'/plans/'+planId+'/operations',{method:'POST',body:JSON.stringify({plan_id:planId,operation_id:operationId,sort_order:state.planOps.length})});state.planOps=await req(api+'/plans/'+planId+'/operations');renderOps(planId);alert('تمت إضافة العملية للخطة.')}catch(e){alert(e.message,true)}};
+  $('newPlan').onclick=newPlan;$('cancel').onclick=()=>{$('editor').style.display='none'};$('refresh').onclick=load;$('search').oninput=render;$('modelFilter').onchange=render;fillModels();load();
+})();
+</script>
+{% endblock %}
