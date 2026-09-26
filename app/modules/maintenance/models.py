@@ -187,24 +187,13 @@ def _validate_record(connection, target, exclude_id=None):
 
     if operation_id is not None:
         operation_row = connection.execute(
-            select(MaintenanceOperation.id, MaintenanceOperation.is_active, MaintenanceOperation.old_rule_id)
+            select(MaintenanceOperation.id, MaintenanceOperation.is_active)
             .where(MaintenanceOperation.id == operation_id)
         ).first()
         if operation_row is None:
             raise ValueError("عملية الصيانة المحددة غير موجودة.")
         if not operation_row[1]:
             raise ValueError("عملية الصيانة غير مفعلة.")
-
-        if target.rule_id is not None and operation_row[2] != target.rule_id:
-            mapping = connection.execute(
-                select(MaintenanceOperationRuleMap.id)
-                .where(
-                    MaintenanceOperationRuleMap.old_rule_id == target.rule_id,
-                    MaintenanceOperationRuleMap.operation_id == operation_id,
-                )
-            ).first()
-            if mapping is None:
-                raise ValueError("الصيانة الدورية القديمة لا تقابل عملية الصيانة المختارة.")
 
         membership = connection.execute(
             select(MaintenancePlanOperation.id)
@@ -349,7 +338,7 @@ def _sync_maintenance_record_insert(mapper, connection, target):
 def _validate_maintenance_record_update(mapper, connection, target):
     target.reported_date = target.maintenance_date
     state = inspect(target)
-    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "rule_id", "maintenance_date", "meter_value")):
+    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "operation_id", "maintenance_date", "meter_value")):
         _validate_record(connection, target, exclude_id=target.id)
 
 
