@@ -107,10 +107,6 @@ class MaintenancePlanOperation(Base):
         index=True,
     )
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
-    interval_km_override = Column(Numeric(10, 1), nullable=True)
-    interval_hours_override = Column(Numeric(10, 1), nullable=True)
-    interval_days_override = Column(Integer, nullable=True)
-
     plan = relationship("MaintenancePlan", back_populates="plan_operations")
     operation = relationship("MaintenanceOperation", back_populates="plan_operations")
 
@@ -206,6 +202,8 @@ def _validate_record(connection, target, exclude_id=None):
         raise ValueError("يجب تحديد العتاد قبل تسجيل الصيانة.")
     if target.rule_id is None and getattr(target, "operation_id", None) is None:
         raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية قبل تسجيل السجل.")
+    operation_id = getattr(target, "operation_id", None)
+    plan_id = getattr(target, "plan_id", None)
     if target.maintenance_date is None:
         raise ValueError("يجب تحديد تاريخ الصيانة.")
     if target.maintenance_date > datetime.now(timezone.utc).date():
