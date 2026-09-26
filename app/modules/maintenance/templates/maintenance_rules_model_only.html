@@ -1,94 +1,186 @@
 {% extends "base.html" %}
-{% block title %}شروط الصيانة حسب الطراز{% endblock %}
+{% block title %}مكتبة شروط الصيانة الدورية{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
-    <div class="page-heading"><h2>شروط الصيانة حسب الطراز</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">قواعد الطراز</span></div></div>
-    <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="#newRule">＋ &nbsp;إضافة شرط لطراز</a></div>
+    <div class="page-heading">
+      <h2>مكتبة شروط الصيانة الدورية</h2>
+      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">مكتبة الشروط</span></div>
+    </div>
+    <div class="hero-actions">
+      <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
+      <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
+    </div>
   </div>
-  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a class="active" href="/maintenance/rules">2. شروط الصيانة</a><a href="/maintenance/records">3. سجل الصيانة</a><a href="/maintenance/due">4. الصيانة المستحقة</a></nav>
 
-  <div class="toolbar-card"><div class="toolbar">
-    <div class="search-wrap"><span class="search-icon">⌕</span><input id="rulesSearch" class="m-input" placeholder="بحث في قواعد الطراز..."></div>
-    <select class="m-select" id="rulesModel"><option value="">كل الطُرز</option>{% for m in models %}<option value="{{ m.id }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-    <a class="m-btn primary" href="#newRule">＋ &nbsp;إضافة شرط لطراز</a>
-  </div></div>
+  <nav class="module-tabs" aria-label="وحدة الصيانة">
+    <a href="/maintenance/periodic">1. الصيانة الدورية</a>
+    <a class="active" href="/maintenance/rules">2. شروط الصيانة</a>
+    <a href="/maintenance/records">3. سجل الصيانة</a>
+    <a href="/maintenance/due">4. الصيانة المستحقة</a>
+  </nav>
 
-  {% set error = request.query_params.get('error') %}{% set changed = request.query_params.get('changed') %}{% set saved = request.query_params.get('saved') %}
-  {% if error %}<div class="alert danger" style="margin-bottom:16px">{% if error == 'not_found' %}الشرط المطلوب غير موجود.{% elif error == 'invalid' %}تحقق من اسم الشرط وأدخل فترة صيانة صحيحة واحدة على الأقل.{% elif error == 'equipment_model' %}الطراز المحدد غير موجود.{% else %}تعذر تنفيذ العملية.{% endif %}</div>{% endif %}
-  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف شرط الصيانة نهائيًا لأنه غير مستخدم في أي سجل.{% elif changed == 'deactivated' %}تم تعطيل شرط الصيانة لأنه مستخدم في سجلات سابقة. السجلات التاريخية محفوظة.{% else %}تم تغيير حالة الشرط بنجاح.{% endif %}</div>{% endif %}
-  {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل شرط الصيانة بنجاح.{% else %}تم حفظ شرط الصيانة بنجاح.{% endif %}</div>{% endif %}
+  <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
+
+  <div class="toolbar-card">
+    <div class="toolbar">
+      <div class="search-wrap"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
+      <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
+      <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
+      <button class="m-btn" type="button" id="refreshLibrary">↻ &nbsp;تحديث</button>
+    </div>
+  </div>
 
   <section class="panel">
-    <div class="panel-head"><div><h3>القواعد المطبقة على مركبات الطراز</h3><p>القاعدة تُعرّف مرة واحدة على مستوى الطراز، وتُطبق تلقائيًا على جميع المركبات التابعة له. لا توجد قواعد استثناء على مستوى المركبة.</p></div><span class="badge info">{{ rules|length }} سجل</span></div>
-    <div class="table-wrap"><table class="m-table" id="rulesTable"><thead><tr><th>#</th><th>الطراز</th><th>نوع العتاد</th><th>نوع الصيانة</th><th>الأيام</th><th>فترة العداد</th><th>إنذار العداد</th><th>الحالة</th><th>الإجراءات</th></tr></thead><tbody>
-      {% for r in rules %}
-      <tr data-model="{{ r.equipment_model_id or '' }}">
-        <td>{{ loop.index }}</td>
-        <td class="vehicle">{% if r.equipment_model %}{{ r.equipment_model.name }}{% if r.equipment_model.brand %} — {{ r.equipment_model.brand.name }}{% endif %}{% else %}<span class="badge neutral">بدون طراز</span>{% endif %}</td>
-        <td>{{ r.equipment_type.name if r.equipment_type else '—' }}</td><td>{{ r.name }}</td>
-        <td class="num">{{ r.interval_days or '—' }}</td>
-        <td class="num">{% if r.equipment_type and r.equipment_type.measurement_unit == 'hours' %}{% if r.interval_hours is not none %}{{ '{:,.0f}'.format(r.interval_hours) }} س{% else %}—{% endif %}{% elif r.interval_km is not none %}{{ '{:,.0f}'.format(r.interval_km) }} كم{% else %}—{% endif %}</td>
-        <td class="num">{% if r.equipment_type and r.equipment_type.measurement_unit == 'km' and r.warning_km is not none %}{{ '{:,.0f}'.format(r.warning_km) }} كم{% else %}—{% endif %}</td>
-        <td><span class="badge {{ 'success' if r.is_active else 'neutral' }}">{{ 'مفعلة' if r.is_active else 'متوقفة' }}</span></td>
-        <td style="white-space:nowrap">
-          {% if r.equipment_model_id %}<a class="m-btn" href="/maintenance/rules?edit={{ r.id }}#editRule">✏️ تعديل</a>{% else %}<span class="badge neutral">سجل بلا طراز</span>{% endif %}
-          {% if r.equipment_model_id %}{% if r.is_active %}<form method="post" action="/maintenance/rules/{{ r.id }}/toggle" style="display:inline" onsubmit="return confirm('هل تريد تعطيل هذا الشرط؟');"><button class="m-btn" type="submit">⏸ تعطيل</button></form>{% else %}<form method="post" action="/maintenance/rules/{{ r.id }}/toggle" style="display:inline" onsubmit="return confirm('هل تريد إعادة تفعيل هذا الشرط؟');"><button class="m-btn" type="submit">▶ تفعيل</button></form>{% endif %}{% endif %}
-          {% if record_counts.get(r.id, 0) == 0 %}<form method="post" action="/maintenance/rules/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف الشرط نهائيًا لأنه غير مستخدم. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>{% else %}<form method="post" action="/maintenance/rules/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('هذا الشرط مستخدم في {{ record_counts.get(r.id, 0) }} سجلًا. سيتم تعطيله فقط ولن تُحذف السجلات. هل تريد المتابعة؟');"><button class="m-btn" type="submit">🗑 تعطيل</button></form>{% endif %}
-        </td>
-      </tr>
-      {% else %}<tr><td colspan="9" class="muted">لا توجد شروط صيانة بعد.</td></tr>{% endfor %}
-    </tbody></table></div>
+    <div class="panel-head">
+      <div>
+        <h3>العمليات الفنية</h3>
+        <p>هذه المكتبة هي المرجع الفني للعمليات وشروط استحقاقها. العملية لا تحتاج إلى الانتماء لخطة؛ ويمكن ربطها لاحقًا بخطة واحدة أو عدة خطط.</p>
+      </div>
+      <span class="badge info" id="operationCount">0 عملية</span>
+    </div>
+    <div class="table-wrap">
+      <table class="m-table" id="operationsTable">
+        <thead><tr><th>#</th><th>العملية</th><th>المجموعة</th><th>الشرط</th><th>الإنذار</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+        <tbody id="operationsBody"><tr><td colspan="7" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
+      </table>
+    </div>
   </section>
 
-  {% if edit_rule and edit_rule.equipment_model_id %}
-  <section class="panel" id="editRule" style="margin-top:16px"><div class="panel-head"><div><h3>تعديل شرط الصيانة</h3><p>الطراز: {{ edit_rule.equipment_model.name }}. التعديل ينعكس على جميع المركبات التابعة لهذا الطراز.</p></div></div>
-    <form method="post" action="/maintenance/rules/{{ edit_rule.id }}/update" class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <input class="m-input" name="name" required value="{{ edit_rule.name }}" placeholder="نوع الصيانة">
-      <select class="m-select" name="equipment_model_id" id="editRuleModel" required>{% for m in models %}<option value="{{ m.id }}" data-unit="{{ m.equipment_type.measurement_unit if m.equipment_type else '' }}" {% if m.id == edit_rule.equipment_model_id %}selected{% endif %}>{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-      <input class="m-input meter-km-field" name="interval_km" type="number" step="0.1" value="{{ edit_rule.interval_km or '' }}" placeholder="الفترة كم">
-      <input class="m-input meter-hours-field" name="interval_hours" type="number" step="0.1" value="{{ edit_rule.interval_hours or '' }}" placeholder="الفترة ساعات">
-      <input class="m-input" name="interval_days" type="number" value="{{ edit_rule.interval_days or '' }}" placeholder="الفترة أيام">
-      <input class="m-input meter-km-field" name="warning_km" type="number" step="0.1" value="{{ edit_rule.warning_km if edit_rule.warning_km is not none else '' }}" placeholder="إنذار العداد كم">
-      <input class="m-input" name="warning_days" type="number" value="{{ edit_rule.warning_days if edit_rule.warning_days is not none else '' }}" placeholder="إنذار أيام">
-      <input class="m-input" name="description" value="{{ edit_rule.description or '' }}" placeholder="الوصف">
-      <button class="m-btn primary" type="submit">حفظ التعديل</button><a class="m-btn" href="/maintenance/rules">إلغاء</a>
-    </form>
-  </section>
-  {% endif %}
-
-  <section class="panel" id="newRule" style="margin-top:16px"><div class="panel-head"><div><h3>إضافة شرط صيانة لطراز</h3><p>اختر الطراز مباشرة. القاعدة ستصبح قاعدة رسمية للطراز وتُطبق على جميع مركباته تلقائيًا.</p></div></div>
-    <form method="post" action="/maintenance/rules/create" class="toolbar" style="padding:18px;flex-wrap:wrap" id="newRuleForm">
-      <input class="m-input" name="name" required placeholder="نوع الصيانة">
-      <select class="m-select" name="equipment_model_id" id="newRuleModel" required><option value="">الطراز *</option>{% for m in models %}<option value="{{ m.id }}" data-unit="{{ m.equipment_type.measurement_unit if m.equipment_type else '' }}">{{ m.name }}{% if m.brand %} — {{ m.brand.name }}{% endif %}</option>{% endfor %}</select>
-      <input class="m-input meter-km-field" name="interval_km" type="number" step="0.1" placeholder="الفترة كم">
-      <input class="m-input meter-hours-field" name="interval_hours" type="number" step="0.1" placeholder="الفترة ساعات">
-      <input class="m-input" name="interval_days" type="number" placeholder="الفترة أيام">
-      <input class="m-input meter-km-field" name="warning_km" type="number" step="0.1" value="500" placeholder="إنذار العداد كم">
-      <input class="m-input" name="warning_days" type="number" value="7" placeholder="إنذار أيام">
-      <input class="m-input" name="description" placeholder="الوصف">
-      <button class="m-btn primary" type="submit">حفظ الشرط</button>
+  <section class="panel" id="operationEditor" style="display:none;margin-top:16px">
+    <div class="panel-head"><div><h3 id="editorTitle">إضافة عملية صيانة</h3><p>حدد شرط العملية نفسه. هذا الشرط يبقى مرجعًا فنيًا حتى عند إدراج العملية في خطة.</p></div></div>
+    <form id="operationForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <input type="hidden" id="operationId">
+      <input class="m-input" id="operationName" required placeholder="اسم العملية">
+      <select class="m-select" id="operationGroup"><option value="">بدون مجموعة</option></select>
+      <input class="m-input meter-km-field" id="intervalKm" type="number" min="0.01" step="0.1" placeholder="كل كم">
+      <input class="m-input meter-hours-field" id="intervalHours" type="number" min="0.01" step="0.1" placeholder="كل ساعة تشغيل">
+      <input class="m-input" id="intervalDays" type="number" min="1" step="1" placeholder="كل كم يوم">
+      <input class="m-input meter-km-field" id="warningKm" type="number" min="0" step="0.1" placeholder="إنذار قبل كم">
+      <input class="m-input" id="warningDays" type="number" min="0" step="1" placeholder="إنذار قبل أيام">
+      <input class="m-input" id="operationDescription" placeholder="وصف العملية / ملاحظات فنية">
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input type="checkbox" id="operationActive" checked> مفعلة</label>
+      <button class="m-btn primary" type="submit">حفظ</button>
+      <button class="m-btn" type="button" id="cancelEditor">إلغاء</button>
     </form>
   </section>
 </div>
+
 <script>
 (function(){
-  const q=document.getElementById('rulesSearch'), model=document.getElementById('rulesModel');
-  function filter(){const x=q.value.toLowerCase().trim(),m=model.value;document.querySelectorAll('#rulesTable tbody tr').forEach(r=>{r.style.display=(!x||r.innerText.toLowerCase().includes(x))&&(!m||r.dataset.model===m)?'':'none'});}
-  q.addEventListener('input',filter);model.addEventListener('change',filter);
-  function syncMeterFields(select, form){
-    if(!select||!form)return;
-    const unit=select.selectedOptions[0]?.dataset.unit||'';
-    form.querySelectorAll('.meter-km-field').forEach(el=>{const show=unit==='km';el.style.display=show?'':'none';el.disabled=!show;});
-    form.querySelectorAll('.meter-hours-field').forEach(el=>{const show=unit==='hours';el.style.display=show?'':'none';el.disabled=!show;});
+  const api='/api/maintenance';
+  const state={groups:[],operations:[]};
+  const $=id=>document.getElementById(id);
+  const alertBox=$('libraryAlert');
+
+  function showAlert(message, kind='success'){
+    alertBox.textContent=message;
+    alertBox.className='alert '+kind;
+    alertBox.style.display='';
+    setTimeout(()=>{alertBox.style.display='none'},3500);
   }
-  const editModel=document.getElementById('editRuleModel');
-  if(editModel)syncMeterFields(editModel,editModel.closest('form'));
-  editModel?.addEventListener('change',()=>syncMeterFields(editModel,editModel.closest('form')));
-  const newModel=document.getElementById('newRuleModel');
-  if(newModel)syncMeterFields(newModel,newModel.closest('form'));
-  newModel?.addEventListener('change',()=>syncMeterFields(newModel,newModel.closest('form')));
+  async function request(url, options={}){
+    const response=await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
+    let data=null; try{data=await response.json()}catch(_){}
+    if(!response.ok) throw new Error(data?.detail||'تعذر تنفيذ العملية.');
+    return data;
+  }
+  function groupName(id){return state.groups.find(g=>g.id===id)?.name||'بدون مجموعة'}
+  function conditionText(op){
+    const a=[];
+    if(op.interval_km!=null)a.push(Number(op.interval_km).toLocaleString('ar-DZ')+' كم');
+    if(op.interval_hours!=null)a.push(Number(op.interval_hours).toLocaleString('ar-DZ')+' ساعة');
+    if(op.interval_days!=null)a.push(op.interval_days+' يوم');
+    return a.length?a.join(' أو '):'—';
+  }
+  function warningText(op){
+    const a=[];
+    if(op.warning_km!=null)a.push(Number(op.warning_km).toLocaleString('ar-DZ')+' كم');
+    if(op.warning_days!=null)a.push(op.warning_days+' يوم');
+    return a.length?a.join(' / '):'—';
+  }
+  function renderGroups(){
+    const filter=$('groupFilter'), editor=$('operationGroup');
+    const currentFilter=filter.value, currentEditor=editor.value;
+    filter.innerHTML='<option value="">كل المجموعات</option>';
+    editor.innerHTML='<option value="">بدون مجموعة</option>';
+    state.groups.forEach(g=>{
+      filter.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+      editor.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+    });
+    filter.value=currentFilter; editor.value=currentEditor;
+  }
+  function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  function render(){
+    const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
+    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active)));
+    $('operationCount').textContent=rows.length+' عملية';
+    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>`<tr>
+      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
+      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button></td>
+    </tr>`).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
+    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
+    document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
+  }
+  function syncMeterFields(){
+    document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
+    document.querySelectorAll('.meter-hours-field').forEach(el=>{el.style.display='';});
+  }
+  function resetEditor(){
+    $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
+    $('intervalKm').value=''; $('intervalHours').value=''; $('intervalDays').value='';
+    $('warningKm').value=''; $('warningDays').value=''; $('operationDescription').value=''; $('operationActive').checked=true;
+    $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
+    syncMeterFields();
+  }
+  function editOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
+    $('intervalKm').value=op.interval_km??''; $('intervalHours').value=op.interval_hours??''; $('intervalDays').value=op.interval_days??'';
+    $('warningKm').value=op.warning_km??''; $('warningDays').value=op.warning_days??'';
+    $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
+    $('editorTitle').textContent='تعديل عملية الصيانة'; $('operationEditor').style.display='';
+    window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});
+  }
+  async function toggleOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    try{
+      await request(`${api}/operations/${id}`,{method:'PUT',body:JSON.stringify({...op,is_active:!op.is_active})});
+      showAlert(op.is_active?'تم تعطيل العملية.':'تم تفعيل العملية.');
+      await load();
+    }catch(e){showAlert(e.message,'danger')}
+  }
+  async function load(){
+    try{
+      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
+      state.groups=groups; state.operations=operations; renderGroups(); render();
+    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
+  }
+  $('operationForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const id=$('operationId').value;
+    const payload={
+      name:$('operationName').value.trim(),group_id:$('operationGroup').value?Number($('operationGroup').value):null,
+      interval_km:$('intervalKm').value?Number($('intervalKm').value):null,
+      interval_hours:$('intervalHours').value?Number($('intervalHours').value):null,
+      interval_days:$('intervalDays').value?Number($('intervalDays').value):null,
+      warning_km:$('warningKm').value?Number($('warningKm').value):null,
+      warning_days:$('warningDays').value?Number($('warningDays').value):null,
+      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked
+    };
+    try{
+      await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      showAlert(id?'تم تعديل العملية.':'تمت إضافة العملية.');
+      $('operationEditor').style.display='none'; await load();
+    }catch(err){showAlert(err.message,'danger')}
+  });
+  $('newOperationBtn').onclick=resetEditor;
+  $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
+  $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
+  load();
 })();
 </script>
 {% endblock %}
