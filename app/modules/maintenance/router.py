@@ -61,9 +61,10 @@ def maintenance_plans_page(request: Request, db: Session = Depends(get_db), curr
         joinedload(EquipmentModel.brand),
         joinedload(EquipmentModel.equipment_type),
     ).order_by(EquipmentModel.name).all()
+    model_options = [{"id": model.id, "name": model.name} for model in models]
     return templates.TemplateResponse(
         "maintenance_plans.html",
-        {"request": request, "user": current_user, "models": models},
+        {"request": request, "user": current_user, "models": model_options},
     )
 
 @router.get("/maintenance/rules", response_class=HTMLResponse)
