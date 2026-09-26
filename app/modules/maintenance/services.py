@@ -122,6 +122,36 @@ def plan_status_for(plan, equipment, last_record, current_value, today=None):
     return status_for(plan, equipment, last_record, current_value, today=today)
 
 
+def effective_plans_for_equipment(db: Session, equipment):
+    """Return active maintenance plans configured for the equipment model."""
+    model_id = getattr(equipment, "equipment_model_id", None)
+    if model_id is None:
+        return []
+    return (
+        db.query(MaintenancePlan)
+        .filter(
+            MaintenancePlan.equipment_model_id == model_id,
+            MaintenancePlan.is_active.is_(True),
+        )
+        .order_by(MaintenancePlan.name, MaintenancePlan.id)
+        .all()
+    )
+
+
+def latest_plan_records(db: Session):
+    """Return the latest execution record for each equipment/plan pair."""
+    result = {}
+    rows = db.query(MaintenanceRecord).filter(MaintenanceRecord.plan_id.is_not(None)).order_by(
+        MaintenanceRecord.equipment_id,
+        desc(MaintenanceRecord.maintenance_date),
+        desc(MaintenanceRecord.id),
+    ).all()
+    for row in rows:
+        key = (row.equipment_id, row.plan_id)
+        if key not in result:
+            result[key] = row
+    return result
+
 def effective_operations_for_equipment(db: Session, equipment, include_standalone=True):
     """Return active operations applicable to the equipment model.
 
