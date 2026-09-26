@@ -286,7 +286,6 @@ def maintenance_record_update(
     if chronology:
         return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
 
-    legacy_rule = db.get(MaintenanceRule, operation.old_rule_id) if operation.old_rule_id is not None else None
     rec.equipment_id = equipment_id
     rec.operation_id = operation.id
     rec.plan_id = plan.id if plan is not None else None
@@ -322,7 +321,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
                 due_rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     due_rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999)); return templates.TemplateResponse("maintenance_due.html", {"request": request, "user": current_user, "rows": due_rows})
 
-# JSON API for the new maintenance library. Legacy HTML routes above remain unchanged.
+# JSON API for the operation-first maintenance library.
 @router.get("/api/maintenance/operation-groups", response_model=list[MaintenanceOperationGroupOut])
 def api_operation_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(MaintenanceOperationGroup).order_by(MaintenanceOperationGroup.sort_order, MaintenanceOperationGroup.name, MaintenanceOperationGroup.id).all()
@@ -507,7 +506,6 @@ def api_execution_create(
 
     record = MaintenanceRecord(
         equipment_id=payload.equipment_id,
-        rule_id=rule.id if rule is not None else None,
         operation_id=operation.id if operation is not None else None,
         plan_id=payload.plan_id,
         maintenance_date=payload.maintenance_date,
@@ -618,7 +616,6 @@ def api_plan_execution_create(
             operation = link.operation
             record = MaintenanceRecord(
                 equipment_id=payload.equipment_id,
-                rule_id=rule.id if rule is not None else None,
                 operation_id=operation.id,
                 plan_id=plan.id,
                 maintenance_date=payload.maintenance_date,
