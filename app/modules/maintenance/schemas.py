@@ -167,6 +167,8 @@ class MaintenanceRecordCreate(BaseModel):
     def validate_source(self):
         if self.rule_id is None and self.operation_id is None:
             raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية")
+        if self.plan_id is not None and self.operation_id is None:
+            raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة")
         return self
 
 
