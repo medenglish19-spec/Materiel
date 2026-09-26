@@ -91,3 +91,18 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert "maintenance/rules/create" in router
     assert "exceptions/create" not in router
     assert "parent_rule" not in router
+
+
+def test_maintenance_plan_workspace_is_exposed():
+    from pathlib import Path
+
+    template = Path("app/modules/maintenance/templates/maintenance_plans.html").read_text(encoding="utf-8")
+    router = Path("app/modules/maintenance/router.py").read_text(encoding="utf-8")
+    home = Path("app/modules/maintenance/templates/maintenance_home.html").read_text(encoding="utf-8")
+
+    assert '@router.get("/maintenance/plans"' in router
+    assert 'maintenance_plans.html' in router
+    assert "api+'/plans'" in template
+    assert "api+'/plans/'+id+'/operations'" in template
+    assert "خطة صيانة" in template
+    assert "/maintenance/plans" in home
