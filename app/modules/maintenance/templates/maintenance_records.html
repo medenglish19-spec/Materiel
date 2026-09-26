@@ -102,14 +102,18 @@
     plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>'; plan.disabled=true;
     meter.value=''; hint.textContent='اختر العتاد لعرض العداد الحالي.';
   }
+  function refreshPlans(){
+    const modelId=equipment.selectedOptions[0]?.dataset.modelId||'', opId=operation.value;
+    plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>';
+    allPlans.forEach(o=>{if(o.dataset.modelId===modelId && (o.dataset.operationIds||'').split(',').includes(opId))plan.appendChild(o.cloneNode(true))});
+    plan.disabled=plan.options.length===1;
+  }
   function refreshOperationAndPlans(){
-    const selected=equipment.selectedOptions[0], equipmentId=selected?.value||'', modelId=selected?.dataset.modelId||'';
+    const selected=equipment.selectedOptions[0], equipmentId=selected?.value||'';
     operation.innerHTML='<option value="">اختر العملية</option>';
     allOperations.forEach(o=>{const ids=(o.dataset.equipmentIds||'').split(',').filter(Boolean);if(ids.includes(equipmentId))operation.appendChild(o.cloneNode(true))});
     operation.disabled=operation.options.length===1;
-    plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>';
-    allPlans.forEach(o=>{if(o.dataset.modelId===modelId && (o.dataset.operationIds||'').split(',').includes(operation.value))plan.appendChild(o.cloneNode(true))});
-    plan.disabled=plan.options.length===1;
+    refreshPlans();
     if(selected){const unit=selected.dataset.unit,value=unit==='hours'?selected.dataset.currentHours:selected.dataset.currentKm;hint.textContent=value?'العداد الحالي: '+Number(value).toLocaleString('ar-DZ')+' '+(unit==='hours'?'ساعة':'كم'):'لا توجد قراءة حالية للعداد.';meter.placeholder=unit==='hours'?'العداد عند التنفيذ (ساعة)':'العداد عند التنفيذ (كم)'}
   }
   function filterPlanByOperation(){
@@ -123,7 +127,7 @@
     if(!isEdit&&op.selectedOptions[0]?.dataset.requiresMeter==='1'&&meterInput&&!meterInput.value){alert('هذه العملية تعتمد على العداد، ويجب إدخال القراءة عند التنفيذ.');meterInput.focus();return false}
     return true
   }
-  if(model)model.addEventListener('change',refreshNew);if(equipment)equipment.addEventListener('change',refreshOperationAndPlans);if(operation)operation.addEventListener('change',filterPlanByOperation);
+  if(model)model.addEventListener('change',refreshNew);if(equipment)equipment.addEventListener('change',refreshOperationAndPlans);if(operation)operation.addEventListener('change',refreshPlans);
   const newForm=document.getElementById('maintenanceRecordForm');if(newForm)newForm.addEventListener('submit',e=>{if(!validate(newForm,false))e.preventDefault()});
   const editForm=document.getElementById('maintenanceEditForm');if(editForm)editForm.addEventListener('submit',e=>{if(!validate(editForm,true))e.preventDefault()});
 })();
