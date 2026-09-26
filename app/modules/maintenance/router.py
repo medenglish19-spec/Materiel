@@ -56,35 +56,14 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
 
 @router.get("/maintenance/rules", response_class=HTMLResponse)
 def maintenance_rules_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rules = (
-        db.query(MaintenanceRule)
-        .options(
-            joinedload(MaintenanceRule.equipment_type),
-            joinedload(MaintenanceRule.equipment_model),
-        )
-        .order_by(MaintenanceRule.id.desc())
-        .all()
-    )
-    types = db.query(EquipmentType).order_by(EquipmentType.name).all()
-    models = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand), joinedload(EquipmentModel.equipment_type)).order_by(EquipmentModel.name).all()
-    record_counts = {r.id: db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id == r.id).count() for r in rules}
-    edit_rule = None
-    edit_id = request.query_params.get("edit")
-    if edit_id and edit_id.isdigit():
-        edit_rule = db.query(MaintenanceRule).filter(MaintenanceRule.id == int(edit_id)).first()
+    models = db.query(EquipmentModel).options(
+        joinedload(EquipmentModel.brand),
+        joinedload(EquipmentModel.equipment_type),
+    ).order_by(EquipmentModel.name).all()
     return templates.TemplateResponse(
         "maintenance_rules_model_only.html",
-        {
-            "request": request,
-            "user": current_user,
-            "rules": rules,
-            "types": types,
-            "models": models,
-            "record_counts": record_counts,
-            "edit_rule": edit_rule,
-        },
+        {"request": request, "user": current_user, "models": models},
     )
-
 
 @router.post("/maintenance/rules/create")
 def maintenance_rule_create(
