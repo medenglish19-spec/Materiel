@@ -76,15 +76,17 @@ def test_maintenance_rules_are_selected_by_model_only():
         db.close()
 
 
-def test_maintenance_rules_workspace_has_no_exception_ui_or_routes():
+def test_maintenance_conditions_workspace_uses_operation_library():
     from pathlib import Path
 
     template = Path("app/modules/maintenance/templates/maintenance_rules_model_only.html").read_text(encoding="utf-8")
     router = Path("app/modules/maintenance/router.py").read_text(encoding="utf-8")
 
+    assert "/api/maintenance/operations" in template
+    assert "/api/maintenance/operation-groups" in template
+    assert "مكتبة شروط الصيانة الدورية" in template
+    assert "إضافة عملية صيانة" in template
+    assert "equipment_model_id" not in template
+    assert "maintenance/rules/create" in router
     assert "exceptions/create" not in router
-    assert "exceptions/update" not in router
-    assert "exceptionForm" not in template
-    assert "newException" not in template
-    assert "exceptions/create" not in template
     assert "parent_rule" not in router
