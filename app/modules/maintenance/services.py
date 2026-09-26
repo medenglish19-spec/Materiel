@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule, MaintenanceOperation, MaintenancePlanOperation, MaintenancePlan
+from app.modules.maintenance.models import MaintenanceRecord, MaintenanceOperation, MaintenancePlanOperation, MaintenancePlan
 from app.modules.meter_readings.models import MeterReading
 
 
@@ -29,7 +29,7 @@ def latest_records(db: Session):
         desc(MaintenanceRecord.id),
     ).all()
     for row in rows:
-        key = (row.equipment_id, row.operation_id or row.rule_id)
+        key = (row.equipment_id, row.operation_id)
         if key not in result:
             result[key] = row
     return result
@@ -209,55 +209,3 @@ def priority_for(state, remaining_meter, meta):
         return 3
     candidates = [x for x in (remaining_meter, meta.get("remaining_days")) if x is not None]
     return 4 if candidates else 5
-
-
-def effective_rules_for_equipment(db: Session, equipment, include_rule_id=None):
-    """Return only maintenance rules assigned to the equipment's model.
-
-    Classification, brand, and equipment type never select a maintenance rule.
-    The type is used only to determine the meter unit through the equipment itself.
-    """
-    model_id = getattr(equipment, "equipment_model_id", None)
-    if model_id is None:
-        return []
-
-    query = (
-        db.query(MaintenanceRule)
-        .options(
-            joinedload(MaintenanceRule.equipment_type),
-            joinedload(MaintenanceRule.equipment_model),
-        )
-        .filter(
-            MaintenanceRule.equipment_model_id == model_id,
-            MaintenanceRule.is_active.is_(True),
-        )
-        .order_by(MaintenanceRule.name, MaintenanceRule.id)
-    )
-    result = query.all()
-
-    if include_rule_id is not None and not any(rule.id == include_rule_id for rule in result):
-        historical = (
-            db.query(MaintenanceRule)
-            .options(
-                joinedload(MaintenanceRule.equipment_type),
-                joinedload(MaintenanceRule.equipment_model),
-            )
-            .filter(
-                MaintenanceRule.id == include_rule_id,
-                MaintenanceRule.equipment_model_id == model_id,
-            )
-            .first()
-        )
-        if historical is not None:
-            result.append(historical)
-
-    return sorted(result, key=lambda rule: (rule.name, rule.id))
-
-
-def get_effective_rule_for_equipment(db: Session, equipment, rule_id: int, include_historical: bool = False):
-    rules = effective_rules_for_equipment(
-        db,
-        equipment,
-        include_rule_id=rule_id if include_historical else None,
-    )
-    return next((rule for rule in rules if rule.id == rule_id), None)
