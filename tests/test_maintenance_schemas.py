@@ -42,3 +42,9 @@ def test_plan_operation_contains_membership_only():
     assert item.plan_id == 1
     assert item.operation_id == 1
     assert item.sort_order == 2
+
+
+def test_execution_plan_requires_operation():
+    from app.modules.maintenance.schemas import MaintenanceRecordCreate
+    with pytest.raises(ValidationError):
+        MaintenanceRecordCreate(equipment_id=1, plan_id=1, maintenance_date="2026-09-25")
