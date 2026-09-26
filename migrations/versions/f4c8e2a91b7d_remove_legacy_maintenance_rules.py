@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "f4c8e2a91b7d"
-down_revision = "da62b4ffe6fd"
+down_revision = "stage8_remove_plan_operation_overrides"
 branch_labels = None
 depends_on = None
 
