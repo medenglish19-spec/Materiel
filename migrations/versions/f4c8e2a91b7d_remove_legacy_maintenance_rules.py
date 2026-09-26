@@ -23,14 +23,26 @@ def upgrade():
     if "maintenance_operation_rule_map" in inspector.get_table_names():
         op.drop_table("maintenance_operation_rule_map")
 
-    with op.batch_alter_table("maintenance_operations", schema=None) as batch_op:
-        batch_op.drop_column("old_rule_id")
+    tables = set(inspector.get_table_names())
 
-    with op.batch_alter_table("maintenance_records", schema=None) as batch_op:
-        batch_op.drop_constraint("uq_maintenance_record_equipment_rule_date", type_="unique")
-        batch_op.drop_column("rule_id")
+    if "maintenance_operations" in tables:
+        operation_columns = {c["name"] for c in inspector.get_columns("maintenance_operations")}
+        if "old_rule_id" in operation_columns:
+            with op.batch_alter_table("maintenance_operations", schema=None) as batch_op:
+                batch_op.drop_column("old_rule_id")
 
-    op.drop_table("maintenance_rules")
+    if "maintenance_records" in tables:
+        record_columns = {c["name"] for c in inspector.get_columns("maintenance_records")}
+        record_constraints = {c.get("name") for c in inspector.get_unique_constraints("maintenance_records")}
+        if "rule_id" in record_columns or "uq_maintenance_record_equipment_rule_date" in record_constraints:
+            with op.batch_alter_table("maintenance_records", schema=None) as batch_op:
+                if "uq_maintenance_record_equipment_rule_date" in record_constraints:
+                    batch_op.drop_constraint("uq_maintenance_record_equipment_rule_date", type_="unique")
+                if "rule_id" in record_columns:
+                    batch_op.drop_column("rule_id")
+
+    if "maintenance_rules" in tables:
+        op.drop_table("maintenance_rules")
 
 
 def downgrade():
