@@ -4,7 +4,7 @@
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top"><div class="page-heading"><h2>الصيانة الدورية</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">الصيانة الدورية</span></div></div><div class="hero-actions"><a class="m-btn" href="/maintenance/records">▤ &nbsp;سجل الصيانة</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a></div></div>
-  <nav class="module-tabs" aria-label="وحدة الصيانة"><a class="active" href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/records">3. سجل الصيانة</a><a href="/maintenance/due">4. الصيانة المستحقة</a></nav>
+  <nav class="module-tabs" aria-label="وحدة الصيانة"><a class="active" href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-icon">▣</div><div class="kpi-body"><div class="kpi-label">إجمالي المتابعات</div><div class="kpi-value">{{ counts.total }}</div><div class="kpi-meta">العتاد × عمليات الصيانة حسب النوع والطراز</div></div></div>
     <div class="kpi danger"><div class="kpi-icon">▲</div><div class="kpi-body"><div class="kpi-label">مستحقة الآن</div><div class="kpi-value">{{ counts.danger }}</div><div class="kpi-meta">تحتاج إجراء فوري</div></div></div>
