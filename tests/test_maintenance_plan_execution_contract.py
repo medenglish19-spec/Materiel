@@ -28,7 +28,7 @@ def test_plan_execution_schema_has_required_plan_and_equipment():
     assert "equipment_id: int" in source
     assert "plan_id: int" in source
     assert "maintenance_date: date" in source
-    assert "meter_value: Decimal | None" in source
+    assert "meter_value: Optional[Decimal] = None" in source
 
 
 def test_plan_status_is_separate_from_operation_status():
