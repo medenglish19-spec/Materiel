@@ -14,7 +14,14 @@ depends_on = None
 
 
 def upgrade():
-    op.drop_table("maintenance_operation_rule_map")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    # This table was part of an older compatibility design but is not present
+    # in the migration chain used by this deployment. Remove it only when it
+    # actually exists so the final Operation-first cleanup remains idempotent.
+    if "maintenance_operation_rule_map" in inspector.get_table_names():
+        op.drop_table("maintenance_operation_rule_map")
 
     with op.batch_alter_table("maintenance_operations", schema=None) as batch_op:
         batch_op.drop_column("old_rule_id")
