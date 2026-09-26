@@ -7,7 +7,6 @@ from app.modules.equipment_types.models import (
     EquipmentModel,
     EquipmentType,
 )
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
 
 
 DEMO_CATEGORY_NAME = "مثال: مركبات"
@@ -38,10 +37,6 @@ def delete_demo_classification(db: Session) -> None:
         if model is not None:
             if db.query(Equipment).filter(Equipment.equipment_model_id == model.id).first():
                 raise ValueError("لا يمكن حذف المثال لأن هناك عتادًا فعليًا مرتبطًا بطرازه.")
-            rules = db.query(MaintenanceRule).filter(MaintenanceRule.equipment_model_id == model.id).all()
-            rule_ids = [rule.id for rule in rules]
-            if rule_ids and db.query(MaintenanceRecord).filter(MaintenanceRecord.rule_id.in_(rule_ids)).first():
-                raise ValueError("لا يمكن حذف المثال لأن له سجلات صيانة محفوظة.")
             db.delete(model)
             db.flush()
         if db.query(EquipmentModel).filter(EquipmentModel.equipment_type_id == equipment_type.id).first() is None:
