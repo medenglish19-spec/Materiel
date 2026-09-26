@@ -204,6 +204,8 @@ def _validate_record(connection, target, exclude_id=None):
         raise ValueError("يجب تحديد عملية الصيانة أو الصيانة الدورية قبل تسجيل السجل.")
     operation_id = getattr(target, "operation_id", None)
     plan_id = getattr(target, "plan_id", None)
+    if plan_id is not None and operation_id is None:
+        raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة.")
     if target.maintenance_date is None:
         raise ValueError("يجب تحديد تاريخ الصيانة.")
     if target.maintenance_date > datetime.now(timezone.utc).date():
