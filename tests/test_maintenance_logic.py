@@ -104,7 +104,7 @@ class _MaintenanceValidationConnection:
         if self.calls == 2:
             return _Result(first=(20,))
         if self.calls == 3:
-            return _Result(first=(20,))
+            return _Result(first=(30, True))
         if self.calls == 4:
             return _Result(rows=self.same_day_rows)
         return _Result(rows=[])
@@ -113,7 +113,6 @@ class _MaintenanceValidationConnection:
 def _validation_target(meter, record_id=None):
     return SimpleNamespace(
         equipment_id=20,
-        rule_id=10,
         maintenance_date=date(2026, 9, 5),
         meter_value=Decimal(str(meter)),
         id=record_id,
