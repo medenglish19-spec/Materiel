@@ -3,19 +3,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.database.base import Base
-from app.modules.meter_readings import models as _meter_models
-from app.modules.meter_readings import batches as _meter_batches
-from app.modules.meter_readings import audit as _meter_audit
-from app.modules.meter_readings import audit_events as _meter_audit_events
-from app.modules.users import models as _users_models
-from app.modules.equipment_types import models as _equipment_types_models
-from app.modules.equipment import models as _equipment_models
-from app.modules.maintenance import models as _maintenance_models
-from app.modules.faults_repairs import models as _faults_repairs_models
-from app.modules.tires import models as _tires_models
-from app.modules.batteries import models as _batteries_models
-from app.modules.fuel import models as _fuel_models
-from app.modules.missions import models as _missions_models
+from app.database import model_registry  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
