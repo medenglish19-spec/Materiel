@@ -311,14 +311,76 @@ def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), cur
 
 @router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all(); readings = latest_readings(db); records = latest_records(db); due_rows = []
+    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
+    readings = latest_readings(db)
+    records = latest_records(db)
+    due_rows = []
+
+    plan_links = (
+        db.query(MaintenancePlanOperation)
+        .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+        .filter(MaintenancePlan.is_active.is_(True))
+        .order_by(MaintenancePlan.name, MaintenancePlan.id, MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
+        .all()
+    )
+    plan_membership = {}
+    for link in plan_links:
+        plan_membership.setdefault((link.plan.equipment_model_id, link.operation_id), []).append(link.plan)
+
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in effective_operations_for_equipment(db, eq):
-            rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
+            rec = records.get((eq.id, operation.id))
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
-                due_rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
-    due_rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999)); return templates.TemplateResponse("maintenance_due.html", {"request": request, "user": current_user, "rows": due_rows})
+                due_rows.append({
+                    "equipment": eq,
+                    "operation": operation,
+                    "record": rec,
+                    "current": current_value,
+                    "unit": measurement_unit(eq),
+                    "remaining": remaining,
+                    "remaining_days": meta.get("remaining_days"),
+                    "state": state,
+                    "css": css,
+                    "priority": priority_for(state, remaining, meta),
+                    "contradiction": contradiction_for(eq, rec, current_value, db),
+                    "plans": plan_membership.get((eq.equipment_model_id, operation.id), []),
+                })
+
+    due_rows.sort(key=lambda r: (
+        r["priority"],
+        r["remaining"] if r["remaining"] is not None else Decimal("999999999"),
+        r["remaining_days"] if r["remaining_days"] is not None else 999999999,
+        r["equipment"].registration_number or r["equipment"].asset_code or "",
+    ))
+
+    plan_groups = []
+    standalone_rows = []
+    group_map = {}
+    for row in due_rows:
+        if row["plans"]:
+            for plan in row["plans"]:
+                group = group_map.get(plan.id)
+                if group is None:
+                    group = {"plan": plan, "rows": []}
+                    group_map[plan.id] = group
+                    plan_groups.append(group)
+                group["rows"].append(row)
+        else:
+            standalone_rows.append(row)
+
+    plan_groups.sort(key=lambda group: (group["plan"].name, group["plan"].id))
+    return templates.TemplateResponse(
+        "maintenance_due.html",
+        {
+            "request": request,
+            "user": current_user,
+            "rows": due_rows,
+            "plan_groups": plan_groups,
+            "standalone_rows": standalone_rows,
+        },
+    )
 
 # JSON API for the operation-first maintenance library.
 @router.get("/api/maintenance/operation-groups", response_model=list[MaintenanceOperationGroupOut])
