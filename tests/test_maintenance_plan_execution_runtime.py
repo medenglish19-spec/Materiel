@@ -121,8 +121,12 @@ def test_plan_execution_creates_one_record_per_active_operation():
             MaintenanceRecord.equipment_id == equipment.id,
             MaintenanceRecord.plan_id == plan.id,
         ).all()
-        assert len(saved) == 2
+        assert len(saved) == 3
         assert {record.operation_id for record in saved} == {oil.id, brakes.id}
+        actual_saved = [record for record in saved if record.is_scheduled is False]
+        assert len(actual_saved) == 2
+        assert {record.operation_id for record in actual_saved} == {oil.id, brakes.id}
+        assert scheduled in saved
 
         assert oil.interval_km == Decimal("10000")
         assert brakes.interval_days == 180
