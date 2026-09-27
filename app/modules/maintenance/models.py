@@ -301,7 +301,11 @@ def _sync_equipment_current(connection, equipment_id):
     ).first()
     latest_maintenance = connection.execute(
         select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value)
-        .where(MaintenanceRecord.equipment_id == equipment_id, MaintenanceRecord.meter_value.is_not(None))
+        .where(
+            MaintenanceRecord.equipment_id == equipment_id,
+            MaintenanceRecord.is_scheduled.is_(False),
+            MaintenanceRecord.meter_value.is_not(None),
+        )
         .order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id))
         .limit(1)
     ).first()
