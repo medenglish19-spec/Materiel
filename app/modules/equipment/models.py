@@ -28,7 +28,7 @@ class Equipment(Base, AuditMixin):
     faults = relationship(
         "Fault",
         back_populates="equipment",
-        order_by=lambda: _fault_order_by(),
+        order_by="Fault.reported_date.desc(), Fault.id.desc()",
         passive_deletes=True,
     )
 
