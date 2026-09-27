@@ -646,6 +646,7 @@ def api_plan_execution_create(
     if payload.maintenance_date > date.today():
         raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
 
+    selected_ids = list(dict.fromkeys(payload.operation_ids))
     links = (
         db.query(MaintenancePlanOperation)
         .join(MaintenanceOperation, MaintenanceOperation.id == MaintenancePlanOperation.operation_id)
@@ -653,28 +654,30 @@ def api_plan_execution_create(
             MaintenancePlanOperation.plan_id == plan.id,
             MaintenanceOperation.is_active.is_(True),
         )
-        .order_by(MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
         .all()
     )
-    if not links:
-        raise HTTPException(status_code=409, detail="لا توجد عمليات صيانة مفعلة داخل هذه الخطة.")
+    active_links = {link.operation_id: link for link in links}
+    invalid_ids = [operation_id for operation_id in selected_ids if operation_id not in active_links]
+    if invalid_ids:
+        raise HTTPException(status_code=409, detail="توجد عملية محددة ليست ضمن العمليات المفعلة لهذه الخطة.")
 
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
         raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
-    for link in links:
-        operation = link.operation
+    for operation_id in selected_ids:
+        operation = active_links[operation_id].operation
         interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
         if interval is not None and payload.meter_value is None:
-            raise HTTPException(status_code=400, detail=f"يجب إدخال قراءة العداد لتنفيذ العملية: {operation.name}.")
+            raise HTTPException(status_code=400, detail=f"يجب إدخال قراءة العداد للعملية: {operation.name}.")
+
     chronology = chronology_error(db, payload.equipment_id, payload.maintenance_date, payload.meter_value)
     if chronology:
         raise HTTPException(status_code=409, detail=chronology)
 
     records = []
     try:
-        for link in links:
-            operation = link.operation
+        for operation_id in selected_ids:
+            operation = active_links[operation_id].operation
             record = MaintenanceRecord(
                 equipment_id=payload.equipment_id,
                 operation_id=operation.id,
@@ -699,5 +702,5 @@ def api_plan_execution_create(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="تعذر تنفيذ الخطة كاملة؛ لم يتم حفظ أي عملية من الخطة.") from exc
+        raise HTTPException(status_code=409, detail="تعذر تسجيل العمليات المحددة؛ لم يتم حفظ أي عملية.") from exc
     return records
