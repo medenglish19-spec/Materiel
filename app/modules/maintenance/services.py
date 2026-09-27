@@ -23,7 +23,9 @@ def latest_readings(db: Session):
 
 def latest_records(db: Session):
     result = {}
-    rows = db.query(MaintenanceRecord).order_by(
+    rows = db.query(MaintenanceRecord).filter(
+        MaintenanceRecord.is_scheduled.is_(False),
+    ).order_by(
         MaintenanceRecord.equipment_id,
         desc(MaintenanceRecord.maintenance_date),
         desc(MaintenanceRecord.id),
@@ -141,7 +143,10 @@ def effective_plans_for_equipment(db: Session, equipment):
 def latest_plan_records(db: Session):
     """Return the latest execution record for each equipment/plan pair."""
     result = {}
-    rows = db.query(MaintenanceRecord).filter(MaintenanceRecord.plan_id.is_not(None)).order_by(
+    rows = db.query(MaintenanceRecord).filter(
+        MaintenanceRecord.plan_id.is_not(None),
+        MaintenanceRecord.is_scheduled.is_(False),
+    ).order_by(
         MaintenanceRecord.equipment_id,
         desc(MaintenanceRecord.maintenance_date),
         desc(MaintenanceRecord.id),
