@@ -14,6 +14,7 @@ from typing import Generator
 
 from app.core.config import settings
 from app.database import model_registry  # noqa: F401
+from app.database import model_registry  # noqa: F401
 
 # connect_args خاص بـ SQLite فقط (يسمح باستخدامه من أكثر من thread، وهو
 # مطلوب مع FastAPI). لا يُستخدم مع PostgreSQL/MySQL.
