@@ -173,6 +173,7 @@ class MaintenanceRecordCreate(BaseModel):
 class MaintenancePlanExecutionCreate(BaseModel):
     equipment_id: int
     plan_id: int
+    operation_ids: list[int] = Field(min_length=1)
     maintenance_date: date
     meter_value: Optional[Decimal] = None
     reported_date: Optional[date] = None
