@@ -1,7 +1,7 @@
 """Add independent maintenance plan execution cycles.
 
 Revision ID: f5d9a1c7e204
-Revises: f4c8e2a91b7d
+Revises: stage8_remove_plan_operation_overrides
 """
 
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "f5d9a1c7e204"
-down_revision = "f4c8e2a91b7d"
+down_revision = "stage8_remove_plan_operation_overrides"
 branch_labels = None
 depends_on = None
 
