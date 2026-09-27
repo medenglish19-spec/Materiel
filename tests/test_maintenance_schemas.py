@@ -55,9 +55,22 @@ def test_plan_execution_requires_plan_and_equipment():
     item = MaintenancePlanExecutionCreate(
         equipment_id=7,
         plan_id=3,
+        operation_ids=[11, 12],
         maintenance_date="2026-09-25",
         meter_value=Decimal("10000"),
     )
     assert item.equipment_id == 7
     assert item.plan_id == 3
+    assert item.operation_ids == [11, 12]
     assert item.meter_value == Decimal("10000")
+
+
+def test_plan_execution_requires_at_least_one_operation():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        MaintenancePlanExecutionCreate(
+            equipment_id=7,
+            plan_id=3,
+            operation_ids=[],
+            maintenance_date="2026-09-25",
+        )
