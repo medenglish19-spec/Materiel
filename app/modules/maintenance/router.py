@@ -11,8 +11,8 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord)
-from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
+from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, MaintenancePlanExecution, MaintenancePlanExecutionOperation)
+from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate, MaintenancePlanExecutionOperationUpdate, MaintenancePlanExecutionOut, MaintenancePlanExecutionDetailOut)
 from app.modules.maintenance.services import (
     chronology_error,
     contradiction_for,
@@ -627,15 +627,20 @@ def api_plan_status(
     return rows
 
 
-@router.post("/api/maintenance/plan-execution", response_model=list[MaintenanceRecordOut], status_code=status.HTTP_201_CREATED)
+@router.post("/api/maintenance/plan-execution", response_model=MaintenancePlanExecutionDetailOut, status_code=status.HTTP_201_CREATED)
 def api_plan_execution_create(
     payload: MaintenancePlanExecutionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).filter(Equipment.id == payload.equipment_id).first()
+    """Start one independent execution cycle; operations begin as pending."""
+    equipment = db.query(Equipment).options(
+        joinedload(Equipment.equipment_type),
+        joinedload(Equipment.equipment_model),
+    ).filter(Equipment.id == payload.equipment_id).first()
     if equipment is None:
         raise HTTPException(status_code=404, detail="العتاد المحدد غير موجود.")
+
     plan = db.get(MaintenancePlan, payload.plan_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
@@ -644,7 +649,7 @@ def api_plan_execution_create(
     if plan.equipment_model_id != equipment.equipment_model_id:
         raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
     if payload.maintenance_date > date.today():
-        raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
+        raise HTTPException(status_code=400, detail="لا يمكن بدء دورة بتاريخ مستقبلي.")
 
     links = (
         db.query(MaintenancePlanOperation)
@@ -671,33 +676,168 @@ def api_plan_execution_create(
     if chronology:
         raise HTTPException(status_code=409, detail=chronology)
 
-    records = []
-    try:
-        for link in links:
-            operation = link.operation
-            record = MaintenanceRecord(
-                equipment_id=payload.equipment_id,
-                operation_id=operation.id,
-                plan_id=plan.id,
-                maintenance_date=payload.maintenance_date,
-                reported_date=payload.reported_date or payload.maintenance_date,
-                meter_value=payload.meter_value,
-                work_order=payload.work_order,
-                workshop=payload.workshop,
-                status=payload.status or "completed",
-                is_scheduled=payload.is_scheduled,
-                description=payload.description,
-                created_by_id=current_user.id if current_user else None,
+    execution = MaintenancePlanExecution(
+        equipment_id=payload.equipment_id,
+        plan_id=plan.id,
+        execution_date=payload.maintenance_date,
+        meter_value=payload.meter_value,
+        work_order=payload.work_order,
+        workshop=payload.workshop,
+        description=payload.description,
+        status="in_progress",
+        created_by_id=current_user.id if current_user else None,
+    )
+    for link in links:
+        execution.operations.append(
+            MaintenancePlanExecutionOperation(
+                operation_id=link.operation_id,
+                sort_order=link.sort_order,
+                status="pending",
             )
-            db.add(record)
-            records.append(record)
+        )
+
+    try:
+        db.add(execution)
         db.commit()
-        for record in records:
-            db.refresh(record)
+        db.refresh(execution)
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="تعذر تنفيذ الخطة كاملة؛ لم يتم حفظ أي عملية من الخطة.") from exc
-    return records
+        raise HTTPException(status_code=409, detail="تعذر إنشاء دورة تنفيذ الخطة.") from exc
+
+    return _execution_response(execution)
+
+
+def _execution_response(execution):
+    return {
+        "id": execution.id,
+        "equipment_id": execution.equipment_id,
+        "plan_id": execution.plan_id,
+        "maintenance_date": execution.execution_date,
+        "meter_value": execution.meter_value,
+        "work_order": execution.work_order,
+        "workshop": execution.workshop,
+        "status": execution.status,
+        "description": execution.description,
+        "total_operations": execution.total_operations,
+        "completed_operations": execution.completed_operations,
+        "execution_percentage": execution.execution_percentage,
+        "is_complete": execution.is_complete,
+        "operations": [
+            {
+                "id": item.id,
+                "execution_id": item.execution_id,
+                "operation_id": item.operation_id,
+                "sort_order": item.sort_order,
+                "status": item.status,
+                "note": item.note,
+                "maintenance_record_id": item.maintenance_record_id,
+            }
+            for item in execution.operations
+        ],
+    }
+
+
+@router.get("/api/maintenance/plan-executions/{execution_id}", response_model=MaintenancePlanExecutionDetailOut)
+def api_plan_execution_detail(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    execution = db.query(MaintenancePlanExecution).filter(MaintenancePlanExecution.id == execution_id).first()
+    if execution is None:
+        raise HTTPException(status_code=404, detail="دورة تنفيذ الخطة غير موجودة.")
+    return _execution_response(execution)
+
+
+@router.post("/api/maintenance/plan-executions/{execution_id}/operations/{execution_operation_id}", response_model=MaintenancePlanExecutionDetailOut)
+def api_plan_execution_operation_update(
+    execution_id: int,
+    execution_operation_id: int,
+    payload: MaintenancePlanExecutionOperationUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    execution = db.query(MaintenancePlanExecution).filter(
+        MaintenancePlanExecution.id == execution_id
+    ).first()
+    if execution is None:
+        raise HTTPException(status_code=404, detail="دورة تنفيذ الخطة غير موجودة.")
+
+    item = db.query(MaintenancePlanExecutionOperation).filter(
+        MaintenancePlanExecutionOperation.id == execution_operation_id,
+        MaintenancePlanExecutionOperation.execution_id == execution_id,
+    ).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail="عملية التنفيذ المحددة غير موجودة.")
+
+    if item.status == "completed" and payload.status != "completed":
+        raise HTTPException(status_code=409, detail="العملية المكتملة لا يمكن إرجاعها إلى حالة غير مكتملة؛ حافظ على سجل التاريخ.")
+
+    if payload.status == "completed" and item.status != "completed":
+        chronology = chronology_error(
+            db,
+            execution.equipment_id,
+            execution.execution_date,
+            execution.meter_value,
+        )
+        if chronology:
+            raise HTTPException(status_code=409, detail=chronology)
+
+        existing = db.query(MaintenanceRecord).filter(
+            MaintenanceRecord.equipment_id == execution.equipment_id,
+            MaintenanceRecord.operation_id == item.operation_id,
+            MaintenanceRecord.maintenance_date == execution.execution_date,
+        ).first()
+
+        if existing is not None:
+            if existing.plan_id != execution.plan_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="يوجد سجل صيانة لنفس العملية والتاريخ مرتبط بخطة مختلفة.",
+                )
+            record = existing
+        else:
+            record = MaintenanceRecord(
+                equipment_id=execution.equipment_id,
+                operation_id=item.operation_id,
+                plan_id=execution.plan_id,
+                maintenance_date=execution.execution_date,
+                reported_date=execution.execution_date,
+                meter_value=execution.meter_value,
+                work_order=execution.work_order,
+                workshop=execution.workshop,
+                status="completed",
+                is_scheduled=True,
+                description=payload.note or execution.description,
+                created_by_id=current_user.id if current_user else None,
+            )
+            db.add(record)
+            db.flush()
+        item.maintenance_record_id = record.id
+
+    item.status = payload.status
+    item.note = payload.note
+
+    completed = sum(1 for row in execution.operations if row.status == "completed")
+    if completed == len(execution.operations):
+        execution.status = "completed"
+    elif all(row.status == "skipped" for row in execution.operations):
+        execution.status = "skipped"
+    else:
+        execution.status = "in_progress"
+
+    try:
+        db.commit()
+        db.refresh(execution)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر تحديث نتيجة عملية التنفيذ.") from exc
+
+    return _execution_response(execution)
+

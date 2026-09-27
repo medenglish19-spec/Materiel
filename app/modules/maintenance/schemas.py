@@ -188,6 +188,42 @@ class MaintenancePlanExecutionCreate(BaseModel):
         return _nonnegative(value, "قراءة العداد")
 
 
+class MaintenancePlanExecutionOperationUpdate(BaseModel):
+    status: str = Field(pattern="^(pending|completed|skipped)$")
+    note: Optional[str] = None
+
+
+class MaintenancePlanExecutionOperationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    execution_id: int
+    operation_id: int
+    sort_order: int
+    status: str
+    note: Optional[str] = None
+    maintenance_record_id: Optional[int] = None
+
+
+class MaintenancePlanExecutionOut(BaseModel):
+    id: int
+    equipment_id: int
+    plan_id: int
+    maintenance_date: date
+    meter_value: Optional[Decimal] = None
+    work_order: Optional[str] = None
+    workshop: Optional[str] = None
+    status: str
+    description: Optional[str] = None
+    total_operations: int
+    completed_operations: int
+    execution_percentage: float
+    is_complete: bool
+
+
+class MaintenancePlanExecutionDetailOut(MaintenancePlanExecutionOut):
+    operations: list[MaintenancePlanExecutionOperationOut]
+
+
 class MaintenanceRecordOut(MaintenanceRecordCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int

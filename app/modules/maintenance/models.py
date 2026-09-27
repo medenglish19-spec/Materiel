@@ -82,6 +82,7 @@ class MaintenancePlan(Base):
         passive_deletes=True,
     )
     records = relationship("MaintenanceRecord", back_populates="plan")
+    executions = relationship("MaintenancePlanExecution", back_populates="plan")
 
 
 class MaintenancePlanOperation(Base):
@@ -106,6 +107,101 @@ class MaintenancePlanOperation(Base):
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
     plan = relationship("MaintenancePlan", back_populates="plan_operations")
     operation = relationship("MaintenanceOperation", back_populates="plan_operations")
+
+
+class MaintenancePlanExecution(Base):
+    """One independent, time-bound execution cycle of a maintenance plan on one equipment item."""
+
+    __tablename__ = "maintenance_plan_executions"
+    __table_args__ = (
+        Index("ix_maintenance_plan_execution_equipment_date", "equipment_id", "execution_date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(
+        Integer,
+        ForeignKey("maintenance_plans.id", name="fk_maintenance_plan_executions_plan", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    equipment_id = Column(
+        Integer,
+        ForeignKey("equipment.id", name="fk_maintenance_plan_executions_equipment", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    execution_date = Column(Date, nullable=False, index=True)
+    meter_value = Column(Numeric(10, 1), nullable=True)
+    work_order = Column(String(80), nullable=True)
+    workshop = Column(String(120), nullable=True)
+    status = Column(String(30), nullable=False, default="in_progress", server_default="in_progress")
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    plan = relationship("MaintenancePlan", back_populates="executions")
+    equipment = relationship("Equipment")
+    operations = relationship(
+        "MaintenancePlanExecutionOperation",
+        back_populates="execution",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="MaintenancePlanExecutionOperation.sort_order, MaintenancePlanExecutionOperation.id",
+    )
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+    @property
+    def total_operations(self):
+        return len(self.operations)
+
+    @property
+    def completed_operations(self):
+        return sum(1 for item in self.operations if item.status == "completed")
+
+    @property
+    def execution_percentage(self):
+        return round((self.completed_operations / self.total_operations) * 100, 2) if self.total_operations else 0.0
+
+    @property
+    def is_complete(self):
+        return bool(self.total_operations) and self.completed_operations == self.total_operations
+
+
+class MaintenancePlanExecutionOperation(Base):
+    """Result of one operation inside one execution cycle."""
+
+    __tablename__ = "maintenance_plan_execution_operations"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "operation_id", name="uq_maintenance_plan_execution_operation"),
+        CheckConstraint("status IN ('pending', 'completed', 'skipped')", name="ck_maintenance_plan_execution_operation_status"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    execution_id = Column(
+        Integer,
+        ForeignKey("maintenance_plan_executions.id", name="fk_maintenance_plan_execution_operations_execution", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    operation_id = Column(
+        Integer,
+        ForeignKey("maintenance_operations.id", name="fk_maintenance_plan_execution_operations_operation", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    sort_order = Column(Integer, nullable=False, default=0, server_default="0")
+    status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    note = Column(Text, nullable=True)
+    maintenance_record_id = Column(
+        Integer,
+        ForeignKey("maintenance_records.id", name="fk_maintenance_plan_execution_operations_record", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    execution = relationship("MaintenancePlanExecution", back_populates="operations")
+    operation = relationship("MaintenanceOperation")
+    maintenance_record = relationship("MaintenanceRecord")
 
 
 class MaintenanceRecord(Base):
