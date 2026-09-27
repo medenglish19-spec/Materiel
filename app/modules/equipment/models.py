@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
+from app.modules.faults_repairs.models import Fault  # noqa: F401
 
 
 class Equipment(Base, AuditMixin):
