@@ -15,6 +15,7 @@ from app.modules.users.models import User
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord
 from app.modules.maintenance.router import api_plan_execution_create
+from app.modules.maintenance.services import latest_records
 from app.modules.maintenance.schemas import MaintenancePlanExecutionCreate
 
 
@@ -101,6 +102,20 @@ def test_plan_execution_creates_one_record_per_active_operation():
         assert {record.operation_id for record in records} == {oil.id, brakes.id}
         assert {record.plan_id for record in records} == {plan.id}
         assert all(record.equipment_id == equipment.id for record in records)
+        assert all(record.is_scheduled is False for record in records)
+
+        scheduled = MaintenanceRecord(
+            equipment_id=equipment.id,
+            operation_id=oil.id,
+            plan_id=plan.id,
+            maintenance_date=date(2026, 9, 26),
+            meter_value=Decimal("60000"),
+            status="scheduled",
+            is_scheduled=True,
+        )
+        db.add(scheduled)
+        db.commit()
+        assert latest_records(db)[(equipment.id, oil.id)].id == records[0].id
 
         saved = db.query(MaintenanceRecord).filter(
             MaintenanceRecord.equipment_id == equipment.id,
