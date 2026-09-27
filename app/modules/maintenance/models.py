@@ -81,7 +81,8 @@ class MaintenancePlan(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    records = relationship("MaintenanceRecord", back_populates="plan")\n    executions = relationship("MaintenancePlanExecution", back_populates="plan")
+    records = relationship("MaintenanceRecord", back_populates="plan")
+    executions = relationship("MaintenancePlanExecution", back_populates="plan")
 
 
 class MaintenancePlanOperation(Base):
