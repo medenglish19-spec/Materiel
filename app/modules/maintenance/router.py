@@ -656,7 +656,9 @@ def api_plan_execution_create(
         )
         .all()
     )
-    active_links = {link.operation_id: link for link in links}
+    active_links = {}
+    for link in links:
+        active_links[link.operation_id] = link
     invalid_ids = [operation_id for operation_id in selected_ids if operation_id not in active_links]
     if invalid_ids:
         raise HTTPException(status_code=409, detail="توجد عملية محددة ليست ضمن العمليات المفعلة لهذه الخطة.")
