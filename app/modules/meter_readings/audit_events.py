@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.modules.equipment.models import Equipment
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.audit import MeterReadingOperation, MeterReadingOperationEvent
-from app.database.session import SessionLocal
 
 _current_actor = ContextVar('meter_audit_actor', default=None)
 _current_kind = ContextVar('meter_audit_kind', default='manual')
@@ -41,6 +40,7 @@ def _write_meter_operation(session):
     actor = _current_actor.get()
     kind = _current_kind.get()
     try:
+        from app.database.session import SessionLocal
         with SessionLocal() as audit_db:
             readings = audit_db.query(MeterReading).filter(MeterReading.id.in_(ids)).all()
             if not readings:
