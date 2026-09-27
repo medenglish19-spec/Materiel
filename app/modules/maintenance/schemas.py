@@ -180,7 +180,8 @@ class MaintenancePlanExecutionCreate(BaseModel):
     work_order: Optional[str] = None
     workshop: Optional[str] = None
     status: Optional[str] = None
-    is_scheduled: bool = True
+    # تنفيذ الخطة يمثل صيانة فعلية مسجلة في سجل العتاد، وليس حجزًا مجدولًا.
+    is_scheduled: bool = False
     description: Optional[str] = None
 
     @field_validator("meter_value")
