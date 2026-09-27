@@ -704,5 +704,5 @@ def api_plan_execution_create(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="تعذر تسجيل العمليات المحددة؛ لم يتم حفظ أي عملية.") from exc
+        raise HTTPException(status_code=409, detail="تعذر تسجيل العمليات المحددة؛ لم يتم حفظ أي عملية من الخطة.") from exc
     return records
