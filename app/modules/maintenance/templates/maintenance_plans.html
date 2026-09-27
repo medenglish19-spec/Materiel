@@ -55,7 +55,7 @@
   </section>
 
   <section class="panel" id="executionPanel" style="display:none;margin-top:16px">
-    <div class="panel-head"><div><h3 id="executionTitle">تنفيذ خطة الصيانة</h3><p>تنفيذ الخطة ينشئ سجلًا واحدًا لكل عملية مفعلة داخلها. لا يتم تخفيف أو استبدال شرط أي عملية بشرط الخطة.</p></div></div>
+    <div class="panel-head"><div><h3 id="executionTitle">بدء دورة تنفيذ الخطة</h3><p>بدء الخطة ينشئ دورة مستقلة مرتبطة بهذه المعدة والتاريخ. العمليات لا تعتبر مكتملة تلقائيًا؛ لكل عملية نتيجة مستقلة.</p></div></div>
     <form id="executionForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <input type="hidden" id="executionPlanId">
       <select id="executionEquipment" class="m-select" required><option value="">اختر العتاد</option></select>
@@ -65,9 +65,18 @@
       <input id="executionWorkshop" class="m-input" placeholder="الورشة / الجهة">
       <input id="executionDescription" class="m-input" placeholder="ملاحظات التنفيذ">
       <div id="executionHint" class="muted" style="min-width:240px;align-self:center">اختر العتاد لبدء التنفيذ.</div>
-      <button class="m-btn primary" type="submit">✓ تنفيذ الخطة كاملة</button>
+      <button class="m-btn primary" type="submit">▶ بدء دورة التنفيذ</button>
       <button class="m-btn" id="cancelExecution" type="button">إلغاء</button>
     </form>
+    <div id="executionResults" style="display:none;margin:0 18px 18px">
+      <div class="panel-head" style="padding:12px 0">
+        <div>
+          <h3>نتائج عمليات الدورة</h3>
+          <p id="executionProgress">0%</p>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="m-table"><thead><tr><th>العملية</th><th>الحالة</th><th>النتيجة</th><th>ملاحظة</th></tr></thead><tbody id="executionOperations"></tbody></table></div>
+    </div>
   </section>
 </div>
 <script>
@@ -125,14 +134,68 @@
     state.currentPlanId=id;$('executionPlanId').value=id;$('executionTitle').textContent='تنفيذ الخطة: '+p.name;
     const eligible=state.equipment.filter(e=>Number(e.equipment_model_id)===Number(p.equipment_model_id));
     $('executionEquipment').innerHTML='<option value="">اختر العتاد</option>'+eligible.map(e=>'<option value="'+e.id+'">'+esc(e.registration_number||e.asset_code||('عتاد #'+e.id))+'</option>').join('');
-    $('executionDate').value=new Date().toISOString().slice(0,10);$('executionMeter').value='';$('executionWorkOrder').value='';$('executionWorkshop').value='';$('executionDescription').value='';$('executionHint').textContent=eligible.length?'الخطة تخص الطراز: '+modelName(p.equipment_model_id)+' — اختر العتاد للتنفيذ.':'لا يوجد عتاد مسجل لهذا الطراز.';
+    $('executionDate').value=localDate();$('executionMeter').value='';$('executionWorkOrder').value='';$('executionWorkshop').value='';$('executionDescription').value='';$('executionHint').textContent=eligible.length?'الخطة تخص الطراز: '+modelName(p.equipment_model_id)+' — اختر العتاد للتنفيذ.':'لا يوجد عتاد مسجل لهذا الطراز.';
     $('executionPanel').style.display='';$('executionPanel').scrollIntoView({behavior:'smooth'});
   }
   $('executionEquipment').onchange=async()=>{
     const id=Number($('executionEquipment').value);if(!id){$('executionHint').textContent='اختر العتاد لبدء التنفيذ.';return}
     try{const e=await req('/api/equipment/'+id);const unit=e?.equipment_type?.measurement_unit||e?.measurement_unit||'';$('executionHint').textContent=unit==='km'?'هذا العتاد يعتمد على العداد بالكيلومترات؛ سيتم رفض التنفيذ إذا كانت العملية تحتاج عدادًا ولم تدخل القراءة.':unit==='hours'?'هذا العتاد يعتمد على العداد بالساعات؛ سيتم رفض التنفيذ إذا كانت العملية تحتاج عدادًا ولم تدخل القراءة.':'تم اختيار العتاد.'}catch(_){$('executionHint').textContent='تم اختيار العتاد.'}
   };
-  $('executionForm').onsubmit=async e=>{e.preventDefault();const planId=Number($('executionPlanId').value),equipmentId=Number($('executionEquipment').value);if(!planId||!equipmentId)return alert('اختر الخطة والعتاد أولًا.',true);const p=state.plans.find(x=>x.id===planId);if(!p)return;try{const records=await req(api+'/plan-execution',{method:'POST',body:JSON.stringify({equipment_id:equipmentId,plan_id:planId,maintenance_date:$('executionDate').value,meter_value:$('executionMeter').value?Number($('executionMeter').value):null,work_order:$('executionWorkOrder').value.trim()||null,workshop:$('executionWorkshop').value.trim()||null,description:$('executionDescription').value.trim()||null,is_scheduled:true,status:'completed'})});alert('تم تنفيذ الخطة كاملة وإنشاء '+records.length+' سجل صيانة.');$('executionPanel').style.display='none'}catch(e){alert(e.message,true)}};
+  function localDate(){
+    const d=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function renderExecution(execution){
+    state.currentExecution=execution;
+    $('executionResults').style.display='';
+    $('executionProgress').textContent='نسبة التنفيذ: '+Number(execution.execution_percentage||0).toLocaleString('ar-DZ')+'% — '+execution.completed_operations+'/'+execution.total_operations+' عمليات مكتملة';
+    $('executionOperations').innerHTML=execution.operations.map(item=>{
+      const op=state.operations.find(x=>x.id===item.operation_id);
+      const label=item.status==='completed'?'مكتملة':item.status==='skipped'?'متجاوزة':'غير مكتملة';
+      const disabled=item.status==='completed'?' disabled':'';
+      return '<tr><td>'+esc(op?.name||('عملية #'+item.operation_id))+'</td><td><span class="badge '+(item.status==='completed'?'success':item.status==='skipped'?'neutral':'warning')+'">'+label+'</span></td><td style="white-space:nowrap">'+
+        '<button class="m-btn primary" data-exec-complete="'+item.id+'"'+disabled+'>✓ مكتملة</button> '+
+        '<button class="m-btn" data-exec-skip="'+item.id+'"'+disabled+'>تجاوز</button> '+
+        (item.status!=='completed'?'<button class="m-btn" data-exec-pending="'+item.id+'">إرجاع</button>':'')+
+        '</td><td>'+esc(item.note||'—')+'</td></tr>';
+    }).join('');
+    document.querySelectorAll('[data-exec-complete]').forEach(b=>b.onclick=()=>updateExecutionOperation(Number(b.dataset.execComplete),'completed'));
+    document.querySelectorAll('[data-exec-skip]').forEach(b=>b.onclick=()=>updateExecutionOperation(Number(b.dataset.execSkip),'skipped'));
+    document.querySelectorAll('[data-exec-pending]').forEach(b=>b.onclick=()=>updateExecutionOperation(Number(b.dataset.execPending),'pending'));
+  }
+  async function updateExecutionOperation(itemId,statusValue){
+    const execution=state.currentExecution;
+    if(!execution)return;
+    try{
+      const result=await req(api+'/plan-executions/'+execution.id+'/operations/'+itemId,{method:'POST',body:JSON.stringify({status:statusValue})});
+      renderExecution(result);
+      alert(statusValue==='completed'?'تم تسجيل العملية كمكتملة.':statusValue==='skipped'?'تم تجاوز العملية.':'أعيدت العملية إلى غير مكتملة.');
+    }catch(e){alert(e.message,true)}
+  }
+  $('executionForm').onsubmit=async e=>{
+    e.preventDefault();
+    const planId=Number($('executionPlanId').value),equipmentId=Number($('executionEquipment').value);
+    if(!planId||!equipmentId)return alert('اختر الخطة والعتاد أولًا.',true);
+    const p=state.plans.find(x=>x.id===planId);if(!p)return;
+    try{
+      const execution=await req(api+'/plan-execution',{method:'POST',body:JSON.stringify({
+        equipment_id:equipmentId,
+        plan_id:planId,
+        maintenance_date:$('executionDate').value,
+        meter_value:$('executionMeter').value?Number($('executionMeter').value):null,
+        work_order:$('executionWorkOrder').value.trim()||null,
+        workshop:$('executionWorkshop').value.trim()||null,
+        description:$('executionDescription').value.trim()||null,
+        is_scheduled:true
+      })});
+      $('executionDate').disabled=true;$('executionMeter').disabled=true;$('executionWorkOrder').disabled=true;$('executionWorkshop').disabled=true;$('executionDescription').disabled=true;
+      $('executionResults').style.display='';
+      renderExecution(execution);
+      alert('تم بدء دورة التنفيذ. أكمل نتائج العمليات بشكل مستقل.');
+    }catch(e){alert(e.message,true)}
+  };
+
   $('form').onsubmit=async e=>{e.preventDefault();const id=$('planId').value;const p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};try{await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});alert(id?'تم تعديل الخطة.':'تم إنشاء الخطة.');$('editor').style.display='none';await load()}catch(e){alert(e.message,true)}};
   $('addOperation').onclick=async()=>{const planId=state.currentPlanId;const operationId=Number($('operationSelect').value);if(!planId||!operationId)return alert('اختر عملية أولًا.',true);try{await req(api+'/plans/'+planId+'/operations',{method:'POST',body:JSON.stringify({plan_id:planId,operation_id:operationId,sort_order:state.planOps.length})});state.planOps=await req(api+'/plans/'+planId+'/operations');renderOps(planId);alert('تمت إضافة العملية للخطة.')}catch(e){alert(e.message,true)}};
   $('newPlan').onclick=newPlan;$('cancel').onclick=()=>{$('editor').style.display='none'};$('cancelExecution').onclick=()=>{$('executionPanel').style.display='none'};$('refresh').onclick=load;$('search').oninput=render;$('modelFilter').onchange=render;fillModels();load();
