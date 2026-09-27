@@ -84,6 +84,7 @@ def test_plan_execution_creates_one_record_per_active_operation():
         payload = MaintenancePlanExecutionCreate(
             equipment_id=equipment.id,
             plan_id=plan.id,
+            operation_ids=[oil.id, brakes.id],
             maintenance_date=date(2026, 9, 25),
             meter_value=Decimal("50000"),
             work_order="WO-PLAN-1",
@@ -153,6 +154,7 @@ def test_plan_execution_rejects_plan_for_another_model_without_records():
         payload = MaintenancePlanExecutionCreate(
             equipment_id=equipment.id,
             plan_id=plan.id,
+            operation_ids=[operation.id],
             maintenance_date=date(2026, 9, 25),
             meter_value=Decimal("50000"),
         )
@@ -167,5 +169,69 @@ def test_plan_execution_rejects_plan_for_another_model_without_records():
         assert exc.value.status_code == 409
         assert "لا تخص طراز العتاد" in exc.value.detail
         assert db.query(MaintenanceRecord).count() == 0
+    finally:
+        db.close()
+
+
+def test_removing_plan_operation_preserves_library_and_history_and_blocks_future_selection():
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    db = Session()
+    try:
+        equipment_type = EquipmentType(name="نوع اختبار مستقبلية الخطة", measurement_unit="km")
+        db.add(equipment_type)
+        db.flush()
+        model = EquipmentModel(name="طراز اختبار مستقبلية الخطة", equipment_type_id=equipment_type.id)
+        db.add(model)
+        db.flush()
+        equipment = Equipment(asset_code="PLAN-FUTURE-1", equipment_type_id=equipment_type.id, equipment_model_id=model.id)
+        operation = MaintenanceOperation(name="عملية تبقى في المكتبة", interval_km=Decimal("10000"), is_active=True)
+        plan = MaintenancePlan(equipment_model_id=model.id, name="خطة مستقبلية", interval_km=Decimal("10000"), is_active=True)
+        db.add_all([equipment, operation, plan])
+        db.flush()
+        link = MaintenancePlanOperation(plan_id=plan.id, operation_id=operation.id)
+        db.add(link)
+        db.commit()
+
+        first = api_plan_execution_create(
+            payload=MaintenancePlanExecutionCreate(
+                equipment_id=equipment.id,
+                plan_id=plan.id,
+                operation_ids=[operation.id],
+                maintenance_date=date(2026, 9, 25),
+                meter_value=Decimal("50000"),
+            ),
+            db=db,
+            current_user=SimpleNamespace(id=None),
+        )
+        assert len(first) == 1
+        record_id = first[0].id
+
+        db.delete(link)
+        db.commit()
+
+        assert db.get(MaintenanceOperation, operation.id) is not None
+        assert db.get(MaintenanceRecord, record_id) is not None
+        assert db.query(MaintenancePlanOperation).filter(
+            MaintenancePlanOperation.plan_id == plan.id,
+            MaintenancePlanOperation.operation_id == operation.id,
+        ).first() is None
+
+        with pytest.raises(HTTPException) as exc:
+            api_plan_execution_create(
+                payload=MaintenancePlanExecutionCreate(
+                    equipment_id=equipment.id,
+                    plan_id=plan.id,
+                    operation_ids=[operation.id],
+                    maintenance_date=date(2026, 9, 26),
+                    meter_value=Decimal("51000"),
+                ),
+                db=db,
+                current_user=SimpleNamespace(id=None),
+            )
+
+        assert exc.value.status_code == 409
+        assert "ليست ضمن العمليات" in exc.value.detail
+        assert db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).count() == 1
     finally:
         db.close()
