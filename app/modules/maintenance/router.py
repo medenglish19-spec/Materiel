@@ -690,7 +690,8 @@ def api_plan_execution_create(
                 work_order=payload.work_order,
                 workshop=payload.workshop,
                 status=payload.status or "completed",
-                is_scheduled=payload.is_scheduled,
+                # تنفيذ الخطة هو صيانة فعلية؛ لا يُسجل كسجل مجدول.
+                is_scheduled=False,
                 description=payload.description,
                 created_by_id=current_user.id if current_user else None,
             )
