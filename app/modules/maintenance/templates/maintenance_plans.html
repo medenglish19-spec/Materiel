@@ -8,7 +8,7 @@
       <h2>خطط الصيانة</h2>
       <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">خطط الصيانة</span></div>
     </div>
-    <div class="hero-actions"><button class="m-btn primary" id="newPlan" type="button">＋ إضافة خطة</button></div>
+    <div class="hero-actions"><button class="m-btn primary" id="newPlan" type="button" onclick="document.getElementById('editor').style.display='';document.getElementById('operationsPanel').style.display='none';document.getElementById('executionPanel').style.display='none';document.getElementById('editorTitle').textContent='إضافة خطة صيانة';document.getElementById('planId').value='';document.getElementById('name').value='';document.getElementById('model').value='';document.getElementById('km').value='';document.getElementById('hours').value='';document.getElementById('days').value='';document.getElementById('description').value='';document.getElementById('active').checked=true;document.getElementById('editor').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(function(){document.getElementById('name').focus()},350)">＋ إضافة خطة</button></div>
   </div>
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
