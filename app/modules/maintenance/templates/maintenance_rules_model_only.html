@@ -27,6 +27,7 @@
     <div class="toolbar">
       <div class="search-wrap"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
       <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
+      <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
       <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
       <button class="m-btn" type="button" id="refreshLibrary">↻ &nbsp;تحديث</button>
     </div>
@@ -177,6 +178,7 @@
       $('operationEditor').style.display='none'; await load();
     }catch(err){showAlert(err.message,'danger')}
   });
+  $('newGroupBtn').onclick=async()=>{const name=(prompt('اسم المجموعة الجديدة:')||'').trim();if(!name)return;try{await request(`${api}/operation-groups`,{method:'POST',body:JSON.stringify({name,sort_order:state.groups.length})});showAlert('تمت إضافة المجموعة.');await load()}catch(err){showAlert(err.message,'danger')}};
   $('newOperationBtn').onclick=resetEditor;
   $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
   $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
