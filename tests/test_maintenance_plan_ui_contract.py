@@ -26,7 +26,7 @@ def test_maintenance_plan_routes_cover_page_management_and_execution():
 
 def test_maintenance_plan_ui_exposes_complete_controls():
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
-    assert 'id="newPlan"' in html
+    assert 'id="btnNewPlan"' in html
     assert 'data-edit="' in html
     assert 'data-ops="' in html
     assert 'data-execute="' in html

@@ -8,7 +8,7 @@
       <h2>خطط الصيانة</h2>
       <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">خطط الصيانة</span></div>
     </div>
-    <div class="hero-actions"><button class="m-btn primary" id="newPlan" type="button">＋ إضافة خطة</button></div>
+    <div class="hero-actions"><button class="m-btn primary" id="btnNewPlan" data-action="new-plan" type="button">＋ إضافة خطة</button></div>
   </div>
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
@@ -134,7 +134,12 @@
   $('executionForm').onsubmit=async e=>{e.preventDefault();const planId=Number($('executionPlanId').value),equipmentId=Number($('executionEquipment').value),operationIds=[...document.querySelectorAll('.execution-op:checked')].map(x=>Number(x.value));if(!planId||!equipmentId)return alert('اختر الخطة والعتاد أولًا.',true);if(!operationIds.length)return alert('حدد عملية واحدة على الأقل تم تنفيذها فعليًا.',true);try{const records=await req(api+'/plan-execution',{method:'POST',body:JSON.stringify({equipment_id:equipmentId,plan_id:planId,operation_ids:operationIds,maintenance_date:$('executionDate').value,meter_value:$('executionMeter').value?Number($('executionMeter').value):null,work_order:$('executionWorkOrder').value.trim()||null,workshop:$('executionWorkshop').value.trim()||null,description:$('executionDescription').value.trim()||null,is_scheduled:true,status:'completed'})});const total=document.querySelectorAll('.execution-op').length,pct=total?Math.round(records.length*100/total):0;alert('تم تسجيل '+records.length+' من '+total+' عمليات للخطة ('+pct+'%).');$('executionPanel').style.display='none'}catch(e){alert(e.message,true)}};
   $('form').onsubmit=async e=>{e.preventDefault();const id=$('planId').value,p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};try{await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});alert(id?'تم تعديل الخطة.':'تم إنشاء الخطة.');$('editor').style.display='none';await load()}catch(e){alert(e.message,true)}};
   $('addOperation').onclick=async()=>{const planId=state.currentPlanId,operationId=Number($('operationSelect').value);if(!planId||!operationId)return alert('اختر عملية أولًا.',true);try{await req(api+'/plans/'+planId+'/operations',{method:'POST',body:JSON.stringify({plan_id:planId,operation_id:operationId,sort_order:state.planOps.length}));state.planOps=await req(api+'/plans/'+planId+'/operations');renderOps(planId);alert('تمت إضافة العملية للخطة.')}catch(e){alert(e.message,true)}};
-  $('newPlan').onclick=newPlan;$('cancel').onclick=()=>{$('editor').style.display='none'};$('cancelExecution').onclick=()=>{$('executionPanel').style.display='none'};$('refresh').onclick=load;$('search').oninput=render;$('modelFilter').onchange=render;fillModels();load();
+  document.addEventListener('click',function(e){
+  const btn=e.target.closest('#btnNewPlan,[data-action="new-plan"]');
+  if(!btn)return;
+  e.preventDefault();
+  newPlan();
+});$('cancel').onclick=()=>{$('editor').style.display='none'};$('cancelExecution').onclick=()=>{$('executionPanel').style.display='none'};$('refresh').onclick=load;$('search').oninput=render;$('modelFilter').onchange=render;fillModels();load();
 })();
 </script>
 {% endblock %}
