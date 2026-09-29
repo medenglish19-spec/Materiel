@@ -403,6 +403,19 @@ def api_operation_group_update(group_id: int, payload: MaintenanceOperationGroup
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="اسم مجموعة شروط الصيانة مستخدم مسبقًا.") from exc
     return group
 
+@router.delete("/api/maintenance/operation-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_operation_group_delete(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    group = db.get(MaintenanceOperationGroup, group_id)
+    if group is None:
+        raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+    db.delete(group)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حذف مجموعة شروط الصيانة.") from exc
+    return None
+
 @router.get("/api/maintenance/operations", response_model=list[MaintenanceOperationOut])
 def api_operations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()

@@ -28,6 +28,8 @@
       <div class="search-wrap"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
       <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
       <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
+      <button class="m-btn" type="button" id="editGroupBtn" disabled>✏️ تعديل المجموعة</button>
+      <button class="m-btn" type="button" id="deleteGroupBtn" disabled>🗑 حذف المجموعة</button>
       <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
       <button class="m-btn" type="button" id="refreshLibrary">↻ &nbsp;تحديث</button>
     </div>
@@ -157,7 +159,7 @@
   async function load(){
     try{
       const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
-      state.groups=groups; state.operations=operations; renderGroups(); render();
+      state.groups=groups; state.operations=operations; renderGroups(); render(); syncGroupButtons();
     }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
   }
   $('operationForm').addEventListener('submit',async e=>{
@@ -179,6 +181,11 @@
     }catch(err){showAlert(err.message,'danger')}
   });
   $('newGroupBtn').onclick=async()=>{const name=(prompt('اسم المجموعة الجديدة:')||'').trim();if(!name)return;try{await request(`${api}/operation-groups`,{method:'POST',body:JSON.stringify({name,sort_order:state.groups.length})});showAlert('تمت إضافة المجموعة.');await load()}catch(err){showAlert(err.message,'danger')}};
+  function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
+  function syncGroupButtons(){const has=!!selectedGroup();$('editGroupBtn').disabled=!has;$('deleteGroupBtn').disabled=!has}
+  $('groupFilter').addEventListener('change',syncGroupButtons);
+  $('editGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;const name=(prompt('اسم المجموعة:',g.name)||'').trim();if(!name||name===g.name)return;try{await request(`${api}/operation-groups/${g.id}`,{method:'PUT',body:JSON.stringify({name,sort_order:g.sort_order})});showAlert('تم تعديل المجموعة.');await load()}catch(err){showAlert(err.message,'danger')}};
+  $('deleteGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;if(!confirm('سيتم حذف المجموعة فقط، وستبقى عملياتها بدون مجموعة. هل أنت متأكد؟'))return;try{await request(`${api}/operation-groups/${g.id}`,{method:'DELETE'});showAlert('تم حذف المجموعة.');await load()}catch(err){showAlert(err.message,'danger')}};
   $('newOperationBtn').onclick=resetEditor;
   $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
   $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
