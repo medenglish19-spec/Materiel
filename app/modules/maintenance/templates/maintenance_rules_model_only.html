@@ -123,10 +123,11 @@
       <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
       <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
       <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
-      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button></td>
+      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button><button class="m-btn" type="button" data-delete="${op.id}">🗑 حذف</button></td>
     </tr>`).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
     document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
+    document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
   }
   function syncMeterFields(){
     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
@@ -153,6 +154,15 @@
     try{
       await request(`${api}/operations/${id}`,{method:'PUT',body:JSON.stringify({...op,is_active:!op.is_active})});
       showAlert(op.is_active?'تم تعطيل العملية.':'تم تفعيل العملية.');
+      await load();
+    }catch(e){showAlert(e.message,'danger')}
+  }
+  async function deleteOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    if(!confirm('سيتم حذف العملية نهائيًا. إذا كانت مرتبطة بخطة أو سجل صيانة سيُرفض الحذف. هل أنت متأكد؟'))return;
+    try{
+      await request(`${api}/operations/${id}`,{method:'DELETE'});
+      showAlert('تم حذف العملية.');
       await load();
     }catch(e){showAlert(e.message,'danger')}
   }
