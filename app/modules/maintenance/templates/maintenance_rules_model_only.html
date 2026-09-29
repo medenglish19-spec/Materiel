@@ -84,6 +84,7 @@
 
 <style>
   #operationsTable .filter-head{position:relative;white-space:nowrap}
+  #operationsTable tr[data-plan-select]{cursor:pointer}
   #operationsTable tr.plan-selected{background:rgba(45, 115, 160, .07)}
   #operationsTable tr.plan-selected td:first-child{box-shadow:inset -3px 0 0 rgba(45, 115, 160, .35)}
   .plan-mode-bar{display:none;margin-bottom:16px;padding:12px 14px;border:1px solid #dbe5ee;border-radius:8px;background:#f7fafc;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -226,10 +227,18 @@
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
     document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
     document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
-    if(isPlanMode()) document.querySelectorAll('[data-plan-select]').forEach(row=>row.onclick=e=>{if(e.target.closest('button,a,input,select'))return;togglePlanSelection(Number(row.dataset.planSelect))});
     if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' محددة';
     updateFilterButtons();
   }
+  $('operationsBody').addEventListener('click',e=>{
+    if(!isPlanMode())return;
+    if(e.target.closest('button,a,input,select'))return;
+    const row=e.target.closest('tr[data-plan-select]');
+    if(!row)return;
+    const id=Number(row.dataset.planSelect);
+    if(!Number.isInteger(id)||id<=0)return;
+    togglePlanSelection(id);
+  });
   document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
     btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};
   });
