@@ -232,4 +232,6 @@ def upgrade() -> None:
             )
 
 
-def downgrade() -> None:\n    # Seed data is treated as persistent library data; preserve user edits and additions.\n    pass\n
+def downgrade() -> None:
+    # Seed data is treated as persistent library data; preserve user edits and additions.
+    pass
