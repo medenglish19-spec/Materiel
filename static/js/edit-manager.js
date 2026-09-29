@@ -4,7 +4,7 @@
 if(global.EditManager)return;
 
 const MAX=100, DEBOUNCE=400, providers=new Map(), history=[], future=[], listeners=new Set();
-let savedBaseline=null, lastSnapshot=null, restoring=false, saving=false, timer=null, saveHandler=null, initialized=false;
+let savedBaseline=null, lastSnapshot=null, restoring=false, saving=false, timer=null, saveHandler=null, initialized=false, sequence=Promise.resolve();
 
 const clone=v=>codec.decode(codec.encode(v));
 const stable=v=>JSON.stringify(codec.encode(v));
@@ -168,10 +168,14 @@ function installFetchBridge(){
     const method=(init?.method||(input instanceof Request?input.method:'GET')).toUpperCase();
     const ctx=submitContext;
     const result=original(input,init);
-    if(ctx&&!['GET','HEAD','OPTIONS'].includes(method)&&Date.now()-ctx.at<1500){
+    if(ctx&&ctx.promises.length===0&&!['GET','HEAD','OPTIONS'].includes(method)&&Date.now()-ctx.at<1500){
       ctx.promises.push(Promise.resolve(result).then(async res=>{
         if(!res.ok)throw new Error('رفض الخادم عملية الحفظ.');
-        try{const data=await res.clone().json();if(data?.ok===false)throw new Error(data.error||data.detail||'رفض الخادم عملية الحفظ.')}catch(e){if(e.message&&e.message!=='Unexpected end of JSON input')throw e}
+        const type=res.headers?.get('content-type')||'';
+        if(type.includes('application/json')){
+          const data=await res.clone().json();
+          if(data?.ok===false)throw new Error(data.error||data.detail||'رفض الخادم عملية الحفظ.');
+        }
         return res;
       }));
     }
@@ -233,5 +237,9 @@ function initialize(){
 }
 installFetchBridge();installSubmitBridge();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
-global.EditManager={register,commit,execute:async o=>{if(!o||typeof o.do!=='function'||typeof o.undo!=='function')throw new TypeError('execute requires do and undo');const before=captureAll();const result=await o.do();const after=captureAll();push(before,after,o.label||'عملية',o);lastSnapshot=clone(after);return result},undo,redo,save,markSaved,rebase:markSaved,reset:()=>{history.length=0;future.length=0;markSaved();lastSnapshot=clone(captureAll())},snapshot:()=>clone(captureAll()),restore:async snap=>{restoring=true;try{await apply(diff(captureAll(),snap),'after');lastSnapshot=clone(captureAll());emit()}finally{restoring=false}},isDirty:()=>state().dirty,subscribe:fn=>(listeners.add(fn),fn(state()),()=>listeners.delete(fn)),setSaveHandler,codec};
+global.EditManager={register,commit,execute:async o=>{
+  if(!o||typeof o.do!=='function'||typeof o.undo!=='function')throw new TypeError('execute requires do and undo');
+  const run=async()=>{const before=captureAll();const result=await o.do();const after=captureAll();push(before,after,o.label||'عملية',o);lastSnapshot=clone(after);return result};
+  const result=sequence.then(run,run);sequence=result.catch(()=>{});return result;
+},undo,redo,save,markSaved,rebase:markSaved,reset:()=>{history.length=0;future.length=0;markSaved();lastSnapshot=clone(captureAll())},snapshot:()=>clone(captureAll()),restore:async snap=>{restoring=true;try{await apply(diff(captureAll(),snap),'after');lastSnapshot=clone(captureAll());emit()}finally{restoring=false}},isDirty:()=>state().dirty,subscribe:fn=>(listeners.add(fn),fn(state()),()=>listeners.delete(fn)),setSaveHandler,codec};
 })(window);
