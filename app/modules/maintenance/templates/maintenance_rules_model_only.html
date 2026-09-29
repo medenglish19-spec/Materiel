@@ -273,7 +273,7 @@
   async function loadPlanContext(){
     const params=new URLSearchParams(window.location.search); state.planId=Number(params.get("plan_id"))||null;
     if(!state.planId){$("planModeBar").classList.remove("active");return}
-    const plan=await request(api+"/plans/"+state.planId); state.planName=plan.name||("خطة #"+state.planId);
+    const plans=await request(api+"/plans"); const plan=plans.find(x=>Number(x.id)===state.planId); if(!plan)throw new Error("خطة الصيانة غير موجودة."); state.planName=plan.name||("خطة #"+state.planId);
     const links=await request(api+"/plans/"+state.planId+"/operations"); state.planOps=new Set(links.map(x=>Number(x.operation_id))); state.initialPlanOps=new Set(state.planOps);
     $("planModeTitle").textContent="إضافة عمليات إلى الخطة: "+state.planName; $("planModeBar").classList.add("active"); $("planSelectedCount").textContent=state.planOps.size+" محددة";
   }
