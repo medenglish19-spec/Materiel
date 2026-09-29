@@ -232,23 +232,4 @@ def upgrade() -> None:
             )
 
 
-def downgrade() -> None:
-    bind = op.get_bind()
-    groups = sa.table(
-        "maintenance_operation_groups",
-        sa.column("id", sa.Integer),
-        sa.column("name", sa.String),
-    )
-    operations = sa.table(
-        "maintenance_operations",
-        sa.column("id", sa.Integer),
-        sa.column("name", sa.String),
-        sa.column("group_id", sa.Integer),
-    )
-
-    names = [name for name, _ in GROUPS]
-    rows = bind.execute(sa.select(groups.c.id).where(groups.c.name.in_(names))).all()
-    group_ids = [row[0] for row in rows]
-    if group_ids:
-        bind.execute(operations.delete().where(operations.c.group_id.in_(group_ids)))
-        bind.execute(groups.delete().where(groups.c.id.in_(group_ids)))
+def downgrade() -> None:\n    # Seed data is treated as persistent library data; preserve user edits and additions.\n    pass\n
