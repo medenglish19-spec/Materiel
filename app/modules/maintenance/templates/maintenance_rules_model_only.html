@@ -304,7 +304,7 @@
       const added=[...state.planOps].filter(id=>!state.initialPlanOps.has(id)); const removed=[...state.initialPlanOps].filter(id=>!state.planOps.has(id)); let order=state.initialPlanOps.size;
       for(const operationId of added){await request(api+"/plans/"+state.planId+"/operations",{method:"POST",body:JSON.stringify({plan_id:state.planId,operation_id:operationId,sort_order:order++})})}
       for(const operationId of removed){await request(api+"/plans/"+state.planId+"/operations/"+operationId,{method:"DELETE"})}
-      state.initialPlanOps=new Set(state.planOps); showAlert("تم تحديث عمليات الخطة.");
+      state.initialPlanOps=new Set(state.planOps); if(window.EditManager)EditManager.markSaved('maintenance-plan-selection'); showAlert("تم تحديث عمليات الخطة.");
       if(navigate)setTimeout(()=>window.location.href="/maintenance/plans",450);
       return true;
     }catch(e){showAlert(e.message,"danger");return false}
