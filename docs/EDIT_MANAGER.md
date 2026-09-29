@@ -4,14 +4,14 @@
 
 ## Automatic DOM provider
 
-The built-in `dom` provider tracks `input`, `select`, `textarea`, and `contenteditable` controls that belong to non-GET forms. Search/filter controls are ignored. Use:
+The built-in `dom` provider tracks `input`, `select`, `textarea`, and `contenteditable` controls that represent editable state; form method is not used to decide whether a field is editable. Search/filter controls are ignored. Use:
 
 - `data-em-ignore` to exclude a subtree or field.
 - `data-em-track="name"` to opt a field outside a form into tracking.
 - `data-em-native-undo` when a control must keep the browser's native Ctrl+Z behavior.
 - `data-em-root` to limit automatic tracking to a specific DOM scope.
 
-Checkboxes, radio groups, multiple selects, `Set`, `Map`, and `Date` values are supported by the codec. Dynamic select chains are restored up to three passes with `input`/`change` events so existing page logic can rebuild dependent options.
+Checkboxes, radio groups, multiple selects, `Set`, `Map`, and `Date` values are supported by the codec. Dynamic select chains are restored up to three passes with `input`/`change` events so existing page logic can rebuild dependent options. Search/filter controls are excluded by semantic names or `data-em-ignore`.
 
 ## Dynamic providers
 
@@ -40,7 +40,7 @@ await EditManager.execute({
 });
 ```
 
-API commands are serialized. Undo/redo failures put the command back in its original history position and show an error toast.
+API commands submitted through `execute` are serialized. Undo/redo failures put the command back in its original history position and show an error toast.
 
 ## Saving
 
@@ -52,7 +52,7 @@ Saving is deterministic:
 
 If more than one form has unsaved changes, the manager refuses to guess and identifies the forms. HTML validation runs before submission. For pages that call `fetch()` from `submit` handlers, the manager associates the first non-GET request with the submitting form for 1500 ms and only marks that form clean after a successful response. A JSON `{ok:false}` response is treated as a failed save.
 
-A normal POST navigation marks only that form's state as saved; changes in other forms remain dirty.
+A normal POST navigation marks only that form's state as saved; changes in other forms remain dirty. Custom `fetch()` saves are associated with the submitting form and awaited by the manager; no arbitrary 20ms completion delay is used.
 
 ## History and dirty state
 
