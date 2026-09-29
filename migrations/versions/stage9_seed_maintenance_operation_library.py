@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "stage9_seed_maintenance_operation_library"
-down_revision = "stage8_remove_plan_operation_overrides"
+down_revision = "f4c8e2a91b7d"
 branch_labels = None
 depends_on = None
 
