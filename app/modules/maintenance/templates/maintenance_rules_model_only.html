@@ -214,12 +214,15 @@
     const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
     const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
     $('operationCount').textContent=rows.length+' عملية';
-    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>`<tr>
-      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
+      const selected=isPlanMode() && state.planOps.has(op.id);
+      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}">
+      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
       <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
       <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button><button class="m-btn" type="button" data-delete="${op.id}">🗑 حذف</button></td>
-    </tr>`).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
+    </tr>`;
+    }).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
     document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
     document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
