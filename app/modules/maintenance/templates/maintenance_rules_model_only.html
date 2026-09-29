@@ -210,7 +210,16 @@
     openFilterMenu=menu;
   }
   function isPlanMode(){return !!state.planId}
-  function togglePlanSelection(id){if(!isPlanMode())return;if(state.planOps.has(id))state.planOps.delete(id);else state.planOps.add(id);render()}
+  async function togglePlanSelection(id){
+    if(!isPlanMode())return;
+    const wasSelected=state.planOps.has(id);
+    await EditManager.execute({
+      label:wasSelected?'إزالة العملية من الخطة':'إضافة العملية إلى الخطة',
+      do(){wasSelected?state.planOps.delete(id):state.planOps.add(id);render()},
+      undo(){wasSelected?state.planOps.add(id):state.planOps.delete(id);render()},
+      redo(){wasSelected?state.planOps.delete(id):state.planOps.add(id);render()}
+    });
+  }
   function render(){
     const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
     const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
@@ -289,19 +298,30 @@
     const links=await request(api+"/plans/"+state.planId+"/operations"); state.planOps=new Set(links.map(x=>Number(x.operation_id))); state.initialPlanOps=new Set(state.planOps);
     $("planModeTitle").textContent="إضافة عمليات إلى الخطة: "+state.planName; $("planModeBar").classList.add("active"); $("planSelectedCount").textContent=state.planOps.size+" محددة";
   }
-  async function savePlanOperations(){
-    if(!state.planId)return;
+  async function savePlanOperations(navigate=true){
+    if(!state.planId)return false;
     try{
       const added=[...state.planOps].filter(id=>!state.initialPlanOps.has(id)); const removed=[...state.initialPlanOps].filter(id=>!state.planOps.has(id)); let order=state.initialPlanOps.size;
       for(const operationId of added){await request(api+"/plans/"+state.planId+"/operations",{method:"POST",body:JSON.stringify({plan_id:state.planId,operation_id:operationId,sort_order:order++})})}
       for(const operationId of removed){await request(api+"/plans/"+state.planId+"/operations/"+operationId,{method:"DELETE"})}
-      state.initialPlanOps=new Set(state.planOps); showAlert("تم تحديث عمليات الخطة."); setTimeout(()=>window.location.href="/maintenance/plans",450);
-    }catch(e){showAlert(e.message,"danger")}
+      state.initialPlanOps=new Set(state.planOps); if(window.EditManager)EditManager.markSaved('maintenance-plan-selection'); showAlert("تم تحديث عمليات الخطة.");
+      if(navigate)setTimeout(()=>window.location.href="/maintenance/plans",450);
+      return true;
+    }catch(e){showAlert(e.message,"danger");return false}
   }
   async function load(){
     try{
       const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
-      state.groups=groups; state.operations=operations; await loadPlanContext(); renderGroups(); render(); syncGroupButtons();
+      state.groups=groups; state.operations=operations; await loadPlanContext();
+      if(isPlanMode()){
+        EditManager.register('maintenance-plan-selection',{
+          label:'عمليات الخطة',
+          capture:()=>({planId:state.planId,operationIds:[...state.planOps].sort((a,b)=>a-b)}),
+          restore:s=>{if(!s||Number(s.planId)!==Number(state.planId))return;state.planOps=new Set(s.operationIds||[]);render()},
+          save:()=>savePlanOperations(false)
+        });
+      }
+      renderGroups(); render(); syncGroupButtons();
     }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
   }
   $('operationForm').addEventListener('submit',async e=>{

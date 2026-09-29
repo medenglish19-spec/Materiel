@@ -69,3 +69,31 @@ def test_dynamic_register_set_array_and_execute(browser_page):
     page,errors=browser_page
     result=page.evaluate('''async()=>{let rows=['a'],selected=new Set(['a']),applied=0,reverted=0;EditManager.register('fixture',{capture:()=>({rows,selected}),restore:s=>{rows=[...s.rows];selected=new Set(s.selected)}});EditManager.commit('baseline');rows.push('b');selected.add('b');EditManager.commit('add row');await EditManager.execute({label:'API add',do:async()=>{applied++},undo:async()=>{reverted++},redo:async()=>{applied++}});await EditManager.undo();await EditManager.redo();return{rows,selected:[...selected],applied,reverted,dirty:EditManager.isDirty()}}''')
     assert result['rows']==['a','b'];assert set(result['selected'])=={'a','b'};assert result['applied']==2 and result['reverted']==1;assert not errors
+
+
+def test_form_without_method_is_tracked_and_fetch_save_is_awaited(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => {
+      const form=document.createElement('form'); form.id='dynamicForm';
+      form.innerHTML='<input id="dynamicValue" name="value" required><button type="submit">حفظ</button>';
+      document.body.appendChild(form);
+      form.addEventListener('submit',async e=>{e.preventDefault();await fetch('/dynamic-save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value:dynamicValue.value})});});
+    }""")
+    page.locator('#dynamicValue').fill('abc')
+    page.wait_for_timeout(500)
+    expect(page.locator('[data-em-action="save"]')).to_be_enabled()
+    page.locator('[data-em-action="save"]').click()
+    page.wait_for_timeout(150)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not errors
+
+
+def test_save_failure_keeps_page_dirty(browser_page):
+    page,errors=browser_page
+    page.locator('#date').fill('2026-09-29')
+    page.wait_for_timeout(500)
+    page.evaluate("EditManager.setSaveHandler(async()=>false)")
+    page.locator('[data-em-action="save"]').click()
+    page.wait_for_timeout(100)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert not errors
