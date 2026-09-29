@@ -45,7 +45,15 @@
     </div>
     <div class="table-wrap">
       <table class="m-table" id="operationsTable">
-        <thead><tr><th>#</th><th>العملية</th><th>المجموعة</th><th>الشرط</th><th>الإنذار</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+        <thead><tr>
+  <th>#</th>
+  <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th class="filter-head" data-filter-col="status">الحالة <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th>الإجراءات</th>
+</tr></thead>
         <tbody id="operationsBody"><tr><td colspan="7" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
       </table>
     </div>
@@ -70,10 +78,25 @@
   </section>
 </div>
 
+<style>
+  #operationsTable .filter-head{position:relative;white-space:nowrap}
+  #operationsTable .col-filter{border:0;background:transparent;cursor:pointer;padding:2px 4px;font-size:11px;color:inherit}
+  #operationsTable .col-filter.active{font-weight:700;text-decoration:underline}
+  .excel-filter-menu{position:fixed;z-index:9999;min-width:230px;max-width:300px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:10px;color:#222}
+  .excel-filter-menu .filter-tools{display:flex;gap:6px;margin-bottom:8px}
+  .excel-filter-menu input[type="search"]{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d8dee8;border-radius:6px}
+  .excel-filter-menu .filter-actions{display:flex;gap:6px;margin-bottom:8px}
+  .excel-filter-menu .filter-actions button{border:1px solid #d8dee8;background:#f7f8fa;border-radius:6px;padding:5px 8px;cursor:pointer}
+  .excel-filter-values{max-height:260px;overflow:auto;border-top:1px solid #eee;padding-top:6px}
+  .excel-filter-values label{display:flex;align-items:center;gap:7px;padding:5px 3px;cursor:pointer}
+  .excel-filter-values label:hover{background:#f5f6f8}
+</style>
 <script>
 (function(){
   const api='/api/maintenance';
   const state={groups:[],operations:[]};
+  const columnFilters={name:new Set(),group:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
+  let openFilterMenu=null;
   const $=id=>document.getElementById(id);
   const alertBox=$('libraryAlert');
 
@@ -115,9 +138,69 @@
     filter.value=currentFilter; editor.value=currentEditor;
   }
   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  function filterValue(op,col){
+    if(col==='name') return op.name||'';
+    if(col==='group') return groupName(op.group_id);
+    if(col==='condition') return conditionText(op);
+    if(col==='warning') return warningText(op);
+    if(col==='status') return op.is_active?'مفعلة':'متوقفة';
+    return '';
+  }
+  function passesColumnFilters(op){
+    return Object.entries(columnFilters).every(([col,set])=>!set.size||set.has(filterValue(op,col)));
+  }
+  function updateFilterButtons(){
+    document.querySelectorAll('.filter-head').forEach(th=>{
+      const col=th.dataset.filterCol, btn=th.querySelector('.col-filter');
+      btn.classList.toggle('active',!!columnFilters[col]?.size);
+      btn.textContent=columnFilters[col]?.size?'▼•':'▼';
+    });
+  }
+  function closeFilterMenu(){
+    if(openFilterMenu){openFilterMenu.remove();openFilterMenu=null}
+  }
+  function openColumnFilter(col,button){
+    closeFilterMenu();
+    const values=[...new Set(state.operations.map(op=>filterValue(op,col)))].sort((a,b)=>a.localeCompare(b,'ar'));
+    const selected=columnFilters[col];
+    const menu=document.createElement('div');
+    menu.className='excel-filter-menu';
+    menu.innerHTML=`
+      <div class="filter-tools"><input type="search" placeholder="بحث في القيم..." aria-label="بحث"></div>
+      <div class="filter-actions">
+        <button type="button" data-select-all>تحديد الكل</button>
+        <button type="button" data-clear>مسح</button>
+        <button type="button" data-apply>تطبيق</button>
+      </div>
+      <div class="excel-filter-values"></div>`;
+    const valuesBox=menu.querySelector('.excel-filter-values');
+    function drawValues(term=''){
+      const t=term.toLowerCase().trim();
+      valuesBox.innerHTML='';
+      values.filter(v=>!t||v.toLowerCase().includes(t)).forEach(v=>{
+        const label=document.createElement('label');
+        const cb=document.createElement('input'); cb.type='checkbox'; cb.value=v; cb.checked=selected.size?selected.has(v):true;
+        label.append(cb,document.createTextNode(v||'—')); valuesBox.appendChild(label);
+      });
+    }
+    drawValues();
+    document.body.appendChild(menu);
+    const rect=button.getBoundingClientRect();
+    menu.style.top=Math.min(rect.bottom+4,window.innerHeight-menu.offsetHeight-8)+'px';
+    menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-menu.offsetWidth-8))+'px';
+    menu.querySelector('input[type=search]').oninput=e=>drawValues(e.target.value);
+    menu.querySelector('[data-select-all]').onclick=()=>{valuesBox.querySelectorAll('input').forEach(cb=>cb.checked=true)};
+    menu.querySelector('[data-clear]').onclick=()=>{valuesBox.querySelectorAll('input').forEach(cb=>cb.checked=false)};
+    menu.querySelector('[data-apply]').onclick=()=>{
+      const checked=[...valuesBox.querySelectorAll('input:checked')].map(cb=>cb.value);
+      columnFilters[col]=checked.length===values.length?new Set():new Set(checked);
+      closeFilterMenu(); updateFilterButtons(); render();
+    };
+    openFilterMenu=menu;
+  }
   function render(){
     const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
-    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active)));
+    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
     $('operationCount').textContent=rows.length+' عملية';
     $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>`<tr>
       <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
@@ -128,7 +211,14 @@
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
     document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
     document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
+    updateFilterButtons();
   }
+  document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
+    btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};
+  });
+  document.addEventListener('click',e=>{
+    if(openFilterMenu && !openFilterMenu.contains(e.target) && !e.target.closest('.col-filter')) closeFilterMenu();
+  });
   function syncMeterFields(){
     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
     document.querySelectorAll('.meter-hours-field').forEach(el=>{el.style.display='';});
