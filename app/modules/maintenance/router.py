@@ -416,6 +416,24 @@ def api_operation_group_delete(group_id: int, db: Session = Depends(get_db), cur
         raise HTTPException(status_code=409, detail="تعذر حذف مجموعة شروط الصيانة.") from exc
     return None
 
+@router.delete("/api/maintenance/operations/{operation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_operation_delete(operation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    if db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.operation_id == operation_id).first() is not None:
+        raise HTTPException(status_code=409, detail="لا يمكن حذف العملية لأنها مرتبطة بخطة صيانة. عطّلها بدلًا من حذفها.")
+    if db.query(MaintenanceRecord.id).filter(MaintenanceRecord.operation_id == operation_id).first() is not None:
+        raise HTTPException(status_code=409, detail="لا يمكن حذف العملية لأنها مستخدمة في سجل الصيانة. عطّلها بدلًا من حذفها.")
+    db.delete(operation)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حذف عملية الصيانة.") from exc
+    return None
+
+
 @router.get("/api/maintenance/operations", response_model=list[MaintenanceOperationOut])
 def api_operations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
