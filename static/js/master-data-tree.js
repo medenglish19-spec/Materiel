@@ -41,7 +41,7 @@
     const attr = String(typeNode?.dataset?.categoryId || typeNode?.dataset?.category || '');
     return attr || typeCategoryMap.get(id) || '';
   };
-  const sectionMap = { basic: 0, tires: 1, positions: 1, sizes: 1, batteries: 2, specs: 3 };
+  const sectionMap = { basic: 0, tires: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const masterData = () => (window.MATERIEL_MASTER_DATA && window.MATERIEL_MASTER_DATA.DATA) || {};
   /* The inline workspace script owns refPanel/editModel/viewModel/... and publishes them on window.
@@ -371,11 +371,10 @@
     if (position) {
       stop(event);
       const targetModel = event.target.closest('[data-model]');
-      if (targetModel && workspaceReady('editModel', 'addPos', 'addSize')) {
-        const isPosition = position.dataset.treeAdd === 'position';
-        window.editModel(targetModel.dataset.model, isPosition ? 'positions' : 'sizes');
+      if (targetModel && workspaceReady('editModel', 'addSize')) {
+        window.editModel(targetModel.dataset.model, 'tires');
         selectSection(sectionMap.tires, { focus: true });
-        isPosition ? window.addPos() : window.addSize();
+        window.addSize();
       }
       return;
     }

@@ -37,7 +37,8 @@ def test_master_data_has_no_excel_import_at_all():
         assert gone not in TEMPLATE, f"بقايا استيراد Excel في الصفحة: {gone}"
 
     # أزرار التحرير اليدوي ما زالت موجودة (هي البديل عن الاستيراد بالحذف).
-    assert 'id="addPosition"' in TEMPLATE
+    # زرّ «＋ إضافة صف» للمواضع حُذف مع الجدول نفسه (قرار 2026-09-30).
+    assert 'id="addPosition"' not in TEMPLATE
     assert 'id="addSize"' in TEMPLATE
     assert 'id="chooseSpecs"' in TEMPLATE
 

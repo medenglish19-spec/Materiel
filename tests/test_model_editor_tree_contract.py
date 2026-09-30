@@ -11,10 +11,9 @@ def test_model_tree_has_nested_tire_branch():
     model_end = template.index('{% endfor %}', model_start)
     block = template[model_start:model_end]
     tire = block.index('data-section="tires"')
-    positions = block.index('data-section="positions"', tire)
-    sizes = block.index('data-section="sizes"', positions)
+    sizes = block.index('data-section="sizes"', tire)
     batteries = block.index('data-section="batteries"', sizes)
-    assert positions < sizes < batteries
+    assert sizes < batteries
     assert 'class="children"' in block[tire:batteries]
 
 
@@ -23,8 +22,10 @@ def test_model_editor_keeps_subsections_under_model():
     start = template.index('<div class="tree-group model-group">')
     end = template.index('{% endfor %}', start)
     block = template[start:end]
-    for section in ("basic", "tires", "positions", "sizes", "batteries", "specs"):
+    for section in ("basic", "tires", "sizes", "batteries", "specs"):
         assert f'data-section="{section}"' in block
+    # المواضع صارت ناتج التوزيع على المحاور، فلا قسم لها في الشجرة ولا محرر لها.
+    assert 'data-section="positions"' not in block
     assert block.count('class="children"') >= 2
 
 
@@ -64,15 +65,16 @@ def test_tree_has_inline_tire_add_actions():
     model_start = template.index('<div class="tree-group model-group">')
     model_end = template.index('{% endfor %}', model_start)
     block = template[model_start:model_end]
-    assert 'data-tree-add="position"' in block
     assert 'data-tree-add="size"' in block
-    assert '＋ موضع' in block
     assert '＋ مقاس' in block
+    # قرار المستخدم (2026-09-30): المواضع ناتج التوزيع، فلا زرّ لإضافة صف موضع.
+    assert 'data-tree-add="position"' not in block
+    assert '＋ موضع' not in block
 
 
 def test_inline_tire_add_action_loads_model_then_adds_row():
     template = _template()
     script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
     assert "editModel" in script
-    assert "addPos" in script
     assert "addSize" in script
+    assert "addPos" not in script
