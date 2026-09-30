@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.core.config import settings
+from app.core.config import security_warnings, settings
 from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
 from app.database.init_db import create_default_admin, init_db
@@ -31,6 +31,17 @@ STATIC_DIR = PROJECT_ROOT / "static"
 logger = get_logger(__name__)
 
 
+def _database_file() -> str | None:
+    """مسار ملف SQLite من DATABASE_URL، أو None لقاعدة غير ملفاتية."""
+    prefix = "sqlite:///"
+    if not settings.DATABASE_URL.startswith(prefix):
+        return None
+    tail = settings.DATABASE_URL[len(prefix) :]
+    if tail in ("", ":memory:"):
+        return None
+    return tail
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -38,6 +49,9 @@ def create_app() -> FastAPI:
         logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
         init_db()
         create_default_admin()
+        # تحذيرات ما قبل النشر: تُسجَّل ولا توقف الإقلاع (انظر core/config.py).
+        for warning in security_warnings(_database_file()):
+            logger.warning("[security] %s", warning)
         yield
         logger.info("Shutting down %s", settings.APP_NAME)
         shutdown_logging()
