@@ -19,8 +19,13 @@ def mission_status(mission: Mission, today: date | None = None):
 
 
 def validate(db: Session, equipment_id: int, start_date: date, end_date: date | None, departure_meter: Decimal | None, return_meter: Decimal | None):
-    if not db.query(Equipment).filter(Equipment.id == equipment_id).first():
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
         raise ValueError("العتاد غير موجود")
+    if equipment.operational_status != "available":
+        raise ValueError(f"العتاد غير متاح حالياً (الوضعية: {equipment.operational_status})")
+    if equipment.technical_condition == "broken":
+        raise ValueError("العتاد عاطل ولا يمكن إسناده إلى مهمة")
     if end_date and end_date < start_date:
         raise ValueError("تاريخ نهاية المهمة لا يمكن أن يسبق بدايتها")
     if start_date > date.today():
@@ -31,7 +36,6 @@ def validate(db: Session, equipment_id: int, start_date: date, end_date: date | 
         raise ValueError("عداد الانطلاق غير صالح")
     if return_meter is not None and departure_meter is not None and return_meter < departure_meter:
         raise ValueError("عداد العودة لا يمكن أن يقل عن عداد الانطلاق")
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if return_meter is not None and equipment.current_odometer is not None and return_meter > equipment.current_odometer:
         raise ValueError("عداد العودة أعلى من العداد الحالي للعتاد")
 
@@ -39,8 +43,35 @@ def validate(db: Session, equipment_id: int, start_date: date, end_date: date | 
 def add_mission(db: Session, data: dict):
     validate(db, data["equipment_id"], data["start_date"], data.get("end_date"), data.get("departure_meter"), data.get("return_meter"))
     mission = Mission(**data)
-    db.add(mission); db.commit(); db.refresh(mission)
+    db.add(mission)
+    # تحديث وضعية العتاد إلى "في مهمة"
+    equipment = db.query(Equipment).filter(Equipment.id == data["equipment_id"]).first()
+    if equipment:
+        equipment.operational_status = "in_mission"
+    db.commit(); db.refresh(mission)
     return mission
+
+
+def sync_mission_statuses(db: Session):
+    """تحديث وضعيات العتاد بناءً على المهمات الجارية والمنتهية"""
+    today = date.today()
+    # إعادة العتاد المتعلق بالمهمات المنتهية إلى "متاح"
+    running_missions = db.query(Mission).filter(
+        Mission.start_date <= today,
+        (Mission.end_date.is_(None)) | (Mission.end_date > today)
+    ).all()
+    running_equipment_ids = {m.equipment_id for m in running_missions}
+    
+    # إعادة العتاد الذي لا توجد له مهمة جارية إلى "متاح"
+    equipment_with_missions = db.query(Equipment).filter(
+        Equipment.id.in_({m.equipment_id for m in db.query(Mission).all()}) if db.query(Mission).count() > 0 else []
+    ).all()
+    
+    for eq in equipment_with_missions:
+        if eq.id not in running_equipment_ids and eq.operational_status == "in_mission":
+            eq.operational_status = "available"
+    
+    db.commit()
 
 
 def counts(db: Session):
