@@ -141,7 +141,7 @@ def _repair_equipment_current_meters() -> None:
                     changed += 1
         if changed:
             db.commit()
-            print(f"[init_db] تمت مزامنة العداد الحالي لـ {changed} عتاد/مركبة.")
+            logger.info("[init_db] تمت مزامنة العداد الحالي لـ %s عتاد/مركبة.", changed)
     finally:
         db.close()
 
@@ -218,5 +218,5 @@ def create_default_admin() -> None:
         existing = get_user_by_username(db, "admin")
         if not existing:
             create_user(db, UserCreate(username="admin", full_name="مدير النظام", password="Admin@123", role="admin"))
-            print("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
+            logger.info("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
     finally: db.close()

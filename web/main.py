@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
+from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
 from app.database.init_db import create_default_admin, init_db
 from app.modules.dashboard.router import router as dashboard_router
@@ -27,13 +28,19 @@ from app.modules.users.router import router as users_router
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = PROJECT_ROOT / "static"
 
+logger = get_logger(__name__)
+
 
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        configure_logging()
+        logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
         init_db()
         create_default_admin()
         yield
+        logger.info("Shutting down %s", settings.APP_NAME)
+        shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -42,6 +49,10 @@ def create_app() -> FastAPI:
     async def html_http_exception_handler(request: Request, exc: HTTPException):
         accept=request.headers.get("accept", "")
         referer=request.headers.get("referer")
+        if exc.status_code >= 500:
+            logger.error("HTTP %s %s -> %s", request.method, request.url.path, exc.detail)
+        elif exc.status_code >= 400:
+            logger.warning("HTTP %s %s -> %s", request.method, request.url.path, exc.detail)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and "text/html" in accept and referer:
             base=str(request.base_url)
             if referer.startswith(base):

@@ -27,6 +27,10 @@ class Settings:
 
     SESSION_COOKIE_NAME: str = "fleet_session"
 
+    # Logging (طبقتك غير الحظري في app/core/logging.py)
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_DIR: str = os.getenv("LOG_DIR", "logs")
+
     HOST: str = os.getenv("APP_HOST", "0.0.0.0")
     PORT: int = int(os.getenv("APP_PORT", "8000"))
 

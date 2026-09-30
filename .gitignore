@@ -10,3 +10,8 @@ __pycache__/
 # Local databases
 *.db
 *.sqlite3
+
+# Local artefacts (excluded by decision - never commit)
+logs/
+design_mockup.html
+server.log
