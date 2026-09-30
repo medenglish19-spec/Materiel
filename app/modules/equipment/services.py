@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -6,6 +7,23 @@ from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
+from app.modules.missions.models import Mission
+
+
+def effective_operational_status(db: Session, equipment: Equipment, today: Optional[date] = None) -> str:
+    today = today or date.today()
+    if equipment.technical_condition == "broken":
+        return "unavailable"
+    if equipment.operational_status in {"in_maintenance", "in_external_workshop", "unavailable"}:
+        return equipment.operational_status
+    active_mission = db.query(Mission.id).filter(
+        Mission.equipment_id == equipment.id,
+        Mission.start_date <= today,
+        (Mission.end_date.is_(None) | (Mission.end_date > today)),
+    ).first()
+    if active_mission:
+        return "in_mission"
+    return "available"
 
 
 def list_equipment(db: Session, skip: int = 0, limit: int = 500, operational_status: Optional[str] = None, technical_condition: Optional[str] = None, equipment_type_id: Optional[int] = None) -> list[Equipment]:
@@ -41,6 +59,7 @@ def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] 
         if model is None: raise ValueError("طراز العتاد المحدد غير موجود")
         if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
         if model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن اعتماد عتاد جديد عليه قبل إعادة اعتماده")
+    if values.get("technical_condition") == "broken": values["operational_status"] = "unavailable"
     equipment = Equipment(**values, asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id); db.add(equipment); db.commit(); db.refresh(equipment); return equipment
 
 
@@ -65,6 +84,7 @@ def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, u
         from app.modules.tires.services import installed_for_equipment
         if installed_for_equipment(db, equipment.id):
             raise ValueError("لا يمكن تغيير طراز العتاد بينما توجد إطارات مركبة عليه؛ يجب فك الإطارات أولًا للحفاظ على التاريخ واتساق بيانات Master Data")
+    if values.get("technical_condition", equipment.technical_condition) == "broken": values["operational_status"] = "unavailable"
     if "notes" in values: values["notes"] = (values["notes"] or "").strip()[:500] or None
     for field, value in values.items(): setattr(equipment, field, value)
     equipment.updated_by_id = user_id
@@ -87,12 +107,15 @@ def count_broken(db: Session) -> int: return db.query(Equipment).filter(Equipmen
 def update_technical_condition(db: Session, equipment_id: int, condition: str) -> Optional[Equipment]:
     equipment = get_equipment(db, equipment_id)
     if not equipment: return None
-    equipment.technical_condition = condition; db.commit(); db.refresh(equipment); return equipment
+    equipment.technical_condition = condition
+    if condition == "broken": equipment.operational_status = "unavailable"
+    db.commit(); db.refresh(equipment); return equipment
 
 
 def update_operational_status(db: Session, equipment_id: int, status: str) -> Optional[Equipment]:
     equipment = get_equipment(db, equipment_id)
     if not equipment: return None
+    if status == "available" and equipment.technical_condition == "broken": status = "unavailable"
     equipment.operational_status = status; db.commit(); db.refresh(equipment); return equipment
 
 
