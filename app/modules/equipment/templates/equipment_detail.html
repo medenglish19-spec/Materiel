@@ -1,9 +1,30 @@
 {% extends "base.html" %}
 {% block title %}تفاصيل العتاد{% endblock %}
 {% block content %}
+<style>
+.equipment-detail-hero{display:flex;gap:24px;align-items:center;background:var(--white);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:20px;border:1px solid rgba(46,125,50,.06)}
+.equipment-detail-image{width:200px;height:150px;border-radius:var(--radius-sm);object-fit:cover;background:var(--bg-secondary);display:flex;align-items:center;justify-content:center;font-size:48px;flex-shrink:0}
+.equipment-detail-info{flex:1}
+.equipment-detail-info h2{margin:0 0 8px;font-size:22px;font-weight:800;color:var(--text-primary)}
+.equipment-detail-info p{margin:0;font-size:13px;color:var(--text-secondary)}
+</style>
 <div class="record-page equipment-record" dir="rtl">
   <a class="record-back" href="/equipment">← العودة إلى العتاد</a>
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · EQUIPMENT</div><h2>{{ item.asset_code }}</h2><div class="record-muted">الملف التشغيلي للعتاد وجميع الوحدات المرتبطة به.</div></div><div class="record-actions"><a href="/equipment/{{ item.id }}/meters" class="btn-outline">📊 العداد</a><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 الصيانة</a></div></header>
+  <div class="equipment-detail-hero">
+    <div class="equipment-detail-image">
+      {% if item.equipment_model and item.equipment_model.image_url %}
+      <img src="{{ item.equipment_model.image_url }}" alt="{{ item.equipment_model.name }}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-sm)">
+      {% else %}
+      <span>🚛</span>
+      {% endif %}
+    </div>
+    <div class="equipment-detail-info">
+      <div class="record-eyebrow">MATERIEL · EQUIPMENT</div>
+      <h2>{{ item.asset_code }} — {{ item.equipment_model.name if item.equipment_model else '-' }}</h2>
+      <p>الملف التشغيلي للعتاد وجميع الوحدات المرتبطة به.</p>
+    </div>
+    <div class="record-actions"><a href="/equipment/{{ item.id }}/meters" class="btn-outline">📊 العداد</a><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 الصيانة</a></div>
+  </div>
   <section class="record-panel"><div class="record-section-head"><h3>بطاقة العتاد</h3><div class="record-hint">المعلومات الأساسية والحالة الحالية</div></div>
     <div class="record-summary"><div class="record-box"><span>الرقم</span><b>{{ item.asset_code }}</b></div><div class="record-box"><span>رقم التسجيل</span><b>{{ item.registration_number or '-' }}</b></div><div class="record-box"><span>النوع</span><b>{{ item.equipment_type.name if item.equipment_type else '-' }}</b></div><div class="record-box"><span>الطراز</span><b>{{ item.equipment_model.name if item.equipment_model else '-' }}</b></div><div class="record-box"><span>الحالة الفنية</span><b>{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</b></div><div class="record-box"><span>الوضعية</span><b>{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</b></div></div>
     <div class="record-form compact"><div class="field"><label>الوثيقة</label><div>{{ item.acquisition_document or '-' }}</div></div><div class="field"><label>رقم الهيكل</label><div>{{ item.vin or '-' }}</div></div><div class="field"><label>تاريخ الاقتناء</label><div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else '-' }}</div></div><div class="field"><label>أول سير / بدء الاستغلال</label><div>{{ item.first_service_date.strftime('%d/%m/%Y') if item.first_service_date else '-' }}</div></div><div class="field"><label>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</label><div>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</div></div>{% if item.notes %}<div class="field record-wide"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}</div>

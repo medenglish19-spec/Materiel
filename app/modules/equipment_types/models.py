@@ -53,6 +53,7 @@ class EquipmentModel(Base, TimestampMixin):
     battery_voltage_v = Column(Float, nullable=True)
     mobility_type = Column(String(20), nullable=False, default="mobile")
     requires_driver = Column(Boolean, nullable=False, default=True)
+    image_url = Column(String(500), nullable=True)
     equipment_type = relationship("EquipmentType", back_populates="models")
     brand = relationship("EquipmentBrand", back_populates="models")
     spec_values = relationship("EquipmentModelSpecValue", back_populates="model", cascade="all, delete-orphan")
