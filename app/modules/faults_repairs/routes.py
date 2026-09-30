@@ -17,13 +17,13 @@ templates = get_module_templates("app/modules/faults_repairs/templates")
 def faults_repairs_home(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     stats = dashboard_stats(db)
     faults = db.query(Fault).options(joinedload(Fault.equipment)).order_by(Fault.reported_date.desc(), Fault.id.desc()).limit(20).all()
-    return templates.TemplateResponse("faults_repairs_dashboard.html", {"request": request, "user": user, "stats": stats, "faults": faults})
+    return templates.TemplateResponse(request=request, name="faults_repairs_dashboard.html", context={"request": request, "user": user, "stats": stats, "faults": faults})
 
 @router.get("/faults-repairs/faults", response_class=HTMLResponse)
 def faults_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     faults = db.query(Fault).options(joinedload(Fault.equipment), joinedload(Fault.repairs)).order_by(Fault.reported_date.desc(), Fault.id.desc()).all()
     equipment = db.query(Equipment).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    return templates.TemplateResponse("faults.html", {"request": request, "user": user, "faults": faults, "equipment": equipment})
+    return templates.TemplateResponse(request=request, name="faults.html", context={"request": request, "user": user, "faults": faults, "equipment": equipment})
 
 @router.get("/faults-repairs/faults/{fault_id}", response_class=HTMLResponse)
 def fault_detail_page(fault_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -36,12 +36,12 @@ def fault_detail_page(fault_id: int, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="العطل غير موجود")
     technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
     parts = db.query(SparePart).order_by(SparePart.name).all()
-    return templates.TemplateResponse("fault_detail.html", {"request": request, "user": user, "fault": fault, "technicians": technicians, "parts": parts})
+    return templates.TemplateResponse(request=request, name="fault_detail.html", context={"request": request, "user": user, "fault": fault, "technicians": technicians, "parts": parts})
 
 @router.get("/faults-repairs/repairs", response_class=HTMLResponse)
 def repairs_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     repairs = list_repairs(db)
-    return templates.TemplateResponse("repairs.html", {"request": request, "user": user, "repairs": repairs})
+    return templates.TemplateResponse(request=request, name="repairs.html", context={"request": request, "user": user, "repairs": repairs})
 
 @router.get("/faults-repairs/repairs/{repair_id}", response_class=HTMLResponse)
 def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -54,11 +54,11 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="التصليح غير موجود")
     technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
     parts = db.query(SparePart).order_by(SparePart.name).all()
-    return templates.TemplateResponse("repair_detail.html", {"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts})
+    return templates.TemplateResponse(request=request, name="repair_detail.html", context={"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts})
 
 @router.get("/faults-repairs/analytics", response_class=HTMLResponse)
 def analytics_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("analytics.html", {
+    return templates.TemplateResponse(request=request, name="analytics.html", context={
         "request": request,
         "user": user,
         "stats": dashboard_stats(db),
@@ -72,18 +72,18 @@ def technicians_page(request: Request, db: Session = Depends(get_db), user: User
     technicians = db.query(Technician).order_by(Technician.full_name).all()
     stats = technician_stats(db)
     stats_by_id = {x["technician_id"]: x for x in stats}
-    return templates.TemplateResponse("technicians.html", {"request": request, "user": user, "technicians": technicians, "stats_by_id": stats_by_id})
+    return templates.TemplateResponse(request=request, name="technicians.html", context={"request": request, "user": user, "technicians": technicians, "stats_by_id": stats_by_id})
 
 @router.get("/faults-repairs/technicians/{technician_id}", response_class=HTMLResponse)
 def technician_detail_page(technician_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     analysis = technician_detail_analysis(db, technician_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="الفني غير موجود")
-    return templates.TemplateResponse("technician_detail.html", {"request": request, "user": user, "analysis": analysis})
+    return templates.TemplateResponse(request=request, name="technician_detail.html", context={"request": request, "user": user, "analysis": analysis})
 
 @router.get("/faults-repairs/spare-parts", response_class=HTMLResponse)
 def spare_parts_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     parts = db.query(SparePart).order_by(SparePart.name).all()
     usage = part_usage_stats(db)
     usage_by_number = {x["part_number"]: x for x in usage}
-    return templates.TemplateResponse("spare_parts.html", {"request": request, "user": user, "parts": parts, "usage_by_number": usage_by_number})
+    return templates.TemplateResponse(request=request, name="spare_parts.html", context={"request": request, "user": user, "parts": parts, "usage_by_number": usage_by_number})

@@ -63,9 +63,12 @@ def sync_mission_statuses(db: Session):
     running_equipment_ids = {m.equipment_id for m in running_missions}
     
     # إعادة العتاد الذي لا توجد له مهمة جارية إلى "متاح"
-    equipment_with_missions = db.query(Equipment).filter(
-        Equipment.id.in_({m.equipment_id for m in db.query(Mission).all()}) if db.query(Mission).count() > 0 else []
-    ).all()
+    mission_equipment_ids = {m.equipment_id for m in db.query(Mission).all()}
+    equipment_with_missions = (
+        db.query(Equipment).filter(Equipment.id.in_(mission_equipment_ids)).all()
+        if mission_equipment_ids
+        else []
+    )
     
     for eq in equipment_with_missions:
         if eq.id not in running_equipment_ids and eq.operational_status == "in_mission":

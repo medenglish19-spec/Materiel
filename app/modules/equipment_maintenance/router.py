@@ -76,7 +76,7 @@ def equipment_maintenance_page(equipment_id: int, request: Request, db: Session 
         edit_record = db.query(MaintenanceRecord).options(
             joinedload(MaintenanceRecord.operation), joinedload(MaintenanceRecord.plan)
         ).filter(MaintenanceRecord.id == int(edit_id), MaintenanceRecord.equipment_id == equipment_id).first()
-    return templates.TemplateResponse("equipment_maintenance.html", {
+    return templates.TemplateResponse(request=request, name="equipment_maintenance.html", context={
         "request": request, "user": current_user, "item": item, "records": records,
         "operations": get_operations(db, item), "edit_record": edit_record,
     })

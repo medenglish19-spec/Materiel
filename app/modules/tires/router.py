@@ -46,12 +46,12 @@ def tires_page(request: Request, db: Session = Depends(get_db), current_user: Us
     tires, states = batch_state.current_states(db)
     statuses = {t.id: services.tire_status(t, states.get(t.id)) for t in tires}
     counts = batch_state.dashboard_stats_from_snapshot(tires, states)
-    return templates.TemplateResponse("tires.html", {"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
+    return templates.TemplateResponse(request=request, name="tires.html", context={"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
 
 
 @router.get("/tires/settings", response_class=HTMLResponse)
 def tire_settings_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("tire_settings.html", {"request": request, "user": current_user, "validity_years": services.get_validity_years(db)})
+    return templates.TemplateResponse(request=request, name="tire_settings.html", context={"request": request, "user": current_user, "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/tires/settings")
@@ -66,7 +66,7 @@ def update_tire_settings(validity_years: int = Form(...), db: Session = Depends(
 
 @router.get("/tires/inventory", response_class=HTMLResponse)
 def tire_inventory_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("tire_inventory.html", {"request": request, "user": current_user, "items": batch_state.inventory(db)})
+    return templates.TemplateResponse(request=request, name="tire_inventory.html", context={"request": request, "user": current_user, "items": batch_state.inventory(db)})
 
 
 
@@ -99,7 +99,7 @@ def tire_detail(request: Request, tire_id: int, db: Session = Depends(get_db), c
     if not tire:
         raise HTTPException(status_code=404, detail="الإطار غير موجود")
     state = services.current_state(db, tire_id)
-    return templates.TemplateResponse("tire_detail.html", {"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "model_tire_configuration": _model_tire_configuration(db), "today": date.today(), "validity_years": services.get_validity_years(db), "now_time": datetime.now().strftime("%H:%M")})
+    return templates.TemplateResponse(request=request, name="tire_detail.html", context={"request": request, "user": current_user, "tire": tire, "state": state, "condition": services.tire_condition(tire, state), "history": services.movement_history(db, tire_id), "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "positions": services.list_positions(db), "model_tire_configuration": _model_tire_configuration(db), "today": date.today(), "validity_years": services.get_validity_years(db), "now_time": datetime.now().strftime("%H:%M")})
 
 
 @router.post("/tires/{tire_id}/movements")
@@ -138,4 +138,4 @@ def equipment_tires_page(request: Request, equipment_id: int, db: Session = Depe
     tires, states = batch_state.current_states(db)
     items = batch_state._installed_for_equipment_from_snapshot(tires, states, equipment_id)
     position_view = batch_state.equipment_position_view_from_snapshot(db, equipment, tires, states)
-    return templates.TemplateResponse("equipment_tires.html", {"request": request, "user": current_user, "equipment": equipment, "items": items, "position_view": position_view})
+    return templates.TemplateResponse(request=request, name="equipment_tires.html", context={"request": request, "user": current_user, "equipment": equipment, "items": items, "position_view": position_view})

@@ -29,7 +29,7 @@ def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depe
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id,"equipment_type_ids":spec_type_ids.get(d.id,[])} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
     tire_master_data={p["id"]:p for p in editor_payloads}
-    response = templates.TemplateResponse("master_data_workspace.html",{"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
+    response = templates.TemplateResponse(request=request, name="master_data_workspace.html", context={"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -37,7 +37,7 @@ def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depe
 @router.get("/equipment-types/structure",response_class=HTMLResponse)
 def equipment_types_structure_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     models=services.list_models(db);counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
-    return templates.TemplateResponse("equipment_types_structure.html",{"request":request,"models":models,"actual_counts":counts,"user":current_user})
+    return templates.TemplateResponse(request=request, name="equipment_types_structure.html", context={"request":request,"models":models,"actual_counts":counts,"user":current_user})
 @router.post("/equipment-types/demo")
 def create_demo_form(db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):services.create_demo_classification(db);return _redirect()
 @router.post("/equipment-types/demo/delete")

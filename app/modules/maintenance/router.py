@@ -35,7 +35,7 @@ templates = get_module_templates("app/modules/maintenance/templates")
 
 @router.get("/maintenance", response_class=HTMLResponse)
 def maintenance_dashboard_page(request: Request, current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("maintenance_home.html", {"request": request, "user": current_user})
+    return templates.TemplateResponse(request=request, name="maintenance_home.html", context={"request": request, "user": current_user})
 
 
 @router.get("/maintenance/periodic", response_class=HTMLResponse)
@@ -50,7 +50,7 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
             counts["total"] += 1; counts[css] += 1
             rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
-    return templates.TemplateResponse("maintenance_dashboard.html", {"request": request, "user": current_user, "rows": rows, "counts": counts})
+    return templates.TemplateResponse(request=request, name="maintenance_dashboard.html", context={"request": request, "user": current_user, "rows": rows, "counts": counts})
 
 
 @router.get("/maintenance/plans", response_class=HTMLResponse)
@@ -61,8 +61,7 @@ def maintenance_plans_page(request: Request, db: Session = Depends(get_db), curr
     ).order_by(EquipmentModel.name).all()
     model_options = [{"id": model.id, "name": model.name} for model in models]
     return templates.TemplateResponse(
-        "maintenance_plans.html",
-        {"request": request, "user": current_user, "models": model_options},
+        request=request, name="maintenance_plans.html", context={"request": request, "user": current_user, "models": model_options},
     )
 
 @router.get("/maintenance/rules", response_class=HTMLResponse)
@@ -72,8 +71,7 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
         joinedload(EquipmentModel.equipment_type),
     ).order_by(EquipmentModel.name).all()
     return templates.TemplateResponse(
-        "maintenance_rules_model_only.html",
-        {"request": request, "user": current_user, "models": models},
+        request=request, name="maintenance_rules_model_only.html", context={"request": request, "user": current_user, "models": models},
     )
 
 @router.get("/maintenance/records", response_class=HTMLResponse)
@@ -117,8 +115,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
     for plan in plans:
         plan_equipment_ids.setdefault(plan.id, set()).add(plan.equipment_model_id)
     return templates.TemplateResponse(
-        "maintenance_records.html",
-        {
+        request=request, name="maintenance_records.html", context={
             "request": request,
             "user": current_user,
             "records": records,
@@ -372,8 +369,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
 
     plan_groups.sort(key=lambda group: (group["plan"].name, group["plan"].id))
     return templates.TemplateResponse(
-        "maintenance_due.html",
-        {
+        request=request, name="maintenance_due.html", context={
             "request": request,
             "user": current_user,
             "rows": due_rows,

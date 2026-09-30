@@ -51,9 +51,32 @@ def _template_files():
     return [Path("web/templates/base.html"), *Path("app").glob("modules/**/templates/*.html")]
 
 
+def _registered_paths(app=None) -> set[str]:
+    """مسارات التطبيق المسجّلة.
+
+    FastAPI/Starlette 1.7 يغلّف `include_router` بكائن `_IncludedRouter` لا يملك
+    `.path`، فنجمع المسارات من الراوترات المُضمَّنة مع بادئة سياق الإدراج.
+    """
+    target = app if app is not None else main.app
+    paths: set[str] = set()
+    pending = [(route, "") for route in target.routes]
+    while pending:
+        route, prefix = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            context = getattr(route, "include_context", None)
+            inner_prefix = prefix + (getattr(context, "prefix", "") or "")
+            pending.extend((sub_route, inner_prefix) for sub_route in included.routes)
+            continue
+        path = getattr(route, "path", None)
+        if path:
+            paths.add(f"{prefix}{path}" if prefix else path)
+    return paths
+
+
 def test_registered_navigation_routes_are_real(monkeypatch):
     with _client(monkeypatch):
-        paths = {route.path for route in main.app.routes}
+        paths = _registered_paths()
         assert NAVIGATION_PATHS <= paths
 
 
@@ -61,14 +84,14 @@ def test_base_navigation_contains_only_registered_internal_paths():
     html = Path("web/templates/base.html").read_text(encoding="utf-8")
     hrefs = re.findall(r'href=[\"\']([^\"\']+)[\"\']', html)
     internal_paths = {href.split("?", 1)[0].split("#", 1)[0] for href in hrefs if href.startswith("/") and not href.startswith("//") and not href.startswith("/static/")}
-    registered_paths = {route.path for route in main.app.routes}
+    registered_paths = _registered_paths()
     assert "#" not in hrefs
     assert internal_paths <= registered_paths
 
 
 def test_main_page_routes_exist_and_are_protected(monkeypatch):
     with _client(monkeypatch) as client:
-        registered_paths = {route.path for route in main.app.routes}
+        registered_paths = _registered_paths()
         for path in sorted(PAGE_PATHS):
             assert path in registered_paths, path
             response = client.get(path, follow_redirects=False)
@@ -102,7 +125,7 @@ def test_no_placeholder_links_or_actions_exist_in_html_templates():
 
 
 def test_template_internal_links_and_form_actions_match_registered_routes():
-    registered_paths = {route.path for route in main.app.routes}
+    registered_paths = _registered_paths()
     for path in _template_files():
         html = path.read_text(encoding="utf-8")
         targets = re.findall(r'(?:href|action)=[\"\']([^\"\']+)[\"\']', html)

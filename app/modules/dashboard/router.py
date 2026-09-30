@@ -74,8 +74,7 @@ def dashboard_page(
     )
 
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
+        request=request, name="dashboard.html", context={
             "request": request,
             "user": current_user,
             "total_equipment": total_equipment,

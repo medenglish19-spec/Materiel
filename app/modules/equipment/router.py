@@ -45,7 +45,7 @@ operational_statuses = {item.id: services.effective_operational_status(db, item)
     }
     # --- نهاية الإضافة ---
 
-    return templates.TemplateResponse("equipment_list.html", {
+    return templates.TemplateResponse(request=request, name="equipment_list.html", context={
         "request": request, "items": items, "types": types, "user": current_user,
         "spec_definitions_data": spec_definitions_data,
         "equipment_specs_map": equipment_specs_map,
@@ -64,7 +64,7 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         cg["theoretical"]=sum(t["theoretical"] for t in cg["types"].values()); cg["need"]=max(0,cg["theoretical"]-cg["actual"])
         for tg in cg["types"].values(): tg["need"]=max(0,tg["theoretical"]-tg["actual"])
     totals_theoretical=sum(c["theoretical"] for c in categories.values()); totals_actual=len(items)
-    return templates.TemplateResponse("equipment_analysis.html",{"request":request,"user":current_user,"categories":categories,"totals":{"theoretical":totals_theoretical,"actual":totals_actual,"need":max(0,totals_theoretical-totals_actual),"ready":ready,"ready_restricted":ready_restricted,"broken":broken,"readiness":round(ready/totals_actual*100,1) if totals_actual else 0}})
+    return templates.TemplateResponse(request=request, name="equipment_analysis.html", context={"request":request,"user":current_user,"categories":categories,"totals":{"theoretical":totals_theoretical,"actual":totals_actual,"need":max(0,totals_theoretical-totals_actual),"ready":ready,"ready_restricted":ready_restricted,"broken":broken,"readiness":round(ready/totals_actual*100,1) if totals_actual else 0}})
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
 def equipment_numerical_status_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); models=db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all(); keys=("total","theoretical","ready","ready_restricted","broken","available","in_mission","in_maintenance","in_external_workshop","unavailable","need","surplus","outside_ted"); zero=lambda:{k:0 for k in keys}; groups={}
@@ -106,7 +106,7 @@ def equipment_numerical_status_page(request: Request, db: Session = Depends(get_
     type_analysis.sort(key=lambda x:x["total"],reverse=True); model_analysis.sort(key=lambda x:(x["need"],-x["coverage"]),reverse=True)
     status_analysis=[{"name":"جاهز","count":totals["ready"],"pct":totals["ready_pct"]},{"name":"جاهز مع قيود","count":totals["ready_restricted"],"pct":totals["ready_restricted_pct"]},{"name":"عاطل","count":totals["broken"],"pct":totals["broken_pct"]},{"name":"متاح","count":totals["available"],"pct":totals["available_pct"]},{"name":"في مهمة","count":totals["in_mission"],"pct":totals["mission_pct"]},{"name":"في الصيانة","count":totals["in_maintenance"],"pct":totals["maintenance_pct"]},{"name":"ورشة خارجية","count":totals["in_external_workshop"],"pct":totals["external_pct"]},{"name":"غير متاح","count":totals["unavailable"],"pct":totals["unavailable_pct"]}]
     analysis={"category_count":len(category_analysis),"type_count":len(type_analysis),"model_count":len(model_analysis),"coverage":totals["coverage_pct"],"need_pct":totals["need_pct"],"surplus_pct":totals["surplus_pct"],"ready_pct":totals["ready_pct"],"ready_restricted_pct":totals["ready_restricted_pct"],"broken_pct":totals["broken_pct"],"operational_availability_pct":totals["available_pct"],"maintenance_load_pct":totals["maintenance_pct"],"mission_load_pct":totals["mission_pct"],"external_workshop_pct":totals["external_pct"],"theoretical_gap":totals["need"],"overstrength":totals["surplus"],"outside_ted":totals["outside_ted"],"ted_actual":totals["ted_actual"],"largest_category":category_analysis[0] if category_analysis else None,"largest_type":type_analysis[0] if type_analysis else None,"highest_need_model":model_analysis[0] if model_analysis and model_analysis[0]["need"] else None}
-    return templates.TemplateResponse("equipment_numerical_status.html",{"request":request,"user":current_user,"hierarchy":hierarchy,"totals":totals,"category_analysis":category_analysis,"type_analysis":type_analysis,"model_analysis":model_analysis,"status_analysis":status_analysis,"analysis":analysis,"model_details":model_details})
+    return templates.TemplateResponse(request=request, name="equipment_numerical_status.html", context={"request":request,"user":current_user,"hierarchy":hierarchy,"totals":totals,"category_analysis":category_analysis,"type_analysis":type_analysis,"model_analysis":model_analysis,"status_analysis":status_analysis,"analysis":analysis,"model_details":model_details})
 @router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
 def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
@@ -118,12 +118,12 @@ def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(ge
         state=battery_states.get(battery.id)
         if state and state.get("installed") and state.get("equipment") and state["equipment"].id == equipment_id:
             installed_batteries.append({"battery":battery,"state":state,"condition":battery_services.status(battery,state,equipment=item,db=db),"due_date":battery_services.replacement_due_date(db,battery,item)})
-    return templates.TemplateResponse("equipment_detail.html",{"request":request,"item":item,"user":current_user,"installed_tires":installed_tires,"installed_batteries":installed_batteries})
+    return templates.TemplateResponse(request=request, name="equipment_detail.html", context={"request":request,"item":item,"user":current_user,"installed_tires":installed_tires,"installed_batteries":installed_batteries})
 @router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
 def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
-    return templates.TemplateResponse("equipment_edit.html",{"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
+    return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
 @router.post("/equipment/create")
 def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),current_odometer:str=Form("0"),current_hours:str=Form("0"),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,current_odometer=current_odometer or 0,current_hours=current_hours or 0,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
@@ -146,7 +146,7 @@ def equipment_delete_form(equipment_id:int,db:Session=Depends(get_db),current_us
 def equipment_meters_page(equipment_id:int,request:Request,page:int=1,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item,readings,total_readings,total_pages,current_page=meter_services.history_rows(db,equipment_id,page=page,page_size=20)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
-    return templates.TemplateResponse("equipment_meters.html",{"request":request,"item":item,"readings":readings,"total_readings":total_readings,"total_pages":total_pages,"current_page":current_page,"user":current_user})
+    return templates.TemplateResponse(request=request, name="equipment_meters.html", context={"request":request,"item":item,"readings":readings,"total_readings":total_readings,"total_pages":total_pages,"current_page":current_page,"user":current_user})
 @router.post("/equipment/{equipment_id}/meters/create")
 def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)

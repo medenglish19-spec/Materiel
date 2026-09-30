@@ -77,7 +77,7 @@ def _finish_operation(db: Session, current_user: User, kind: str, filename: str 
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services.cleanup_invalid_readings(db); return templates.TemplateResponse("meter_readings.html", _page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort))
+    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort))
 @router.post("/create")
 def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), equipment_status: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = equipment_services.get_equipment(db, equipment_id); context = _equipment_label(equipment)
@@ -209,4 +209,4 @@ def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Ses
 def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
     if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse("meter_readings_list.html", {"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size})
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size})
