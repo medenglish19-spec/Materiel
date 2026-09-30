@@ -1,6 +1,10 @@
 from datetime import date, datetime
 import inspect
 
+# سجلّ النماذج مركزي: بدونه تفشل تهيئة المُخطِّطات (relationships) عند تشغيل
+# هذا الملف وحده. الاستيراد يجعل الملف قابلاً للتشغيل مستقلاً عن ترتيب pytest.
+from app.database import model_registry  # noqa: F401
+
 
 def test_battery_batch_state_helper_is_available():
     from app.modules.batteries.services import current_states
@@ -137,6 +141,31 @@ def test_tire_remove_ui_bypasses_model_configuration_requirements():
     assert "equipment.disabled=remove" in template
     assert "position.disabled=remove" in template
     assert "movementSubmit.disabled=false" in template
+
+
+def test_dashboard_operational_status_cards_show_arabic_labels_not_raw_keys():
+    from pathlib import Path
+
+    template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
+
+    # المفتاح الخام (available/unavailable/...) لا يصح أن يظهر في واجهة عربية.
+    assert '<div class="stat-label">{{ status }}</div>' not in template
+    assert "{% if status == 'available' %}متاح{% elif status == 'in_mission' %}في مهمة" in template
+    assert "{% else %}غير متاح{% endif %}" in template
+
+
+def test_dashboard_renders_the_broken_equipment_count_it_queries():
+    from pathlib import Path
+
+    from app.modules.dashboard import router
+
+    template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
+
+    assert "count_broken(db)" in inspect.getsource(router.dashboard_page)
+    assert '"broken_count": broken_count' in inspect.getsource(router.dashboard_page)
+    # المؤشر المحسوب يجب أن يُعرض فعلاً، وإلا فهو استعلام ميت.
+    assert "<div class=\"stat-number\">{{ broken_count }}</div>" in template
+    assert "<div class=\"stat-label\">عتاد معطوب</div>" in template
 
 
 def test_tire_expiry_is_date_based_and_not_expired_on_exact_expiry_date():
