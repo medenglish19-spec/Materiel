@@ -1,7 +1,7 @@
 # PROJECT_MAP — Materiel Fleet Management
 
 > External memory for the three protocols: **Planning → Execution → Surgical Editing**.
-> Last synced: **2026-09-30** · branch `stage3-maintenance-operations` (10 ahead of origin, not pushed).
+> Last synced: **2026-09-30** · branch `stage3-maintenance-operations` (in sync with origin; the upstream `effective_operational_status` work was rebased in).
 > Authoritative business rules live in `docs/MATERIEL_EXECUTION_MAP.md` — read it before touching any module.
 
 ---
@@ -87,7 +87,7 @@ web/main.py  create_app()  (lifespan: configure_logging → init_db() → create
   ├─ app/modules/asset_movements/   shared policy helpers (NO router) — used by tires + batteries + tests
   ├─ app/modules/notifications/     aggregator + providers (registered on package import)
   ├─ migrations/versions/           52 revisions
-  └─ tests/                         61 files / 271 tests; template-contract tests pin exact markup/IDs
+  └─ tests/                         62 files / 287 tests; template-contract tests pin exact markup/IDs
 ```
 
 ### Notifications layer (wired 2026-09-30)
@@ -100,6 +100,20 @@ web/main.py  create_app()  (lifespan: configure_logging → init_db() → create
   (`batteries.services.replacement_due_date`).
 - Consumer: `dashboard_page()` → `notifications` in context → "التنبيهات الموحّدة" panel.
 - Note: the tire/battery batch queries now run twice per dashboard render (tables + notifications) — accepted cost of the aggregator design.
+
+### Effective operational status (merged + batched 2026-09-30)
+
+- `equipment/services.py` — one rule, two entry points:
+  `active_mission_equipment_ids()` (one query per 500 ids) → `_effective_status()`
+  (the single source of truth) → `effective_operational_status()` (one item) and
+  `effective_operational_statuses()` (whole page).
+- Rule order: `technical_condition == "broken"` → `unavailable`; a stored
+  maintenance/workshop/unavailable status is kept as is; otherwise an active
+  mission (`start <= today` and `end is null or end > today`) → `in_mission`,
+  else `available`.
+- `equipment_page()` passes `operational_statuses` to the card template, which
+  resolves `{% set current_status = operational_statuses[item.id] %}` per loop.
+  Never display the stored `item.operational_status` in that list.
 
 ---
 
@@ -135,10 +149,10 @@ web/main.py  create_app()  (lifespan: configure_logging → init_db() → create
 4. `tests/test_run_web_smoke.py::test_official_run_web_starts_and_serves_login` is environment-dependent: it fails whenever port 8000 is already served. Passes when the port is free.
 5. ~~Dependency lag~~ — **resolved** in M4; keep the `bcrypt` pin rationale.
 6. ~~Untracked `design_mockup.html` / `server.log`~~ — **resolved**: added to `.gitignore` (never committed).
-7. Branch `stage3-maintenance-operations` is 16 commits ahead of origin — **push is on hold by user instruction**.
+7. ~~Branch was ahead of origin~~ — **resolved** 2026-09-30: pushed after rebasing onto the 3 upstream commits (`582a56e`).
 8. ~~Logging not implemented~~ — **resolved** in M1.
 9. **Page rendering is not covered by pytest.** The authenticated smoke (login → 17 pages) lives in a throwaway script and caught two production-breaking bugs during M4. Promoting it to a real test (auth fixture + seeded DB) is the highest-value next step; needs a decision because it means adding test fixtures for auth.
 10. `faults_repairs/templates/fault_detail.html` renders the raw repair status key (`{{ r.status }}`) inside an Arabic interface. Same defect class as the dashboard status card (fixed in `713478a`), different page — left unfixed to keep the edit scope tight.
 11. Operational status labels are duplicated as `if/elif` chains in at least five places (`equipment_list`, `equipment_detail`, `equipment_numerical_status` template + its JS, `dashboard`). Unifying them is an architectural decision, not a cleanup: every module builds its own Jinja environment through `get_module_templates`, so there is no single place to inject a shared label map today.
 12. The dashboard status cards were the only place showing a raw enum key, but other raw keys may still exist in pages not yet visually reviewed. A pass over the remaining 42 templates is the systematic fix.
-13. `equipment_services.effective_operational_status()` (merged 2026-09-30 from upstream) has **no unit test**, and `/equipment` calls it once per item, which is one `Mission` query per equipment (N+1). The contract test added during the merge only pins the wiring. Both are open follow-ups.
+13. ~~`effective_operational_status()` had no unit test and `/equipment` had an N+1~~ — **resolved**: `effective_operational_statuses(db, items)` computes the whole page in one mission query (measured 200 items: 200 queries → 1, identical results), the single-item function delegates to the same rule helper, and `tests/test_effective_operational_status.py` covers the rules (broken, workshop/maintenance override, running / finished / not-started / ends-today mission) plus a query-count guard.
