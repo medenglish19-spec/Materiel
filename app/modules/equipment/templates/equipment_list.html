@@ -89,8 +89,8 @@
 
 <!-- شبكة بطاقات العتاد -->
 <div class="equipment-grid" id="view-grid">
-{% for item in items %}
-<article class="card equipment-card" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ item.operational_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
+{% for item in items %}{% set current_status = operational_statuses[item.id] %}
+<article class="card equipment-card" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ current_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
     <div class="equipment-card-media">
         {% if item.equipment_model and item.equipment_model.image_url %}
         <img src="{{ item.equipment_model.image_url }}" alt="{{ item.equipment_model.name }}" loading="lazy">
@@ -110,7 +110,7 @@
             <div><span>النوع</span><strong>{{ item.equipment_type.name if item.equipment_type else '-' }}</strong></div>
             <div><span>رقم التسجيل</span><strong>{{ item.registration_number or '-' }}</strong></div>
             <div><span>العداد</span><strong>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</strong></div>
-            <div><span>الوضعية</span><strong>{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</strong></div>
+            <div><span>الوضعية</span><strong>{% if current_status == 'available' %}متاح{% elif current_status == 'in_mission' %}في مهمة{% elif current_status == 'in_maintenance' %}في الصيانة{% elif current_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</strong></div>
         </div>
         <div class="equipment-card-actions">
             <a href="/equipment/{{ item.id }}" class="btn btn-outline">عرض</a>
@@ -128,8 +128,8 @@
 <table class="data-table" id="equipment-table">
 <thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-first-service">أول سير</th><th class="col-meter">العداد</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead>
 <tbody>
-{% for item in items %}
-<tr class="data-row{% if item.operational_status == 'unavailable' %} unavailable-row{% endif %}" onclick="openEquipment({{ item.id }})" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ item.operational_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
+{% for item in items %}{% set current_status = operational_statuses[item.id] %}
+<tr class="data-row{% if current_status == 'unavailable' %} unavailable-row{% endif %}" onclick="openEquipment({{ item.id }})" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ current_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
     <td>{{ loop.index }}</td>
     <td class="col-doc">{{ item.acquisition_document or "-" }}</td>
     <td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td>
@@ -139,7 +139,7 @@
     <td class="col-first-service">{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else "-" }}</td>
     <td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td>
     <td><span class="badge {% if item.technical_condition == 'ready' %}badge-success{% elif item.technical_condition == 'ready_restricted' %}badge-warning{% else %}badge-error{% endif %}">{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</span></td>
-    <td>{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</td>
+    <td>{% if current_status == 'available' %}متاح{% elif current_status == 'in_mission' %}في مهمة{% elif current_status == 'in_maintenance' %}في الصيانة{% elif current_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</td>
 </tr>
 {% else %}
 <tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>
