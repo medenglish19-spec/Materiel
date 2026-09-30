@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = (ROOT / "app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
-TREE_SCRIPT = (ROOT / "static/js/master-data-tree.js").read_text(encoding="utf-8")
+NAV_SCRIPT = (ROOT / "static/js/master-data-nav.js").read_text(encoding="utf-8")
 STYLE = (ROOT / "static/css/style.css").read_text(encoding="utf-8")
 
 
@@ -68,7 +68,7 @@ def test_no_separate_positions_editor_is_left_behind():
         assert gone not in TEMPLATE, f"بقايا محرر المواضع في الصفحة: {gone}"
     assert "＋ إضافة صف" in TEMPLATE  # زر المقاسات ما زال
     assert "$('addPosition').onclick" not in TEMPLATE
-    assert "addPos" not in TREE_SCRIPT
+    assert "addPos" not in NAV_SCRIPT
     assert 'data-tree-add="position"' not in TEMPLATE
 
 
@@ -96,7 +96,7 @@ def test_differences_from_saved_positions_are_stated_before_saving():
 
 def test_tires_section_is_reachable_from_the_editor():
     """العلّة التي وُوجهت: الأقسام الأخرى كانت مخفية بلا وسيلة العودة إليها."""
-    assert "window.MATERIEL_MODEL_WORKSPACE_SECTIONS = sectionMap;" in TREE_SCRIPT
+    assert "window.MATERIEL_MODEL_WORKSPACE_SECTIONS = sectionMap;" in NAV_SCRIPT
     assert "const idx=window.MATERIEL_MODEL_WORKSPACE_SECTIONS?.[section]" in TEMPLATE
     tabs = re.findall(r'data-model-workspace-tab="(\d)"', TEMPLATE)
     assert tabs == ["0", "1", "2", "3"]

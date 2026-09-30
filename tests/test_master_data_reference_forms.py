@@ -14,7 +14,7 @@ def test_master_data_reference_forms_have_explicit_post_actions():
     assert 'method="post"' in template
 
 
-def test_new_model_action_is_tree_owned_and_does_not_scroll_page():
+def test_new_model_action_is_navigation_owned_and_does_not_scroll_page():
     template = _template()
     assert "window.scrollTo" not in template
     assert "$('modelName').focus()" in template
@@ -23,20 +23,25 @@ def test_new_model_action_is_tree_owned_and_does_not_scroll_page():
     assert 'id="newModelTop"' not in template
 
 
-def test_tree_click_handler_prioritizes_inline_actions_and_toggles():
-    template = _template()
-    handler = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
-    assert "event.target.closest('[data-add],[data-new-ref]')" in handler
-    assert "[data-tree-add]" in handler
-    assert "[data-copy]" in handler
-    assert "[data-delete]" in handler
-    assert "[data-model-row]" in handler
-    assert "[data-model]" in handler
-    assert "[data-ref-item]" in handler
-    assert "[data-tree-add]" in handler
-    assert "[data-model-row]" in handler
-    assert "[data-model]" in handler
-    assert "[data-ref-item]" in handler
-    click_handler = handler.split("tree.addEventListener('click'", 1)[1]
-    assert click_handler.index("const action = event.target.closest('[data-add],[data-new-ref]')") < click_handler.index("const row = event.target.closest('[data-model-row]')")
-    assert click_handler.index("const row = event.target.closest('[data-model-row]')") < click_handler.index("const model = event.target.closest('[data-model]')")
+def test_navigation_click_handler_prioritizes_inline_actions_and_toggles():
+    click_handler = Path("static/js/master-data-nav.js").read_text(encoding="utf-8").split(
+        "nav.addEventListener('click'", 1
+    )[1]
+    for hook in (
+        "[data-add],[data-new-ref]",
+        "[data-tree-add]",
+        "[data-copy]",
+        "[data-delete]",
+        "[data-edit]",
+        ".tree-toggle",
+        "[data-expand]",
+        "[data-model-row]",
+        "[data-model]",
+        "[data-ref-item]",
+    ):
+        assert hook in click_handler
+    action = click_handler.index("const action = event.target.closest('[data-add],[data-new-ref]')")
+    row = click_handler.index("const row = event.target.closest('[data-model-row]')")
+    model = click_handler.index("const model = event.target.closest('[data-model]')")
+    ref = click_handler.index("const ref = event.target.closest('[data-ref-item]')")
+    assert action < row < model < ref

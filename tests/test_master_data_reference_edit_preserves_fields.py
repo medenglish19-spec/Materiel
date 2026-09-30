@@ -125,12 +125,16 @@ def test_ref_panel_accepts_dataset_as_extra_argument():
     assert "extra.categoryId" in template
     assert "extra.measurementUnit" in template
     assert "extra.theoreticalQuantity" in template
-    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
-    assert "refPanel(kind, id, node.dataset.name || '', node.dataset)" in script
+    script = Path("static/js/master-data-nav.js").read_text(encoding="utf-8")
+    assert "window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset)" in script
 
 
-def test_tree_editor_passes_dataset_and_category_attribute_is_primary_source():
-    script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
-    assert "refPanel(kind, id, node.dataset.name || '', node.dataset)" in script
-    assert "const attr = String(typeNode.dataset.categoryId || typeNode.dataset.category || '');" in script
-    assert "return attr || typeCategoryMap.get(id) || '';" in script
+def test_reference_editor_passes_the_dataset_and_the_row_carries_the_category():
+    script = Path("static/js/master-data-nav.js").read_text(encoding="utf-8")
+    assert "window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset)" in script
+    template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(
+        encoding="utf-8"
+    )
+    # الفئة صارت مصدر التصنيف الوحيد، وصف النوع يحملها مباشرة إلى النموذج.
+    assert 'data-category-id="{{ t.category_id or \'\' }}"' in template
+    assert "typeCategoryMap" not in script

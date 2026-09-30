@@ -9,8 +9,8 @@ def _template() -> str:
     return Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
 
 
-def _tree_script() -> str:
-    return Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
+def _nav_script() -> str:
+    return Path("static/js/master-data-nav.js").read_text(encoding="utf-8")
 
 
 def test_model_editor_is_hierarchical_and_excel_grid_oriented():
@@ -30,20 +30,25 @@ def test_model_tree_exposes_inline_tire_creation_actions():
     template = _template()
     assert 'data-tree-add="size"' in template
     assert 'data-tree-add="position"' not in template
-    script = _tree_script()
+    script = _nav_script()
     assert "editModel" in script
     assert "addSize" in script
     assert "addPos" not in script
 
 
-def test_tree_add_controls_route_to_the_existing_create_workflows():
-    script = _tree_script()
-    assert 'event.target.closest(\'[data-add],[data-new-ref]\')' in script
-    assert "const kind = add.dataset.add || add.dataset.newRef;" in script
-    assert "if (kind === 'model') openModelCreate(action.dataset.newModelForType);" in script
-    assert "else if (typeof refPanel === 'function') refPanel(kind);" in script
-    assert "openTypeCreate(addForCategory.dataset.newTypeForCategory)" in script
-    assert "openModelCreate(addForType.dataset.newModelForType)" in script
+def test_add_controls_route_to_the_existing_create_workflows():
+    script = _nav_script()
+    handler = script.split("nav.addEventListener('click'", 1)[1]
+    # نقطة الدخول الواحدة لكل أزرار «＋» في الشرائح.
+    assert "const action = event.target.closest('[data-add],[data-new-ref]')" in handler
+    assert "const kind = action.dataset.add || action.dataset.newRef;" in handler
+    assert "if (kind === 'type') openTypeCreate(action.dataset.newTypeForCategory);" in handler
+    assert "else if (kind === 'model') openModelCreate(action.dataset.newModelForType);" in handler
+    assert "else if (typeof refPanel === 'function') refPanel(kind);" in handler
+    # «＋» بجانب الفئة ينشئ نوعًا مصنّفًا لها، و«＋» بجانب النوع ينشئ طرازًا له.
+    assert "const id = String(categoryId || '');" in script
+    assert "window.refPanel('type', null, '', { categoryId: id });" in script
+    assert "window.openNewModel(typeId ? String(typeId) : '');" in script
 
 
 def test_model_workspace_loads_every_model_field_from_its_own_payload():
