@@ -6,9 +6,9 @@ body:has(.mdx){background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 48%,#e0f2e0 
 .mdx-head{padding:4px 4px 22px!important;margin-bottom:20px!important;border-bottom:1px solid rgba(46,125,50,.12)!important}
 .mdx-head h1{font-size:clamp(27px,3vw,38px)!important;line-height:1.25!important;letter-spacing:-.5px!important;color:#1b5e20!important;font-weight:850!important}
 .mdx-head p{font-size:15px!important;color:#4e6b52!important;margin-top:10px!important}
-.mdx .layout{display:grid!important;grid-template-columns:minmax(320px,410px) minmax(0,1fr)!important;gap:22px!important;align-items:start!important}
+.mdx .layout{display:grid!important;grid-template-columns:minmax(300px,380px) minmax(0,1fr)!important;gap:20px!important;align-items:start!important;height:auto!important;min-height:0!important}
 .mdx .card{background:rgba(255,255,255,.94)!important;border:1px solid rgba(46,125,50,.08)!important;border-radius:20px!important;box-shadow:0 16px 42px rgba(46,125,50,.09)!important}
-.mdx .tree-card{padding:0!important;overflow:hidden!important;position:sticky!important;top:22px!important;max-height:calc(100vh - 44px)!important;overflow-y:auto!important}
+.mdx .tree-card{padding:0!important;overflow:hidden!important;position:sticky!important;top:104px!important;max-height:calc(100vh - 128px)!important;overflow-y:auto!important}
 .mdx .tree-head{padding:18px 20px!important;background:linear-gradient(135deg,#f1f8e9,#e8f5e9)!important;border-bottom:1px solid rgba(46,125,50,.1)!important;position:sticky!important;top:0!important;z-index:2!important}
 .mdx .tree-head strong{font-size:16px!important;color:#1b5e20!important}
 .mdx .tree-head .muted{padding:5px 10px!important;border-radius:999px!important;background:#c8e6c9!important;color:#1b5e20!important;font-weight:700!important}
@@ -42,8 +42,15 @@ body:has(.mdx){background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 48%,#e0f2e0 
 .mdx .ref-form label{color:#2e5a3a!important;font-size:13px!important}.mdx .ref-form input,.mdx .ref-form select,.mdx .field input,.mdx .field select{min-height:42px!important;border:1px solid rgba(46,125,50,.15)!important;border-radius:9px!important;padding:9px 11px!important;background:#fff!important;color:#1b5e20!important;outline:0!important}.mdx .ref-form input:focus,.mdx .ref-form select:focus,.mdx .field input:focus,.mdx .field select:focus{border-color:#43a047!important;box-shadow:0 0 0 3px rgba(67,160,71,.12)!important}
 .mdx .btn.primary{background:linear-gradient(135deg,#43a047,#2e7d32)!important;border-radius:9px!important;padding:10px 16px!important;box-shadow:0 5px 12px rgba(67,160,71,.2)!important}.mdx .btn.primary:hover{filter:brightness(1.06)!important;transform:translateY(-1px)!important}
 .master-context-menu{border:1px solid rgba(46,125,50,.1)!important;border-radius:12px!important;box-shadow:0 16px 40px rgba(46,125,50,.18)!important;padding:6px!important}.master-context-menu button{min-height:40px!important;border-radius:8px!important;color:#2e5a3a!important}.master-context-menu button:hover{background:#e8f5e9!important;color:#1b5e20!important}
-@media(max-width:1000px){.mdx .layout{grid-template-columns:minmax(280px,350px) minmax(0,1fr)!important;gap:14px!important}.mdx{padding:20px 16px 30px!important}.mdx .tree-card{top:14px!important;max-height:calc(100vh - 28px)!important}}
+@media(max-width:1000px){.mdx .layout{grid-template-columns:minmax(260px,320px) minmax(0,1fr)!important;gap:14px!important}.mdx{padding:20px 16px 30px!important}.mdx .tree-card{top:96px!important;max-height:calc(100vh - 120px)!important}}
 @media(max-width:760px){.mdx .layout{grid-template-columns:1fr!important}.mdx .tree-card{position:relative!important;top:auto!important;max-height:none!important}.mdx .editor{margin-top:0!important}.mdx .panel{padding:14px!important}.mdx .editor-head{padding:18px!important}.mdx #empty{min-height:220px!important}.mdx-head{align-items:flex-start!important}.mdx-head h1{font-size:27px!important}}
 
-/* Preserve existing login page contract. */
+/* Master Data workspace — shell compatibility.
+   The app shell renders a sticky top bar; every sticky region inside the page
+   must start below it, and no region may rely on a hard-coded viewport height. */
+.mdx{min-height:0!important}
+.mdx .layout{height:auto!important;min-height:0!important}
+.mdx .tree-card{top:104px!important;max-height:calc(100vh - 128px)!important;height:auto!important}
+.mdx #empty{min-height:320px!important}
+.app-topbar{z-index:60}
 .login-body{display:flex;align-items:center;justify-content:center;height:100vh}
