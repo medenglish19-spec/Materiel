@@ -138,3 +138,42 @@ def test_removed_tire_configuration_routes_are_not_registered():
     paths={route.path for route in router.routes}
     assert "/tires/positions" not in paths
     assert "/tires/models/{model_id}/configuration" not in paths
+
+
+# الصفوف أدناه ناتج قاعدة التوليد في صفحة مركز البيانات حرفيًا:
+# expandAxleLayout(['single','dual','dual']) على ٣ محاور، وقد قِيس ناتجها في المتصفح.
+AXLE_LAYOUT_POSITIONS=[
+    (1,"right","single"),(1,"left","single"),
+    (2,"right","inner"),(2,"right","outer"),(2,"left","inner"),(2,"left","outer"),
+    (3,"right","inner"),(3,"right","outer"),(3,"left","inner"),(3,"left","outer"),
+]
+
+def test_axle_layout_generates_ten_positions_and_persists_them():
+    """مثال المستخدم: ٣ محاور (مفرد، مزدوج، مزدوج) = ١٠ مواضع تُحفظ كاملة."""
+    db=db_new(); typ,brand=base(db)
+    try:
+        rows=[pos(axle,side,kind) for axle,side,kind in AXLE_LAYOUT_POSITIONS]
+        model=services.create_model(db,data(typ,brand,rows,axle_count=3))
+        assert model.tire_positions_required==10
+        saved=db.query(TirePosition).filter_by(equipment_model_id=model.id).all()
+        assert len(saved)==10
+        assert sorted((p.axle_number,p.side,p.position_type) for p in saved)==sorted(AXLE_LAYOUT_POSITIONS)
+        names={p.name for p in saved}
+        assert "المحور 1 — يمين مفرد" in names
+        assert "المحور 2 — يمين داخلي" in names
+        assert "المحور 3 — يسار خارجي" in names
+        codes={p.code for p in saved}
+        assert f"M{model.id}-A2-right-inner" in codes
+        assert f"M{model.id}-A3-left-outer" in codes
+    finally: db.close()
+
+def test_axle_layout_positions_are_rejected_when_axle_count_is_smaller():
+    """التوليد يسبق الحفظ، فحدّ المحاور يبقى الحارس الأخير من الخادم."""
+    db=db_new(); typ,brand=base(db)
+    try:
+        rows=[pos(axle,side,kind) for axle,side,kind in AXLE_LAYOUT_POSITIONS]
+        with pytest.raises(ValueError,match="يتجاوز عدد محاور"):
+            services.create_model(db,data(typ,brand,rows,axle_count=2))
+        db.rollback()
+        assert db.query(EquipmentModel).count()==0
+    finally: db.close()

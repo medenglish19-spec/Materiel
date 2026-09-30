@@ -71,6 +71,10 @@
     if (options.focus) boxes[safe]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   window.MATERIEL_MODEL_WORKSPACE_SELECT = selectSection;
+  /* Section name -> box index. The inline workspace script opens the editor on a
+     named section (tree click, ✏️ تعديل الطراز); without this map it could only
+     ever ask for a number and would guess wrong for tires/positions/sizes. */
+  window.MATERIEL_MODEL_WORKSPACE_SECTIONS = sectionMap;
 
   /* "＋ نوع" beside a category  ->  refPanel('type', null, '', {categoryId: CATEGORY_ID}) with the category preselected. */
   const openTypeCreate = (categoryId) => {

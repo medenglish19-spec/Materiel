@@ -144,6 +144,12 @@ body:has(.mdx){
 .mdx .btn.danger:hover{background:#fdecec}
 .mdx .btn:disabled{opacity:.5;cursor:not-allowed}
 
+/* --- model editor tabs + axle wheel picker -------------------------------- */
+.mdx .ws-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
+.mdx [data-model-workspace-tab].is-active{background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#fff;border-color:transparent;box-shadow:0 8px 18px rgba(46,125,50,.24)}
+.mdx .tbl .check input[type=radio]{width:auto;min-height:0;padding:0;margin:0;accent-color:var(--accent-2)}
+.mdx .field input[readonly]{background:#f4f8f5;color:#40584a;cursor:default}
+
 /* --- tables --------------------------------------------------------------- */
 .mdx .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .mdx .tbl{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;font-size:13px}
