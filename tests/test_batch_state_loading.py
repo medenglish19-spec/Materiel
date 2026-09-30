@@ -150,8 +150,8 @@ def test_dashboard_operational_status_cards_show_arabic_labels_not_raw_keys():
 
     # المفتاح الخام (available/unavailable/...) لا يصح أن يظهر في واجهة عربية.
     assert '<div class="stat-label">{{ status }}</div>' not in template
-    assert "{% if status == 'available' %}متاح{% elif status == 'in_mission' %}في مهمة" in template
-    assert "{% else %}غير متاح{% endif %}" in template
+    # التسمية صارت من `app/core/labels.py` بدل سلسلة if/elif خاصة بهذه الصفحة.
+    assert '<div class="stat-label">{{ label(\'operational\', status) }}</div>' in template
 
 
 def test_dashboard_renders_the_broken_equipment_count_it_queries():
