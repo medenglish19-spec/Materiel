@@ -24,6 +24,7 @@ router = APIRouter(); templates = get_module_templates("app/modules/equipment/te
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items = services.list_equipment(db)
+    operational_statuses = {item.id: services.effective_operational_status(db, item) for item in items}
     types = type_services.list_types(db)
 
     # --- إضافة: بيانات الخصائص الحرّة للفلترة في /equipment ---
@@ -48,6 +49,7 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
         "request": request, "items": items, "types": types, "user": current_user,
         "spec_definitions_data": spec_definitions_data,
         "equipment_specs_map": equipment_specs_map,
+        "operational_statuses": operational_statuses,
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
