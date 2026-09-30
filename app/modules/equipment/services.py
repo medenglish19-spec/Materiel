@@ -10,20 +10,52 @@ from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.missions.models import Mission
 
 
-def effective_operational_status(db: Session, equipment: Equipment, today: Optional[date] = None) -> str:
+def active_mission_equipment_ids(db: Session, equipment_ids: list, today: Optional[date] = None) -> set:
+    """معرّفات العتاد الذي لديه مهمة جارية اليوم، باستعلام واحد لكل 500 معرّف.
+
+    الغرض: تفادي N+1 عند حساب الوضعية الفعّالة لصفحة كاملة.
+    """
+    ids = {i for i in equipment_ids if i is not None}
+    if not ids:
+        return set()
     today = today or date.today()
+    ordered = sorted(ids)
+    active: set = set()
+    for start in range(0, len(ordered), 500):
+        rows = (
+            db.query(Mission.equipment_id)
+            .filter(
+                Mission.equipment_id.in_(ordered[start : start + 500]),
+                Mission.start_date <= today,
+                (Mission.end_date.is_(None) | (Mission.end_date > today)),
+            )
+            .distinct()
+            .all()
+        )
+        active.update(row[0] for row in rows)
+    return active
+
+
+def _effective_status(equipment: Equipment, active_equipment_ids: set) -> str:
+    """قاعدة الوضعية الفعّالة في مكان واحد (تُستدعى للمفرد والدفعة)."""
     if equipment.technical_condition == "broken":
         return "unavailable"
     if equipment.operational_status in {"in_maintenance", "in_external_workshop", "unavailable"}:
         return equipment.operational_status
-    active_mission = db.query(Mission.id).filter(
-        Mission.equipment_id == equipment.id,
-        Mission.start_date <= today,
-        (Mission.end_date.is_(None) | (Mission.end_date > today)),
-    ).first()
-    if active_mission:
+    if equipment.id in active_equipment_ids:
         return "in_mission"
     return "available"
+
+
+def effective_operational_status(db: Session, equipment: Equipment, today: Optional[date] = None) -> str:
+    active = active_mission_equipment_ids(db, [equipment.id], today=today)
+    return _effective_status(equipment, active)
+
+
+def effective_operational_statuses(db: Session, items: list, today: Optional[date] = None) -> dict:
+    """الوضعية الفعّالة لكل العتاد دفعة واحدة (استعلامات ثابتة مهما زاد العدد)."""
+    active = active_mission_equipment_ids(db, [item.id for item in items], today=today)
+    return {item.id: _effective_status(item, active) for item in items}
 
 
 def list_equipment(db: Session, skip: int = 0, limit: int = 500, operational_status: Optional[str] = None, technical_condition: Optional[str] = None, equipment_type_id: Optional[int] = None) -> list[Equipment]:
