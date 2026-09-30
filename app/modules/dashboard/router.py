@@ -18,6 +18,7 @@ from app.modules.batteries import services as battery_services
 from app.modules.equipment import services as equipment_services
 from app.modules.tires import batch_state as tire_batch_state
 from app.modules.tires import services as tire_services
+from app.modules.notifications.services import get_all_notifications
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -73,6 +74,9 @@ def dashboard_page(
         )
     )
 
+    # الإشعارات الموحّدة: كل مزوّد يسجّل تنبيهات وحدته، والموحّد يدمجها بالخطورة.
+    notifications = get_all_notifications(db)
+
     return templates.TemplateResponse(
         request=request, name="dashboard.html", context={
             "request": request,
@@ -82,5 +86,6 @@ def dashboard_page(
             "broken_count": broken_count,
             "expired_tires": expired_tires,
             "replacement_due_batteries": replacement_due_batteries,
+            "notifications": notifications,
         },
     )
