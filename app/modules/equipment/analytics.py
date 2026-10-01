@@ -6,6 +6,7 @@ Historical persistence and institutional mission requirements are future inputs.
 """
 
 from collections import OrderedDict
+from .utilization_analysis import build_utilization_analysis
 
 
 TECHNICAL_STATES = ("ready", "ready_restricted", "broken")

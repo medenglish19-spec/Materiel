@@ -18,6 +18,23 @@
   <a href="/equipment-types">الطرازات</a>
 </nav>
 
+<section class="panel">
+  <div class="ph"><h3>الاستغلال الفعلي</h3><span>المسافة من تاريخ العداد، مع سياق المهمات والوقود</span></div>
+  <div class="exec-grid">
+    <div><strong>{{ utilization.totals.distance_km|round(1) }}</strong><span>كم مقاسة بالعداد</span></div>
+    <div><strong>{{ utilization.totals.mission_count }}</strong><span>مهمات مكتملة بالعداد</span></div>
+    <div><strong>{{ utilization.totals.mission_distance_km|round(1) }}</strong><span>كم للمهمات المسجلة</span></div>
+    <div class="muted"><strong>{% if utilization.totals.fuel_per_100km is not none %}{{ utilization.totals.fuel_per_100km|round(2) }}{% else %}—{% endif %}</strong><span>لتر/100 كم</span></div>
+  </div>
+  {% if utilization.findings %}
+  <div class="findings">
+    {% for f in utilization.findings %}
+    <article class="finding"><div class="finding-state">{{ f.state }}</div><div><strong>{{ f.subject }}</strong><p>{{ f.meaning }}</p><small>الدليل: {{ f.evidence }}</small></div></article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
 <section class="executive">
   <div class="panel">
     <div class="ph"><h3>القدرة العددية</h3><span>على مستوى الأنواع ذات النظري المعتمد</span></div>
