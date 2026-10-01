@@ -157,6 +157,8 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         fuel_peers = [p["fuel_per_100km"] for p in other_rows if p["fuel_per_100km"] is not None]
 
         row["peer_count"] = len(other_rows)
+        row["peer_fault_sample_count"] = len(rate_peers)
+        row["peer_fuel_sample_count"] = len(fuel_peers)
         row["peer_fault_rate_per_1000km"] = _median(rate_peers)
         row["peer_fuel_per_100km"] = _median(fuel_peers)
 
@@ -164,8 +166,8 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             reference = row["peer_fault_rate_per_1000km"]
             if row["fault_rate_per_1000km"] > reference:
                 findings.append({
-                    "kind": "finding",
-                "state": "عبء أعطال أعلى من المجموعة المماثلة",
+                        "kind": "finding",
+                    "state": "عبء أعطال أعلى من المجموعة المماثلة",
                     "subject": row["registration_number"] or "عتاد غير مسجل",
                     "comparison": f'معدل العتاد {row["fault_rate_per_1000km"]:.2f} عطل/1000 كم مقابل وسيط المجموعة {reference:.2f}، اعتمادًا على {len(rate_peers)} وحدات مماثلة قابلة للمقارنة.',
                     "evidence": f'المسافة المقاسة {row["distance_km"]:.1f} كم، والأعطال {row["fault_count"]}.',
@@ -176,8 +178,8 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             reference = row["peer_fuel_per_100km"]
             if row["fuel_per_100km"] > reference:
                 findings.append({
-                    "kind": "finding",
-                "state": "استهلاك وقود أعلى من المجموعة المماثلة",
+                        "kind": "finding",
+                    "state": "استهلاك وقود أعلى من المجموعة المماثلة",
                     "subject": row["registration_number"] or "عتاد غير مسجل",
                     "comparison": f'الاستهلاك {row["fuel_per_100km"]:.2f} لتر/100 كم مقابل وسيط المجموعة {reference:.2f}، اعتمادًا على {len(fuel_peers)} وحدات مماثلة قابلة للمقارنة.',
                     "evidence": f'المسافة المقاسة {row["distance_km"]:.1f} كم، والوقود المرتبط بها {row["fuel_liters"]:.1f} لتر.',
