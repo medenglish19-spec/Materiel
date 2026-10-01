@@ -52,6 +52,8 @@ def build_capacity_readiness_analysis(items):
                 "in_maintenance": 0,
                 "in_external_workshop": 0,
                 "unavailable": 0,
+                "ready_available": 0,
+                "ready_not_available": 0,
                 "models": OrderedDict(),
             },
         )
@@ -90,6 +92,10 @@ def build_capacity_readiness_analysis(items):
         mg["actual"] += 1
         mg[condition] += 1
         mg[operational] += 1
+        if condition == "ready" and operational == "available":
+            tg["ready_available"] += 1
+        elif condition == "ready" and operational != "available":
+            tg["ready_not_available"] += 1
 
     def finalize(row):
         known_requirement = row["theoretical"] > 0
@@ -104,11 +110,10 @@ def build_capacity_readiness_analysis(items):
         row["available_pct"] = (
             row["available"] / row["actual"] * 100 if row["actual"] else 0.0
         )
-        row["ready_available"] = min(row["ready"], row["available"])
         row["ready_available_pct"] = (
             row["ready_available"] / row["actual"] * 100 if row["actual"] else 0.0
         )
-        row["technical_but_not_available"] = max(row["ready"] - row["available"], 0)
+        row["technical_but_not_available"] = row["ready_not_available"]
         row["known_requirement"] = known_requirement
         return row
 
@@ -121,6 +126,9 @@ def build_capacity_readiness_analysis(items):
             types.append(type_row)
         category["types"] = types
         category["theoretical"] = sum(t["theoretical"] for t in types)
+        category["outside_requirement"] = sum(t["outside_requirement"] for t in types)
+        category["ready_available"] = sum(t["ready_available"] for t in types)
+        category["ready_not_available"] = sum(t["ready_not_available"] for t in types)
         finalize(category)
         categories.append(category)
 
@@ -135,8 +143,12 @@ def build_capacity_readiness_analysis(items):
         "in_maintenance": sum(c["in_maintenance"] for c in categories),
         "in_external_workshop": sum(c["in_external_workshop"] for c in categories),
         "unavailable": sum(c["unavailable"] for c in categories),
+        "ready_available": sum(c["ready_available"] for c in categories),
+        "ready_not_available": sum(c["ready_not_available"] for c in categories),
+        "outside_requirement": sum(c["outside_requirement"] for c in categories),
     }
     finalize(totals)
+    totals["outside_requirement"] = sum(c["outside_requirement"] for c in categories)
 
     findings = []
     if totals["need"]:
