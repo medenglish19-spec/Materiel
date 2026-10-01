@@ -17,8 +17,11 @@
       <h1>
         {{ item.equipment_type.name if item.equipment_type else 'عتاد' }}
         · {{ item.equipment_model.name if item.equipment_model else '-' }}
-        · {{ item.vin }}
       </h1>
+      <div style="margin-top:6px">
+        <span class="ed-sub">رقم الهيكل</span>
+        <b style="direction:ltr;display:inline-block">{{ item.vin or '-' }}</b>
+      </div>
     </div>
     <span class="ed-chip {% if item.operational_status in ['available','ready','active'] %}ok{% elif item.operational_status in ['maintenance','in_maintenance'] %}warn{% elif item.operational_status in ['external_workshop','mission'] %}info{% else %}bad{% endif %}">{{ label('operational', item.operational_status) }}</span>
     <span class="ed-chip {% if item.technical_condition in ['good','ready','excellent'] %}ok{% elif item.technical_condition in ['warning','restricted'] %}warn{% else %}bad{% endif %}">{{ label('technical', item.technical_condition) }}</span>
