@@ -30,6 +30,10 @@
 .equipment-card-info{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
 .equipment-card-info span{display:block;font-size:11px;color:var(--text-secondary)}
 .equipment-card-info strong{display:block;font-size:12px;color:var(--text-primary);margin-top:2px;font-weight:700}
+.equipment-card-ids{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.equipment-id-box{border:1px solid rgba(46,125,50,.15);background:var(--white);border-radius:var(--radius-sm);padding:9px 11px}
+.equipment-id-label{display:block;font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:5px}
+.equipment-id-value{display:block;font-size:13px;font-weight:800;color:var(--text-primary);direction:ltr;text-align:right;line-height:1.5;overflow-wrap:anywhere}
 .equipment-card-actions{margin-top:auto;display:flex;gap:8px}
 .view-toggle{display:flex;gap:4px;background:var(--bg-secondary);padding:4px;border-radius:var(--radius-sm);border:1px solid rgba(46,125,50,.1)}
 .view-toggle button{width:34px;height:32px;border:0;background:transparent;border-radius:7px;cursor:pointer;font-size:15px;color:var(--text-secondary);transition:all .18s ease}
@@ -106,10 +110,18 @@
             </div>
             <span class="badge {% if item.technical_condition == 'ready' %}badge-success{% elif item.technical_condition == 'ready_restricted' %}badge-warning{% else %}badge-error{% endif %}">{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</span>
         </div>
+        <div class="equipment-card-ids">
+            <div class="equipment-id-box">
+                <span class="equipment-id-label">رقم التسجيل</span>
+                <strong class="equipment-id-value">{{ item.registration_number or '-' }}</strong>
+            </div>
+            <div class="equipment-id-box">
+                <span class="equipment-id-label">رقم الهيكل</span>
+                <strong class="equipment-id-value">{{ item.vin or '-' }}</strong>
+            </div>
+        </div>
         <div class="equipment-card-info">
             <div><span>النوع</span><strong>{{ item.equipment_type.name if item.equipment_type else '-' }}</strong></div>
-            <div><span>رقم التسجيل</span><strong>{{ item.registration_number or '-' }}</strong></div>
-            <div><span>رقم الهيكل</span><strong>{{ item.vin or '-' }}</strong></div>
             <div><span>العداد</span><strong>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</strong></div>
             <div><span>الوضعية</span><strong>{{ label('operational', current_status) }}</strong></div>
         </div>
