@@ -291,11 +291,11 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                     "خارجية" if first_repair.workshop_type == "external" else "داخلية"
                 )
                 findings.append({
-                    "evidence": f"نوع العطل: {fault_type_text}؛ الورشة: {workshop_text}؛ {factor_text}.",
+                    "kind": "finding",
                     "state": "مدة معالجة عطل قابلة للقياس",
                     "subject": label,
                     "comparison": f"من تاريخ البلاغ {fault.reported_date} إلى أول إصلاح مسجل {first_repair.repair_date}: {duration_days} يومًا.",
-                    "evidence": f"نوع العطل: {fault.fault_type or \"غير محدد\"}؛ الورشة: {first_repair.workshop or (\"خارجية\" if first_repair.workshop_type == \"external\" else \"داخلية\")}; {factor_text}.",
+                    "evidence": f"نوع العطل: {fault_type_text}؛ الورشة: {workshop_text}؛ {factor_text}.",
                     "meaning": "تم ربط مدة المعالجة بالعناصر الموثقة في سجل الإصلاح فقط. هذه العناصر تشرح ما هو مسجل ويمكن فحصه كعامل محتمل، لكنها لا تثبت السبب الجذري أو أن عاملًا بعينه سبب التأخير.",
                 })
 
