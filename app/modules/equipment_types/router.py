@@ -25,11 +25,13 @@ def _redirect(notice:str|None=None,notice_type:str="success"):
 @router.get("/equipment-types",response_class=HTMLResponse)
 def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     models=services.list_models(db);types=services.list_types(db);categories=services.list_categories(db);brands=services.list_brands(db)
+    equipment_type_counts=dict(db.query(Equipment.equipment_type_id,func.count(Equipment.id)).group_by(Equipment.equipment_type_id).all())
+    equipment_model_counts=dict(db.query(Equipment.equipment_model_id,func.count(Equipment.id)).filter(Equipment.equipment_model_id.isnot(None)).group_by(Equipment.equipment_model_id).all())
     spec_type_ids=services.list_spec_definition_type_ids(db)
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id,"equipment_type_ids":spec_type_ids.get(d.id,[])} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
     tire_master_data={p["id"]:p for p in editor_payloads}
-    response = templates.TemplateResponse(request=request, name="master_data_workspace.html", context={"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
+    response = templates.TemplateResponse(request=request, name="master_data_workspace.html", context={"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"equipment_type_counts":equipment_type_counts,"equipment_model_counts":equipment_model_counts,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -203,3 +205,4 @@ def api_list_models(type_id:int,db:Session=Depends(get_db),current_user:User=Dep
 def api_list_categories(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_categories(db)
 @router.get("/api/equipment-brands",response_model=list[EquipmentBrandOut])
 def api_list_brands(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):return services.list_brands(db)
+
