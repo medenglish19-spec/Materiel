@@ -11,7 +11,7 @@ def list_missions(db: Session):
 
 def mission_status(mission: Mission, today: date | None = None):
     today = today or date.today()
-    if mission.end_date and mission.end_date <= today:
+    if mission.end_date and mission.end_date < today:
         return "completed"
     if mission.start_date <= today:
         return "running"
@@ -58,7 +58,7 @@ def sync_mission_statuses(db: Session):
     # إعادة العتاد المتعلق بالمهمات المنتهية إلى "متاح"
     running_missions = db.query(Mission).filter(
         Mission.start_date <= today,
-        (Mission.end_date.is_(None)) | (Mission.end_date > today)
+        (Mission.end_date.is_(None)) | (Mission.end_date >= today)
     ).all()
     running_equipment_ids = {m.equipment_id for m in running_missions}
     
