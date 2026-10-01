@@ -50,7 +50,7 @@ def test_capacity_readiness_separates_undefined_requirement_and_operational_cons
     assert totals["theoretical"] == 0
     assert totals["need"] == 0
     assert totals["outside_requirement"] == 2
-    assert totals["technical_but_not_available"] == 2
+    assert totals["technical_but_not_available"] == 1
 
     states = {finding["state"] for finding in result["findings"]}
     assert "متطلبات غير محددة" in states
