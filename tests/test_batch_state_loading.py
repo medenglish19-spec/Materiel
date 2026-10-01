@@ -193,7 +193,13 @@ def test_all_tire_templates_are_arabic_rtl_or_use_shared_rtl_base():
         assert '<html lang="ar" dir="rtl">' in content or '{% extends "base.html" %}' in content, template.name
 
 
-def test_equipment_detail_exposes_current_installed_tire_table_data():
+def test_equipment_detail_links_current_installed_tire_records():
+    """صفحة التفاصيل تستدعي بيانات الإطارات المركّبة وتوجّه إلى سجلها الكامل.
+
+    بعد حذف الأقسام المكرّرة (defeb18) لا يبقى جدول الإطارات داخل النظرة
+    العامة؛ responsibility العرض الكامل في صفحة الإطارات نفسها. يبقى المطلوب:
+    أن الراوتر يحمّل البيانات الحيّة، وأن الصفحة توجّه إلى السجل المخصّص.
+    """
     from pathlib import Path
     from app.modules.equipment import router
 
@@ -201,13 +207,17 @@ def test_equipment_detail_exposes_current_installed_tire_table_data():
     template = Path("app/modules/equipment/templates/equipment_detail.html").read_text(encoding="utf-8")
 
     assert "tire_services.installed_for_equipment(db,equipment_id)" in source or "tire_services.installed_for_equipment(db, equipment_id)" in source
-    assert "installed_tires" in template
-    # The detail mockup replaced the old static caption with a live count, the
-    # full installed-tire table and the empty state.
-    assert "إطارًا حاليًا" in template
-    assert "<th>الموضع</th>" in template
-    assert "لا توجد إطارات مركبة حاليًا." in template
-    assert "فتح سجل الإطارات الكامل" in template
+    assert '"installed_tires":installed_tires' in source
+    assert '"installed_batteries":installed_batteries' in source
+
+    # التبويب يوجّه إلى سجل الإطارات الكامل، وهو مسار مسجّل فعليًا.
+    assert 'href="/equipment/{{ item.id }}/tires"' in template
+    assert 'href="/equipment/{{ item.id }}/batteries"' in template
+    assert "الإطارات" in template
+    assert "البطاريات" in template
+
+    # لا جدول مكرّر داخل النظرة العامة.
+    assert "<th>الرقم التسلسلي</th>" not in template
 
 
 def test_battery_history_ordering_remains_date_then_id():

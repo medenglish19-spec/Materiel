@@ -59,7 +59,15 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = (db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category), joinedload(Equipment.equipment_model)).order_by(Equipment.id).all())
+    items = (
+        db.query(Equipment)
+        .options(
+            joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
+            joinedload(Equipment.equipment_model),
+        )
+        .order_by(Equipment.id)
+        .all()
+    )
     analysis = build_capacity_readiness_analysis(items)
     equipment_ids = [x.id for x in items]
     meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
@@ -67,21 +75,161 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
     fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
-    return templates.TemplateResponse(request=request, name="equipment_analysis.html", context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational})
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_analysis.html",
+        context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational},
+    )
+
 
 @router.get("/equipment/analysis/operational", response_class=HTMLResponse)
 def equipment_operational_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = (db.query(Equipment).options(joinedload(Equipment.equipment_model), joinedload(Equipment.equipment_type)).order_by(Equipment.id).all())
+    items = (
+        db.query(Equipment)
+        .options(joinedload(Equipment.equipment_model), joinedload(Equipment.equipment_type))
+        .order_by(Equipment.id)
+        .all()
+    )
     equipment_ids = [x.id for x in items]
     meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     missions = db.query(Mission).filter(Mission.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
-    return templates.TemplateResponse(request=request, name="equipment_operational_analysis.html", context={"request": request, "user": current_user, "utilization": utilization, "operational": operational})
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_operational_analysis.html",
+        context={"request": request, "user": current_user, "utilization": utilization, "operational": operational},
+    )
+
+
+@router.get("/equipment/numerical-status", response_class=HTMLResponse)
+def equipment_numerical_status_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); models=db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all(); keys=("total","theoretical","ready","ready_restricted","broken","available","in_mission","in_maintenance","in_external_workshop","unavailable","need","surplus","outside_ted"); zero=lambda:{k:0 for k in keys}; groups={}
+    for model in models:
+        equipment_type=model.equipment_type; category=equipment_type.category if equipment_type else None; category_name=category.name if category else "غير مصنف"; type_name=equipment_type.name if equipment_type else "بدون نوع"; model_name=model.name or "بدون طراز"; brand_name=model.brand.name if model.brand else "بدون ماركة"; cg=groups.setdefault(category_name,{"types":{},"sort":category.sort_order if category else 9999}); tg=cg["types"].setdefault(type_name,{"models":{},"theoretical":int(equipment_type.theoretical_quantity or 0) if equipment_type else 0}); key=(brand_name,model_name); tg["models"].setdefault(key,dict(zero(),theoretical=0,brand=brand_name,model=model_name,equipment=[]))
+    for item in items:
+        category=item.equipment_type.category if item.equipment_type else None; category_name=category.name if category else "غير مصنف"; type_name=item.equipment_type.name if item.equipment_type else "بدون نوع"; model_name=item.equipment_model.name if item.equipment_model else "بدون طراز"; brand_name=item.equipment_model.brand.name if item.equipment_model and item.equipment_model.brand else "بدون ماركة"; cg=groups.setdefault(category_name,{"types":{},"sort":category.sort_order if category else 9999}); type_theoretical=int(item.equipment_type.theoretical_quantity or 0) if item.equipment_type else 0; tg=cg["types"].setdefault(type_name,{"models":{},"theoretical":type_theoretical}); tg["theoretical"]=type_theoretical; key=(brand_name,model_name); mg=tg["models"].setdefault(key,dict(zero(),theoretical=0,brand=brand_name,model=model_name,equipment=[])); mg["total"]+=1; mg["equipment"].append({"id":item.id,"asset_code":item.asset_code,"registration_number":item.registration_number,"technical_condition":item.technical_condition,"operational_status":item.operational_status}); condition=item.technical_condition if item.technical_condition in ("ready","ready_restricted","broken") else "ready"; mg[condition]+=1
+        if item.operational_status in keys: mg[item.operational_status]+=1
+    def finalize(stats): stats["outside_ted"]=stats["total"] if stats["theoretical"]<=0 else 0; stats["need"]=max(0,stats["theoretical"]-(stats["total"]-stats["outside_ted"])) if stats["theoretical"]>0 else 0; stats["surplus"]=max(0,(stats["total"]-stats["outside_ted"])-stats["theoretical"]) if stats["theoretical"]>0 else 0; return stats
+    def add_percentages(stats,parent_total=None):
+        base=stats["total"] or 0; parent=parent_total or 0; ted_actual=max(0,base-stats.get("outside_ted",0)); stats["ted_actual"]=ted_actual; stats["parent_pct"]=(base/parent*100) if parent else (100.0 if base else 0.0); stats["coverage_pct"]=(ted_actual/stats["theoretical"]*100) if stats["theoretical"] else 0.0; stats["need_pct"]=(stats["need"]/stats["theoretical"]*100) if stats["theoretical"] else 0.0; stats["surplus_pct"]=(stats["surplus"]/stats["theoretical"]*100) if stats["theoretical"] else 0.0; stats["ready_pct"]=(stats["ready"]/base*100) if base else 0.0; stats["ready_restricted_pct"]=(stats["ready_restricted"]/base*100) if base else 0.0; stats["broken_pct"]=(stats["broken"]/base*100) if base else 0.0; stats["available_pct"]=(stats["available"]/base*100) if base else 0.0; stats["mission_pct"]=(stats["in_mission"]/base*100) if base else 0.0; stats["maintenance_pct"]=(stats["in_maintenance"]/base*100) if base else 0.0; stats["external_pct"]=(stats["in_external_workshop"]/base*100) if base else 0.0; stats["unavailable_pct"]=(stats["unavailable"]/base*100) if base else 0.0; return stats
+    def sum_stats(stats_list):
+        out=zero()
+        for st in stats_list:
+            for k in keys: out[k]+=st.get(k,0)
+        return out
+    model_details={}; hierarchy=[]
+    for category_name,cg in sorted(groups.items(),key=lambda x:(x[1]["sort"],x[0])):
+        type_rows=[]
+        for type_name,tg in sorted(cg["types"].items()):
+            model_rows=[]
+            for model_key_tuple,st in sorted(tg["models"].items()):
+                finalize(st); model_key="{}::{}::{}::{}".format(category_name,type_name,model_key_tuple[0],model_key_tuple[1]); display_name=((st.get("brand")+" — ") if st.get("brand") and st.get("brand")!="بدون ماركة" else "")+st.get("model",model_key_tuple[1]); model_details[model_key]={"name":display_name,"theoretical":0,"total":st["total"],"need":0,"surplus":0,"outside_ted":st["outside_ted"],"equipment":st["equipment"]}; model_rows.append({"name":display_name,"key":model_key,"stats":st})
+            ts=sum_stats([m["stats"] for m in model_rows]); ts["theoretical"]=int(tg.get("theoretical",0)); finalize(ts); type_rows.append({"name":type_name,"stats":ts,"models":model_rows})
+        cs=sum_stats([t["stats"] for t in type_rows]); finalize(cs); hierarchy.append({"name":category_name,"stats":cs,"types":type_rows})
+    totals=sum_stats([c["stats"] for c in hierarchy]); finalize(totals); totals["equipment"]=totals["total"]; totals["ted_actual"]=max(0,totals["total"]-totals["outside_ted"])
+    for category in hierarchy:
+        add_percentages(category["stats"],totals["total"])
+        for type_row in category["types"]:
+            add_percentages(type_row["stats"],category["stats"]["total"])
+            for model_row in type_row["models"]: add_percentages(model_row["stats"],type_row["stats"]["total"])
+    add_percentages(totals,totals["total"])
+    category_analysis=sorted([{"name":c["name"],"total":c["stats"]["total"],"theoretical":c["stats"]["theoretical"],"need":c["stats"]["need"],"surplus":c["stats"]["surplus"],"outside_ted":c["stats"]["outside_ted"],"share":c["stats"]["parent_pct"],"coverage":c["stats"]["coverage_pct"],"ready":c["stats"]["ready_pct"],"ready_restricted":c["stats"]["ready_restricted_pct"],"broken":c["stats"]["broken_pct"]} for c in hierarchy],key=lambda x:x["total"],reverse=True)
+    type_analysis=[]; model_analysis=[]
+    for c in hierarchy:
+        for t in c["types"]:
+            type_analysis.append({"category":c["name"],"name":t["name"],"total":t["stats"]["total"],"theoretical":t["stats"]["theoretical"],"need":t["stats"]["need"],"surplus":t["stats"]["surplus"],"outside_ted":t["stats"]["outside_ted"],"share":t["stats"]["parent_pct"],"coverage":t["stats"]["coverage_pct"],"ready":t["stats"]["ready_pct"],"ready_restricted":t["stats"]["ready_restricted_pct"],"broken":t["stats"]["broken_pct"]})
+            for m in t["models"]: model_analysis.append({"category":c["name"],"type":t["name"],"name":((m["stats"].get("brand")+" — ") if m["stats"].get("brand") and m["stats"].get("brand")!="بدون ماركة" else "")+m["stats"].get("model",m["name"]),"total":m["stats"]["total"],"theoretical":0,"need":0,"surplus":0,"outside_ted":m["stats"]["outside_ted"],"share":m["stats"]["parent_pct"],"coverage":0,"ready":m["stats"]["ready_pct"],"ready_restricted":m["stats"]["ready_restricted_pct"],"broken":m["stats"]["broken_pct"]})
+    type_analysis.sort(key=lambda x:x["total"],reverse=True); model_analysis.sort(key=lambda x:(x["need"],-x["coverage"]),reverse=True)
+    status_analysis=[{"name":"جاهز","count":totals["ready"],"pct":totals["ready_pct"]},{"name":"جاهز مع قيود","count":totals["ready_restricted"],"pct":totals["ready_restricted_pct"]},{"name":"عاطل","count":totals["broken"],"pct":totals["broken_pct"]},{"name":"متاح","count":totals["available"],"pct":totals["available_pct"]},{"name":"في مهمة","count":totals["in_mission"],"pct":totals["mission_pct"]},{"name":"في الصيانة","count":totals["in_maintenance"],"pct":totals["maintenance_pct"]},{"name":"ورشة خارجية","count":totals["in_external_workshop"],"pct":totals["external_pct"]},{"name":"غير متاح","count":totals["unavailable"],"pct":totals["unavailable_pct"]}]
+    analysis={"category_count":len(category_analysis),"type_count":len(type_analysis),"model_count":len(model_analysis),"coverage":totals["coverage_pct"],"need_pct":totals["need_pct"],"surplus_pct":totals["surplus_pct"],"ready_pct":totals["ready_pct"],"ready_restricted_pct":totals["ready_restricted_pct"],"broken_pct":totals["broken_pct"],"operational_availability_pct":totals["available_pct"],"maintenance_load_pct":totals["maintenance_pct"],"mission_load_pct":totals["mission_pct"],"external_workshop_pct":totals["external_pct"],"theoretical_gap":totals["need"],"overstrength":totals["surplus"],"outside_ted":totals["outside_ted"],"ted_actual":totals["ted_actual"],"largest_category":category_analysis[0] if category_analysis else None,"largest_type":type_analysis[0] if type_analysis else None,"highest_need_model":model_analysis[0] if model_analysis and model_analysis[0]["need"] else None}
+    return templates.TemplateResponse(request=request, name="equipment_numerical_status.html", context={"request":request,"user":current_user,"hierarchy":hierarchy,"totals":totals,"category_analysis":category_analysis,"type_analysis":type_analysis,"model_analysis":model_analysis,"status_analysis":status_analysis,"analysis":analysis,"model_details":model_details})
+@router.get("/equipment/{equipment_id}", response_class=HTMLResponse)
+def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    installed_tires=tire_services.installed_for_equipment(db,equipment_id)
+    batteries, battery_states = battery_services.current_states(db)
+    installed_batteries=[]
+    for battery in batteries:
+        state=battery_states.get(battery.id)
+        if state and state.get("installed") and state.get("equipment") and state["equipment"].id == equipment_id:
+            installed_batteries.append({"battery":battery,"state":state,"condition":battery_services.status(battery,state,equipment=item,db=db),"due_date":battery_services.replacement_due_date(db,battery,item)})
+    return templates.TemplateResponse(request=request, name="equipment_detail.html", context={"request":request,"item":item,"user":current_user,"installed_tires":installed_tires,"installed_batteries":installed_batteries})
+@router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
+def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
+@router.post("/equipment/create")
+def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),current_odometer:str=Form("0"),current_hours:str=Form("0"),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,current_odometer=current_odometer or 0,current_hours=current_hours or 0,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
+    except ValueError: pass
+    return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+@router.post("/equipment/{equipment_id}/edit")
+def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    try:
+        date_value=datetime.strptime(acquisition_date,"%Y-%m-%d").date() if acquisition_date.strip() else None; model_id=int(equipment_model_id) if equipment_model_id else None; services.update_equipment(db,item,EquipmentUpdate(equipment_type_id=equipment_type_id,equipment_model_id=model_id,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,acquisition_date=date_value,technical_condition=technical_condition,operational_status=operational_status,notes=notes or None),user_id=current_user.id)
+    except (ValueError,InvalidOperation) as exc: raise HTTPException(status_code=400,detail=str(exc) or "بيانات التعديل غير صحيحة")
+    return RedirectResponse(url=f"/equipment/{equipment_id}",status_code=status.HTTP_303_SEE_OTHER)
+@router.post("/equipment/{equipment_id}/delete")
+def equipment_delete_form(equipment_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    item=services.get_equipment(db,equipment_id)
+    if item: services.delete_equipment(db,item)
+    return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+@router.get("/equipment/{equipment_id}/meters",response_class=HTMLResponse)
+def equipment_meters_page(equipment_id:int,request:Request,page:int=1,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item,readings,total_readings,total_pages,current_page=meter_services.history_rows(db,equipment_id,page=page,page_size=20)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    return templates.TemplateResponse(request=request, name="equipment_meters.html", context={"request":request,"item":item,"readings":readings,"total_readings":total_readings,"total_pages":total_pages,"current_page":current_page,"user":current_user})
+@router.post("/equipment/{equipment_id}/meters/create")
+def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    try: date_value=datetime.strptime(reading_date,"%Y-%m-%d"); odometer_value=Decimal(odometer) if odometer.strip() else None; hours_value=Decimal(hours) if hours.strip() else None
+    except (ValueError,InvalidOperation): raise HTTPException(status_code=400,detail="تاريخ أو قيمة عداد غير صحيحة")
+    if odometer_value is None and hours_value is None: raise HTTPException(status_code=400,detail="يجب إدخال قراءة الكيلومترات أو قراءة الساعات")
+    try: meter_services.create_reading(db,equipment_id=equipment_id,odometer=odometer_value,hours=hours_value,reading_date=date_value,notes=notes,equipment_status=equipment_status or None)
+    except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
+    return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
+@router.post("/equipment/{equipment_id}/meters/{reading_id}/update")
+def equipment_meter_update(equipment_id:int,reading_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id); reading=db.query(MeterReading).filter(MeterReading.id==reading_id,MeterReading.equipment_id==equipment_id).first()
+    if not item or not reading: raise HTTPException(status_code=404,detail="القراءة غير موجودة")
+    try:
+        date_value=datetime.strptime(reading_date,"%Y-%m-%d"); unit=meter_services._unit(item); raw_value=odometer if unit=="km" else hours
+        if not raw_value.strip(): raise ValueError("يجب إدخال قيمة العداد")
+        value=meter_services._parse_decimal(raw_value)
+    except (ValueError,InvalidOperation) as exc: raise HTTPException(status_code=400,detail=str(exc) or "تاريخ أو قيمة عداد غير صحيحة")
+    if value<0: raise HTTPException(status_code=400,detail="قيمة العداد لا يمكن أن تكون سالبة")
+    if date_value.date()>datetime.now().date(): raise HTTPException(status_code=400,detail="لا يمكن إدخال قراءة بتاريخ مستقبلي")
+    for existing in meter_services.list_readings(db,equipment_id):
+        if existing.id==reading.id: continue
+        existing_value=meter_services._value(existing,unit)
+        if existing_value is None: continue
+        existing_value=Decimal(existing_value)
+        if existing.reading_date<date_value and existing_value>value: raise HTTPException(status_code=400,detail="قيمة القراءة الجديدة أقل من قراءة لاحقة مسجلة")
+        if existing.reading_date>date_value and existing_value<value: raise HTTPException(status_code=400,detail="قيمة القراءة الجديدة أكبر من قراءة لاحقة مسجلة")
+    reading.reading_date=date_value; reading.odometer=value if unit=="km" else None; reading.hours=value if unit=="hours" else None; reading.equipment_status=meter_services.parse_equipment_status(equipment_status) if equipment_status.strip() else reading.equipment_status or meter_services.normalize_equipment_status(item.operational_status); reading.notes=(notes or "").strip()[:300] or None; meter_services._refresh_equipment_current(db,item,unit); db.commit()
+    return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
+@router.post("/equipment/{equipment_id}/meters/{reading_id}/delete")
+def equipment_meter_delete(equipment_id:int,reading_id:int,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id); reading=db.query(MeterReading).filter(MeterReading.id==reading_id,MeterReading.equipment_id==equipment_id).first()
+    if not item or not reading: raise HTTPException(status_code=404,detail="القراءة غير موجودة")
+    unit=meter_services._unit(item); old_value=meter_services._value(reading,unit); db.add(MeterReadingChange(reading_id=reading.id,equipment_id=equipment_id,changed_at=utc_now(),action="delete",source=reading.source or "manual",reading_date=reading.reading_date,unit=unit,old_value=old_value,new_value=None,actor_id=current_user.id,details="حذف قراءة مسجلة.")); db.delete(reading); db.flush(); meter_services._refresh_equipment_current(db,item,unit); db.commit(); return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
+@router.get("/api/equipment",response_model=list[EquipmentOut])
+def api_list_equipment(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)): return services.list_equipment(db)
+@router.get("/api/equipment/{equipment_id}",response_model=EquipmentOut)
+def api_get_equipment(equipment_id:int,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    item=services.get_equipment(db,equipment_id)
+    if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    return item

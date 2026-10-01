@@ -17,6 +17,8 @@ OPERATIONAL_STATES = (
     "in_external_workshop",
     "unavailable",
 )
+# عدّادات الحالات التي يجب أن يحملها كل صف (نوع أو تصنيف) قبل finalise
+STATE_COUNTERS = TECHNICAL_STATES + OPERATIONAL_STATES
 
 
 def build_capacity_readiness_analysis(items):
@@ -130,6 +132,9 @@ def build_capacity_readiness_analysis(items):
         category["outside_requirement"] = sum(t["outside_requirement"] for t in types)
         category["ready_available"] = sum(t["ready_available"] for t in types)
         category["ready_not_available"] = sum(t["ready_not_available"] for t in types)
+        # التصنيف يجمع عدّادات حالات أنواعه، وإلا لم يستطع finalise قراءتها.
+        for key in STATE_COUNTERS:
+            category[key] = sum(t[key] for t in types)
         finalize(category)
         categories.append(category)
 

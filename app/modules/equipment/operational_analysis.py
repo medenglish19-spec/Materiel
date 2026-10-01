@@ -23,6 +23,26 @@ def _median(values):
     return (values[middle - 1] + values[middle]) / Decimal("2")
 
 
+def _equipment_labels(item):
+    """Return (type_name, brand_name, model_name, peer_key) defensively.
+
+    Equipment may have no type, no model, or a model without a brand, so
+    every step is read defensively and nothing is invented: an absent
+    brand yields an empty string, an absent model name yields the
+    existing "بدون طراز" placeholder, and an unclassified item groups
+    under its type name.
+    """
+    equipment_type = getattr(item, "equipment_type", None)
+    type_name = (getattr(equipment_type, "name", "") or "بدون نوع") \
+        if equipment_type else "بدون نوع"
+    model = getattr(item, "equipment_model", None)
+    brand = getattr(model, "brand", None)
+    brand_name = (getattr(brand, "name", "") or "") if brand else ""
+    model_name = (getattr(model, "name", "") or "بدون طراز") if model else "بدون طراز"
+    peer_key = ("model", brand_name, model_name) if model else ("type", type_name)
+    return type_name, brand_name, model_name, peer_key
+
+
 def build_operational_analysis(items, faults, maintenance_records, repairs=None, utilization=None):
     """Build transparent cross-source operational patterns.
 
@@ -80,14 +100,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             if fuel_liters is not None and distance and distance > 0 else None
         )
 
-        type_name = item.equipment_type.name if item.equipment_type else "بدون نوع"
-        model = item.equipment_model
-        brand_name = model.brand.name if model and model.brand else ""
-        model_name = model.name if model else "بدون طراز"
-        peer_key = (
-            ("model", brand_name, model_name)
-            if model else ("type", type_name)
-        )
+        type_name, brand_name, model_name, peer_key = _equipment_labels(item)
 
         totals["faults"] += len(fs)
         totals["open_faults"] += len(open_fs)
@@ -122,8 +135,9 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             "mission_distance_km": mission_distance,
             "fuel_liters": fuel_liters,
             "fuel_per_100km": fuel_per_100km,
-            "technical_condition": item.technical_condition,
-            "operational_status": item.operational_status,
+            # getattr: تُقرأ الحالة إن وُجدت، ولا تُخترع قيمة عند غيابها.
+            "technical_condition": getattr(item, "technical_condition", None),
+            "operational_status": getattr(item, "operational_status", None),
             "last_fault_date": max((f.reported_date for f in fs), default=None),
             "last_repair_date": max((r.repair_date for r in rs), default=None),
             "last_maintenance_date": max((m.maintenance_date for m in ms), default=None),
@@ -203,9 +217,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         item = by_id.get(fault.equipment_id)
         if not item or not fault.fault_type:
             continue
-        model = item.equipment_model
-        brand_name = model.brand.name if model and model.brand else ""
-        model_name = model.name if model else "بدون طراز"
+        _type_name, brand_name, model_name, _peer_key = _equipment_labels(item)
         key = (brand_name, model_name, fault.fault_type)
         repeated[key].append(fault.equipment_id)
 
