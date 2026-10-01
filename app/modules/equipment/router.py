@@ -9,6 +9,7 @@ from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
+from app.modules.equipment.analytics import build_capacity_readiness_analysis
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
@@ -53,18 +54,23 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); categories={}; ready=ready_restricted=broken=0
-    for item in items:
-        category=item.equipment_type.category if item.equipment_type else None; category_name=category.name if category else "غير مصنف"; type_name=item.equipment_type.name if item.equipment_type else "بدون نوع"; model_name=item.equipment_model.name if item.equipment_model else "بدون طراز"; theoretical=int(item.equipment_type.theoretical_quantity or 0) if item.equipment_type else 0
-        cg=categories.setdefault(category_name,{"types":{},"actual":0,"ready":0,"ready_restricted":0,"broken":0}); tg=cg["types"].setdefault(type_name,{"models":{},"actual":0,"ready":0,"broken":0,"theoretical":theoretical}); tg["theoretical"]=theoretical; mg=tg["models"].setdefault(model_name,{"theoretical":0,"actual":0,"ready":0,"ready_restricted":0,"broken":0}); mg["actual"]+=1; tg["actual"]+=1; cg["actual"]+=1
-        if item.technical_condition=="ready": ready+=1; mg["ready"]+=1; tg["ready"]+=1; cg["ready"]+=1
-        elif item.technical_condition=="ready_restricted": ready_restricted+=1; mg["ready_restricted"]+=1; tg["ready_restricted"]+=1; cg["ready_restricted"]+=1
-        else: broken+=1; mg["broken"]+=1; tg["broken"]+=1; cg["broken"]+=1
-    for cg in categories.values():
-        cg["theoretical"]=sum(t["theoretical"] for t in cg["types"].values()); cg["need"]=max(0,cg["theoretical"]-cg["actual"])
-        for tg in cg["types"].values(): tg["need"]=max(0,tg["theoretical"]-tg["actual"])
-    totals_theoretical=sum(c["theoretical"] for c in categories.values()); totals_actual=len(items)
-    return templates.TemplateResponse(request=request, name="equipment_analysis.html", context={"request":request,"user":current_user,"categories":categories,"totals":{"theoretical":totals_theoretical,"actual":totals_actual,"need":max(0,totals_theoretical-totals_actual),"ready":ready,"ready_restricted":ready_restricted,"broken":broken,"readiness":round(ready/totals_actual*100,1) if totals_actual else 0}})
+    items = (
+        db.query(Equipment)
+        .options(
+            joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
+            joinedload(Equipment.equipment_model),
+        )
+        .order_by(Equipment.id)
+        .all()
+    )
+    analysis = build_capacity_readiness_analysis(items)
+    return templates.TemplateResponse(
+        request=request,
+        name="equipment_analysis.html",
+        context={"request": request, "user": current_user, **analysis},
+    )
+
+
 @router.get("/equipment/numerical-status", response_class=HTMLResponse)
 def equipment_numerical_status_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items=db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),joinedload(Equipment.equipment_model)).order_by(Equipment.id).all(); models=db.query(EquipmentModel).options(joinedload(EquipmentModel.equipment_type).joinedload(EquipmentType.category),joinedload(EquipmentModel.brand)).order_by(EquipmentModel.id).all(); keys=("total","theoretical","ready","ready_restricted","broken","available","in_mission","in_maintenance","in_external_workshop","unavailable","need","surplus","outside_ted"); zero=lambda:{k:0 for k in keys}; groups={}
