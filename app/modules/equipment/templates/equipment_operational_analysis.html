@@ -1,38 +1,79 @@
 {% extends "base.html" %}
 {% block title %}التحليل التشغيلي للعتاد{% endblock %}
 {% block content %}
-<div dir="rtl" style="max-width:1200px;margin:auto">
-  <header style="display:flex;justify-content:space-between;align-items:end;margin-bottom:16px">
-    <div><div style="font-size:10px;color:#8290a0;font-weight:700">MATERIEL · OPERATIONAL ANALYTICS</div><h2 style="margin:4px 0">الاستغلال والأعطال والصيانة</h2><p style="color:#718096;font-size:11px">ربط زمني وصفي بين استخدام العتاد وسجلات الأعطال والصيانة والجاهزية.</p></div>
+<div dir="rtl" style="max-width:1240px;margin:auto">
+  <header style="display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:16px">
+    <div>
+      <div style="font-size:10px;color:#8290a0;font-weight:700">MATERIEL · OPERATIONAL ANALYTICS</div>
+      <h2 style="margin:4px 0">التحليل التشغيلي المترابط</h2>
+      <p style="color:#718096;font-size:11px">قراءة مشتركة للاستخدام والمهام والوقود والأعطال والإصلاحات والصيانة والجاهزية، مع مقارنة الوحدات المماثلة.</p>
+    </div>
     <a href="/equipment/analysis">← التحليل العام</a>
   </header>
 
-  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px">
-    <div style="padding:13px 15px;border-bottom:1px solid #edf0f3"><strong>المؤشرات المسجلة</strong></div>
-    <div style="display:grid;grid-template-columns:repeat(6,1fr)">
-      <div style="padding:16px;border-left:1px solid #edf0f3"><b>{{ utilization.totals.distance_km|round(1) }}</b><small style="display:block;color:#718096">كم بالعداد</small></div>
-      <div style="padding:16px;border-left:1px solid #edf0f3"><b>{{ utilization.totals.mission_count }}</b><small style="display:block;color:#718096">مهمات مكتملة</small></div>
-      <div style="padding:16px;border-left:1px solid #edf0f3"><b>{{ utilization.totals.fuel_liters|round(1) }}</b><small style="display:block;color:#718096">لتر وقود</small></div>
-      <div style="padding:16px;border-left:1px solid #edf0f3"><b>{{ operational.totals.faults }}</b><small style="display:block;color:#718096">إجمالي الأعطال</small></div>
-      <div style="padding:16px;border-left:1px solid #edf0f3"><b>{{ operational.totals.open_faults }}</b><small style="display:block;color:#718096">أعطال مفتوحة</small></div>
-      <div style="padding:16px"><b>{{ operational.totals.maintenance_records }}</b><small style="display:block;color:#718096">سجلات الصيانة</small></div>
+  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px;padding:14px 16px">
+    <strong style="font-size:12px">ماذا استنتج التحليل؟</strong>
+    {% if operational.findings %}
+      {% for f in operational.findings %}
+      <article style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:13px 0;border-bottom:1px solid #edf0f3">
+        <div style="font-size:10px;font-weight:800;color:#173b63">{{ f.state }}</div>
+        <div>
+          <strong style="font-size:10px">{{ f.subject }}</strong>
+          <p style="margin:4px 0;font-size:10px;color:#526273">{{ f.meaning }}</p>
+          <div style="font-size:9px;color:#536273"><b>المقارنة:</b> {{ f.comparison }}</div>
+          <small style="display:block;margin-top:4px;color:#8793a0"><b>الدليل:</b> {{ f.evidence }}</small>
+        </div>
+      </article>
+      {% endfor %}
+    {% else %}
+      <p style="color:#8793a0;font-size:10px">لا توجد أنماط مترابطة مثبتة بالبيانات الحالية.</p>
+    {% endif %}
+  </section>
+
+  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;overflow:auto;margin-bottom:12px">
+    <div style="padding:13px 15px;border-bottom:1px solid #edf0f3">
+      <strong style="font-size:12px">المقارنة على مستوى العتاد</strong>
+      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">معدل الأعطال لكل 1000 كم واستهلاك الوقود يقارنان فقط مع وحدات مماثلة تتوفر لها بيانات قابلة للحساب.</span>
     </div>
-  </section>
-
-  {% if operational.findings %}
-  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px;padding:0 15px">
-    <h3 style="font-size:12px">ما الذي يستدعي الانتباه؟</h3>
-    {% for f in operational.findings %}<article style="padding:11px 0;border-bottom:1px solid #edf0f3"><b style="font-size:10px">{{ f.state }}</b><p style="display:inline;font-size:10px;color:#526273"> {{ f.meaning }}</p><small style="display:block;color:#8793a0">الدليل: {{ f.evidence }}</small></article>{% endfor %}
-  </section>
-  {% endif %}
-
-  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;overflow:auto">
-    <div style="padding:13px 15px;border-bottom:1px solid #edf0f3"><strong>الحمل التشغيلي لكل عتاد</strong></div>
-    <table style="width:100%;border-collapse:collapse;min-width:900px">
-      <thead><tr>{% for h in ['رقم التسجيل','الطراز','الأعطال','المفتوحة','عالية/حرجة','تمنع الاستغلال','الصيانة','الصيانة المجدولة','آخر عطل','آخر صيانة'] %}<th style="padding:9px;border-bottom:1px solid #edf0f3;font-size:9px">{{ h }}</th>{% endfor %}</tr></thead>
-      <tbody>{% for r in operational.rows %}<tr>{% for v in [r.registration_number,r.model,r.fault_count,r.open_fault_count,r.severe_fault_count,r.prohibited_fault_count,r.maintenance_count,r.scheduled_maintenance_count,r.last_fault_date or '—',r.last_maintenance_date or '—'] %}<td style="padding:9px;text-align:center;border-bottom:1px solid #edf0f3;font-size:9px">{{ v }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="10" style="padding:25px;text-align:center">لا توجد بيانات.</td></tr>{% endfor %}</tbody>
+    <table style="width:100%;border-collapse:collapse;min-width:1180px">
+      <thead><tr>
+        <th>رقم التسجيل</th><th>الطراز</th><th>المسافة كم</th><th>المهمات</th><th>الوقود</th><th>لتر/100كم</th>
+        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع المجموعة</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
+      </tr></thead>
+      <tbody>
+      {% for r in operational.rows %}
+      <tr>
+        <td>{{ r.registration_number or "غير مسجل" }}</td>
+        <td>{{ r.model }}</td>
+        <td>{{ r.distance_km|round(1) if r.distance_km is not none else "—" }}</td>
+        <td>{{ r.mission_count }}</td>
+        <td>{{ r.fuel_liters|round(1) if r.fuel_liters is not none else "—" }}</td>
+        <td>{{ r.fuel_per_100km|round(2) if r.fuel_per_100km is not none else "—" }}</td>
+        <td>{{ r.fault_count }}</td>
+        <td>{{ r.fault_rate_per_1000km|round(2) if r.fault_rate_per_1000km is not none else "—" }}</td>
+        <td>{% if r.peer_fault_rate_per_1000km is not none %}{{ r.peer_fault_rate_per_1000km|round(2) }} عطل/1000كم{% else %}—{% endif %}</td>
+        <td>{{ r.open_fault_count }}</td>
+        <td>{{ r.repair_count }}</td>
+        <td>{{ r.maintenance_count }}</td>
+        <td>{{ r.technical_condition }} / {{ r.operational_status }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="13" style="padding:25px;text-align:center;color:#8793a0">لا توجد بيانات.</td></tr>
+      {% endfor %}
+      </tbody>
     </table>
   </section>
-  <p style="margin-top:12px;color:#718096;font-size:9px">هذا التحليل وصفي. وجود علاقة زمنية بين الاستغلال والعطل أو الصيانة لا يثبت علاقة سببية.</p>
+
+  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;padding:14px 16px;margin-bottom:12px">
+    <strong style="font-size:12px">كيف نقرأ النتائج؟</strong>
+    <ul style="margin:8px 0 0;padding-right:18px;color:#627181;font-size:9.5px;line-height:1.9">
+      <li>المسافة مصدرها قراءات العداد؛ لا يتم اختراع مسافة عند غيابها.</li>
+      <li>معدل الأعطال والوقود لا يُقارن إلا عندما توجد بيانات كافية قابلة للحساب في وحدات مماثلة.</li>
+      <li>المقارنة تستخدم مرجع المجموعة المماثلة، ولا تمثل درجة صحة أو ترتيبًا للعتاد.</li>
+      <li>تكرار العطل أو ارتباطه بالإصلاح أو الصيانة يحدد نمطًا للمراجعة ولا يثبت علاقة سببية.</li>
+    </ul>
+  </section>
+
+  <p style="margin-top:12px;color:#718096;font-size:9px">التحليل وصفي ومبني على البيانات المسجلة. الاستنتاجات لا تثبت سبب العطل ولا أثر الصيانة، ولا تحكم على استيفاء المهام المؤسسية.</p>
 </div>
 {% endblock %}
