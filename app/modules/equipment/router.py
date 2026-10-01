@@ -21,7 +21,7 @@ from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.missions.models import Mission
 from app.modules.fuel.models import FuelRecord
-from app.modules.faults_repairs.models import Fault
+from app.modules.faults_repairs.models import Fault, Repair
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.tires import services as tire_services
@@ -68,7 +68,8 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
     faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
-    operational = build_operational_analysis(items, faults, maintenance_records)
+    repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
     return templates.TemplateResponse(request=request, name="equipment_analysis.html", context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational})
 
 @router.get("/equipment/analysis/operational", response_class=HTMLResponse)
