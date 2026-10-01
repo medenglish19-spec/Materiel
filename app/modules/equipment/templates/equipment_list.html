@@ -101,7 +101,7 @@
     <div class="equipment-card-body">
         <div class="equipment-card-head">
             <div>
-                <div class="equipment-card-title">{{ item.asset_code }}</div>
+                    <div class="equipment-card-title">{{ item.registration_number or 'غير مسجل' }}</div>
                 <div class="equipment-card-sub">{{ item.equipment_model.name if item.equipment_model else '-' }}{% if item.equipment_model and item.equipment_model.brand %} · {{ item.equipment_model.brand.name }}{% endif %}</div>
             </div>
             <span class="badge {% if item.technical_condition == 'ready' %}badge-success{% elif item.technical_condition == 'ready_restricted' %}badge-warning{% else %}badge-error{% endif %}">{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</span>
@@ -109,6 +109,7 @@
         <div class="equipment-card-info">
             <div><span>النوع</span><strong>{{ item.equipment_type.name if item.equipment_type else '-' }}</strong></div>
             <div><span>رقم التسجيل</span><strong>{{ item.registration_number or '-' }}</strong></div>
+            <div><span>رقم الهيكل</span><strong>{{ item.vin or '-' }}</strong></div>
             <div><span>العداد</span><strong>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</strong></div>
             <div><span>الوضعية</span><strong>{{ label('operational', current_status) }}</strong></div>
         </div>
