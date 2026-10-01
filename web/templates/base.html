@@ -3,24 +3,23 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><script src="/static/js/edit-manager.js"></script>{% block extra_head %}{% endblock %}
 <style>
-:root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:260px}
+:root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:208px}
 body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family:"Segoe UI",Tahoma,sans-serif}
-.app-sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidebar-w);background:linear-gradient(180deg,var(--sidebar-start) 0%,var(--sidebar-end) 100%);color:#fff;z-index:100;display:flex;flex-direction:column;box-shadow:-4px 0 20px rgba(46,125,50,.15);overflow:hidden}
-.app-brand{padding:24px 20px;border-bottom:1px solid rgba(255,255,255,.12);display:flex;align-items:center;gap:12px;font-size:17px;font-weight:800}
-.app-brand-icon{width:40px;height:40px;border:1px solid rgba(255,255,255,.25);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:20px;background:rgba(255,255,255,.08)}
-.app-menu{padding:16px 12px;display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
-.app-menu::-webkit-scrollbar,.app-sidebar::-webkit-scrollbar{width:0;height:0;display:none}
-.app-menu a{display:flex;align-items:center;gap:12px;color:rgba(255,255,255,.85);text-decoration:none;padding:12px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;transition:all .2s ease}
-.app-menu a:hover{background:rgba(255,255,255,.12);color:#fff;transform:translateX(-3px)}
-.app-menu a.active{background:rgba(255,255,255,.18);color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.app-sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidebar-w);background:#0b3f3c;color:#fff;z-index:100;display:flex;flex-direction:column;box-shadow:none;overflow:hidden}
+.app-brand{padding:20px 16px;border-bottom:0;display:flex;align-items:center;gap:12px;font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:15px;font-weight:800}
+.app-brand-icon{width:34px;height:34px;border:0;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:#fff;color:#0e6b66}
+.app-menu{padding:8px 12px;display:flex;flex-direction:column;gap:4px;flex:0 0 auto;min-height:0;overflow:visible}
+.app-menu a{box-sizing:border-box;display:flex;align-items:center;gap:10px;color:#cfe3e1;text-decoration:none;padding:8px 10px;min-height:36px;border-radius:8px;font-size:13px;font-weight:500;transition:all .2s ease}
+.app-menu a:hover{background:#ffffff12;color:#fff;transform:none}
+.app-menu a.active{background:#fff;color:#0b3f3c;box-shadow:none;font-weight:700}
 .menu-icon{width:22px;text-align:center;font-size:17px}
 .sidebar-spacer{flex:1}
-.sidebar-user{padding:16px 18px;border-top:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.7);font-size:11px;line-height:1.7}
-.sidebar-logout{display:flex;align-items:center;gap:11px;margin:12px;padding:12px 14px;border-radius:var(--radius-sm);color:#ffcdd2;text-decoration:none;font-size:12px;transition:all .2s ease}
+.sidebar-user{padding:16px 18px;border-top:1px solid #ffffff20;color:#9cc0bc;font-size:11px;line-height:1.7}
+.sidebar-logout{display:flex;align-items:center;gap:11px;margin:12px;padding:12px 14px;border-radius:8px;color:#cfe3e1;text-decoration:none;font-size:12px;transition:all .2s ease}
 .sidebar-logout:hover{background:rgba(198,40,40,.15)}
 .app-main{margin-right:var(--sidebar-w);min-height:100vh;padding:24px;width:auto;max-width:100%}
-@media(max-width:1000px){:root{--sidebar-w:220px}}
-@media(max-width:700px){:root{--sidebar-w:0px}.app-sidebar{position:static;width:100%;height:auto;flex-direction:column;box-shadow:none}.app-menu{flex-direction:row;flex-wrap:wrap;overflow:visible;padding:10px}.app-menu a{padding:8px 12px;font-size:12px}.sidebar-user,.app-brand span:not(.app-brand-icon){display:none}.app-main{margin-right:0;padding:14px}.app-topbar{flex-direction:column;gap:10px;align-items:flex-start;position:static}}
+@media(max-width:900px){:root{--sidebar-w:176px}.app-main{margin-right:176px}}
+@media(max-width:700px){:root{--sidebar-w:0px}.app-sidebar{position:static;width:100%;height:auto;min-height:52px;flex-direction:row;align-items:flex-start;box-shadow:none;overflow:visible}.app-brand{flex:0 0 52px;width:52px;height:52px;padding:0;justify-content:center;border-left:1px solid #ffffff18}.app-brand-icon{width:30px;height:30px;font-size:16px}.app-brand span:not(.app-brand-icon),.sidebar-user,.sidebar-logout{display:none}.app-menu{flex:1;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;padding:6px 7px;overflow:visible}.app-menu a{box-sizing:border-box;flex:0 0 auto;min-height:34px;height:34px;padding:7px 9px;border-radius:7px;font-size:11px;white-space:nowrap}.app-menu a .menu-icon{font-size:15px;width:18px}.app-main{margin-right:0;padding:0}.app-topbar{flex-direction:row;gap:8px;align-items:center;position:static;min-height:48px;padding:7px 12px}.app-topbar-title{font-size:11px;white-space:nowrap}.app-workbar{margin-inline-start:auto}.app-workbtn{height:30px;padding:0 8px;font-size:10px}.app-work-status,.app-worksep{display:none}.app-topbar-date{display:none}.container{padding:0 10px}}
 .app-topbar{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-radius:var(--radius);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;box-shadow:var(--shadow);border:1px solid rgba(46,125,50,.08);position:sticky;top:16px;z-index:50}
 .app-topbar-title{font-size:16px;font-weight:800;color:var(--text-primary)}
 .app-workbar{display:flex;align-items:center;gap:8px}
