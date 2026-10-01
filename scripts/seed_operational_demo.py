@@ -242,7 +242,7 @@ def seed(db):
     f = add_fault("DEMO-AN-003", "2026-06-20", "فرامل", "critical", "prohibited", "open")
     db.add(Repair(fault_id=f.id, repair_date=date(2026, 6, 21), meter_value=34000,
                    diagnosis="تشخيص نظام الفرامل", action_taken="استبدال قطعة", workshop_type="external",
-                   workshop="ورشة خارجية تجريبية", labor_hours=5, status="in_progress"))
+                   workshop="ورشة خارجية تجريبية", external_dispatch_document="DEMO-DISPATCH-003", labor_hours=5, status="in_progress"))
 
     db.commit()
     print("Operational demo data installed:")
