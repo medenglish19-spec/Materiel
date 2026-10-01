@@ -31,9 +31,13 @@ def dashboard_page(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    status_counts = equipment_services.count_by_operational_status(db)
-    total_equipment = sum(status_counts.values())
-    broken_count = equipment_services.count_broken(db)
+    equipment = equipment_services.list_equipment(db, limit=100000)
+    effective_statuses = equipment_services.effective_operational_statuses(db, equipment)
+    status_counts = {}
+    for status in effective_statuses.values():
+        status_counts[status] = status_counts.get(status, 0) + 1
+    total_equipment = len(equipment)
+    broken_count = sum(1 for item in equipment if item.technical_condition == "broken")
 
     # Dashboard display uses current state only. Batch loaders avoid an N+1
     # movement query per asset while preserving the existing state shape.
