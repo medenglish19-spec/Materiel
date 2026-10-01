@@ -264,15 +264,37 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                 item = by_id.get(equipment_id)
                 label = item.registration_number if item and item.registration_number else "عتاد غير مسجل"
                 documented_reason = (first_repair.diagnosis or "").strip()
-                reason_text = f'السبب/التشخيص المسجل: {documented_reason}.' if documented_reason else "لا يوجد سبب/تشخيص موثق في سجل الإصلاح."
+                action_text = (first_repair.action_taken or "").strip()
+                notes_text = (first_repair.notes or "").strip()
+                parts_count = len(getattr(first_repair, "consumed_parts", []) or [])
+                interventions = getattr(first_repair, "technician_interventions", []) or []
+                intervention_hours = sum(
+                    (_decimal(getattr(i, "hours", None)) or Decimal("0") for i in interventions),
+                    Decimal("0"),
+                )
+                documented_factors = []
+                if documented_reason:
+                    documented_factors.append(f"التشخيص: {documented_reason}")
+                if action_text:
+                    documented_factors.append("إجراء إصلاح مسجل")
+                if parts_count:
+                    documented_factors.append(f"{parts_count} قطع غيار مسجلة")
+                if intervention_hours > 0:
+                    documented_factors.append(f"{intervention_hours:.1f} ساعة تدخل فني مسجلة")
+                if first_repair.workshop_type == "external":
+                    documented_factors.append("الإصلاح مسجل كورشة خارجية مع وثيقة إحالة")
+                if notes_text:
+                    documented_factors.append("ملاحظات إصلاح مسجلة")
+                factor_text = "؛ ".join(documented_factors) if documented_factors else "لا توجد عوامل تفسيرية موثقة إضافية في سجل الإصلاح."
                 findings.append({
                     "kind": "finding",
                     "state": "مدة معالجة عطل قابلة للقياس",
                     "subject": label,
-                    "comparison": f'من تاريخ البلاغ {fault.reported_date} إلى أول إصلاح مسجل {first_repair.repair_date}: {duration_days} يومًا.',
-                    "evidence": f'نوع العطل: {fault.fault_type or "غير محدد"}؛ الورشة: {first_repair.workshop or ("خارجية" if first_repair.workshop_type == "external" else "داخلية")}; {reason_text}',
-                    "meaning": "المدة المسجلة تستحق المراجعة التشغيلية، ويمكن فحص التشخيص وقطع الغيار والإجراءات لمعرفة سبب التأخير إذا كانت موثقة؛ لا تُفسر المدة وحدها بسببًا.",
+                    "comparison": f"من تاريخ البلاغ {fault.reported_date} إلى أول إصلاح مسجل {first_repair.repair_date}: {duration_days} يومًا.",
+                    "evidence": f"نوع العطل: {fault.fault_type or \"غير محدد\"}؛ الورشة: {first_repair.workshop or (\"خارجية\" if first_repair.workshop_type == \"external\" else \"داخلية\")}; {factor_text}.",
+                    "meaning": "تم ربط مدة المعالجة بالعناصر الموثقة في سجل الإصلاح فقط. هذه العناصر تشرح ما هو مسجل ويمكن فحصه كعامل محتمل، لكنها لا تثبت السبب الجذري أو أن عاملًا بعينه سبب التأخير.",
                 })
+
 
     # Post-repair recurrence: the same fault type reported again after a repair
     # for that fault. This is a temporal pattern only; it does not label the repair
