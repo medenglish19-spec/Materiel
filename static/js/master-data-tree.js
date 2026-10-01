@@ -451,6 +451,12 @@
 
   const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:200px;padding:6px;background:#fff;border:1px solid rgba(18,53,36,.1);border-radius:12px;box-shadow:0 18px 44px rgba(16,60,32,.2);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 12px;border-radius:8px;font:inherit;font-weight:700;color:#2e5a3a;cursor:pointer;transition:background .14s ease,color .14s ease}.master-context-menu button:hover{background:#eaf7ef;color:#0f3d21}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #43a047;background:#eaf7ef}@media(max-width:640px){.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style); document.head.appendChild(style);
   buildHierarchy();
+  const initialType = tree.querySelector('[data-ref-item="type"]');
+  if (initialType && typeof window.viewType === 'function') {
+    selectNode(initialType);
+    initialType.closest('.tree-group')?.classList.add('open');
+    window.viewType(initialType);
+  }
   tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = row.dataset.privateLibrary !== '0'; });
   syncArrows(); selectSection(0);
 })();
