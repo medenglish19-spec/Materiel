@@ -7,7 +7,7 @@
     <div class="history-head">
         <div>
             <h1>سجل قراءات العداد</h1>
-            <p>{{ equipment.equipment_type.name if equipment.equipment_type else '—' }} — {{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — {{ equipment.registration_number or equipment.asset_code }}</p>
+            <p>{{ equipment.equipment_type.name if equipment.equipment_type else '—' }} — {{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — {{ equipment.registration_number or equipment.vin }}</p>
         </div>
         <a class="back-btn" href="/meter-readings">← العودة إلى قراءات العدادات</a>
     </div>
@@ -44,7 +44,7 @@
 <div id="editReadingModal" class="modal-backdrop" hidden>
     <div class="edit-modal" dir="rtl">
         <div class="modal-head"><strong>تعديل قراءة العداد</strong><button type="button" id="closeEdit">×</button></div>
-        <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.asset_code or '—' }}</div>
+        <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.vin or '—' }}</div>
         <form id="editReadingForm">
             <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
             <input type="hidden" name="reading_id" id="editReadingId">
