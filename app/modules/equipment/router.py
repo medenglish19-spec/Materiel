@@ -82,5 +82,6 @@ def equipment_operational_analysis_page(request: Request, db: Session = Depends(
     faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
-    operational = build_operational_analysis(items, faults, maintenance_records)
+    repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
     return templates.TemplateResponse(request=request, name="equipment_operational_analysis.html", context={"request": request, "user": current_user, "utilization": utilization, "operational": operational})
