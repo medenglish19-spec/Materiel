@@ -27,7 +27,7 @@ def active_mission_equipment_ids(db: Session, equipment_ids: list, today: Option
             .filter(
                 Mission.equipment_id.in_(ordered[start : start + 500]),
                 Mission.start_date <= today,
-                (Mission.end_date.is_(None) | (Mission.end_date > today)),
+                (Mission.end_date.is_(None) | (Mission.end_date >= today)),
             )
             .distinct()
             .all()
