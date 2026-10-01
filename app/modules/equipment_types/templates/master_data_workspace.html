@@ -128,13 +128,24 @@ function renderSpecLibrary(d){
     renderSpecEditor({...d,specs}); sync(); renderSpecLibrary({...d,specs});
   }));
 }
-function specInput(def,value=''){
+function normalizeSpecValue(def,value=''){
   const raw=String(value||'').trim();
+  if(def.data_type!=='select') return raw;
   const options=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean);
-  const isLegacyOptionsValue=def.data_type==='select' && raw && raw===options.join(',');
-  const selected=isLegacyOptionsValue?'':raw;
+  const list=options.join(',');
+  if(!raw) return '';
+  if(raw===list) return '';
+  if(list && raw.endsWith(list)){
+    const prefix=raw.slice(0,raw.length-list.length).trim();
+    if(options.includes(prefix)) return prefix;
+  }
+  return options.includes(raw)?raw:'';
+}
+function specInput(def,value=''){
+  const selected=normalizeSpecValue(def,value);
   const safe=selected.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
   if(def.data_type==='select'){
+    const options=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean);
     const opts=options.map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===selected?' selected':'')+'>'+v+'</option>').join('');
     return '<select class="spec-value" data-definition="'+def.id+'"><option value="">اختر</option>'+opts+'</select>';
   }
@@ -152,7 +163,7 @@ function renderSpecEditor(d){
   $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
 }
 function renderSpecView(d){
-  const values=Object.fromEntries((d.specs||[]).map(x=>[Number(x.definition_id),x.value]));
+  const values=Object.fromEntries((d.specs||[]).map(x=>{const def=DEFS.find(y=>Number(y.id)===Number(x.definition_id));return [Number(x.definition_id),normalizeSpecValue(def||{data_type:'text'},x.value)]}));
   const defs=DEFS;
   const groups=new Map();
   defs.filter(def=>values[Number(def.id)]!==undefined && values[Number(def.id)]!=='').forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
