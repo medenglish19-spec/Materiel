@@ -49,12 +49,12 @@
   <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;overflow:auto;margin-bottom:12px">
     <div style="padding:13px 15px;border-bottom:1px solid #edf0f3">
       <strong style="font-size:12px">المقارنة على مستوى العتاد</strong>
-      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">المقارنات لا تظهر إلا عند توفر 3 وحدات مماثلة على الأقل ذات بيانات قابلة للحساب، ويُعرض عدد الوحدات المستخدمة في الدليل.</span>
+      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">مقارنة الأعطال والوقود تعتمد على عينة بيانات مستقلة لكل مؤشر؛ ويُعرض عدد الوحدات التي دخلت فعليًا في كل مرجع.</span>
     </div>
     <table style="width:100%;border-collapse:collapse;min-width:1180px">
       <thead><tr>
         <th>رقم التسجيل</th><th>الطراز</th><th>المسافة كم</th><th>المهمات</th><th>الوقود</th><th>لتر/100كم</th>
-        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع المجموعة</th><th>حجم المقارنة</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
+        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع الأعطال</th><th>عينة الأعطال</th><th>مرجع الوقود</th><th>عينة الوقود</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
       </tr></thead>
       <tbody>
       {% for r in operational.rows %}
@@ -68,7 +68,9 @@
         <td>{{ r.fault_count }}</td>
         <td>{{ r.fault_rate_per_1000km|round(2) if r.fault_rate_per_1000km is not none else "—" }}</td>
         <td>{% if r.peer_fault_rate_per_1000km is not none %}{{ r.peer_fault_rate_per_1000km|round(2) }} عطل/1000كم{% else %}—{% endif %}</td>
-        <td>{{ r.peer_count if r.peer_fault_rate_per_1000km is not none else "—" }}</td>
+        <td>{{ r.peer_fault_sample_count if r.peer_fault_rate_per_1000km is not none else "—" }}</td>
+        <td>{% if r.peer_fuel_per_100km is not none %}{{ r.peer_fuel_per_100km|round(2) }} لتر/100كم{% else %}—{% endif %}</td>
+        <td>{{ r.peer_fuel_sample_count if r.peer_fuel_per_100km is not none else "—" }}</td>
         <td>{{ r.open_fault_count }}</td>
         <td>{{ r.repair_count }}</td>
         <td>{{ r.maintenance_count }}</td>
