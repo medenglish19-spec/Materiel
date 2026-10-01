@@ -242,6 +242,38 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                 "meaning": "التكرار عبر فترات منفصلة يجعل الحالة نمطًا زمنيًا يستحق المراجعة، دون إثبات سبب التكرار.",
             })
 
+    # Repair duration: use the recorded fault date to repair date only when
+    # both dates exist. This is a documented elapsed time, not a causal diagnosis.
+    repair_duration_rows = []
+    for equipment_id, fault_group in faults_by.items():
+        for fault in fault_group:
+            if not fault.reported_date:
+                continue
+            linked_repairs = [
+                r for r in repairs_by.get(equipment_id, [])
+                if getattr(r, "fault_id", None) == fault.id
+                and r.repair_date
+                and r.repair_date >= fault.reported_date
+            ]
+            if not linked_repairs:
+                continue
+            first_repair = min(linked_repairs, key=lambda r: (r.repair_date, r.id))
+            duration_days = (first_repair.repair_date - fault.reported_date).days
+            repair_duration_rows.append((equipment_id, fault, first_repair, duration_days))
+            if duration_days > 0:
+                item = by_id.get(equipment_id)
+                label = item.registration_number if item and item.registration_number else "عتاد غير مسجل"
+                documented_reason = (first_repair.diagnosis or "").strip()
+                reason_text = f'السبب/التشخيص المسجل: {documented_reason}.' if documented_reason else "لا يوجد سبب/تشخيص موثق في سجل الإصلاح."
+                findings.append({
+                    "kind": "finding",
+                    "state": "مدة معالجة عطل قابلة للقياس",
+                    "subject": label,
+                    "comparison": f'من تاريخ البلاغ {fault.reported_date} إلى أول إصلاح مسجل {first_repair.repair_date}: {duration_days} يومًا.',
+                    "evidence": f'نوع العطل: {fault.fault_type or "غير محدد"}؛ الورشة: {first_repair.workshop or ("خارجية" if first_repair.workshop_type == "external" else "داخلية")}; {reason_text}',
+                    "meaning": "المدة المسجلة تستحق المراجعة التشغيلية، ويمكن فحص التشخيص وقطع الغيار والإجراءات لمعرفة سبب التأخير إذا كانت موثقة؛ لا تُفسر المدة وحدها بسببًا.",
+                })
+
     # Post-repair recurrence: the same fault type reported again after a repair
     # for that fault. This is a temporal pattern only; it does not label the repair
     # as failed or establish causation.
@@ -336,6 +368,6 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
 
     context = [f for f in findings if f.get("kind") == "context"]
     findings = [f for f in findings if f.get("kind") != "context"]
-    return {"rows": rows, "totals": totals, "findings": findings, "context": context}
+    totals["repair_duration_count"] = len(repair_duration_rows)\n    totals["repair_duration_days"] = sum(r[3] for r in repair_duration_rows)\n    totals["repair_duration_avg_days"] = (Decimal(str(totals["repair_duration_days"])) / Decimal(str(len(repair_duration_rows))) if repair_duration_rows else None)\n    return {"rows": rows, "totals": totals, "findings": findings, "context": context}
 
 
