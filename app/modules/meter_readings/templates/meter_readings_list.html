@@ -14,12 +14,12 @@
     <div class="history-card">
         <div class="history-info">
             <span>وحدة العداد: <strong>{{ rows[0].unit if rows else ('كم' if equipment.equipment_type and equipment.equipment_type.measurement_unit == 'km' else 'ساعة عمل') }}</strong></span>
-            <span>حالة العتاد: <strong>{{ rows[0].status if rows else ('لا يعمل' if equipment.operational_status == 'unavailable' else 'يعمل') }}</strong></span>
+            <span>حالة العداد: <strong>{{ rows[0].status if rows else '—' }}</strong></span>
             <span>عدد القراءات: <strong>{{ total }}</strong></span>
         </div>
         <div class="history-table-wrap">
             <table class="history-table">
-                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العتاد</th><th>إجراء</th></tr></thead>
+                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
                 <tbody>
                 {% for row in rows %}
                     <tr>
