@@ -160,30 +160,33 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         row["peer_fault_rate_per_1000km"] = _median(rate_peers)
         row["peer_fuel_per_100km"] = _median(fuel_peers)
 
-        if row["fault_rate_per_1000km"] is not None and len(rate_peers) >= 1:
+        if row["fault_rate_per_1000km"] is not None and len(rate_peers) >= 3:
             reference = row["peer_fault_rate_per_1000km"]
             if row["fault_rate_per_1000km"] > reference:
                 findings.append({
-                    "state": "عبء أعطال أعلى من المجموعة المماثلة",
+                    "kind": "finding",
+                "state": "عبء أعطال أعلى من المجموعة المماثلة",
                     "subject": row["registration_number"] or "عتاد غير مسجل",
-                    "comparison": f'معدل العتاد {row["fault_rate_per_1000km"]:.2f} عطل/1000 كم مقابل وسيط المجموعة {reference:.2f}.',
+                    "comparison": f'معدل العتاد {row["fault_rate_per_1000km"]:.2f} عطل/1000 كم مقابل وسيط المجموعة {reference:.2f}، اعتمادًا على {len(rate_peers)} وحدات مماثلة قابلة للمقارنة.',
                     "evidence": f'المسافة المقاسة {row["distance_km"]:.1f} كم، والأعطال {row["fault_count"]}.',
                     "meaning": "يظهر عبء أعطال أعلى من الوحدات المماثلة المتاحة للمقارنة؛ يحتاج إلى فحص السجل التفصيلي دون اعتبار ذلك سببًا محددًا.",
                 })
 
-        if row["fuel_per_100km"] is not None and len(fuel_peers) >= 1:
+        if row["fuel_per_100km"] is not None and len(fuel_peers) >= 3:
             reference = row["peer_fuel_per_100km"]
             if row["fuel_per_100km"] > reference:
                 findings.append({
-                    "state": "استهلاك وقود أعلى من المجموعة المماثلة",
+                    "kind": "finding",
+                "state": "استهلاك وقود أعلى من المجموعة المماثلة",
                     "subject": row["registration_number"] or "عتاد غير مسجل",
-                    "comparison": f'الاستهلاك {row["fuel_per_100km"]:.2f} لتر/100 كم مقابل وسيط المجموعة {reference:.2f}.',
+                    "comparison": f'الاستهلاك {row["fuel_per_100km"]:.2f} لتر/100 كم مقابل وسيط المجموعة {reference:.2f}، اعتمادًا على {len(fuel_peers)} وحدات مماثلة قابلة للمقارنة.',
                     "evidence": f'المسافة المقاسة {row["distance_km"]:.1f} كم، والوقود المرتبط بها {row["fuel_liters"]:.1f} لتر.',
                     "meaning": "يظهر استهلاكًا أعلى من الوحدات المماثلة ضمن نفس قاعدة البيانات الزمنية المتاحة؛ لا يثبت سببًا ميكانيكيًا.",
                 })
 
         if row["open_fault_count"] and row["repair_count"]:
             findings.append({
+                "kind": "finding",
                 "state": "عطل مفتوح مع نشاط إصلاح",
                 "subject": row["registration_number"] or "عتاد غير مسجل",
                 "comparison": "يوجد سجل إصلاح واحد على الأقل مع بقاء عطل غير مغلق.",
@@ -195,6 +198,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             row["technical_condition"] != "ready" or row["operational_status"] != "available"
         ):
             findings.append({
+                "kind": "finding",
                 "state": "قيد استغلال مدعوم بسجل عطل",
                 "subject": row["registration_number"] or "عتاد غير مسجل",
                 "comparison": f'العطل المانع للاستغلال مقترن بالحالة الحالية: {row["technical_condition"]} / {row["operational_status"]}.',
@@ -204,6 +208,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
 
         if row["fault_count"] and row["maintenance_count"] and row["repair_count"]:
             findings.append({
+                "kind": "context",
                 "state": "سجل متكامل للمراجعة",
                 "subject": row["registration_number"] or "عتاد غير مسجل",
                 "comparison": "الأعطال والإصلاحات والصيانة موجودة معًا لنفس العتاد.",
@@ -226,6 +231,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         if distinct >= 2:
             label = f"{brand} — {model}" if brand else model
             findings.append({
+                "kind": "finding",
                 "state": "نمط عطل متكرر بين وحدات مماثلة",
                 "subject": label,
                 "comparison": f'نوع العطل «{fault_type}» ظهر لدى {distinct} وحدات مماثلة.',
@@ -238,6 +244,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         mission_linked = [r for r in linked if r["mission_distance_km"] and r["mission_distance_km"] > 0]
         if mission_linked:
             findings.append({
+                "kind": "context",
                 "state": "الاستخدام الفعلي قابل للربط",
                 "subject": "الحضيرة",
                 "comparison": "توجد وحدات لها مسافة عداد ومهمات مكتملة بالعداد ضمن البيانات المتاحة.",
@@ -254,6 +261,8 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
             "meaning": "تتوفر قاعدة لقراءة النشاط الوقائي والتصحيحي معًا؛ لا يمكن من هذه الأعداد وحدها إثبات أثر الصيانة على الأعطال.",
         })
 
-    return {"rows": rows, "totals": totals, "findings": findings}
+    context = [f for f in findings if f.get("kind") == "context"]
+    findings = [f for f in findings if f.get("kind") != "context"]
+    return {"rows": rows, "totals": totals, "findings": findings, "context": context}
 
 
