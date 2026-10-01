@@ -110,58 +110,10 @@ def _prevent_invalid_meter_update(mapper, connection, target):
     _validate_meter_payload(connection, target, exclude_id=target.id)
 
 
-@event.listens_for(Session, "before_flush")
-def _sync_current_equipment_status(session, flush_context, instances):
-    """Keep Equipment.operational_status equal to the latest meter reading.
-
-    This is intentionally session-level rather than mapper-level so the
-    already-loaded Equipment instance is updated in memory as well as in the
-    database. Historical readings inserted later must not overwrite a newer
-    current status.
-    """
-    new_readings = [obj for obj in session.new if isinstance(obj, MeterReading) and obj.equipment_id]
-    if not new_readings:
-        return
-
-    by_equipment = {}
-    for reading in new_readings:
-        current = by_equipment.get(reading.equipment_id)
-        if current is None or (reading.reading_date, reading.id or 0) > (current.reading_date, current.id or 0):
-            by_equipment[reading.equipment_id] = reading
-
-    for equipment_id, candidate in by_equipment.items():
-        latest_existing = session.execute(
-            select(MeterReading.reading_date, MeterReading.id, MeterReading.equipment_status)
-            .where(MeterReading.equipment_id == equipment_id)
-            .order_by(MeterReading.reading_date.desc(), MeterReading.id.desc())
-            .limit(1)
-        ).first()
-        if latest_existing is not None:
-            existing_date, existing_id, existing_status = latest_existing
-            if existing_date is not None and (existing_date, existing_id or 0) > (candidate.reading_date, candidate.id or 0):
-                continue
-        equipment = session.get(Equipment, equipment_id)
-        if equipment is not None and candidate.equipment_status:
-            equipment.operational_status = candidate.equipment_status
-
-
 @event.listens_for(MeterReading, "after_insert")
 def _audit_meter_insert(mapper, connection, target):
     # Keep the database representation synchronized for callers that insert
     # readings through paths outside the normal Session lifecycle.
-    latest_id = connection.execute(
-        select(MeterReading.id)
-        .where(MeterReading.equipment_id == target.equipment_id)
-        .order_by(MeterReading.reading_date.desc(), MeterReading.id.desc())
-        .limit(1)
-    ).scalar_one_or_none()
-    if latest_id == target.id and target.equipment_status:
-        connection.execute(
-            update(Equipment)
-            .where(Equipment.id == target.equipment_id)
-            .values(operational_status=target.equipment_status)
-        )
-
     unit = "km" if target.odometer is not None else "hours"
     value = target.odometer if unit == "km" else target.hours
     connection.execute(insert(MeterReadingChange.__table__).values(
