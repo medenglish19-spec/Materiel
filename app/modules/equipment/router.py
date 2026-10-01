@@ -9,7 +9,7 @@ from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
-from app.modules.equipment.analytics import build_capacity_readiness_analysis
+from app.modules.equipment.analytics import build_capacity_readiness_analysis, build_utilization_analysis
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
@@ -18,6 +18,8 @@ from app.modules.equipment_types.models import EquipmentModelSpecValue
 from app.modules.users.models import User
 from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
+from app.modules.missions.models import Mission
+from app.modules.fuel.models import FuelRecord
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.tires import services as tire_services
 from app.modules.batteries import services as battery_services
@@ -64,10 +66,15 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         .all()
     )
     analysis = build_capacity_readiness_analysis(items)
+    equipment_ids = [x.id for x in items]
+    meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    missions = db.query(Mission).filter(Mission.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     return templates.TemplateResponse(
         request=request,
         name="equipment_analysis.html",
-        context={"request": request, "user": current_user, **analysis},
+        context={"request": request, "user": current_user, **analysis, "utilization": utilization},
     )
 
 
