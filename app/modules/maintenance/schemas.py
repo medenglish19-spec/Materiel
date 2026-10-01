@@ -195,3 +195,12 @@ class MaintenanceRecordOut(MaintenanceRecordCreate):
     id: int
     created_by_id: Optional[int] = None
     created_at: object
+
+    # القراءة لا تفرض ما تفرضه الكتابة. سجلات الصيانة القديمة سُجّلت قبل
+    # بند «عملية الصيانة»، فبقيت operation_id فارغة فيها. كان هذا الصنف
+    # يرث مُتحقّق الإدخال فيُسقط قائمة /api/maintenance/execution كلها
+    # بخطأ 500 عند قراءة أي سجل قديم. هنا نُبقي القيمة كما هي (None)
+    # ولا نخترع عملية لها،(Input لا يزال محمياً في MaintenanceRecordCreate).
+    @model_validator(mode="after")
+    def validate_source(self):
+        return self
