@@ -23,10 +23,9 @@
     <span class="ed-chip {% if item.operational_status in ['available','ready','active'] %}ok{% elif item.operational_status in ['maintenance','in_maintenance'] %}warn{% elif item.operational_status in ['external_workshop','mission'] %}info{% else %}bad{% endif %}">{{ label('operational', item.operational_status) }}</span>
     <span class="ed-chip {% if item.technical_condition in ['good','ready','excellent'] %}ok{% elif item.technical_condition in ['warning','restricted'] %}warn{% else %}bad{% endif %}">{{ label('technical', item.technical_condition) }}</span>
     <div class="ed-actions">
-      <a class="ed-btn" href="/equipment/{{ item.id }}/meters">📊 العداد</a>
-      <a class="ed-btn" href="/equipment/{{ item.id }}/maintenance">🛠 الصيانة</a>
-      <a class="ed-btn" href="/equipment/{{ item.id }}/tires">🛞 الإطارات</a>
-      <a class="ed-btn pri" href="/equipment/{{ item.id }}/edit">تعديل العتاد</a>
+      <a class="ed-btn" href="/equipment/{{ item.id }}/meters">⚙ العداد</a>
+      <a class="ed-btn" href="/faults-repairs/faults">⚠ تسجيل عطل</a>
+      <a class="ed-btn pri" href="/maintenance/records#newRecord">🔧 تسجيل صيانة</a>
     </div>
   </div>
 
