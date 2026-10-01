@@ -36,12 +36,44 @@ def active_mission_equipment_ids(db: Session, equipment_ids: list, today: Option
     return active
 
 
-def _effective_status(equipment: Equipment, active_equipment_ids: set) -> str:
-    """قاعدة الوضعية الفعّالة في مكان واحد (تُستدعى للمفرد والدفعة)."""
+def active_repair_workshops(db: Session, equipment_ids: list) -> dict:
+    """الحالة التشغيلية الناتجة عن الإصلاحات النشطة، مستقلة عن آخر قراءة عداد."""
+    if not equipment_ids:
+        return {}
+    from app.modules.faults_repairs.models import Fault, Repair
+
+    rows = (
+        db.query(Fault.equipment_id, Repair.workshop_type)
+        .join(Repair, Repair.fault_id == Fault.id)
+        .filter(
+            Fault.equipment_id.in_(equipment_ids),
+            Repair.status == "in_progress",
+        )
+        .all()
+    )
+    result = {}
+    for equipment_id, workshop_type in rows:
+        # الورشة الخارجية لها أولوية إذا وُجد إصلاحان نشطان لنفس العتاد.
+        if workshop_type == "external":
+            result[equipment_id] = "in_external_workshop"
+        elif equipment_id not in result:
+            result[equipment_id] = "in_maintenance"
+    return result
+
+
+def _effective_status(
+    equipment: Equipment,
+    active_equipment_ids: set,
+    active_repairs: dict,
+) -> str:
+    """قاعدة الوضعية الفعّالة الحالية، مع أولوية الإصلاح النشط."""
     if equipment.technical_condition == "broken":
         return "unavailable"
-    if equipment.operational_status in {"in_maintenance", "in_external_workshop", "unavailable"}:
-        return equipment.operational_status
+    repair_status = active_repairs.get(equipment.id)
+    if repair_status:
+        return repair_status
+    if equipment.operational_status == "unavailable":
+        return "unavailable"
     if equipment.id in active_equipment_ids:
         return "in_mission"
     return "available"
@@ -49,13 +81,16 @@ def _effective_status(equipment: Equipment, active_equipment_ids: set) -> str:
 
 def effective_operational_status(db: Session, equipment: Equipment, today: Optional[date] = None) -> str:
     active = active_mission_equipment_ids(db, [equipment.id], today=today)
-    return _effective_status(equipment, active)
+    repairs = active_repair_workshops(db, [equipment.id])
+    return _effective_status(equipment, active, repairs)
 
 
 def effective_operational_statuses(db: Session, items: list, today: Optional[date] = None) -> dict:
-    """الوضعية الفعّالة لكل العتاد دفعة واحدة (استعلامات ثابتة مهما زاد العدد)."""
-    active = active_mission_equipment_ids(db, [item.id for item in items], today=today)
-    return {item.id: _effective_status(item, active) for item in items}
+    """الوضعية الفعّالة لكل العتاد، من الحالة الحالية لا من قراءة عداد تاريخية."""
+    ids = [item.id for item in items]
+    active = active_mission_equipment_ids(db, ids, today=today)
+    repairs = active_repair_workshops(db, ids)
+    return {item.id: _effective_status(item, active, repairs) for item in items}
 
 
 def list_equipment(db: Session, skip: int = 0, limit: int = 500, operational_status: Optional[str] = None, technical_condition: Optional[str] = None, equipment_type_id: Optional[int] = None) -> list[Equipment]:
