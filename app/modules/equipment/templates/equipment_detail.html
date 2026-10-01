@@ -90,69 +90,6 @@
       </section>
       {% endif %}
 
-      <section class="ed-card">
-        <div class="ed-card-h">
-          <h2>الصيانة الدورية</h2>
-          <span class="sub">الوضع الحالي للصيانة</span>
-        </div>
-        <div class="ed-card-b">
-          <div class="ed-empty">للاطلاع على العمليات المستحقة وسجل الصيانة، افتح صفحة الصيانة المرتبطة بهذا العتاد.</div>
-          <div class="ed-actions" style="justify-content:center"><a class="ed-btn pri" href="/equipment/{{ item.id }}/maintenance">فتح الصيانة</a></div>
-        </div>
-      </section>
-    </div>
-
-    <div class="ed-col">
-      <section class="ed-card">
-        <div class="ed-card-h">
-          <h2>الإطارات المركبة</h2>
-          <span class="sub">{{ installed_tires|length if installed_tires else 0 }} إطارًا حاليًا</span>
-        </div>
-        {% if installed_tires %}
-        <div class="ed-table-wrap"><table class="ed-table"><thead><tr><th>الموضع</th><th>الرقم التسلسلي</th><th>الماركة / الطراز</th><th>المقاس</th><th>الحالة</th></tr></thead><tbody>
-        {% for t in installed_tires %}
-        <tr>
-          <td>{{ t.state.position.name if t.state.position else '-' }}</td>
-          <td><a href="/tires/{{ t.tire.id }}">{{ t.tire.serial_number }}</a></td>
-          <td>{{ t.tire.brand or '-' }}{% if t.tire.model %}<span class="ed-sub">{{ t.tire.model }}</span>{% endif %}</td>
-          <td>{{ t.tire.size or '-' }}</td>
-          <td>{% if t.condition == 'expired' %}<span class="ed-chip bad">منتهي الصلاحية</span>{% elif t.condition == 'damaged' %}<span class="ed-chip bad">تالف</span>{% else %}<span class="ed-chip ok">سليم</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
-        </tbody></table></div>
-        {% else %}<div class="ed-empty">لا توجد إطارات مركبة حاليًا.</div>{% endif %}
-        <div style="padding:12px 18px;border-top:1px solid var(--ed-line)"><a class="ed-btn" href="/equipment/{{ item.id }}/tires">فتح سجل الإطارات الكامل</a></div>
-      </section>
-
-      <section class="ed-card">
-        <div class="ed-card-h">
-          <h2>البطاريات المركبة</h2>
-          <span class="sub">{{ installed_batteries|length if installed_batteries else 0 }} بطارية</span>
-        </div>
-        {% if installed_batteries %}
-        <div class="ed-table-wrap"><table class="ed-table"><thead><tr><th>الرقم التسلسلي</th><th>الماركة / الطراز</th><th>الاستحقاق</th><th>الحالة</th></tr></thead><tbody>
-        {% for b in installed_batteries %}
-        <tr>
-          <td><a href="/batteries/{{ b.battery.id }}">{{ b.battery.serial_number }}</a></td>
-          <td>{{ b.battery.brand or '-' }}{% if b.battery.model %}<span class="ed-sub">{{ b.battery.model }}</span>{% endif %}</td>
-          <td>{{ b.due_date.strftime('%d/%m/%Y') if b.due_date else '-' }}</td>
-          <td>{% if b.condition == 'expired' %}<span class="ed-chip bad">مستحقة للاستبدال</span>{% elif b.condition == 'damaged' %}<span class="ed-chip bad">تالف</span>{% else %}<span class="ed-chip ok">سليمة</span>{% endif %}</td>
-        </tr>
-        {% endfor %}
-        </tbody></table></div>
-        {% else %}<div class="ed-empty">لا توجد بطاريات مركبة حاليًا.</div>{% endif %}
-        <div style="padding:12px 18px;border-top:1px solid var(--ed-line)"><a class="ed-btn" href="/equipment/{{ item.id }}/batteries">فتح سجل البطاريات الكامل</a></div>
-      </section>
-
-      <section class="ed-card">
-        <div class="ed-card-h"><h2>الوصول السريع</h2><span class="sub">كل سجل يحتفظ بوظيفته الحالية</span></div>
-        <div class="ed-card-b"><div class="ed-links">
-          <a class="ed-link" href="/equipment/{{ item.id }}/meters"><span>📊 قراءات العداد</span><b>فتح السجل ←</b></a>
-          <a class="ed-link" href="/equipment/{{ item.id }}/maintenance"><span>🛠 الصيانة</span><b>فتح السجل ←</b></a>
-          <a class="ed-link" href="/equipment/{{ item.id }}/tires"><span>🛞 الإطارات</span><b>فتح السجل ←</b></a>
-          <a class="ed-link" href="/equipment/{{ item.id }}/batteries"><span>🔋 البطاريات</span><b>فتح السجل ←</b></a>
-        </div></div>
-      </section>
     </div>
   </div>
 
