@@ -8,7 +8,7 @@
 </div>
 
 <div class="card">
-    <h3>{{ item.asset_code }}</h3>
+    <h3>{{ item.vin }}</h3>
     <div class="alert-warning" style="margin-bottom:14px;">الحالة الفنية والوضعية لا تُعدلان من شاشة بيانات العتاد. يتم تحديثهما من الإجراءات التشغيلية المخصصة.</div>
     <form method="post" action="/equipment/{{ item.id }}/edit" class="grid-form" id="equipmentEditForm" onsubmit="return confirm('هل تؤكد تثبيت جميع تعديلات بيانات العتاد؟');">
         <div class="field"><label>الوثيقة</label><input type="text" name="acquisition_document" value="{{ item.acquisition_document or '' }}"></div>
