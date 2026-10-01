@@ -30,8 +30,18 @@ def types_page(request:Request,db:Session=Depends(get_db),current_user:User=Depe
     spec_type_ids=services.list_spec_definition_type_ids(db)
     spec_definitions=[{"id":d.id,"name":d.name,"code":d.code,"data_type":d.data_type,"unit":d.unit,"options":d.options,"group_name":d.group_name,"group_sort_order":d.group_sort_order,"equipment_type_id":d.equipment_type_id,"category_id":d.category_id,"equipment_type_ids":spec_type_ids.get(d.id,[])} for d in services.list_spec_definitions(db)]
     editor_payloads=model_editor_payloads(db,models)
+    model_by_id={model.id:model for model in models}
+    for payload in editor_payloads:
+        model=model_by_id[payload["id"]]
+        payload["is_frozen"]=bool(model.is_frozen)
+        payload["actual_count"]=equipment_model_counts.get(model.id,0)
+    model_ids=[model.id for model in models]
+    linked_equipment={model_id:[] for model_id in model_ids}
+    equipment_rows=(db.query(Equipment).filter(Equipment.equipment_model_id.in_(model_ids)).order_by(Equipment.registration_number,Equipment.id).all() if model_ids else [])
+    for item in equipment_rows:
+        linked_equipment.setdefault(item.equipment_model_id,[]).append({"id":item.id,"registration_number":item.registration_number,"asset_code":item.asset_code,"operational_status":item.operational_status,"technical_condition":item.technical_condition,"odometer":float(item.current_odometer) if item.current_odometer is not None else None,"hours":float(item.current_hours) if item.current_hours is not None else None})
     tire_master_data={p["id"]:p for p in editor_payloads}
-    response = templates.TemplateResponse(request=request, name="master_data_workspace.html", context={"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"equipment_type_counts":equipment_type_counts,"equipment_model_counts":equipment_model_counts,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
+    response = templates.TemplateResponse(request=request, name="master_data_workspace.html", context={"request":request,"types":types,"categories":categories,"brands":brands,"models":models,"equipment_type_counts":equipment_type_counts,"equipment_model_counts":equipment_model_counts,"linked_equipment":linked_equipment,"tire_master_data":tire_master_data,"spec_definitions":spec_definitions,"tree_js_version":_tree_js_version(),"user":current_user})
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
