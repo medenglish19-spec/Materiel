@@ -165,6 +165,105 @@ body:has(.mdx) .module-nav{display:none}
 @media(max-width:1200px){.mdx .layout{grid-template-columns:minmax(220px,28%) minmax(0,1fr)}}
 @media(max-width:980px){ #model-library-v3 .model-overview-grid{grid-template-columns:1fr 1fr}.mdx .layout{grid-template-columns:1fr}}
 @media(max-width:700px){ #model-library-v3 .model-hero{align-items:flex-start;flex-wrap:wrap}#model-library-v3 .model-hero-actions{width:100%}#model-library-v3 .model-overview-grid,#model-library-v3 .model-tire-grid{grid-template-columns:1fr}#model-library-v3 .model-data-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#model-library-v3 .model-battery-grid{grid-template-columns:1fr}}
+/* Mobile-first model library refinement: keep navigation compact and let the library own the screen. */
+body:has(.mdx) .app-sidebar{width:208px}
+body:has(.mdx) .app-main{margin-right:208px}
+.mdx .layout{grid-template-columns:280px minmax(0,1fr);gap:14px}
+.mdx .tree-card{max-width:280px}
+.mdx .type-models-head{padding:12px 14px}
+.mdx .type-table th,.mdx .type-table td{padding:9px 10px}
+@media(max-width:900px){
+  body:has(.mdx) .app-sidebar{width:176px}
+  body:has(.mdx) .app-main{margin-right:176px}
+  .mdx .layout{grid-template-columns:250px minmax(0,1fr)}
+  .mdx .tree-card{max-width:250px}
+}
+@media(max-width:700px){
+  body:has(.mdx) .app-sidebar{
+    position:static;width:100%;height:52px;flex-direction:row;align-items:center;
+    overflow:hidden;background:var(--mdx-deep);box-shadow:none
+  }
+  body:has(.mdx) .app-brand{
+    flex:0 0 52px;width:52px;height:52px;padding:0;justify-content:center;
+    border-left:1px solid #ffffff18
+  }
+  body:has(.mdx) .app-brand-icon{width:30px;height:30px;font-size:16px}
+  body:has(.mdx) .app-brand span:not(.app-brand-icon),
+  body:has(.mdx) .sidebar-user,
+  body:has(.mdx) .sidebar-logout{display:none}
+  body:has(.mdx) .app-menu{
+    flex:1;min-width:0;display:flex;flex-direction:row;flex-wrap:nowrap;
+    gap:4px;padding:6px 7px;overflow-x:auto;overflow-y:hidden
+  }
+  body:has(.mdx) .app-menu a{
+    flex:0 0 auto;min-height:34px;height:34px;padding:7px 9px;border-radius:7px;
+    font-size:11px;white-space:nowrap
+  }
+  body:has(.mdx) .app-menu a .menu-icon{font-size:15px;width:18px}
+  body:has(.mdx) .app-main{margin-right:0;padding:0}
+  body:has(.mdx) .app-topbar{
+    position:static;height:48px;min-height:48px;padding:7px 12px;
+    flex-direction:row;align-items:center;gap:8px;overflow:hidden
+  }
+  body:has(.mdx) .app-topbar-title{font-size:11px;white-space:nowrap}
+  body:has(.mdx) .app-workbar{margin-inline-start:auto;overflow:auto;max-width:68%}
+  body:has(.mdx) .app-workbtn{height:30px;padding:0 8px;font-size:10px}
+  body:has(.mdx) .app-work-status,body:has(.mdx) .app-worksep{display:none}
+  body:has(.mdx) .app-topbar-date{display:none}
+  body:has(.mdx) .container{padding:0 10px}
+  .mdx{padding:14px 0 28px}
+  .mdx-head{gap:10px;margin-bottom:12px}
+  .mdx-head h1{font-size:19px}
+  .mdx-head p{font-size:11.5px;line-height:1.7}
+  .mdx-breadcrumb{font-size:10.5px}
+  .mdx-head-actions{
+    width:100%;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:2px
+  }
+  .mdx-action{height:34px;padding:0 10px;font-size:11px;white-space:nowrap;flex:0 0 auto}
+  .mdx .layout{grid-template-columns:1fr;gap:10px}
+  .mdx .tree-card{position:relative;top:auto;max-width:none;width:100%;max-height:250px}
+  .mdx .tree-root-dropzone{padding:6px 8px;font-size:10px}
+  .mdx .tree-head{padding:9px 10px}
+  .mdx .tree-head strong{font-size:12px}
+  .mdx .tree-search{height:32px;margin:7px 10px 6px;width:calc(100% - 20px);font-size:11.5px}
+  .mdx .tree-filter-bar{padding:0 10px 7px;gap:4px}
+  .mdx .tree-filter{height:24px;padding:0 8px;font-size:10px}
+  .mdx .tree-node{min-height:30px;padding:4px 7px;font-size:11.5px}
+  .mdx .tree-toolbar{padding:6px 9px;font-size:10.5px}
+  .mdx .editor{min-width:0}
+  .mdx .editor-head{padding:10px 12px}
+  .mdx .body{padding:10px 0}
+  .mdx #empty{min-height:220px;font-size:12px}
+  .mdx .type-hero{padding:12px;gap:10px;border-radius:9px}
+  .mdx .type-hero h3{font-size:18px}
+  .mdx .type-summary{padding:12px;gap:12px}
+  .mdx .type-summary-total strong{font-size:27px}
+  .mdx .type-progress{min-width:100%;width:100%}
+  .mdx .type-models{border-radius:9px}
+  .mdx .type-models-head{padding:10px 12px}
+  .mdx .type-table-wrap{overflow-x:auto}
+  .mdx .type-table{min-width:620px}
+  #model-library-v3 .model-hero{padding:11px 12px;gap:9px;border-radius:9px}
+  #model-library-v3 .model-hero-img{width:58px;height:48px;min-width:58px}
+  #model-library-v3 .model-hero h2{font-size:17px}
+  #model-library-v3 .model-meta{font-size:10.5px;gap:4px;flex-wrap:wrap}
+  #model-library-v3 .model-hero-actions{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-top:2px}
+  #model-library-v3 .model-hero-actions .btn{flex:0 0 auto;height:30px;min-height:30px;font-size:10.5px}
+  #model-library-v3 .model-view-tabs{gap:14px;margin-bottom:8px}
+  #model-library-v3 .model-view-tabs button{font-size:11px;min-height:32px}
+  #model-library-v3 .model-overview-grid,
+  #model-library-v3 .model-tire-grid{grid-template-columns:1fr;gap:8px}
+  #model-library-v3 .model-data-grid{grid-template-columns:1fr 1fr;gap:9px 12px;padding:11px 12px}
+  #model-library-v3 .model-battery-grid{grid-template-columns:1fr;padding:10px}
+  #model-library-v3 .model-view-section .card{border-radius:9px}
+  #model-library-v3 .model-view-section .box-head{padding:8px 11px}
+  #model-library-v3 .model-tire-grid .model-diagram-card{padding:7px}
+  #model-library-v3 #viewWheelDiagram svg{max-height:180px}
+}
+@media(max-width:380px){
+  #model-library-v3 .model-data-grid{grid-template-columns:1fr}
+  #model-library-v3 .model-view-tabs{gap:10px}
+}
 </style>
 {% endblock %}
 {% block content %}
