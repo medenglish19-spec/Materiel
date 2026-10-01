@@ -286,8 +286,12 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                 if notes_text:
                     documented_factors.append("ملاحظات إصلاح مسجلة")
                 factor_text = "؛ ".join(documented_factors) if documented_factors else "لا توجد عوامل تفسيرية موثقة إضافية في سجل الإصلاح."
+                fault_type_text = fault.fault_type or "غير محدد"
+                workshop_text = first_repair.workshop or (
+                    "خارجية" if first_repair.workshop_type == "external" else "داخلية"
+                )
                 findings.append({
-                    "kind": "finding",
+                    "evidence": f"نوع العطل: {fault_type_text}؛ الورشة: {workshop_text}؛ {factor_text}.",
                     "state": "مدة معالجة عطل قابلة للقياس",
                     "subject": label,
                     "comparison": f"من تاريخ البلاغ {fault.reported_date} إلى أول إصلاح مسجل {first_repair.repair_date}: {duration_days} يومًا.",
