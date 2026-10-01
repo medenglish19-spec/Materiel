@@ -242,6 +242,52 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                 "meaning": "التكرار عبر فترات منفصلة يجعل الحالة نمطًا زمنيًا يستحق المراجعة، دون إثبات سبب التكرار.",
             })
 
+    # Post-repair recurrence: the same fault type reported again after a repair
+    # for that fault. This is a temporal pattern only; it does not label the repair
+    # as failed or establish causation.
+    faults_by_equipment_type = defaultdict(list)
+    repairs_by_fault_id = defaultdict(list)
+    for fault in faults:
+        if fault.fault_type and fault.reported_date:
+            faults_by_equipment_type[(fault.equipment_id, fault.fault_type)].append(fault)
+    for repair in repairs:
+        fault = getattr(repair, "fault", None)
+        if fault is not None and getattr(fault, "id", None) is not None:
+            repairs_by_fault_id[fault.id].append(repair)
+
+    for (equipment_id, fault_type), fault_group in faults_by_equipment_type.items():
+        ordered_faults = sorted(
+            fault_group,
+            key=lambda f: (f.reported_date, f.id),
+        )
+        for fault in ordered_faults:
+            repair_dates = [
+                r.repair_date
+                for r in repairs_by_fault_id.get(fault.id, [])
+                if r.repair_date and r.repair_date >= fault.reported_date
+            ]
+            if not repair_dates:
+                continue
+            latest_repair_date = max(repair_dates)
+            later_faults = [
+                f for f in ordered_faults
+                if f.reported_date > latest_repair_date
+            ]
+            if not later_faults:
+                continue
+            item = by_id.get(equipment_id)
+            label = item.registration_number if item and item.registration_number else "عتاد غير مسجل"
+            next_fault = later_faults[0]
+            findings.append({
+                "kind": "finding",
+                "state": "تكرار عطل بعد تسجيل إصلاح",
+                "subject": label,
+                "comparison": f'نوع العطل «{fault_type}» سُجل مرة أخرى بعد آخر إصلاح مرتبط به في {latest_repair_date}.',
+                "evidence": f'العطل السابق: {fault.reported_date}؛ الإصلاح المسجل: {latest_repair_date}؛ البلاغ اللاحق: {next_fault.reported_date}.',
+                "meaning": "يوجد تسلسل زمني يستحق مراجعة تفاصيل العطل والإصلاح اللاحق، دون اعتبار ذلك دليلًا على فشل الإصلاح أو سبب العطل.",
+            })
+            break
+
     # Group-level repeated patterns: same fault type across comparable equipment.
     repeated = defaultdict(list)
     for fault in faults:
