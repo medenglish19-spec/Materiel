@@ -124,13 +124,16 @@
     if (model) {
       const id = model.dataset.modelRow;
       actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
-      actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
-      actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
-      actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
+      if (model.dataset.privateLibrary !== '0') {
+        actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
+        actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
+        actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
+      }
     } else if (ref) {
       const id = ref.dataset.id; const kind = ref.dataset.refItem;
       const labels = { category: 'الفئة', type: 'نوع العتاد', brand: 'العلامة التجارية', spec: 'الخاصية' };
-      if (!id || !labels[kind]) return;
+      if (!id || !labels[kind] || ref.dataset.system === '1') return;
+      if (kind === 'type') actions.push(['👁 عرض نوع العتاد', () => window.viewType?.(ref)]);
       actions.push([`✏️ تعديل ${labels[kind]}`, () => editReference(ref)]);
       const routes = { category: `/equipment-types/categories/${id}/delete`, type: `/equipment-types/${id}/delete`, brand: `/equipment-types/brands/${id}/delete` };
       if (routes[kind]) actions.push([`🗑 حذف ${labels[kind]}`, () => postDelete(routes[kind], `حذف ${labels[kind]}؟`)]);
@@ -176,7 +179,7 @@
       const typeId = String(row.dataset.equipmentTypeId || '');
       const store = masterData();
       if (modelId && store[modelId]) store[modelId].equipment_type_id = typeId || store[modelId].equipment_type_id;
-      row.draggable = true;
+      row.draggable = row.dataset.privateLibrary !== '0';
     });
 
     /* Legacy flat-tree markup is still supported if a future template
@@ -251,7 +254,41 @@
   };
   const revealAncestors = (node) => { let group = node.closest('.tree-group'); while (group) { group.classList.add('open'); group.querySelector(':scope > .tree-node')?.removeAttribute('hidden'); group = group.parentElement?.closest('.tree-group'); } };
   const search = $('treeSearch');
-  search?.addEventListener('input', () => { const q = search.value.trim().toLocaleLowerCase(); const nodes = [...tree.querySelectorAll('.tree-node')]; nodes.forEach((node) => { node.hidden = !!q && !node.textContent.toLocaleLowerCase().includes(q); }); if (q) nodes.filter((node) => !node.hidden).forEach(revealAncestors); syncArrows(); });
+  let activeTreeFilter = 'all';
+  const applyTreeFilters = () => {
+    const q = (search?.value || '').trim().toLocaleLowerCase();
+    const modelRows = [...tree.querySelectorAll('[data-model-row]')];
+    modelRows.forEach((row) => {
+      const matchesQuery = !q || row.textContent.toLocaleLowerCase().includes(q);
+      const matchesFilter = activeTreeFilter === 'all' || (activeTreeFilter === 'frozen' && row.dataset.frozen === '1') || (activeTreeFilter === 'empty' && Number(row.dataset.actualCount || 0) === 0);
+      row.hidden = !(matchesQuery && matchesFilter);
+    });
+    [...tree.querySelectorAll('[data-ref-item="type"]')].forEach((node) => {
+      const group = node.closest('.tree-group');
+      const rows = [...(group?.querySelectorAll(':scope > .children > [data-model-row]') || [])];
+      const descendants = [...(group?.querySelectorAll('.model-row') || [])];
+      const hasVisibleModel = descendants.some((row) => !row.hidden);
+      const matchesQuery = !q || node.textContent.toLocaleLowerCase().includes(q) || hasVisibleModel;
+      const matchesFilter = activeTreeFilter === 'all' || (activeTreeFilter === 'frozen' && (node.dataset.frozen === '1' || descendants.some((row) => !row.hidden))) || (activeTreeFilter === 'empty' && Number(node.dataset.actualCount || 0) === 0);
+      node.hidden = !(matchesQuery && matchesFilter);
+      if (node.hidden && group) group.classList.remove('open');
+      if (!node.hidden && (q || activeTreeFilter !== 'all')) group?.classList.add('open');
+    });
+    [...tree.querySelectorAll('[data-ref-item="category"]')].forEach((node) => {
+      const group = node.closest('.tree-group');
+      const types = [...(group?.querySelectorAll('[data-ref-item="type"]') || [])];
+      node.hidden = !!(q || activeTreeFilter !== 'all') && !types.some((type) => !type.hidden);
+      if (!node.hidden && (q || activeTreeFilter !== 'all')) group?.classList.add('open');
+    });
+    if (q) [...tree.querySelectorAll('.tree-node:not([hidden])')].forEach(revealAncestors);
+    syncArrows();
+  };
+  search?.addEventListener('input', applyTreeFilters);
+  document.querySelectorAll('[data-tree-filter]').forEach((button) => button.addEventListener('click', () => {
+    activeTreeFilter = button.dataset.treeFilter || 'all';
+    document.querySelectorAll('[data-tree-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+    applyTreeFilters();
+  }));
 
   tree.addEventListener('contextmenu', (event) => { const node = event.target.closest('[data-model-row],[data-ref-item]'); if (!node) return; event.preventDefault(); showMenu(node, event.clientX, event.clientY); });
   let timer; let pressTarget; let sx; let sy;
@@ -399,6 +436,7 @@
     const ref = event.target.closest('[data-ref-item]');
     if (ref) {
       selectNode(ref);
+      if (ref.dataset.refItem === 'type') { window.viewType?.(ref); return; }
       if (ref.dataset.system === '1') { ref.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
       editReference(ref);
       return;
@@ -413,6 +451,7 @@
 
   const style = document.createElement('style'); style.textContent = `.master-context-menu{position:fixed;z-index:99999;min-width:200px;padding:6px;background:#fff;border:1px solid rgba(18,53,36,.1);border-radius:12px;box-shadow:0 18px 44px rgba(16,60,32,.2);direction:rtl}.master-context-menu button{display:block;width:100%;border:0;background:transparent;text-align:right;padding:10px 12px;border-radius:8px;font:inherit;font-weight:700;color:#2e5a3a;cursor:pointer;transition:background .14s ease,color .14s ease}.master-context-menu button:hover{background:#eaf7ef;color:#0f3d21}.tree-node[draggable=true]{cursor:grab}.tree-node.dragging{opacity:.45}.tree-group.drop-target>.tree-node{outline:2px dashed #43a047;background:#eaf7ef}@media(max-width:640px){.master-context-menu{max-width:calc(100vw - 16px)}}`; document.head.appendChild(style); document.head.appendChild(style);
   buildHierarchy();
-  tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = true; });
+  tree.querySelectorAll('[data-model-row]').forEach((row) => { row.draggable = row.dataset.privateLibrary !== '0'; });
   syncArrows(); selectSection(0);
 })();
+
