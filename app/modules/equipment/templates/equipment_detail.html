@@ -13,11 +13,11 @@
 
   <div class="ed-hero">
     <div class="ed-hero-main">
-      <span class="ed-plate">{{ item.registration_number or item.asset_code }}</span>
+      <span class="ed-plate">{{ item.registration_number or item.vin }}</span>
       <h1>
         {{ item.equipment_type.name if item.equipment_type else 'عتاد' }}
         · {{ item.equipment_model.name if item.equipment_model else '-' }}
-        · {{ item.asset_code }}
+        · {{ item.vin }}
       </h1>
     </div>
     <span class="ed-chip {% if item.operational_status in ['available','ready','active'] %}ok{% elif item.operational_status in ['maintenance','in_maintenance'] %}warn{% elif item.operational_status in ['external_workshop','mission'] %}info{% else %}bad{% endif %}">{{ label('operational', item.operational_status) }}</span>
@@ -49,7 +49,7 @@
         </div>
         <div class="ed-card-b">
           <div class="ed-kv">
-            <div><span>رقم العتاد</span><b>{{ item.asset_code }}</b></div>
+            <div><span>رقم العتاد</span><b>{{ item.vin }}</b></div>
             <div><span>رقم التسجيل</span><b>{{ item.registration_number or '-' }}</b></div>
             <div><span>النوع</span><b>{{ item.equipment_type.name if item.equipment_type else '-' }}</b></div>
             <div><span>الطراز</span><b>{{ item.equipment_model.name if item.equipment_model else '-' }}</b></div>
