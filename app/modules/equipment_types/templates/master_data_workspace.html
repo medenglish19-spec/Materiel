@@ -129,9 +129,13 @@ function renderSpecLibrary(d){
   }));
 }
 function specInput(def,value=''){
-  const safe=String(value||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
+  const raw=String(value||'').trim();
+  const options=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean);
+  const isLegacyOptionsValue=def.data_type==='select' && raw && raw===options.join(',');
+  const selected=isLegacyOptionsValue?'':raw;
+  const safe=selected.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
   if(def.data_type==='select'){
-    const opts=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean).map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===String(value)?' selected':'')+'>'+v+'</option>').join('');
+    const opts=options.map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===selected?' selected':'')+'>'+v+'</option>').join('');
     return '<select class="spec-value" data-definition="'+def.id+'"><option value="">اختر</option>'+opts+'</select>';
   }
   return '<input class="spec-value" data-definition="'+def.id+'" type="'+(def.data_type==='number'?'number':'text')+'" value="'+safe+'">';
