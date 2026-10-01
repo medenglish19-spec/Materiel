@@ -59,15 +59,7 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = (
-        db.query(Equipment)
-        .options(
-            joinedload(Equipment.equipment_type).joinedload(EquipmentType.category),
-            joinedload(Equipment.equipment_model),
-        )
-        .order_by(Equipment.id)
-        .all()
-    )
+    items = (db.query(Equipment).options(joinedload(Equipment.equipment_type).joinedload(EquipmentType.category), joinedload(Equipment.equipment_model)).order_by(Equipment.id).all())
     analysis = build_capacity_readiness_analysis(items)
     equipment_ids = [x.id for x in items]
     meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
@@ -77,8 +69,17 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
     maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
     operational = build_operational_analysis(items, faults, maintenance_records)
-    return templates.TemplateResponse(
-        request=request,
-        name="equipment_analysis.html",
-        context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational},
-    )
+    return templates.TemplateResponse(request=request, name="equipment_analysis.html", context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational})
+
+@router.get("/equipment/analysis/operational", response_class=HTMLResponse)
+def equipment_operational_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    items = (db.query(Equipment).options(joinedload(Equipment.equipment_model), joinedload(Equipment.equipment_type)).order_by(Equipment.id).all())
+    equipment_ids = [x.id for x in items]
+    meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    missions = db.query(Mission).filter(Mission.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
+    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
+    operational = build_operational_analysis(items, faults, maintenance_records)
+    return templates.TemplateResponse(request=request, name="equipment_operational_analysis.html", context={"request": request, "user": current_user, "utilization": utilization, "operational": operational})
