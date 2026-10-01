@@ -30,15 +30,31 @@
     {% endif %}
   </section>
 
+  {% if operational.context %}
+  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px;padding:14px 16px">
+    <strong style="font-size:12px">سياق البيانات المتاح للمراجعة</strong>
+    {% for f in operational.context %}
+    <article style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:10px 0;border-bottom:1px solid #edf0f3">
+      <div style="font-size:10px;font-weight:700;color:#627181">{{ f.state }}</div>
+      <div>
+        <strong style="font-size:10px">{{ f.subject }}</strong>
+        <p style="margin:4px 0;font-size:9.5px;color:#526273">{{ f.meaning }}</p>
+        <small style="display:block;color:#8793a0"><b>الدليل:</b> {{ f.evidence }}</small>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;overflow:auto;margin-bottom:12px">
     <div style="padding:13px 15px;border-bottom:1px solid #edf0f3">
       <strong style="font-size:12px">المقارنة على مستوى العتاد</strong>
-      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">معدل الأعطال لكل 1000 كم واستهلاك الوقود يقارنان فقط مع وحدات مماثلة تتوفر لها بيانات قابلة للحساب.</span>
+      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">المقارنات لا تظهر إلا عند توفر 3 وحدات مماثلة على الأقل ذات بيانات قابلة للحساب، ويُعرض عدد الوحدات المستخدمة في الدليل.</span>
     </div>
     <table style="width:100%;border-collapse:collapse;min-width:1180px">
       <thead><tr>
         <th>رقم التسجيل</th><th>الطراز</th><th>المسافة كم</th><th>المهمات</th><th>الوقود</th><th>لتر/100كم</th>
-        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع المجموعة</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
+        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع المجموعة</th><th>حجم المقارنة</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
       </tr></thead>
       <tbody>
       {% for r in operational.rows %}
@@ -52,13 +68,14 @@
         <td>{{ r.fault_count }}</td>
         <td>{{ r.fault_rate_per_1000km|round(2) if r.fault_rate_per_1000km is not none else "—" }}</td>
         <td>{% if r.peer_fault_rate_per_1000km is not none %}{{ r.peer_fault_rate_per_1000km|round(2) }} عطل/1000كم{% else %}—{% endif %}</td>
+        <td>{{ r.peer_count if r.peer_fault_rate_per_1000km is not none else "—" }}</td>
         <td>{{ r.open_fault_count }}</td>
         <td>{{ r.repair_count }}</td>
         <td>{{ r.maintenance_count }}</td>
         <td>{{ r.technical_condition }} / {{ r.operational_status }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="13" style="padding:25px;text-align:center;color:#8793a0">لا توجد بيانات.</td></tr>
+      <tr><td colspan="14" style="padding:25px;text-align:center;color:#8793a0">لا توجد بيانات.</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -68,7 +85,7 @@
     <strong style="font-size:12px">كيف نقرأ النتائج؟</strong>
     <ul style="margin:8px 0 0;padding-right:18px;color:#627181;font-size:9.5px;line-height:1.9">
       <li>المسافة مصدرها قراءات العداد؛ لا يتم اختراع مسافة عند غيابها.</li>
-      <li>معدل الأعطال والوقود لا يُقارن إلا عندما توجد بيانات كافية قابلة للحساب في وحدات مماثلة.</li>
+      <li>قاعدة كفاية المقارنة الحالية: 3 وحدات مماثلة على الأقل، وهي قاعدة لجودة المقارنة وليست حدًا للأداء.</li>
       <li>المقارنة تستخدم مرجع المجموعة المماثلة، ولا تمثل درجة صحة أو ترتيبًا للعتاد.</li>
       <li>تكرار العطل أو ارتباطه بالإصلاح أو الصيانة يحدد نمطًا للمراجعة ولا يثبت علاقة سببية.</li>
     </ul>
