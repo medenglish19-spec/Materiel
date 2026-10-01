@@ -368,6 +368,12 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
 
     context = [f for f in findings if f.get("kind") == "context"]
     findings = [f for f in findings if f.get("kind") != "context"]
-    totals["repair_duration_count"] = len(repair_duration_rows)\n    totals["repair_duration_days"] = sum(r[3] for r in repair_duration_rows)\n    totals["repair_duration_avg_days"] = (Decimal(str(totals["repair_duration_days"])) / Decimal(str(len(repair_duration_rows))) if repair_duration_rows else None)\n    return {"rows": rows, "totals": totals, "findings": findings, "context": context}
+    totals["repair_duration_count"] = len(repair_duration_rows)
+    totals["repair_duration_days"] = sum(r[3] for r in repair_duration_rows)
+    totals["repair_duration_avg_days"] = (
+        Decimal(str(totals["repair_duration_days"])) / Decimal(str(len(repair_duration_rows)))
+        if repair_duration_rows else None
+    )
+    return {"rows": rows, "totals": totals, "findings": findings, "context": context}
 
 
