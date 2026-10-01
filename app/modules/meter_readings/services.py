@@ -70,8 +70,6 @@ def _refresh_equipment_current(db: Session, equipment: Equipment, unit: str):
     latest = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
     if unit == "km": equipment.current_odometer = _value(latest, unit)
     else: equipment.current_hours = _value(latest, unit)
-    if latest is not None and latest.equipment_status:
-        equipment.operational_status = normalize_equipment_status(latest.equipment_status)
 def cleanup_invalid_readings(db: Session):
     today = datetime.now(timezone.utc).date(); cutoff = datetime.combine(today, datetime.max.time())
     invalid = db.query(MeterReading).filter(MeterReading.reading_date > cutoff).all(); invalid += db.query(MeterReading).filter((MeterReading.odometer < 0) | (MeterReading.hours < 0)).all()
