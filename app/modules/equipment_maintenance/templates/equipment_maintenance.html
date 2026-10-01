@@ -2,7 +2,7 @@
 {% block title %}سجل صيانة العتاد{% endblock %}
 {% block content %}
 <div class="page-header">
-  <div><h2>سجل الصيانة</h2><p class="page-hint">{{ item.equipment_type.name if item.equipment_type else '-' }} - {{ item.equipment_model.name if item.equipment_model else '-' }} - {{ item.registration_number or item.asset_code }}</p></div>
+  <div><h2>سجل الصيانة</h2><p class="page-hint">{{ item.equipment_type.name if item.equipment_type else '-' }} - {{ item.equipment_model.name if item.equipment_model else '-' }} - {{ item.registration_number or item.vin }}</p></div>
   <div><a href="/equipment/{{ item.id }}" class="btn-secondary">← ملف العتاد</a><a href="#newMaintenance" class="btn-primary">➕ إضافة صيانة</a></div>
 </div>
 {% set saved=request.query_params.get('saved') %}{% set changed=request.query_params.get('changed') %}
@@ -11,7 +11,7 @@
 
 <div class="card"><h3>بيانات العتاد</h3><div class="grid-form">
 <div class="field"><label>الطراز</label><div class="form-value">{{ item.equipment_model.name if item.equipment_model else '-' }}</div></div>
-<div class="field"><label>رقم العتاد</label><div class="form-value">{{ item.registration_number or item.asset_code }}</div></div>
+<div class="field"><label>رقم العتاد</label><div class="form-value">{{ item.registration_number or item.vin }}</div></div>
 <div class="field"><label>نوع العتاد</label><div class="form-value">{{ item.equipment_type.name if item.equipment_type else '-' }}</div></div>
 <div class="field"><label>العداد الحالي</label><div class="form-value">{% if item.equipment_type.measurement_unit=='hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</div></div>
 </div></div>
