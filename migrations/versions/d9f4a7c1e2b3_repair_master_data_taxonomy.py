@@ -154,7 +154,9 @@ def upgrade():
             "VALUES (:name,:code,:dtype,:unit,:options,:sort,:group,:group_sort,NULL,:category,"
             "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
         ), {
-            "name":name, "code":code, "dtype":data_type, "unit":unit,
+            "name":name, "code":code, "dtype":data_type,
+            # الخاصية من نوع اختيار لا تملك وحدة قياس؛ لا تُنسخ قائمة الخيارات إلى unit
+            "unit":None if data_type=="select" else unit,
             "options":OPTIONS.get(name), "sort":sort_order, "group":group_name,
             "group_sort":sort_order // 10, "category":vehicle_category_id,
         })

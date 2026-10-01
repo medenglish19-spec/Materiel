@@ -202,7 +202,12 @@ def test_equipment_detail_exposes_current_installed_tire_table_data():
 
     assert "tire_services.installed_for_equipment(db,equipment_id)" in source or "tire_services.installed_for_equipment(db, equipment_id)" in source
     assert "installed_tires" in template
-    assert "هذه هي الإطارات المركبة حاليًا حسب آخر حركة صحيحة لكل إطار" in template
+    # The detail mockup replaced the old static caption with a live count, the
+    # full installed-tire table and the empty state.
+    assert "إطارًا حاليًا" in template
+    assert "<th>الموضع</th>" in template
+    assert "لا توجد إطارات مركبة حاليًا." in template
+    assert "فتح سجل الإطارات الكامل" in template
 
 
 def test_battery_history_ordering_remains_date_then_id():

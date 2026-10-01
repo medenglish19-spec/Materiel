@@ -83,7 +83,7 @@
           {% if item.equipment_model.spec_values %}
           <div class="ed-model-specs" style="margin-top:16px">
             {% for spec in item.equipment_model.spec_values %}
-            <div class="ed-spec"><b>{{ spec.definition.name }}:</b> {{ spec.value }}{% if spec.definition.unit %} {{ spec.definition.unit }}{% endif %}</div>
+            <div class="ed-spec"><b>{{ spec.definition.name }}:</b> {{ spec.value }}{% if spec.definition.data_type != 'select' and spec.definition.unit %} {{ spec.definition.unit }}{% endif %}</div>
             {% endfor %}
           </div>
           {% endif %}

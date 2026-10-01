@@ -177,7 +177,9 @@ def upgrade():
             (name,code,data_type,unit,options,sort_order,group_name,group_sort_order,equipment_type_id,category_id,created_at,updated_at)
             VALUES (:name,:code,:dtype,:unit,:options,:sort,:group,:group_sort,NULL,:category,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"""),
             {
-                "name": name, "code": code, "dtype": data_type, "unit": unit,
+                "name": name, "code": code, "dtype": data_type,
+                # الخاصية من نوع اختيار لا تملك وحدة قياس؛ لا تُنسخ قائمة الخيارات إلى unit
+                "unit": None if data_type == "select" else unit,
                 "options": option_map.get(name), "sort": order, "group": group_name,
                 "group_sort": order // 10, "category": vehicle_category_id,
             },

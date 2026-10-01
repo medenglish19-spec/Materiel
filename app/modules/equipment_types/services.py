@@ -128,6 +128,17 @@ def list_spec_definition_type_ids(db: Session) -> dict[int, list[int]]:
         result.setdefault(definition_id, []).append(type_id)
     return result
 
+def _option_list_copy(unit: Optional[str], options: Optional[str]) -> bool:
+    """True only when `unit` provably repeats the select option list (legacy migration corruption).
+
+    Comparison ignores spacing around commas so that a copy pasted with or without
+    spaces is detected. Anything else in `unit` is left untouched (never guessed).
+    """
+    norm=lambda text:",".join(p.strip() for p in (text or "").split(",") if p.strip())
+    left,right=norm(unit),norm(options)
+    return bool(left) and left==right
+
+
 def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
@@ -145,9 +156,13 @@ def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> Equipment
         vals=[o.strip() for o in (data.options or "").split(",") if o.strip()]
         if len(vals)<2: raise ValueError("خاصية من نوع اختيار تحتاج قيمتين على الأقل مفصولتين بفاصلة")
         options=",".join(dict.fromkeys(vals))
+    unit=(data.unit or "").strip() or None
+    if options is not None and _option_list_copy(unit,options):
+        # خاصية الاختيار لا تحمل وحدة قياس؛ نرفض حفظ نسخة من قائمة الخيارات في حقل الوحدة
+        unit=None
     obj=EquipmentModelSpecDefinition(
         name=name, code=code, data_type=data.data_type,
-        unit=(data.unit or "").strip() or None, options=options,
+        unit=unit, options=options,
         group_name=(data.group_name or "").strip() or "التعريف الفني",
         group_sort_order=max(0,data.group_sort_order),
         equipment_type_id=data.equipment_type_id,

@@ -121,7 +121,7 @@ function renderSpecLibrary(d){
   const groups=new Map(); defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
   const total=defs.length, chosen=defs.filter(def=>selected.has(Number(def.id))).length;
   picker.innerHTML='<div class="spec-library-toolbar"><strong>مكتبة الخصائص الفنية المركزية</strong><span>'+chosen+' / '+total+' محددة</span></div>'+
-    [...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
+    [...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
   picker.querySelectorAll('.spec-pick').forEach(x=>x.addEventListener('change',()=>{
     const values=Object.fromEntries([...document.querySelectorAll('#specRows .spec-value')].map(v=>[Number(v.dataset.definition),v.value]));
     const specs=[...picker.querySelectorAll('.spec-pick:checked')].map(y=>({definition_id:Number(y.dataset.definition),value:values[Number(y.dataset.definition)]||''}));
@@ -160,14 +160,14 @@ function renderSpecEditor(d){
   defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
   if(!DEFS.length){$('specRows').innerHTML='<span class="muted">مكتبة الخصائص الفنية لا تحتوي خصائص بعد.</span>';return}
   if(!defs.length){$('specRows').innerHTML='<span class="muted">لم يتم اختيار خصائص لهذا الطراز بعد. اضغط «＋ اختيار الخصائص من مكتبة الخصائص الفنية» لإضافة الخصائص المطلوبة.</span>';return}
-  $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
+  $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
 }
 function renderSpecView(d){
   const values=Object.fromEntries((d.specs||[]).map(x=>{const def=DEFS.find(y=>Number(y.id)===Number(x.definition_id));return [Number(x.definition_id),normalizeSpecValue(def||{data_type:'text'},x.value)]}));
   const defs=DEFS;
   const groups=new Map();
   defs.filter(def=>values[Number(def.id)]!==undefined && values[Number(def.id)]!=='').forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
-  $('viewSpecRows').innerHTML=groups.size?[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<div class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><strong>'+String(values[Number(def.id)]).replaceAll('<','&lt;')+'</strong></div>').join('')+'</div></div>').join(''):'<span class="muted">لا توجد خصائص مسجلة لهذا الطراز.</span>';
+  $('viewSpecRows').innerHTML=groups.size?[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<div class="field"><span>'+def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'')+'</span><strong>'+String(values[Number(def.id)]).replaceAll('<','&lt;')+'</strong></div>').join('')+'</div></div>').join(''):'<span class="muted">لا توجد خصائص مسجلة لهذا الطراز.</span>';
   $('viewSpecEmpty').style.display=groups.size?'none':'block';
 }
 
