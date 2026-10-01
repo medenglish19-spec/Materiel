@@ -216,6 +216,30 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
                 "meaning": "يوفر هذا العتاد سجلًا كافيًا نسبيًا لمراجعة العلاقة الزمنية بين الاستغلال والصيانة والأعطال بدل قراءة كل مصدر منفردًا.",
             })
 
+    # Temporal patterns: distinguish a one-off report from recurrence across
+    # separate calendar periods. This is descriptive, not a diagnosis.
+    temporal_repeated = defaultdict(set)
+    for fault in faults:
+        item = by_id.get(fault.equipment_id)
+        if not item or not fault.fault_type or not fault.reported_date:
+            continue
+        _type_name, brand_name, model_name, _peer_key = _equipment_labels(item)
+        period = fault.reported_date.strftime("%Y-%m")
+        temporal_repeated[(fault.equipment_id, brand_name, model_name, fault.fault_type)].add(period)
+
+    for (equipment_id, brand, model, fault_type), periods in temporal_repeated.items():
+        if len(periods) >= 2:
+            item = by_id.get(equipment_id)
+            label = item.registration_number if item and item.registration_number else "عتاد غير مسجل"
+            findings.append({
+                "kind": "finding",
+                "state": "تكرار عطل عبر فترات زمنية",
+                "subject": label,
+                "comparison": f'نوع العطل «{fault_type}» ظهر في {len(periods)} فترات شهرية مختلفة.',
+                "evidence": f'الفترات المسجلة: {", ".join(sorted(periods))}.',
+                "meaning": "التكرار عبر فترات منفصلة يجعل الحالة نمطًا زمنيًا يستحق المراجعة، دون إثبات سبب التكرار.",
+            })
+
     # Group-level repeated patterns: same fault type across comparable equipment.
     repeated = defaultdict(list)
     for fault in faults:
@@ -254,6 +278,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
 
     if totals["maintenance_records"] and totals["faults"]:
         findings.append({
+            "kind": "context",
             "state": "الصيانة والأعطال قابلة للمقارنة",
             "subject": "الحضيرة",
             "comparison": "توجد سجلات من المصدرين في الفترة الحالية للبيانات.",
