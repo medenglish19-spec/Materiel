@@ -25,7 +25,7 @@ router = APIRouter(); templates = get_module_templates("app/modules/equipment/te
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     items = services.list_equipment(db)
     operational_statuses = services.effective_operational_statuses(db, items)
-    types = type_services.list_types(db)
+    types = type_services.list_user_types(db)
 
     # --- إضافة: بيانات الخصائص الحرّة للفلترة في /equipment ---
     spec_definitions = type_services.list_spec_definitions(db)
