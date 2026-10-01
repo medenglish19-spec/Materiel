@@ -78,7 +78,26 @@ def sync_mission_statuses(db: Session):
 
 
 def counts(db: Session):
+    """احتساب حالة المهمات على مستوى العتاد، لا على مستوى سجلات المهمات."""
     result = {"planned": 0, "running": 0, "completed": 0}
+    today = date.today()
+
+    equipment = db.query(Equipment).all()
+    missions_by_equipment = {}
     for mission in list_missions(db):
-        result[mission_status(mission)] += 1
+        missions_by_equipment.setdefault(mission.equipment_id, []).append(mission)
+
+    for eq in equipment:
+        missions = missions_by_equipment.get(eq.id, [])
+        if not missions:
+            continue
+
+        statuses = {mission_status(mission, today) for mission in missions}
+        if "running" in statuses:
+            result["running"] += 1
+        elif "planned" in statuses:
+            result["planned"] += 1
+        else:
+            result["completed"] += 1
+
     return result
