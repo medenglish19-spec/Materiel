@@ -72,6 +72,8 @@ class SparePartRequestOut(BaseModel):
     fault_id: int | None
     repair_id: int | None
     equipment_id: int | None
+    equipment_registration: str | None = None
+    report_number: str | None = None
     status: str
     notes: str | None
     items: list[SparePartRequestItemOut]
