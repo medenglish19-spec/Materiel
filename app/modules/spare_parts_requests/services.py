@@ -57,6 +57,12 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     if db.query(SparePartRequest).filter(SparePartRequest.request_number == data.request_number).first():
         raise ValueError("رقم وثيقة الطلب مستخدم مسبقًا")
     _, equipment_id, source_date = _source(db, data.source_type, data.source_id)
+    existing = db.query(SparePartRequest).filter(
+        SparePartRequest.fault_id == (data.source_id if data.source_type == "fault" else None),
+        SparePartRequest.repair_id == (data.source_id if data.source_type == "repair" else None),
+    ).first()
+    if existing:
+        raise ValueError("يوجد طلب غيار مرتبط بهذا المصدر بالفعل")
     if data.request_date != source_date:
         raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
 
