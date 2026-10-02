@@ -254,7 +254,7 @@ def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     body = client.get("/equipment").text
 
     assert "111-TEST" in body, "العتاد المزروع غير ظاهر في القائمة"
-    assert "قيد الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
+    assert "في الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
     assert 'data-status="in_maintenance"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
 
 
