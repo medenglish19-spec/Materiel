@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}سجل قطع الغيار المستلم{% endblock %}
+{% block content %}
+<style>
+.rpr{direction:rtl}.rpr .top{display:flex;justify-content:space-between;align-items:end;margin-bottom:14px}.rpr h1{margin:0;color:#183955;font-size:23px}.rpr .muted{font-size:11px;color:#718096;margin-top:5px}.rpr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:auto}.rpr .bar{padding:11px;border-bottom:1px solid #edf1f4}.rpr input{height:32px;border:1px solid #dce4ea;border-radius:6px;padding:0 9px;font:inherit;font-size:10px;min-width:280px}.rpr table{width:100%;min-width:1100px;border-collapse:collapse}.rpr th,.rpr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}.rpr th{background:#f8fafc;color:#718096}.rpr .empty{text-align:center;padding:30px;color:#8794a2}@media(max-width:650px){.rpr .top{align-items:flex-start;flex-direction:column;gap:8px}}
+</style>
+<div class="rpr">
+  <div class="top">
+    <div><h1>سجل قطع الغيار المستلم</h1><div class="muted">يسجل فقط البنود التي توجد لها كمية مستلمة.</div></div>
+    <a href="/spare-parts-requests" style="color:#245d88;font-size:11px;font-weight:800">→ طلبات الغيار</a>
+  </div>
+  <div class="panel">
+    <div class="bar"><input id="q" placeholder="بحث في رقم الوثيقة، التعيين، العتاد، المستلم، المؤسسة الممونة أو التقرير"></div>
+    <table>
+      <thead><tr><th>رقم الوثيقة</th><th>التعيين</th><th>الكمية المطلوبة</th><th>الكمية المستلمة</th><th>العتاد</th><th>رقم التسجيل</th><th>المستلم</th><th>المؤسسة الممونة</th><th>رقم التقرير</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="9" class="empty">جارٍ التحميل...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script>
+let data=[];
+async function load(){const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'});data=await r.json();render();}
+function render(){
+  const q=(document.getElementById('q').value||'').trim().toLowerCase();
+  const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
+  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+x.requested_quantity+'</td><td>'+x.received_quantity+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td><td>'+esc(x.report_number)+'</td></tr>').join(''):'<tr><td colspan="9" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
+}
+document.getElementById('q').addEventListener('input',render);
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+load();
+</script>
+{% endblock %}
