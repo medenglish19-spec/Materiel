@@ -49,6 +49,9 @@ def status(request_id: int, data: SparePartRequestStatusUpdate, db: Session = De
 @router.get("/stats/pending-count")
 def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return {"count": services.pending_count(db)}
+@router.get("/stats/pending-count")
+def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    return {"count": services.pending_count(db)}
 @router.patch("/items/{item_id}", response_model=SparePartRequestItemOut)
 def item(item_id: int, data: SparePartRequestItemUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
