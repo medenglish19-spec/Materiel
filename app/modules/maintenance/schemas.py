@@ -1,0 +1,206 @@
+from datetime import date
+from decimal import Decimal
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+def _positive(value, field_name):
+    if value is not None and value <= 0:
+        raise ValueError(f"{field_name} يجب أن يكون أكبر من صفر")
+    return value
+
+
+def _nonnegative(value, field_name):
+    if value is not None and value < 0:
+        raise ValueError(f"{field_name} لا يمكن أن يكون سالبًا")
+    return value
+
+
+class MaintenanceOperationGroupBase(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    sort_order: int = 0
+
+
+class MaintenanceOperationGroupCreate(MaintenanceOperationGroupBase):
+    pass
+
+
+class MaintenanceOperationGroupUpdate(MaintenanceOperationGroupBase):
+    pass
+
+
+class MaintenanceOperationGroupOut(MaintenanceOperationGroupBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+class MaintenanceOperationBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    warning_km: Optional[Decimal] = None
+    warning_days: Optional[int] = None
+    is_active: bool = True
+    description: Optional[str] = None
+    group_id: Optional[int] = None
+
+    @field_validator("interval_km")
+    @classmethod
+    def interval_km_valid(cls, value):
+        return _positive(value, "فترة الكيلومترات")
+
+    @field_validator("interval_hours")
+    @classmethod
+    def interval_hours_valid(cls, value):
+        return _positive(value, "فترة الساعات")
+
+    @field_validator("interval_days")
+    @classmethod
+    def interval_days_valid(cls, value):
+        return _positive(value, "فترة الأيام")
+
+    @field_validator("warning_km")
+    @classmethod
+    def warning_km_valid(cls, value):
+        return _nonnegative(value, "تنبيه الكيلومترات")
+
+    @field_validator("warning_days")
+    @classmethod
+    def warning_days_valid(cls, value):
+        return _nonnegative(value, "تنبيه الأيام")
+
+    @model_validator(mode="after")
+    def validate_interval_presence(self):
+        if self.interval_km is None and self.interval_hours is None and self.interval_days is None:
+            raise ValueError("يجب تحديد شرط زمني واحد على الأقل للعملية")
+        return self
+
+
+class MaintenanceOperationCreate(MaintenanceOperationBase):
+    pass
+
+
+class MaintenanceOperationUpdate(MaintenanceOperationBase):
+    pass
+
+
+class MaintenanceOperationOut(MaintenanceOperationBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+class MaintenancePlanBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    equipment_model_id: int
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    is_active: bool = True
+    description: Optional[str] = None
+
+    @field_validator("interval_km")
+    @classmethod
+    def interval_km_valid(cls, value):
+        return _positive(value, "فترة الخطة بالكيلومترات")
+
+    @field_validator("interval_hours")
+    @classmethod
+    def interval_hours_valid(cls, value):
+        return _positive(value, "فترة الخطة بالساعات")
+
+    @field_validator("interval_days")
+    @classmethod
+    def interval_days_valid(cls, value):
+        return _positive(value, "فترة الخطة بالأيام")
+
+
+class MaintenancePlanCreate(MaintenancePlanBase):
+    pass
+
+
+class MaintenancePlanUpdate(MaintenancePlanBase):
+    pass
+
+
+class MaintenancePlanOut(MaintenancePlanBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+class MaintenancePlanOperationBase(BaseModel):
+    plan_id: int
+    operation_id: int
+    sort_order: int = 0
+
+class MaintenancePlanOperationCreate(MaintenancePlanOperationBase):
+    pass
+
+
+class MaintenancePlanOperationOut(MaintenancePlanOperationBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+class MaintenanceRecordCreate(BaseModel):
+    equipment_id: int
+    operation_id: Optional[int] = None
+    plan_id: Optional[int] = None
+    maintenance_date: date
+    reported_date: Optional[date] = None
+    meter_value: Optional[Decimal] = None
+    work_order: Optional[str] = None
+    workshop: Optional[str] = None
+    status: Optional[str] = None
+    is_scheduled: bool = False
+    description: Optional[str] = None
+
+    @field_validator("meter_value")
+    @classmethod
+    def meter_valid(cls, value):
+        return _nonnegative(value, "قراءة العداد")
+
+    @model_validator(mode="after")
+    def validate_source(self):
+        if self.operation_id is None:
+            raise ValueError("يجب تحديد عملية الصيانة")
+        if self.plan_id is not None and self.operation_id is None:
+            raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة")
+        return self
+
+
+class MaintenancePlanExecutionCreate(BaseModel):
+    equipment_id: int
+    plan_id: int
+    operation_ids: list[int] = Field(min_length=1)
+    maintenance_date: date
+    meter_value: Optional[Decimal] = None
+    reported_date: Optional[date] = None
+    work_order: Optional[str] = None
+    workshop: Optional[str] = None
+    status: Optional[str] = None
+    # تنفيذ الخطة يمثل صيانة فعلية مسجلة في سجل العتاد، وليس حجزًا مجدولًا.
+    is_scheduled: bool = False
+    description: Optional[str] = None
+
+    @field_validator("meter_value")
+    @classmethod
+    def meter_valid(cls, value):
+        return _nonnegative(value, "قراءة العداد")
+
+
+class MaintenanceRecordOut(MaintenanceRecordCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_by_id: Optional[int] = None
+    created_at: object
+
+    # القراءة لا تفرض ما تفرضه الكتابة. سجلات الصيانة القديمة سُجّلت قبل
+    # بند «عملية الصيانة»، فبقيت operation_id فارغة فيها. كان هذا الصنف
+    # يرث مُتحقّق الإدخال فيُسقط قائمة /api/maintenance/execution كلها
+    # بخطأ 500 عند قراءة أي سجل قديم. هنا نُبقي القيمة كما هي (None)
+    # ولا نخترع عملية لها،(Input لا يزال محمياً في MaintenanceRecordCreate).
+    @model_validator(mode="after")
+    def validate_source(self):
+        return self

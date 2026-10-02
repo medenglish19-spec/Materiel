@@ -134,7 +134,8 @@ class SparePartOut(SparePartCreate):
 class RepairPartCreate(BaseModel):
     repair_id: int
     spare_part_id: int
-    quantity: Decimal = Field(gt=0)
+    # كمية القطعة المستهلكة عدد صحيح، 1 فأكثر.
+    quantity: int = Field(gt=0)
     distribution_document: str = Field(min_length=1, max_length=255)
     notes: Optional[str] = None
 

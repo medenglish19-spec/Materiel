@@ -16,9 +16,9 @@ def _tree_script() -> str:
 def test_model_editor_is_hierarchical_and_excel_grid_oriented():
     template = _template()
     assert "window.scrollTo" not in template
-    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "مواضع الإطارات", "المقاسات المعتمدة", "البطاريات", "الخصائص التقنية"):
+    for label in ("الطرازات", "البيانات الأساسية", "الإطارات", "توزيع العجلات على المحاور", "المقاسات المعتمدة", "البطاريات", "الخصائص التقنية"):
         assert label in template
-    for element_id in ("positionsBody", "sizesBody", "specRows", "modelForm"):
+    for element_id in ("axleWheelBody", "sizesBody", "specRows", "modelForm"):
         assert f'id="{element_id}"' in template
     assert "positions_json" in template
     assert "sizes_json" in template
@@ -28,12 +28,12 @@ def test_model_editor_is_hierarchical_and_excel_grid_oriented():
 
 def test_model_tree_exposes_inline_tire_creation_actions():
     template = _template()
-    assert 'data-tree-add="position"' in template
     assert 'data-tree-add="size"' in template
+    assert 'data-tree-add="position"' not in template
     script = _tree_script()
     assert "editModel" in script
-    assert "addPos" in script
     assert "addSize" in script
+    assert "addPos" not in script
 
 
 def test_tree_add_controls_route_to_the_existing_create_workflows():
@@ -56,7 +56,7 @@ def test_model_workspace_loads_every_model_field_from_its_own_payload():
         "$('modelBrand').value=d.brand_id??''",
         "$('hasTires').checked=!!d.has_tires",
         "$('hasBatteries').checked=!!d.has_batteries",
-        "renderPositions(d.positions||d.master?.positions||[])",
+        "savedPositions=d.positions||d.master?.positions||[]",
         "renderSizes(d.sizes||d.master?.sizes||[])",
         "renderSpecEditor(d)",
     ):

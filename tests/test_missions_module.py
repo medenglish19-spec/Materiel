@@ -8,4 +8,4 @@ def test_mission_status_is_date_derived():
     today = date.today()
     assert mission_status(Mission(start_date=today + timedelta(days=1))) == "planned"
     assert mission_status(Mission(start_date=today)) == "running"
-    assert mission_status(Mission(start_date=today - timedelta(days=2), end_date=today)) == "completed"
+    assert mission_status(Mission(start_date=today - timedelta(days=2), end_date=today)) == "running"

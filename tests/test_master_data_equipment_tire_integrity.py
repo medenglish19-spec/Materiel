@@ -8,7 +8,6 @@ from sqlalchemy.pool import StaticPool
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.users.models import User
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
 from app.modules.faults_repairs.models import Fault
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment import services as equipment_services
@@ -110,27 +109,6 @@ def test_equipment_type_cannot_be_deleted_while_equipment_uses_it():
     finally:
         db.close()
 
-
-def test_equipment_type_cannot_be_deleted_while_maintenance_rule_exists():
-    db = _fresh_db()
-    try:
-        equipment_type = EquipmentType(name="نوع صيانة", measurement_unit="km")
-        db.add(equipment_type); db.flush()
-        model = EquipmentModel(name="طراز صيانة", equipment_type_id=equipment_type.id)
-        db.add(model); db.flush()
-        rule = MaintenanceRule(
-            name="فحص دوري",
-            equipment_type_id=equipment_type.id,
-            equipment_model_id=model.id,
-            interval_km=1000,
-            is_active=True,
-        )
-        db.add(rule); db.commit()
-        with pytest.raises(ValueError, match="قواعد صيانة مسجلة"):
-            model_services.delete_type(db, equipment_type)
-        assert db.query(EquipmentType).filter(EquipmentType.id == equipment_type.id).first() is not None
-    finally:
-        db.close()
 
 
 def test_model_deletes_its_tire_reference_configuration():

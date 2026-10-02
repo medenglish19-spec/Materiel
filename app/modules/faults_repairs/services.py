@@ -77,6 +77,8 @@ def _sync_equipment_from_faults(db: Session, equipment_id: int):
         equipment.operational_status = "in_external_workshop"
     elif internal_repair:
         equipment.operational_status = "in_maintenance"
+    elif equipment.technical_condition == "broken":
+        equipment.operational_status = "unavailable"
     elif equipment.operational_status in {"in_maintenance", "in_external_workshop"}:
         equipment.operational_status = "available"
     return equipment

@@ -104,19 +104,10 @@ def delete_type(db:Session,obj:EquipmentType)->None:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل الحذف")
 
     from app.modules.equipment.models import Equipment
-    from app.modules.maintenance.models import MaintenanceRecord, MaintenanceRule
 
     # وجود سجل فعلي أو تاريخ تشغيلي في وحدة أخرى يمنع الحذف حفاظًا على التاريخ.
     if db.query(Equipment.id).filter(Equipment.equipment_type_id==obj.id).first():
         raise ValueError("لا يمكن حذف نوع عتاد مستخدم في سجلات العتاد؛ احذف أو انقل السجلات وفق إجراءات النظام أولًا")
-
-    model_ids=[row[0] for row in db.query(EquipmentModel.id).filter(EquipmentModel.equipment_type_id==obj.id).all()]
-    if model_ids:
-        rule_ids=[row[0] for row in db.query(MaintenanceRule.id).filter(MaintenanceRule.equipment_type_id==obj.id).all()]
-        if rule_ids and db.query(MaintenanceRecord.id).filter(MaintenanceRecord.rule_id.in_(rule_ids)).first():
-            raise ValueError("لا يمكن حذف نوع عتاد له سجلات صيانة محفوظة؛ حافظ على التاريخ أولًا")
-        if db.query(MaintenanceRule.id).filter(MaintenanceRule.equipment_model_id.in_(model_ids)).first():
-            raise ValueError("لا يمكن حذف نوع عتاد له قواعد صيانة مسجلة؛ احذف أو انقل قواعد الصيانة وفق إجراءات النظام أولًا")
 
     db.delete(obj);db.commit()
 
@@ -137,6 +128,17 @@ def list_spec_definition_type_ids(db: Session) -> dict[int, list[int]]:
         result.setdefault(definition_id, []).append(type_id)
     return result
 
+def _option_list_copy(unit: Optional[str], options: Optional[str]) -> bool:
+    """True only when `unit` provably repeats the select option list (legacy migration corruption).
+
+    Comparison ignores spacing around commas so that a copy pasted with or without
+    spaces is detected. Anything else in `unit` is left untouched (never guessed).
+    """
+    norm=lambda text:",".join(p.strip() for p in (text or "").split(",") if p.strip())
+    left,right=norm(unit),norm(options)
+    return bool(left) and left==right
+
+
 def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
@@ -154,9 +156,13 @@ def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> Equipment
         vals=[o.strip() for o in (data.options or "").split(",") if o.strip()]
         if len(vals)<2: raise ValueError("خاصية من نوع اختيار تحتاج قيمتين على الأقل مفصولتين بفاصلة")
         options=",".join(dict.fromkeys(vals))
+    unit=(data.unit or "").strip() or None
+    if options is not None and _option_list_copy(unit,options):
+        # خاصية الاختيار لا تحمل وحدة قياس؛ نرفض حفظ نسخة من قائمة الخيارات في حقل الوحدة
+        unit=None
     obj=EquipmentModelSpecDefinition(
         name=name, code=code, data_type=data.data_type,
-        unit=(data.unit or "").strip() or None, options=options,
+        unit=unit, options=options,
         group_name=(data.group_name or "").strip() or "التعريف الفني",
         group_sort_order=max(0,data.group_sort_order),
         equipment_type_id=data.equipment_type_id,

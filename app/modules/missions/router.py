@@ -22,8 +22,9 @@ def dec(value):
 
 @router.get("/missions", response_class=HTMLResponse)
 def missions_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    services.sync_mission_statuses(db)
     missions = [{"mission": m, "status": services.mission_status(m)} for m in services.list_missions(db)]
-    return templates.TemplateResponse("missions.html", {"request": request, "user": current_user, "missions": missions, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "counts": services.counts(db)})
+    return templates.TemplateResponse(request=request, name="missions.html", context={"request": request, "user": current_user, "missions": missions, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "counts": services.counts(db)})
 
 
 @router.post("/missions")

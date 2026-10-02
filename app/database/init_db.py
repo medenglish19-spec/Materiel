@@ -6,20 +6,7 @@ from sqlalchemy import inspect, text
 from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine
-from app.modules.meter_readings import models as meter_models  # noqa: F401
-from app.modules.meter_readings import batches as meter_batches  # noqa: F401
-from app.modules.meter_readings import audit as meter_audit  # noqa: F401
-from app.modules.meter_readings import audit_events as meter_audit_events  # noqa: F401
-from app.modules.users import models as users_models  # noqa: F401
-from app.modules.equipment_types import models as equipment_types_models  # noqa: F401
-from app.modules.equipment import models as equipment_models  # noqa: F401
-from app.modules.meter_readings import models as meter_readings_models  # noqa: F401
-from app.modules.maintenance import models as maintenance_models  # noqa: F401
-from app.modules.faults_repairs import models as faults_repairs_models  # noqa: F401
-from app.modules.tires import models as tires_models  # noqa: F401
-from app.modules.batteries import models as batteries_models  # noqa: F401
-from app.modules.fuel import models as fuel_models  # noqa: F401
-from app.modules.missions import models as missions_models  # noqa: F401
+from app.database import model_registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +51,6 @@ def _repair_existing_maintenance_schema() -> None:
     with engine.begin() as connection:
         if "updated_at" in columns:
             connection.execute(text("ALTER TABLE maintenance_records DROP COLUMN updated_at")); columns.remove("updated_at")
-        if "rule_id" not in columns:
-            connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN rule_id INTEGER")); columns.add("rule_id")
         if "maintenance_date" not in columns:
             connection.execute(text("ALTER TABLE maintenance_records ADD COLUMN maintenance_date DATE"))
             if "reported_date" in columns: connection.execute(text("UPDATE maintenance_records SET maintenance_date = reported_date WHERE maintenance_date IS NULL"))
@@ -156,7 +141,7 @@ def _repair_equipment_current_meters() -> None:
                     changed += 1
         if changed:
             db.commit()
-            print(f"[init_db] تمت مزامنة العداد الحالي لـ {changed} عتاد/مركبة.")
+            logger.info("[init_db] تمت مزامنة العداد الحالي لـ %s عتاد/مركبة.", changed)
     finally:
         db.close()
 
@@ -203,13 +188,6 @@ def _has_current_classification_schema(tables: set[str]) -> bool:
     return "category_id" in type_columns and "brand_id" in model_columns
 
 
-def _has_model_exception_schema() -> bool:
-    inspector = inspect(engine)
-    if "maintenance_rules" not in inspector.get_table_names(): return False
-    columns = {c["name"] for c in inspector.get_columns("maintenance_rules")}
-    return {"equipment_model_id", "parent_rule_id"}.issubset(columns)
-
-
 def init_db() -> None:
     inspector = inspect(engine); tables = set(inspector.get_table_names()); config = _alembic_config()
     logger.info("Database startup: url=%s tables=%s", settings.DATABASE_URL, sorted(tables))
@@ -240,5 +218,5 @@ def create_default_admin() -> None:
         existing = get_user_by_username(db, "admin")
         if not existing:
             create_user(db, UserCreate(username="admin", full_name="مدير النظام", password="Admin@123", role="admin"))
-            print("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
+            logger.info("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
     finally: db.close()

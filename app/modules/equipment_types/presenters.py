@@ -26,6 +26,7 @@ def model_editor_payload(db: Session, model: EquipmentModel) -> dict:
         "battery_voltage_v": model.battery_voltage_v,
         "mobility_type": model.mobility_type,
         "requires_driver": model.requires_driver,
+        "image_url": model.image_url,
         "positions": [
             {
                 "id": position.id,

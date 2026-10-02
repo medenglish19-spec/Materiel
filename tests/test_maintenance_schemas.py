@@ -7,6 +7,7 @@ from app.modules.maintenance.schemas import (
     MaintenanceOperationCreate,
     MaintenancePlanCreate,
     MaintenancePlanOperationCreate,
+    MaintenancePlanExecutionCreate,
 )
 
 
@@ -37,29 +38,39 @@ def test_plan_allows_optional_cadence_fields_for_compatibility():
     assert plan.interval_days is None
 
 
-def test_plan_operation_rejects_nonpositive_override():
-    with pytest.raises(ValidationError):
-        MaintenancePlanOperationCreate(plan_id=1, operation_id=1, interval_days_override=0)
+def test_plan_operation_contains_membership_only():
+    item = MaintenancePlanOperationCreate(plan_id=1, operation_id=1, sort_order=2)
+    assert item.plan_id == 1
+    assert item.operation_id == 1
+    assert item.sort_order == 2
 
-def test_execution_record_accepts_operation_without_legacy_rule():
-    from datetime import date
+
+def test_execution_plan_requires_operation():
     from app.modules.maintenance.schemas import MaintenanceRecordCreate
+    with pytest.raises(ValidationError):
+        MaintenanceRecordCreate(equipment_id=1, plan_id=1, maintenance_date="2026-09-25")
 
-    item = MaintenanceRecordCreate(
-        equipment_id=1,
-        operation_id=7,
-        maintenance_date=date(2026, 9, 25),
+
+def test_plan_execution_requires_plan_and_equipment():
+    item = MaintenancePlanExecutionCreate(
+        equipment_id=7,
+        plan_id=3,
+        operation_ids=[11, 12],
+        maintenance_date="2026-09-25",
+        meter_value=Decimal("10000"),
     )
-    assert item.operation_id == 7
-    assert item.rule_id is None
+    assert item.equipment_id == 7
+    assert item.plan_id == 3
+    assert item.operation_ids == [11, 12]
+    assert item.meter_value == Decimal("10000")
 
 
-def test_execution_record_requires_operation_or_legacy_rule():
-    from datetime import date
-    from app.modules.maintenance.schemas import MaintenanceRecordCreate
-
+def test_plan_execution_requires_at_least_one_operation():
+    from pydantic import ValidationError
     with pytest.raises(ValidationError):
-        MaintenanceRecordCreate(
-            equipment_id=1,
-            maintenance_date=date(2026, 9, 25),
+        MaintenancePlanExecutionCreate(
+            equipment_id=7,
+            plan_id=3,
+            operation_ids=[],
+            maintenance_date="2026-09-25",
         )

@@ -6,7 +6,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.core.config import settings
+from app.core.config import security_warnings, settings
+from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
 from app.database.init_db import create_default_admin, init_db
 from app.modules.dashboard.router import router as dashboard_router
@@ -14,6 +15,8 @@ from app.modules.equipment.router import router as equipment_router
 from app.modules.equipment_maintenance.router import router as equipment_maintenance_router
 from app.modules.equipment_types.router import router as equipment_types_router
 from app.modules.faults_repairs.router import router as faults_repairs_router
+from app.modules.spare_parts_requests.router import router as spare_parts_requests_router
+from app.modules.spare_parts_requests.routes import received_page, requests_page
 from app.modules.faults_repairs.routes import router as faults_repairs_pages_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
@@ -27,13 +30,33 @@ from app.modules.users.router import router as users_router
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = PROJECT_ROOT / "static"
 
+logger = get_logger(__name__)
+
+
+def _database_file() -> str | None:
+    """مسار ملف SQLite من DATABASE_URL، أو None لقاعدة غير ملفاتية."""
+    prefix = "sqlite:///"
+    if not settings.DATABASE_URL.startswith(prefix):
+        return None
+    tail = settings.DATABASE_URL[len(prefix) :]
+    if tail in ("", ":memory:"):
+        return None
+    return tail
+
 
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        configure_logging()
+        logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
         init_db()
         create_default_admin()
+        # تحذيرات ما قبل النشر: تُسجَّل ولا توقف الإقلاع (انظر core/config.py).
+        for warning in security_warnings(_database_file()):
+            logger.warning("[security] %s", warning)
         yield
+        logger.info("Shutting down %s", settings.APP_NAME)
+        shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -42,6 +65,10 @@ def create_app() -> FastAPI:
     async def html_http_exception_handler(request: Request, exc: HTTPException):
         accept=request.headers.get("accept", "")
         referer=request.headers.get("referer")
+        if exc.status_code >= 500:
+            logger.error("HTTP %s %s -> %s", request.method, request.url.path, exc.detail)
+        elif exc.status_code >= 400:
+            logger.warning("HTTP %s %s -> %s", request.method, request.url.path, exc.detail)
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and "text/html" in accept and referer:
             base=str(request.base_url)
             if referer.startswith(base):
@@ -74,6 +101,9 @@ def create_app() -> FastAPI:
     app.include_router(equipment_maintenance_router, tags=["equipment_maintenance"])
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
+    app.include_router(spare_parts_requests_router, tags=["spare_parts_requests"])
+    app.add_api_route("/spare-parts-requests", requests_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_requests_page", tags=["spare_parts_requests_pages"])
+    app.add_api_route("/spare-parts-received", received_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_received_page", tags=["spare_parts_requests_pages"])
     app.include_router(tires_router, tags=["tires"])
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])

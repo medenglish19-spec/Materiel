@@ -13,6 +13,10 @@ down_revision = "d9f4a7c1e2b3"
 branch_labels = None
 depends_on = None
 
+_NAMING = {
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+}
+
 
 def upgrade():
     op.execute("DROP INDEX IF EXISTS ix_equipment_types_technical_library_type_id")
@@ -24,20 +28,32 @@ def upgrade():
 
 
 def downgrade():
-    with op.batch_alter_table("equipment_types", schema=None) as batch_op:
+    with op.batch_alter_table("equipment_types", schema=None, naming_convention=_NAMING) as batch_op:
         batch_op.add_column(
             sa.Column(
                 "technical_library_category_id",
                 sa.Integer(),
-                sa.ForeignKey("equipment_categories.id", ondelete="SET NULL"),
                 nullable=True,
             )
+        )
+        batch_op.create_foreign_key(
+            "fk_equipment_types_technical_library_category_id_equipment_categories",
+            "equipment_categories",
+            ["technical_library_category_id"],
+            ["id"],
+            ondelete="SET NULL",
         )
         batch_op.add_column(
             sa.Column(
                 "technical_library_type_id",
                 sa.Integer(),
-                sa.ForeignKey("equipment_types.id", ondelete="SET NULL"),
                 nullable=True,
             )
+        )
+        batch_op.create_foreign_key(
+            "fk_equipment_types_technical_library_type_id_equipment_types",
+            "equipment_types",
+            ["technical_library_type_id"],
+            ["id"],
+            ondelete="SET NULL",
         )

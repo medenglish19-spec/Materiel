@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from app.modules.maintenance.router import status_for, priority_for
+from app.modules.maintenance.services import plan_status_for
 from app.modules.maintenance.models import _validate_record
 
 
@@ -103,8 +104,8 @@ class _MaintenanceValidationConnection:
         if self.calls == 2:
             return _Result(first=(20,))
         if self.calls == 3:
-            return _Result(first=(20,))
-        if self.calls == 4:
+            return _Result(first=(30, True))
+        if self.calls == 6:
             return _Result(rows=self.same_day_rows)
         return _Result(rows=[])
 
@@ -112,10 +113,10 @@ class _MaintenanceValidationConnection:
 def _validation_target(meter, record_id=None):
     return SimpleNamespace(
         equipment_id=20,
-        rule_id=10,
         maintenance_date=date(2026, 9, 5),
         meter_value=Decimal(str(meter)),
         id=record_id,
+        operation_id=1,
     )
 
 
@@ -139,3 +140,73 @@ def test_same_day_update_respects_record_id_order():
 
     connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 2)])
     _validate_record(connection, _validation_target(90, record_id=1), exclude_id=1)
+
+
+def test_status_uses_calendar_axis_even_when_meter_axis_is_not_due():
+    r = rule(interval_km=Decimal("10000"), interval_days=30)
+    service_record = record(days_ago=10, meter=45000)
+    state, css, remaining, meta = status_for(r, equipment("km"), service_record, Decimal("50000"), today=date.today())
+    assert state == "ضمن الموعد"
+    assert meta["remaining_days"] == 20
+    assert meta["next_meter"] == Decimal("55000")
+
+
+def test_status_uses_hours_axis_for_hours_equipment():
+    r = rule(interval_km=Decimal("10000"), interval_hours=Decimal("500"), interval_days=None)
+    service_record = record(meter=1000)
+    state, css, remaining, meta = status_for(r, equipment("hours"), service_record, Decimal("1499"), today=date.today())
+    assert state == "ضمن الموعد"
+    assert remaining == Decimal("1")
+    assert meta["remaining_hours"] == Decimal("1")
+    assert meta["remaining_km"] is None
+
+
+
+def test_plan_status_uses_plan_cadence_without_operation_warning_axes():
+    plan = SimpleNamespace(interval_km=Decimal("5000"), interval_hours=None, interval_days=30)
+    service_record = record(days_ago=30, meter=45000)
+    state, css, remaining, meta = plan_status_for(
+        plan, equipment("km"), service_record, Decimal("49000"), today=date.today()
+    )
+    assert state == "مستحقة الآن"
+    assert remaining == Decimal("1000")
+    assert meta["remaining_days"] == 0
+    assert meta["next_meter"] == Decimal("50000")
+
+
+def test_effective_operations_includes_standalone_and_deduplicates_planned():
+    from app.modules.maintenance.services import effective_operations_for_equipment
+
+    class FakeQuery:
+        def __init__(self, rows):
+            self.rows = rows
+        def join(self, *args):
+            return self
+        def filter(self, *args):
+            return self
+        def order_by(self, *args):
+            return self
+        def all(self):
+            return list(self.rows)
+
+    class FakeDB:
+        def __init__(self, planned, standalone):
+            self.planned = planned
+            self.standalone = standalone
+            self.calls = 0
+        def query(self, model):
+            self.calls += 1
+            return FakeQuery(self.planned if self.calls == 1 else self.standalone)
+
+    class Op:
+        def __init__(self, id, name):
+            self.id, self.name = id, name
+
+    equipment_model = SimpleNamespace(equipment_model_id=7)
+    first = Op(1, "زيت المحرك")
+    duplicate = Op(1, "زيت المحرك")
+    standalone = Op(2, "فحص الفرامل")
+    db = FakeDB([first, duplicate], [standalone])
+
+    rows = effective_operations_for_equipment(db, equipment_model)
+    assert [row.id for row in rows] == [1, 2]

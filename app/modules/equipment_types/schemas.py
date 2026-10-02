@@ -121,6 +121,7 @@ class EquipmentModelCreate(BaseModel):
     battery_voltage_v: Optional[float] = None
     mobility_type: str = "mobile"
     requires_driver: bool = True
+    image_url: Optional[str] = None
     positions: list[TirePositionInput] = Field(default_factory=list)
     sizes: list[str] = Field(default_factory=list)
     specs: list[SpecValueInput] = Field(default_factory=list)

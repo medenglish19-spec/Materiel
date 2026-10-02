@@ -7,19 +7,19 @@
     <div class="history-head">
         <div>
             <h1>سجل قراءات العداد</h1>
-            <p>{{ equipment.equipment_type.name if equipment.equipment_type else '—' }} — {{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — {{ equipment.registration_number or equipment.asset_code }}</p>
+            <p>{{ equipment.equipment_type.name if equipment.equipment_type else '—' }} — {{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — {{ equipment.registration_number or equipment.vin }}</p>
         </div>
         <a class="back-btn" href="/meter-readings">← العودة إلى قراءات العدادات</a>
     </div>
     <div class="history-card">
         <div class="history-info">
             <span>وحدة العداد: <strong>{{ rows[0].unit if rows else ('كم' if equipment.equipment_type and equipment.equipment_type.measurement_unit == 'km' else 'ساعة عمل') }}</strong></span>
-            <span>حالة العتاد: <strong>{{ rows[0].status if rows else ('لا يعمل' if equipment.operational_status == 'unavailable' else 'يعمل') }}</strong></span>
+            <span>حالة العداد: <strong>{{ rows[0].status if rows else '—' }}</strong></span>
             <span>عدد القراءات: <strong>{{ total }}</strong></span>
         </div>
         <div class="history-table-wrap">
             <table class="history-table">
-                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العتاد</th><th>إجراء</th></tr></thead>
+                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
                 <tbody>
                 {% for row in rows %}
                     <tr>
@@ -44,7 +44,7 @@
 <div id="editReadingModal" class="modal-backdrop" hidden>
     <div class="edit-modal" dir="rtl">
         <div class="modal-head"><strong>تعديل قراءة العداد</strong><button type="button" id="closeEdit">×</button></div>
-        <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.asset_code or '—' }}</div>
+        <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.vin or '—' }}</div>
         <form id="editReadingForm">
             <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
             <input type="hidden" name="reading_id" id="editReadingId">

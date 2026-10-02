@@ -28,7 +28,7 @@ def dec(value: str):
 def fuel_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = services.list_records(db)
     enriched = [{"record": r, "distance": services.distance_from_previous(db, r), "consumption": services.consumption(db, r), "abnormal": services.is_abnormal(db, r)} for r in records]
-    return templates.TemplateResponse("fuel.html", {"request": request, "user": current_user, "records": enriched, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "monthly": services.monthly_summary(db)})
+    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "monthly": services.monthly_summary(db)})
 
 
 @router.post("/fuel")
@@ -49,4 +49,4 @@ def equipment_fuel_page(request: Request, equipment_id: int, db: Session = Depen
         raise HTTPException(404, "العتاد غير موجود")
     records = db.query(FuelRecord).filter(FuelRecord.equipment_id == equipment_id).order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).all()
     enriched = [{"record": r, "distance": services.distance_from_previous(db, r), "consumption": services.consumption(db, r), "abnormal": services.is_abnormal(db, r)} for r in records]
-    return templates.TemplateResponse("equipment_fuel.html", {"request": request, "user": current_user, "equipment": equipment, "records": enriched, "average": services.equipment_average(db, equipment_id)})
+    return templates.TemplateResponse(request=request, name="equipment_fuel.html", context={"request": request, "user": current_user, "equipment": equipment, "records": enriched, "average": services.equipment_average(db, equipment_id)})

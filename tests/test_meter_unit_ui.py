@@ -26,17 +26,12 @@ def test_equipment_pages_use_only_the_configured_meter_unit():
     assert "id=\"editOdometerField\"" in meters and "id=\"editHoursField\"" in meters
 
 
-def test_maintenance_pages_render_meter_values_with_the_equipment_unit():
-    dashboard = read("app/modules/maintenance/templates/maintenance_dashboard.html")
-    due = read("app/modules/maintenance/templates/maintenance_due.html")
+def test_maintenance_conditions_library_uses_operation_conditions():
     rules = read("app/modules/maintenance/templates/maintenance_rules_model_only.html")
 
-    for text in (dashboard, due):
-        assert "row.unit == 'hours'" in text
-        assert "المتبقي بالعداد" in text or "القراءة القادمة" in text
-        assert "الكيلومترات المتبقية" not in text
-
-    assert "فترة العداد" in rules
-    assert "meter-km-field" in rules
-    assert "meter-hours-field" in rules
-    assert "syncMeterFields" in rules
+    assert "كل كم" in rules
+    assert "كل ساعة تشغيل" in rules
+    assert "كل كم يوم" in rules
+    assert "إنذار قبل كم" in rules
+    assert "إنذار قبل أيام" in rules
+    assert "مكتبة شروط الصيانة الدورية" in rules

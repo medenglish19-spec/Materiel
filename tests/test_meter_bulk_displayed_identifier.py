@@ -62,6 +62,7 @@ def test_bulk_paste_uses_asset_code_when_the_ui_displays_it_as_registration():
         assert '"skipped":0' in body
         saved = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).one()
         assert float(saved.odometer) == 999
-        assert equipment.operational_status == "unavailable"
+        assert equipment.operational_status == "available"
+        assert saved.equipment_status == "unavailable"
     finally:
         db.close()

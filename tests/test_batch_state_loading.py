@@ -1,6 +1,10 @@
 from datetime import date, datetime
 import inspect
 
+# سجلّ النماذج مركزي: بدونه تفشل تهيئة المُخطِّطات (relationships) عند تشغيل
+# هذا الملف وحده. الاستيراد يجعل الملف قابلاً للتشغيل مستقلاً عن ترتيب pytest.
+from app.database import model_registry  # noqa: F401
+
 
 def test_battery_batch_state_helper_is_available():
     from app.modules.batteries.services import current_states
@@ -139,6 +143,36 @@ def test_tire_remove_ui_bypasses_model_configuration_requirements():
     assert "movementSubmit.disabled=false" in template
 
 
+def test_dashboard_operational_status_cards_show_arabic_labels_not_raw_keys():
+    from pathlib import Path
+
+    template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
+
+    assert "نسبة الجاهزية الفنية" in template
+    assert "العتاد العاطل" in template
+    assert "قيد التصليح — ورشة داخلية" in template
+    assert "قيد التصليح — ورشة خارجية" in template
+    assert "عتاد في مهمة" in template
+    assert "طلبات قطع الغيار قيد الانتظار" in template
+    for raw in ("available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable"):
+        assert f">{{raw}}<" not in template
+
+
+def test_dashboard_renders_the_broken_equipment_count_it_queries():
+    from pathlib import Path
+
+    from app.modules.dashboard import router
+
+    template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
+
+    source = inspect.getsource(router.dashboard_page)
+    assert "broken_count = sum(" in source
+    assert '"broken_count": broken_count' in source
+    assert '"readiness_percentage": readiness_percentage' in source
+    assert '<div class="stat-number">{{ broken_count }}</div>' in template
+    assert '<div class="stat-label">العتاد العاطل</div>' in template
+
+
 def test_tire_expiry_is_date_based_and_not_expired_on_exact_expiry_date():
     from types import SimpleNamespace
     from app.modules.tires.services import tire_condition
@@ -164,7 +198,13 @@ def test_all_tire_templates_are_arabic_rtl_or_use_shared_rtl_base():
         assert '<html lang="ar" dir="rtl">' in content or '{% extends "base.html" %}' in content, template.name
 
 
-def test_equipment_detail_exposes_current_installed_tire_table_data():
+def test_equipment_detail_links_current_installed_tire_records():
+    """صفحة التفاصيل تستدعي بيانات الإطارات المركّبة وتوجّه إلى سجلها الكامل.
+
+    بعد حذف الأقسام المكرّرة (defeb18) لا يبقى جدول الإطارات داخل النظرة
+    العامة؛ responsibility العرض الكامل في صفحة الإطارات نفسها. يبقى المطلوب:
+    أن الراوتر يحمّل البيانات الحيّة، وأن الصفحة توجّه إلى السجل المخصّص.
+    """
     from pathlib import Path
     from app.modules.equipment import router
 
@@ -172,8 +212,17 @@ def test_equipment_detail_exposes_current_installed_tire_table_data():
     template = Path("app/modules/equipment/templates/equipment_detail.html").read_text(encoding="utf-8")
 
     assert "tire_services.installed_for_equipment(db,equipment_id)" in source or "tire_services.installed_for_equipment(db, equipment_id)" in source
-    assert "installed_tires" in template
-    assert "هذه هي الإطارات المركبة حاليًا حسب آخر حركة صحيحة لكل إطار" in template
+    assert '"installed_tires":installed_tires' in source
+    assert '"installed_batteries":installed_batteries' in source
+
+    # التبويب يوجّه إلى سجل الإطارات الكامل، وهو مسار مسجّل فعليًا.
+    assert 'href="/equipment/{{ item.id }}/tires"' in template
+    assert 'href="/equipment/{{ item.id }}/batteries"' in template
+    assert "الإطارات" in template
+    assert "البطاريات" in template
+
+    # لا جدول مكرّر داخل النظرة العامة.
+    assert "<th>الرقم التسلسلي</th>" not in template
 
 
 def test_battery_history_ordering_remains_date_then_id():

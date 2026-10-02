@@ -6,7 +6,7 @@
   <section class="record-panel"><div class="record-summary"><div class="record-box"><span>مخططة</span><b>{{ counts.planned }}</b></div><div class="record-box"><span>جارية</span><b>{{ counts.running }}</b></div><div class="record-box"><span>منتهية</span><b>{{ counts.completed }}</b></div></div></section>
   <section class="record-panel"><div class="record-section-head"><h3>تسجيل مهمة</h3><div class="record-hint">أدخل بيانات المهمة الأساسية وقراءات العداد إن توفرت.</div></div>
     <form method="post" action="/missions" class="record-form">
-      <label>العتاد *<select name="equipment_id" required><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.asset_code }}</option>{% endfor %}</select></label>
+      <label>العتاد *<select name="equipment_id" required><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select></label>
       <label>السائق<input name="driver_name" placeholder="اسم السائق"></label><label>وثيقة المهمة<input name="mission_document" placeholder="رقم الوثيقة"></label><label>الغرض<input name="purpose" placeholder="الغرض من المهمة"></label><label>الوجهة<input name="destination" placeholder="الوجهة"></label><label>تاريخ البداية *<input type="date" name="start_date" required></label><label>تاريخ النهاية<input type="date" name="end_date"></label><label>عداد الانطلاق<input type="number" step="0.1" name="departure_meter" placeholder="قراءة العداد"></label><label>عداد العودة<input type="number" step="0.1" name="return_meter" placeholder="قراءة العداد"></label><label>ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label><button>حفظ المهمة</button>
     </form>
   </section>

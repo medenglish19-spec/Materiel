@@ -1,178 +1,188 @@
 {% extends "base.html" %}
 {% block title %}العتاد والسيارات{% endblock %}
 {% block content %}
+<style>
+.master-preview,.master-specs{min-height:37px;box-sizing:border-box;border:1px solid rgba(46,125,50,.15);border-radius:9px;background:var(--bg-secondary);color:var(--text-secondary);padding:8px 10px;font-size:12px}
+.master-specs{line-height:1.9}.master-specs span{display:inline-block;margin-left:10px}.master-specs strong{color:var(--text-primary)}
+.table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.data-row{cursor:pointer;transition:background .15s ease}.data-row:hover{background:var(--bg-secondary)}
+.data-row.unavailable-row{color:var(--error)}
+.model-cell-link{display:inline-flex;align-items:center;gap:5px;color:var(--primary);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--primary-light)}
+.model-cell-link:hover{color:var(--success);border-bottom-style:solid}
+.spec-filter-row{margin-bottom:8px}.spec-filter-row select,.spec-filter-row input{width:100%;box-sizing:border-box;padding:8px;border:1px solid rgba(46,125,50,.15);border-radius:8px}
+.spec-filter-value-wrap{margin-bottom:8px}.spec-filter-value-wrap.two-inputs{display:flex;gap:6px}.spec-filter-value-wrap.two-inputs input{width:50%}
+.spec-chip{display:inline-flex;align-items:center;gap:6px;background:#c8e6c9;border-radius:20px;padding:5px 10px;font-size:12px;margin:4px 4px 0 0}
+.spec-chip button{border:0;background:none;cursor:pointer;font-weight:700;color:var(--error)}
+.columns-menu,.spec-filter-menu{position:absolute;top:calc(100% + 6px);inset-inline-end:0;min-width:210px;background:var(--white);border:1px solid rgba(46,125,50,.12);border-radius:12px;box-shadow:var(--shadow-hover);padding:10px;z-index:40}
+.spec-filter-toggle,.columns-toggle{position:relative}
+.columns-menu label{display:flex;align-items:center;gap:8px;padding:6px 4px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer}
+.spec-filter-menu{inset-inline-start:0;inset-inline-end:auto;min-width:250px}
+.spec-filter-menu select{width:100%;padding:8px;border:1px solid rgba(46,125,50,.15);border-radius:8px;margin-bottom:8px}
+.spec-filter-add-btn{border:1px solid var(--primary-light);background:var(--white);color:var(--primary);border-radius:8px;padding:7px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.equipment-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:20px;margin-bottom:20px}
+.equipment-card{display:flex;flex-direction:column}
+.equipment-card-media{height:172px;background:linear-gradient(135deg,var(--bg-secondary),#e0f2e0);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.equipment-card-media img{width:100%;height:100%;object-fit:cover}
+.equipment-card-media .fallback{font-size:44px;opacity:.5}
+.equipment-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.equipment-card-title{font-size:15px;font-weight:800;color:var(--text-primary);line-height:1.5}
+.equipment-card-sub{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.equipment-card-info{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.equipment-card-info span{display:block;font-size:11px;color:var(--text-secondary)}
+.equipment-card-info strong{display:block;font-size:12px;color:var(--text-primary);margin-top:2px;font-weight:700}
+.equipment-card-ids{display:flex;flex-direction:column;gap:9px;margin-bottom:14px}
+.equipment-id-box{border:1px solid rgba(46,125,50,.15);background:var(--white);border-radius:var(--radius-sm);padding:9px 11px}
+.equipment-id-label{display:block;font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:5px}
+.equipment-id-value{display:block;font-size:13px;font-weight:800;color:var(--text-primary);direction:ltr;text-align:right;line-height:1.5;overflow-wrap:anywhere}
+.equipment-card-actions{margin-top:auto;display:flex;gap:8px}
+.view-toggle{display:flex;gap:4px;background:var(--bg-secondary);padding:4px;border-radius:var(--radius-sm);border:1px solid rgba(46,125,50,.1)}
+.view-toggle button{width:34px;height:32px;border:0;background:transparent;border-radius:7px;cursor:pointer;font-size:15px;color:var(--text-secondary);transition:all .18s ease}
+.view-toggle button.active{background:var(--white);color:var(--primary);box-shadow:0 2px 8px rgba(46,125,50,.12)}
+</style>
 <div class="page-header">
     <div><h2>العتاد</h2><p class="page-hint">إدارة الحضيرة ومتابعة تركيبها وحالتها التشغيلية.</p></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button></div>
+    <button type="button" class="btn btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button>
 </div>
-<div class="equipment-nav"><a class="active" href="/equipment">قائمة العتاد</a><a href="/equipment/analysis">التحليل</a><a href="/equipment-types">أنواع العتاد</a></div>
 <div class="card" id="add-form-card" style="display:none;">
     <h3>إضافة عتاد جديد</h3>
-    <p class="page-hint">اختر الطراز من Master Data. البيانات ذات النوع أو الطراز المجمّد لا تُعتمد لعتاد جديد، بينما يبقى العتاد الموجود بها صالحًا للعمل والتاريخ.</p>
+    <p class="page-hint">اختر الطراز من مركز البيانات الأساسية. الطرازات المجمّدة لا تُعتمد لعتاد جديد.</p>
     <form method="post" action="/equipment/create" class="grid-form" id="equipmentCreateForm">
         <input type="hidden" name="equipment_type_id" id="type-select">
         <div class="field"><label>الطراز *</label><select name="equipment_model_id" id="model-select" required onchange="onModelChange()"><option value="">اختر الطراز...</option>{% for t in types %}{% for m in t.models %}<option value="{{ m.id }}" data-type-id="{{ t.id }}" data-type-name="{{ t.name }}" data-brand-name="{{ m.brand.name if m.brand else '' }}" data-tires="{{ 'نعم' if m.has_tires else 'لا' }}" data-tire-count="{{ m.tire_positions_required or 0 }}" data-tire-size="{{ m.tire_size or '' }}" data-batteries="{{ 'نعم' if m.has_batteries else 'لا' }}" data-battery-count="{{ m.battery_count_required or 0 }}" data-battery-capacity="{{ m.battery_capacity_ah if m.battery_capacity_ah is not none else '' }}" data-battery-voltage="{{ m.battery_voltage_v if m.battery_voltage_v is not none else '' }}" data-mobility="{{ m.mobility_type or '' }}" data-driver="{{ 'نعم' if m.requires_driver else 'لا' }}" {% if t.is_frozen or m.is_frozen %}disabled{% endif %}>{{ m.brand.name ~ ' — ' if m.brand else '' }}{{ m.name }}{% if t.is_frozen or m.is_frozen %} — غير معتمد{% endif %}</option>{% endfor %}{% endfor %}</select></div>
-        <div class="field"><label>الصنف / النوع</label><div id="model-master-type" class="master-preview">سيُسحب تلقائيًا من Master Data</div></div>
+        <div class="field"><label>الصنف / النوع</label><div id="model-master-type" class="master-preview">سيُسحب تلقائيًا من مركز البيانات</div></div>
         <div class="field"><label>مواصفات الطراز</label><div id="model-master-specs" class="master-specs">اختر الطراز لعرض مواصفاته.</div></div>
         <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number"></div>
         <div class="field"><label>رقم الهيكل</label><input type="text" name="vin"></div>
         <div class="field"><label>تاريخ أول سير / بدء الاستغلال *</label><input type="date" name="first_service_date" required></div>
         <div class="field"><label>الوثيقة <span class="page-hint">(اختياري)</span></label><input type="text" name="acquisition_document"></div>
-        <div class="field field-submit"><button type="submit">حفظ العتاد</button></div>
+        <div class="field field-submit"><button type="submit" class="btn btn-primary">حفظ العتاد</button></div>
     </form>
 </div>
 {% if not types %}<div class="card alert-warning">لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.</div>{% endif %}
-<div class="toolbar"><input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل..."><select id="filter-type"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select><select id="filter-status"><option value="">كل الوضعيات</option><option value="متاح">متاح</option><option value="في مهمة">في مهمة</option><option value="في الصيانة">في الصيانة</option><option value="في ورشة خارجية">في ورشة خارجية</option><option value="غير متاح">غير متاح</option></select><select id="filter-condition"><option value="">كل الحالات الفنية</option><option value="جاهز">جاهز</option><option value="جاهز مع قيود">جاهز مع قيود</option><option value="عاطل">عاطل</option></select><div class="spec-filter-toggle">
-  <button type="button" class="btn-outline" id="spec-filter-toggle-btn" onclick="toggleSpecFilterMenu()">🔧 فلترة حسب خاصية ⌄</button>
-  <div id="spec-filter-menu" class="columns-menu" style="display:none;">
-    <div class="spec-filter-row">
-      <select id="spec-filter-definition" onchange="onSpecDefinitionChange()">
-        <option value="">اختر الخاصية...</option>
-      </select>
+<div class="toolbar">
+    <input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل...">
+    <select id="filter-type" class="select-box"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select>
+    <select id="filter-status" class="select-box"><option value="">كل الوضعيات</option>{% for status_value, status_text in label_options('operational') %}<option value="{{ status_value }}">{{ status_text }}</option>{% endfor %}</select>
+    <select id="filter-condition" class="select-box"><option value="">كل الحالات الفنية</option><option value="ready">جاهز</option><option value="ready_restricted">جاهز مع قيود</option><option value="broken">عاطل</option></select>
+    <div class="spec-filter-toggle">
+        <button type="button" class="btn btn-outline" id="spec-filter-toggle-btn" onclick="toggleSpecFilterMenu()">🔧 فلترة حسب خاصية ⌄</button>
+        <div id="spec-filter-menu" class="spec-filter-menu" style="display:none;">
+            <select id="spec-filter-definition" onchange="onSpecDefinitionChange()"><option value="">اختر الخاصية...</option></select>
+            <div id="spec-filter-value-wrap"></div>
+            <button type="button" class="spec-filter-add-btn" id="spec-filter-add-btn" onclick="addSpecFilter()" disabled>إضافة الفلتر</button>
+            <div id="spec-filter-chips"></div>
+        </div>
     </div>
-    <div id="spec-filter-value-wrap"></div>
-    <button type="button" id="spec-filter-add-btn" onclick="addSpecFilter()" disabled>إضافة الفلتر</button>
-    <div id="spec-filter-chips"></div>
-  </div>
-</div><div class="columns-toggle"><button type="button" class="btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button><div id="columns-menu" class="columns-menu" style="display:none;"><label><input type="checkbox" data-col="doc" checked> الوثيقة</label><label><input type="checkbox" data-col="model" checked> الطراز</label><label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label><label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label><label><input type="checkbox" data-col="first-service" checked> أول سير</label><label><input type="checkbox" data-col="meter" checked> العداد</label></div></div></div>
-<style>
-.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}.master-preview,.master-specs{min-height:37px;box-sizing:border-box;border:1px solid #edf0f3;border-radius:9px;background:#f8fafc;color:#667085;padding:8px 10px;font-size:12px}.master-specs{line-height:1.9}.master-specs span{display:inline-block;margin-left:10px}.master-specs strong{color:#344054}#equipment-table-wrap{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}#equipment-table{min-width:1050px}#equipment-table tbody tr.data-row{cursor:pointer;transition:background .15s ease}#equipment-table tbody tr.data-row:hover{background:#f8fafc}#equipment-table tbody tr.data-row.meter-not-working{color:#b91c1c;background:#fef2f2}.model-cell-link{display:inline-flex;align-items:center;gap:5px;color:#245d88;font-weight:750;text-decoration:none;border-bottom:1px dashed #9db6ca}.model-cell-link:hover{color:#173b63;border-bottom-style:solid}.spec-filter-row{margin-bottom:8px}.spec-filter-row select,.spec-filter-row input{width:100%;box-sizing:border-box;padding:8px;border:1px solid #d8dee8;border-radius:8px}#spec-filter-value-wrap{margin-bottom:8px}#spec-filter-value-wrap.two-inputs{display:flex;gap:6px}#spec-filter-value-wrap.two-inputs input{width:50%}.spec-chip{display:inline-flex;align-items:center;gap:6px;background:#eef2f7;border-radius:20px;padding:5px 10px;font-size:12px;margin:4px 4px 0 0}.spec-chip button{border:0;background:none;cursor:pointer;font-weight:700;color:#991b1b}
-</style>
-<div class="table-wrap" id="equipment-table-wrap"><table class="data-table modern-table" id="equipment-table"><thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-first-service">أول سير</th><th class="col-meter">العداد</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead><tbody>
-{% for item in items %}<tr class="data-row{% if item.operational_status == 'unavailable' %} meter-not-working{% endif %}" onclick="openEquipment({{ item.id }})" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}" data-condition="{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}"><td class="row-number">{{ loop.index }}</td><td class="col-doc">{{ item.acquisition_document or "-" }}</td><td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td><td class="col-model">{% if item.equipment_model %}<a class="model-cell-link" href="/equipment/{{ item.id }}" onclick="event.stopPropagation()">{{ item.equipment_model.name }} ↗</a>{% else %}-{% endif %}</td><td class="col-reg">{{ item.registration_number or "-" }}</td><td class="col-vin">{{ item.vin or "-" }}</td><td class="col-first-service">{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else "-" }}</td><td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td><td><span class="badge badge-condition-{{ item.technical_condition }}">{% if item.technical_condition == "ready" %}جاهز{% elif item.technical_condition == "ready_restricted" %}جاهز مع قيود{% else %}عاطل{% endif %}</span></td><td><span class="badge badge-status-{{ item.operational_status }}">{% if item.operational_status == "available" %}متاح{% elif item.operational_status == "in_mission" %}في مهمة{% elif item.operational_status == "in_maintenance" %}في الصيانة{% elif item.operational_status == "in_external_workshop" %}في ورشة خارجية{% else %}غير متاح{% endif %}</span></td></tr>{% else %}<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>{% endfor %}</tbody></table></div><p class="results-count" id="results-count"></p>
+    <div class="columns-toggle">
+        <button type="button" class="btn btn-outline" onclick="toggleColumnsMenu()">الأعمدة ⌄</button>
+        <div id="columns-menu" class="columns-menu" style="display:none;">
+            <label><input type="checkbox" data-col="doc" checked> الوثيقة</label>
+            <label><input type="checkbox" data-col="model" checked> الطراز</label>
+            <label><input type="checkbox" data-col="reg" checked> رقم التسجيل</label>
+            <label><input type="checkbox" data-col="vin" checked> رقم الهيكل</label>
+            <label><input type="checkbox" data-col="first-service" checked> أول سير</label>
+            <label><input type="checkbox" data-col="meter" checked> العداد</label>
+        </div>
+    </div>
+    <div class="view-toggle">
+        <button type="button" id="view-grid-btn" class="active" onclick="setView('grid')" title="عرض بطاقات">▦</button>
+        <button type="button" id="view-list-btn" onclick="setView('list')" title="عرض جدول">☰</button>
+    </div>
+</div>
+<p class="results-count" id="results-count" style="font-size:12px;color:var(--text-secondary);margin:0 0 14px"></p>
+
+<!-- شبكة بطاقات العتاد -->
+<div class="equipment-grid" id="view-grid">
+{% for item in items %}{% set current_status = operational_statuses[item.id] %}
+<article class="card equipment-card" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ current_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
+    <div class="equipment-card-media">
+        {% if item.equipment_model and item.equipment_model.image_url %}
+        <img src="{{ item.equipment_model.image_url }}" alt="{{ item.equipment_model.name }}" loading="lazy">
+        {% else %}
+        <span class="fallback">🚛</span>
+        {% endif %}
+    </div>
+    <div class="equipment-card-body">
+        <div class="equipment-card-head">
+            <div>
+                    <div class="equipment-card-title">{{ item.registration_number or 'غير مسجل' }}</div>
+                <div class="equipment-card-sub">{{ item.equipment_model.name if item.equipment_model else '-' }}{% if item.equipment_model and item.equipment_model.brand %} · {{ item.equipment_model.brand.name }}{% endif %}</div>
+            </div>
+            <span class="badge {% if item.technical_condition == 'ready' %}badge-success{% elif item.technical_condition == 'ready_restricted' %}badge-warning{% else %}badge-error{% endif %}">{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</span>
+        </div>
+        <div class="equipment-card-ids">
+            <div class="equipment-id-box">
+                <span class="equipment-id-label">رقم التسجيل</span>
+                <strong class="equipment-id-value">{{ item.registration_number or '-' }}</strong>
+            </div>
+            <div class="equipment-id-box">
+                <span class="equipment-id-label">رقم الهيكل</span>
+                <strong class="equipment-id-value">{{ item.vin or '-' }}</strong>
+            </div>
+        </div>
+        <div class="equipment-card-info">
+            <div><span>النوع</span><strong>{{ item.equipment_type.name if item.equipment_type else '-' }}</strong></div>
+            <div><span>العداد</span><strong>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</strong></div>
+            <div><span>الوضعية</span><strong>{{ label('operational', current_status) }}</strong></div>
+        </div>
+        <div class="equipment-card-actions">
+            <a href="/equipment/{{ item.id }}" class="btn btn-outline">عرض</a>
+            <a href="/equipment/{{ item.id }}/edit" class="btn btn-outline">تعديل</a>
+        </div>
+    </div>
+</article>
+{% else %}
+<div class="empty">لا يوجد عتاد مسجّل بعد</div>
+{% endfor %}
+</div>
+
+<!-- جدول العتاد -->
+<div class="table-wrap" id="view-list" style="display:none">
+<table class="data-table" id="equipment-table">
+<thead><tr><th>#</th><th class="col-doc">الوثيقة</th><th>النوع</th><th class="col-model">الطراز</th><th class="col-reg">رقم التسجيل</th><th class="col-vin">رقم الهيكل</th><th class="col-first-service">أول سير</th><th class="col-meter">العداد</th><th>الحالة الفنية</th><th>الوضعية</th></tr></thead>
+<tbody>
+{% for item in items %}{% set current_status = operational_statuses[item.id] %}
+<tr class="data-row{% if current_status == 'unavailable' %} unavailable-row{% endif %}" onclick="openEquipment({{ item.id }})" data-id="{{ item.id }}" data-type="{{ item.equipment_type.name if item.equipment_type else '' }}" data-status="{{ current_status }}" data-condition="{{ item.technical_condition }}" data-search="{{ item.registration_number or '' }} {{ item.vin or '' }} {{ item.equipment_model.name if item.equipment_model else '' }} {{ item.equipment_type.name if item.equipment_type else '' }}">
+    <td>{{ loop.index }}</td>
+    <td class="col-doc">{{ item.acquisition_document or "-" }}</td>
+    <td>{{ item.equipment_type.name if item.equipment_type else "-" }}</td>
+    <td class="col-model">{% if item.equipment_model %}<a class="model-cell-link" href="/equipment/{{ item.id }}" onclick="event.stopPropagation()">{{ item.equipment_model.name }} ↗</a>{% else %}-{% endif %}</td>
+    <td class="col-reg">{{ item.registration_number or "-" }}</td>
+    <td class="col-vin">{{ item.vin or "-" }}</td>
+    <td class="col-first-service">{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else "-" }}</td>
+    <td class="col-meter">{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</td>
+    <td><span class="badge {% if item.technical_condition == 'ready' %}badge-success{% elif item.technical_condition == 'ready_restricted' %}badge-warning{% else %}badge-error{% endif %}">{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</span></td>
+    <td>{{ label('operational', current_status) }}</td>
+</tr>
+{% else %}
+<tr><td colspan="10" class="empty">لا يوجد عتاد مسجّل بعد</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
 <script>
 window.SPEC_DEFINITIONS = {{ spec_definitions_data|tojson }};
 window.EQUIPMENT_SPECS_MAP = {{ equipment_specs_map|tojson }};
 </script>
 <script>
-function openEquipment(id){window.location.href='/equipment/'+id}function toggleAddForm(){const card=document.getElementById('add-form-card');card.style.display=card.style.display==='none'?'block':'none'}
-function onModelChange(){const model=document.getElementById('model-select'),type=document.getElementById('type-select'),typeBox=document.getElementById('model-master-type'),specs=document.getElementById('model-master-specs'),o=model.options[model.selectedIndex];if(!o||!o.value){type.value='';typeBox.textContent='سيُسحب تلقائيًا من Master Data';specs.textContent='اختر الطراز لعرض مواصفاته.';return}type.value=o.dataset.typeId||'';typeBox.textContent=(o.dataset.typeName||'')+(o.dataset.brandName?' — '+o.dataset.brandName:'')+' — '+o.textContent.replace((o.dataset.brandName?o.dataset.brandName+' — ':''),'');specs.innerHTML='<span><strong>الإطارات:</strong> '+o.dataset.tires+'</span><span><strong>المواضع:</strong> '+o.dataset.tireCount+'</span><span><strong>المقاس:</strong> '+(o.dataset.tireSize||'—')+'</span><span><strong>البطاريات:</strong> '+o.dataset.batteries+'</span><span><strong>العدد:</strong> '+o.dataset.batteryCount+'</span><span><strong>السعة:</strong> '+(o.dataset.batteryCapacity||'—')+' Ah</span><span><strong>الجهد:</strong> '+(o.dataset.batteryVoltage||'—')+' V</span><span><strong>الحركة:</strong> '+(o.dataset.mobility||'—')+'</span><span><strong>السائق:</strong> '+o.dataset.driver+'</span>'}
+function openEquipment(id){window.location.href='/equipment/'+id}
+function toggleAddForm(){const card=document.getElementById('add-form-card');card.style.display=card.style.display==='none'?'block':'none'}
+function onModelChange(){const model=document.getElementById('model-select'),type=document.getElementById('type-select'),typeBox=document.getElementById('model-master-type'),specs=document.getElementById('model-master-specs'),o=model.options[model.selectedIndex];if(!o||!o.value){type.value='';typeBox.textContent='سيُسحب تلقائيًا من مركز البيانات';specs.textContent='اختر الطراز لعرض مواصفاته.';return}type.value=o.dataset.typeId||'';typeBox.textContent=(o.dataset.typeName||'')+(o.dataset.brandName?' — '+o.dataset.brandName:'')+' — '+o.textContent.replace((o.dataset.brandName?o.dataset.brandName+' — ':''),'');specs.innerHTML='<span><strong>الإطارات:</strong> '+o.dataset.tires+'</span><span><strong>المواضع:</strong> '+o.dataset.tireCount+'</span><span><strong>المقاس:</strong> '+(o.dataset.tireSize||'—')+'</span><span><strong>البطاريات:</strong> '+o.dataset.batteries+'</span><span><strong>العدد:</strong> '+o.dataset.batteryCount+'</span><span><strong>السعة:</strong> '+(o.dataset.batteryCapacity||'—')+' Ah</span><span><strong>الجهد:</strong> '+(o.dataset.batteryVoltage||'—')+' V</span><span><strong>الحركة:</strong> '+(o.dataset.mobility||'—')+'</span><span><strong>السائق:</strong> '+o.dataset.driver+'</span>'}
 let activeSpecFilters = {};
-function populateSpecDefinitionSelect() {
-  const select = document.getElementById('spec-filter-definition');
-  (window.SPEC_DEFINITIONS || []).forEach(def => {
-    const opt = document.createElement('option');
-    opt.value = String(def.id);
-    opt.textContent = def.name + (def.unit ? ' (' + def.unit + ')' : '');
-    select.appendChild(opt);
-  });
-}
-function onSpecDefinitionChange() {
-  const definitionId = document.getElementById('spec-filter-definition').value;
-  const wrap = document.getElementById('spec-filter-value-wrap');
-  const addBtn = document.getElementById('spec-filter-add-btn');
-  wrap.innerHTML = '';
-  wrap.className = '';
-  addBtn.disabled = true;
-  if (!definitionId) return;
-  const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
-  if (!definition) return;
-  if (definition.data_type === 'number') {
-    wrap.className = 'two-inputs';
-    const minInput = document.createElement('input');
-    minInput.type = 'number'; minInput.id = 'spec-filter-min'; minInput.placeholder = 'من';
-    const maxInput = document.createElement('input');
-    maxInput.type = 'number'; maxInput.id = 'spec-filter-max'; maxInput.placeholder = 'إلى';
-    wrap.appendChild(minInput); wrap.appendChild(maxInput);
-    const check = () => { addBtn.disabled = (minInput.value === '' && maxInput.value === ''); };
-    minInput.addEventListener('input', check); maxInput.addEventListener('input', check);
-  } else {
-    const distinctValues = new Set();
-    Object.values(window.EQUIPMENT_SPECS_MAP || {}).forEach(specs => {
-      const v = specs[definitionId];
-      if (v !== undefined && v !== null && v !== '') distinctValues.add(v);
-    });
-    const sortedValues = Array.from(distinctValues).sort((a, b) => a.localeCompare(b, 'ar'));
-    const select = document.createElement('select');
-    select.id = 'spec-filter-value-select';
-    const emptyOpt = document.createElement('option');
-    emptyOpt.value = ''; emptyOpt.textContent = 'اختر القيمة...';
-    select.appendChild(emptyOpt);
-    sortedValues.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v; opt.textContent = v;
-      select.appendChild(opt);
-    });
-    select.addEventListener('change', () => { addBtn.disabled = (select.value === ''); });
-    wrap.appendChild(select);
-  }
-}
-function addSpecFilter() {
-  const definitionId = document.getElementById('spec-filter-definition').value;
-  if (!definitionId) return;
-  const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
-  if (!definition) return;
-  if (definition.data_type === 'number') {
-    const minVal = document.getElementById('spec-filter-min').value;
-    const maxVal = document.getElementById('spec-filter-max').value;
-    activeSpecFilters[definitionId] = {
-      type: 'number',
-      min: minVal === '' ? null : parseFloat(minVal),
-      max: maxVal === '' ? null : parseFloat(maxVal),
-    };
-  } else {
-    const value = document.getElementById('spec-filter-value-select').value;
-    if (!value) return;
-    activeSpecFilters[definitionId] = { type: definition.data_type, value: value };
-  }
-  renderSpecFilterChips();
-  applyFilters();
-}
-function removeSpecFilter(definitionId) {
-  delete activeSpecFilters[definitionId];
-  renderSpecFilterChips();
-  applyFilters();
-}
-function renderSpecFilterChips() {
-  const container = document.getElementById('spec-filter-chips');
-  container.innerHTML = '';
-  Object.keys(activeSpecFilters).forEach(definitionId => {
-    const definition = (window.SPEC_DEFINITIONS || []).find(d => String(d.id) === definitionId);
-    if (!definition) return;
-    const filter = activeSpecFilters[definitionId];
-    let label;
-    if (filter.type === 'number') {
-      if (filter.min !== null && filter.max !== null) label = definition.name + ': ' + filter.min + ' - ' + filter.max;
-      else if (filter.min !== null) label = definition.name + ': ≥ ' + filter.min;
-      else label = definition.name + ': ≤ ' + filter.max;
-    } else {
-      label = definition.name + ': ' + filter.value;
-    }
-    const chip = document.createElement('span');
-    chip.className = 'spec-chip';
-    chip.textContent = label;
-    const btn = document.createElement('button');
-    btn.type = 'button'; btn.textContent = '×';
-    btn.onclick = () => removeSpecFilter(definitionId);
-    chip.appendChild(btn);
-    container.appendChild(chip);
-  });
-}
-function toggleSpecFilterMenu() {
-  const menu = document.getElementById('spec-filter-menu');
-  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-}
-function matchesSpecFilters(row) {
-  const definitionIds = Object.keys(activeSpecFilters);
-  if (definitionIds.length === 0) return true;
-  const equipmentId = row.dataset.id;
-  const specs = (window.EQUIPMENT_SPECS_MAP || {})[equipmentId];
-  for (const definitionId of definitionIds) {
-    const filter = activeSpecFilters[definitionId];
-    const rawValue = specs ? specs[definitionId] : undefined;
-    if (rawValue === undefined || rawValue === null || rawValue === '') return false;
-    if (filter.type === 'number') {
-      const numValue = parseFloat(rawValue);
-      if (isNaN(numValue)) return false;
-      if (filter.min !== null && numValue < filter.min) return false;
-      if (filter.max !== null && numValue > filter.max) return false;
-    } else {
-      if (rawValue !== filter.value) return false;
-    }
-  }
-  return true;
-}
-function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value,rows=document.querySelectorAll('#equipment-table tbody tr.data-row');let visibleCount=0;rows.forEach(row=>{const visible=(!search||row.dataset.search.toLowerCase().includes(search))&&(!type||row.dataset.type===type)&&(!status||row.dataset.status===status)&&(!condition||row.dataset.condition===condition)&&matchesSpecFilters(row);row.style.display=visible?'':'none';if(visible)visibleCount++});document.getElementById('results-count').textContent=visibleCount+' نتيجة'}['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters)}})
-function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none'}function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>el.style.display=visible?'':'none');localStorage.setItem('equipment-col-'+col,visible?'1':'0')})}document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility)});populateSpecDefinitionSelect();applyColumnVisibility();applyFilters();
+function populateSpecDefinitionSelect(){const select=document.getElementById('spec-filter-definition');(window.SPEC_DEFINITIONS||[]).forEach(def=>{const opt=document.createElement('option');opt.value=String(def.id);opt.textContent=def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'');select.appendChild(opt)})}
+function onSpecDefinitionChange(){const definitionId=document.getElementById('spec-filter-definition').value;const wrap=document.getElementById('spec-filter-value-wrap');const addBtn=document.getElementById('spec-filter-add-btn');wrap.innerHTML='';wrap.className='';addBtn.disabled=true;if(!definitionId)return;const definition=(window.SPEC_DEFINITIONS||[]).find(d=>String(d.id)===definitionId);if(!definition)return;if(definition.data_type==='number'){wrap.className='two-inputs';const minInput=document.createElement('input');minInput.type='number';minInput.id='spec-filter-min';minInput.placeholder='من';const maxInput=document.createElement('input');maxInput.type='number';maxInput.id='spec-filter-max';maxInput.placeholder='إلى';wrap.appendChild(minInput);wrap.appendChild(maxInput);const check=()=>{addBtn.disabled=(minInput.value===''&&maxInput.value==='')};minInput.addEventListener('input',check);maxInput.addEventListener('input',check)}else{const distinctValues=new Set();Object.values(window.EQUIPMENT_SPECS_MAP||{}).forEach(specs=>{const v=specs[definitionId];if(v!==undefined&&v!==null&&v!=='')distinctValues.add(v)});const sortedValues=Array.from(distinctValues).sort((a,b)=>a.localeCompare(b,'ar'));const select=document.createElement('select');select.id='spec-filter-value-select';const emptyOpt=document.createElement('option');emptyOpt.value='';emptyOpt.textContent='اختر القيمة...';select.appendChild(emptyOpt);sortedValues.forEach(v=>{const opt=document.createElement('option');opt.value=v;opt.textContent=v;select.appendChild(opt)});select.addEventListener('change',()=>{addBtn.disabled=(select.value==='')});wrap.appendChild(select)}}
+function addSpecFilter(){const definitionId=document.getElementById('spec-filter-definition').value;if(!definitionId)return;const definition=(window.SPEC_DEFINITIONS||[]).find(d=>String(d.id)===definitionId);if(!definition)return;if(definition.data_type==='number'){const minVal=document.getElementById('spec-filter-min').value;const maxVal=document.getElementById('spec-filter-max').value;activeSpecFilters[definitionId]={type:'number',min:minVal===''?null:parseFloat(minVal),max:maxVal===''?null:parseFloat(maxVal)}}else{const value=document.getElementById('spec-filter-value-select').value;if(!value)return;activeSpecFilters[definitionId]={type:definition.data_type,value:value}}renderSpecFilterChips();applyFilters()}
+function removeSpecFilter(definitionId){delete activeSpecFilters[definitionId];renderSpecFilterChips();applyFilters()}
+function renderSpecFilterChips(){const container=document.getElementById('spec-filter-chips');container.innerHTML='';Object.keys(activeSpecFilters).forEach(definitionId=>{const definition=(window.SPEC_DEFINITIONS||[]).find(d=>String(d.id)===definitionId);if(!definition)return;const filter=activeSpecFilters[definitionId];let label;if(filter.type==='number'){if(filter.min!==null&&filter.max!==null)label=definition.name+': '+filter.min+' - '+filter.max;else if(filter.min!==null)label=definition.name+': ≥ '+filter.min;else label=definition.name+': ≤ '+filter.max}else{label=definition.name+': '+filter.value}const chip=document.createElement('span');chip.className='spec-chip';chip.textContent=label;const btn=document.createElement('button');btn.type='button';btn.textContent='×';btn.onclick=()=>removeSpecFilter(definitionId);chip.appendChild(btn);container.appendChild(chip)})}
+function toggleSpecFilterMenu(){const menu=document.getElementById('spec-filter-menu');menu.style.display=menu.style.display==='none'?'block':'none'}
+function matchesSpecFilters(node){const definitionIds=Object.keys(activeSpecFilters);if(definitionIds.length===0)return true;const specs=(window.EQUIPMENT_SPECS_MAP||{})[node.dataset.id];for(const definitionId of definitionIds){const filter=activeSpecFilters[definitionId];const rawValue=specs?specs[definitionId]:undefined;if(rawValue===undefined||rawValue===null||rawValue==='')return false;if(filter.type==='number'){const numValue=parseFloat(rawValue);if(isNaN(numValue))return false;if(filter.min!==null&&numValue<filter.min)return false;if(filter.max!==null&&numValue>filter.max)return false}else{if(rawValue!==filter.value)return false}}return true}
+function applyFilters(){const search=document.getElementById('search-input').value.trim().toLowerCase(),type=document.getElementById('filter-type').value,status=document.getElementById('filter-status').value,condition=document.getElementById('filter-condition').value;let visibleCount=0;document.querySelectorAll('.equipment-card[data-id]').forEach(node=>{const visible=(!search||node.dataset.search.toLowerCase().includes(search))&&(!type||node.dataset.type===type)&&(!status||node.dataset.status===status)&&(!condition||node.dataset.condition===condition)&&matchesSpecFilters(node);node.style.display=visible?'':'none';if(visible)visibleCount++});document.querySelectorAll('#equipment-table tbody tr.data-row').forEach(node=>{const visible=(!search||node.dataset.search.toLowerCase().includes(search))&&(!type||node.dataset.type===type)&&(!status||node.dataset.status===status)&&(!condition||node.dataset.condition===condition)&&matchesSpecFilters(node);node.style.display=visible?'':'none'});document.getElementById('results-count').textContent=visibleCount+' نتيجة'}
+function setView(view){document.getElementById('view-grid-btn').classList.toggle('active',view==='grid');document.getElementById('view-list-btn').classList.toggle('active',view==='list');document.getElementById('view-grid').style.display=view==='grid'?'grid':'none';document.getElementById('view-list').style.display=view==='list'?'block':'none'}
+function toggleColumnsMenu(){const menu=document.getElementById('columns-menu');menu.style.display=menu.style.display==='none'?'flex':'none'}
+function applyColumnVisibility(){document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const col=cb.dataset.col,visible=cb.checked;document.querySelectorAll('.col-'+col).forEach(el=>el.style.display=visible?'':'none');localStorage.setItem('equipment-col-'+col,visible?'1':'0')})}
+['search-input','filter-type','filter-status','filter-condition'].forEach(id=>{const el=document.getElementById(id);if(el){el.addEventListener('input',applyFilters);el.addEventListener('change',applyFilters)}});
+document.querySelectorAll('#columns-menu input[type=checkbox]').forEach(cb=>{const saved=localStorage.getItem('equipment-col-'+cb.dataset.col);if(saved!==null)cb.checked=saved==='1';cb.addEventListener('change',applyColumnVisibility)});
+populateSpecDefinitionSelect();applyColumnVisibility();applyFilters();
 </script>
 {% endblock %}

@@ -1,56 +1,135 @@
 {% extends "base.html" %}
 {% block title %}تحليل العتاد{% endblock %}
 {% block content %}
-<div class="page-header">
-  <div><h2>تحليل العتاد</h2><p class="page-hint">تحليل وصفي لتركيبة الحضيرة والتعداد والاحتياج والجاهزية والحركة.</p></div>
-  <a href="/equipment" class="btn-outline">← العتاد</a>
-</div>
-<div class="equipment-nav">
-  <a href="/equipment">قائمة العتاد</a><a href="/equipment/numerical-status">الحالة العددية</a><a class="active" href="/equipment/analysis">التحليل</a><a href="/equipment-types">الطرازات</a>
-</div>
-<div class="cards-grid">
-  <div class="stat-card"><div class="stat-number">{{ totals.actual }}</div><div class="stat-label">التعداد الفعلي</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.theoretical }}</div><div class="stat-label">التعداد النظري</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.need }}</div><div class="stat-label">الاحتياج</div></div>
-  <div class="stat-card"><div class="stat-number">{{ totals.readiness }}%</div><div class="stat-label">نسبة الجاهزية</div></div>
-</div>
-<div class="analysis-grid">
-  <div class="card"><h3>الجاهزية</h3><div class="bar-row"><span>جاهز</span><div class="bar"><i style="width:{{ totals.readiness }}%"></i></div><b>{{ totals.ready }}</b></div><div class="bar-row"><span>عاطل</span><div class="bar"><i style="width:{{ ((totals.broken / totals.actual * 100) if totals.actual else 0) }}%"></i></div><b>{{ totals.broken }}</b></div><div class="analysis-note">نسبة العطل تُحسب من عدد العتاد المصنف صراحةً «عاطل» فقط، ولا تُستنتج من انخفاض الجاهزية.</div></div>
-  <div class="card"><h3>التعداد والاحتياج</h3><div class="bar-row"><span>محقق</span><div class="bar"><i style="width:{{ (totals.actual/totals.theoretical*100 if totals.theoretical else 0) if totals.theoretical else 0 }}%"></i></div><b>{{ totals.actual }}</b></div><div class="analysis-note">الاحتياج يحسب من التعداد النظري الواجب تحقيقه مطروحًا منه التعداد الفعلي.</div></div>
-</div>
-<div class="card movement-analysis-card">
-  <div class="section-heading"><div><h3>تحليل الحركة</h3><div class="analysis-note">توزيع العتاد الفعلي حسب طبيعة الحركة المسجلة في الطراز.</div></div><div class="movement-total" id="movementTotal">—</div></div>
-  <div class="movement-grid">
-    <div class="movement-item"><div class="movement-title"><span>متحرك</span><strong id="mobileCount">0</strong></div><div class="bar"><i id="mobileBar" style="width:0%"></i></div><div class="movement-pct" id="mobilePct">0%</div></div>
-    <div class="movement-item"><div class="movement-title"><span>مجرور</span><strong id="towedCount">0</strong></div><div class="bar"><i id="towedBar" style="width:0%"></i></div><div class="movement-pct" id="towedPct">0%</div></div>
+<div class="ax" dir="rtl">
+<header class="ax-head">
+  <div>
+    <div class="eyebrow">MATERIEL · ANALYTICS</div>
+    <h2>تحليل القدرة والجاهزية</h2>
+    <p>تحليل قائم على العلاقة بين التعداد المعتمد، الحالة الفنية، والوضعية التشغيلية. دون مؤشرات مركبة أو درجات افتراضية.</p>
   </div>
+  <a href="/equipment" class="ax-link">← العتاد</a>
+</header>
+
+<nav class="ax-nav">
+  <a href="/equipment">قائمة العتاد</a>
+  <a href="/equipment/numerical-status">الحالة العددية</a>
+  <a class="active" href="/equipment/analysis">التحليل</a>
+  <a href="/equipment-types">الطرازات</a>
+</nav>
+
+<section class="panel">
+  <div class="ph"><h3>الاستغلال الفعلي</h3><span>المسافة من تاريخ العداد، مع سياق المهمات والوقود</span></div>
+  <div class="exec-grid">
+    <div><strong>{{ utilization.totals.distance_km|round(1) }}</strong><span>كم مقاسة بالعداد</span></div>
+    <div><strong>{{ utilization.totals.mission_count }}</strong><span>مهمات مكتملة بالعداد</span></div>
+    <div><strong>{{ utilization.totals.mission_distance_km|round(1) }}</strong><span>كم للمهمات المسجلة</span></div>
+    <div class="muted"><strong>{% if utilization.totals.fuel_per_100km is not none %}{{ utilization.totals.fuel_per_100km|round(2) }}{% else %}—{% endif %}</strong><span>لتر/100 كم</span></div>
+  </div>
+  {% if utilization.findings %}
+  <div class="findings">
+    {% for f in utilization.findings %}
+    <article class="finding"><div class="finding-state">{{ f.state }}</div><div><strong>{{ f.subject }}</strong><p>{{ f.meaning }}</p><small>الدليل: {{ f.evidence }}</small></div></article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<section class="executive">
+  <div class="panel">
+    <div class="ph"><h3>القدرة العددية</h3><span>على مستوى الأنواع ذات النظري المعتمد</span></div>
+    <div class="exec-grid">
+      <div><strong>{{ totals.actual }}</strong><span>المحقق</span></div>
+      <div><strong>{{ totals.theoretical }}</strong><span>النظري المعتمد</span></div>
+      <div class="bad"><strong>{{ totals.need }}</strong><span>فجوة عددية</span></div>
+      <div class="muted"><strong>{{ totals.outside_requirement }}</strong><span>متطلبات غير محددة</span></div>
+    </div>
+    <p class="explain">الوحدة التي تنتمي إلى نوع بلا تعداد نظري لا تُحسب نقصًا ولا فائضًا؛ تُعرض منفصلة حتى يتم اعتماد مرجعها.</p>
+  </div>
+  <div class="panel">
+    <div class="ph"><h3>القدرة التشغيلية الحالية</h3><span>لا تُختزل الجاهزية في رقم واحد</span></div>
+    <div class="state-list">
+      <div><span>جاهز فنيًا</span><b>{{ totals.ready }} <small>{{ totals.readiness_pct|round(1) }}%</small></b></div>
+      <div><span>جاهز مع قيود</span><b>{{ totals.ready_restricted }} <small>{{ totals.restricted_pct|round(1) }}%</small></b></div>
+      <div class="bad"><span>عاطل</span><b>{{ totals.broken }} <small>{{ totals.broken_pct|round(1) }}%</small></b></div>
+      <div><span>متاح تشغيليًا</span><b>{{ totals.available }} <small>{{ totals.available_pct|round(1) }}%</small></b></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel finding-panel">
+  <div class="ph"><h3>ما الذي يستدعي الانتباه؟</h3><span>استنتاجات مشتقة من قواعد واضحة</span></div>
+  {% if findings %}
+  <div class="findings">
+    {% for f in findings %}
+    <article class="finding">
+      <div class="finding-state">{{ f.state }}</div>
+      <div><strong>{{ f.subject }}</strong><p>{{ f.meaning }}</p><small>الدليل: {{ f.evidence }}</small></div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">لا توجد حالة تحليلية مثبتة وفق البيانات الحالية.</div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="ph"><h3>تفكيك القدرة حسب النوع</h3><span>هنا يظهر الفرق بين نقص العدد، القيد الفني، والقيد التشغيلي</span></div>
+  <div class="table-wrap">
+    <table class="analysis-table">
+      <thead><tr>
+        <th>التصنيف / النوع</th><th>النظري</th><th>المحقق</th><th>الاحتياج</th>
+        <th>جاهز</th><th>جاهز مع قيود</th><th>عاطل</th><th>متاح</th><th>جاهز لكن غير متاح</th><th>غير محدد نظريًا</th>
+      </tr></thead>
+      <tbody>
+      {% for c in categories %}
+        {% for t in c.types %}
+        <tr>
+          <td><strong>{{ c.name }}</strong><br><span>{{ t.name }}</span></td>
+          <td>{{ t.theoretical if t.known_requirement else "—" }}</td>
+          <td>{{ t.actual }}</td>
+          <td class="bad">{{ t.need if t.known_requirement and t.need else "—" }}</td>
+          <td>{{ t.ready }} <small>{{ t.readiness_pct|round(1) }}%</small></td>
+          <td>{{ t.ready_restricted }}</td>
+          <td class="bad">{{ t.broken }}</td>
+          <td>{{ t.available }} <small>{{ t.available_pct|round(1) }}%</small></td>
+          <td>{{ t.technical_but_not_available }}</td>
+          <td>{% if not t.known_requirement %}{{ t.actual }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td colspan="10" class="empty">لا توجد بيانات.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="two-col">
+  <div class="panel">
+    <div class="ph"><h3>حالات التشغيل</h3><span>الوضعية الحالية لا تعني بالضرورة حالة فنية</span></div>
+    <div class="state-grid">
+      <div><span>متاح</span><b>{{ totals.available }}</b></div>
+      <div><span>في مهمة</span><b>{{ totals.in_mission }}</b></div>
+      <div><span>في الصيانة</span><b>{{ totals.in_maintenance }}</b></div>
+      <div><span>ورشة خارجية</span><b>{{ totals.in_external_workshop }}</b></div>
+      <div><span>غير متاح</span><b>{{ totals.unavailable }}</b></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h3>قواعد القراءة</h3><span>تعريفات التحليل الحالية</span></div>
+    <ul class="rules">
+      {% for key, value in definitions.items() %}
+      <li><b>{{ {"numerical_gap":"الفجوة العددية","technical_readiness":"الجاهزية الفنية","operational_availability":"الإتاحة التشغيلية","ready_available":"جاهز ومتاح","outside_requirement":"خارج المرجع النظري"}.get(key,key) }}</b><span>{{ value }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<div class="ax-note"><strong>حدود التحليل الحالي:</strong> هذا المحور يقرأ الحالة الحالية فقط. لا يحكم على استيفاء المهام المؤسسية، ولا يثبت الاستمرارية أو سبب الأعطال. إضافة المتطلبات التشغيلية والتاريخ الزمني ستسمح لاحقًا بتحليل القدرة الفعلية والاتجاهات.</div>
 </div>
-<div class="card">
-<h3>تحليل التركيبة</h3>
-<div class="analysis-tree">
-{% for cname,c in categories.items() %}
-<details open><summary><strong>{{ cname }}</strong><span>{{ c.actual }} فعلي · {{ c.need }} احتياج</span></summary>
-{% for tname,t in c.types.items() %}<details class="nested"><summary>{{ tname }}<span>{{ t.actual }} فعلي · {{ t.need }} احتياج</span></summary>
-{% for mname,m in t.models.items() %}<div class="model-analysis"><span>{{ mname }}</span><span>نظري {{ m.theoretical }}</span><span>فعلي {{ m.actual }}</span><strong>احتياج {{ m.need }}</strong><span>جاهز {{ m.ready }}</span><span>عاطل {{ m.broken }}</span></div>{% endfor %}
-</details>{% endfor %}</details>
-{% else %}<div class="empty">لا توجد بيانات للتحليل.</div>{% endfor %}
-</div></div>
+
 <style>
-.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}.bar-row{display:grid;grid-template-columns:70px 1fr 45px;gap:10px;align-items:center;margin:14px 0}.bar{height:9px;background:#e5e7eb;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#2563eb;border-radius:99px}.analysis-note{color:#64748b;font-size:13px;line-height:1.7}.analysis-tree details{border-bottom:1px solid #e5e7eb;padding:10px 0}.analysis-tree summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px}.analysis-tree summary span{color:#64748b;font-size:12px}.nested{margin-right:20px}.model-analysis{display:grid;grid-template-columns:2fr repeat(5,1fr);gap:8px;padding:10px 12px;margin:5px 0;background:#f8fafc;border-radius:8px;font-size:12px}.model-analysis strong{font-weight:800}.equipment-nav{display:flex;gap:4px;overflow-x:auto;margin:0 0 16px;border-bottom:1px solid #e5e7eb}.equipment-nav a{padding:10px 14px;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}.equipment-nav a.active{color:#173b63;border-bottom-color:#173b63;font-weight:700}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.movement-total{font-size:22px;font-weight:800;color:#173b63}.movement-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:12px}.movement-item{padding:14px;border:1px solid #e5e7eb;border-radius:10px;background:#f8fafc}.movement-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:700}.movement-pct{text-align:left;margin-top:7px;font-size:12px;color:#64748b}@media(max-width:800px){.analysis-grid,.movement-grid{grid-template-columns:1fr}.model-analysis{grid-template-columns:1fr 1fr}}
+.ax{--ink:#18283a;--muted:#718096;--line:#e4e9ef;--soft:#f7f9fb;--navy:#173b63;--bad:#a04444;color:var(--ink)}.ax-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:4px 0 16px}.eyebrow{font-size:10px;color:#8290a0;font-weight:700;letter-spacing:.08em}.ax-head h2{margin:4px 0 0;font-size:24px}.ax-head p{margin:5px 0 0;color:var(--muted);font-size:11px}.ax-link{border:1px solid #d8e0e8;border-radius:6px;padding:8px 12px;text-decoration:none;color:var(--navy);font-size:11px;font-weight:700}.ax-nav{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow:auto}.ax-nav a{padding:9px 13px;color:#64748b;text-decoration:none;font-size:11px;white-space:nowrap}.ax-nav a.active{color:var(--navy);border-bottom:2px solid var(--navy);font-weight:800}.panel{background:#fff;border:1px solid var(--line);border-radius:9px;margin-bottom:12px;overflow:hidden}.ph{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid #edf0f3}.ph h3{margin:0;font-size:12px}.ph span{font-size:9px;color:#8793a0}.executive{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}.exec-grid{display:grid;grid-template-columns:repeat(4,1fr)}.exec-grid div{padding:17px 13px;border-left:1px solid var(--line)}.exec-grid div:last-child{border-left:0}.exec-grid strong{display:block;font-size:25px;color:var(--navy)}.exec-grid span{display:block;margin-top:4px;color:#7b8794;font-size:9px}.exec-grid .bad strong,.bad{color:var(--bad)!important}.exec-grid .muted strong{color:#68788a}.explain{margin:0;padding:10px 14px;background:#fafbfc;color:#7b8794;font-size:9px;line-height:1.7}.state-list{padding:8px 15px 12px}.state-list div{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #edf0f3;font-size:10px}.state-list div:last-child{border:0}.state-list b{color:var(--navy)}.state-list small{color:#8995a3;font-weight:500}.findings{padding:4px 15px 10px}.finding{display:grid;grid-template-columns:105px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid #edf0f3}.finding:last-child{border:0}.finding-state{font-size:10px;font-weight:800;color:var(--navy);padding-top:2px}.finding strong{font-size:11px}.finding p{display:inline;margin:0 0 0 8px;font-size:10px;color:#526273}.finding small{display:block;margin-top:5px;color:#8793a0;font-size:9px}.empty{padding:25px;text-align:center;color:#8793a0;font-size:10px}.table-wrap{overflow:auto}.analysis-table{width:100%;min-width:980px;border-collapse:collapse}.analysis-table th,.analysis-table td{padding:9px 8px;border-bottom:1px solid #edf0f3;text-align:center;font-size:9.5px;white-space:nowrap}.analysis-table th{background:#fafbfc;color:#718096;font-weight:750}.analysis-table th:first-child,.analysis-table td:first-child{text-align:right;position:sticky;right:0;background:#fff}.analysis-table th:first-child{background:#fafbfc}.analysis-table td:first-child span{color:#526273}.analysis-table td small{color:#8995a3}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}.state-grid{display:grid;grid-template-columns:repeat(3,1fr);padding:8px 12px 12px}.state-grid div{padding:11px;border-bottom:1px solid #edf0f3}.state-grid span{display:block;color:#7b8794;font-size:9px}.state-grid b{display:block;margin-top:4px;color:var(--navy);font-size:16px}.rules{margin:0;padding:7px 25px 12px}.rules li{display:grid;grid-template-columns:125px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid #edf0f3;font-size:9px;list-style:none}.rules li:last-child{border:0}.rules b{color:#526273}.rules span{color:#8793a0}.ax-note{padding:11px 13px;background:#fafbfc;border-right:3px solid #9aa7b4;color:#6d7a88;font-size:9.5px;line-height:1.8}@media(max-width:850px){.executive,.two-col{grid-template-columns:1fr}.exec-grid{grid-template-columns:repeat(2,1fr)}.exec-grid div:nth-child(2n){border-left:0}.exec-grid div:nth-child(n+3){border-top:1px solid var(--line)}.finding{grid-template-columns:1fr;gap:4px}.state-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.ax-head{align-items:flex-start;flex-direction:column}.exec-grid{grid-template-columns:1fr 1fr}}
 </style>
-<script>
-(async function(){
-  const setMetric=(countId,barId,pctId,count,total)=>{const pct=total?Math.round(count/total*1000)/10:0;document.getElementById(countId).textContent=count;document.getElementById(barId).style.width=pct+'%';document.getElementById(pctId).textContent=pct+'%'};
-  try{
-    const [equipmentResponse,typesResponse]=await Promise.all([fetch('/api/equipment',{credentials:'same-origin',headers:{Accept:'application/json'}}),fetch('/api/equipment-types',{credentials:'same-origin',headers:{Accept:'application/json'}})]);
-    if(!equipmentResponse.ok||!typesResponse.ok) throw new Error('analysis data unavailable');
-    const equipment=await equipmentResponse.json(); const types=await typesResponse.json();
-    const models=new Map();
-    (Array.isArray(types)?types:[]).forEach(type=>(Array.isArray(type.models)?type.models:[]).forEach(model=>models.set(Number(model.id),model)));
-    let mobile=0,towed=0;
-    (Array.isArray(equipment)?equipment:[]).forEach(item=>{const model=models.get(Number(item.equipment_model_id));if(model&&model.mobility_type==='towed') towed++; else mobile++;});
-    const total=mobile+towed;document.getElementById('movementTotal').textContent=total+' عتاد';setMetric('mobileCount','mobileBar','mobilePct',mobile,total);setMetric('towedCount','towedBar','towedPct',towed,total);
-  }catch(e){document.getElementById('movementTotal').textContent='تعذر تحميل البيانات';}
-})();
-</script>
 {% endblock %}

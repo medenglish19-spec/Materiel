@@ -1,161 +1,392 @@
 {% extends "base.html" %}
-{% block title %}مركز البيانات الأساسية{% endblock %}
+{% block title %}أنواع العتاد{% endblock %}
+{% block extra_head %}
+<style>
+:root{--mdx-ink:#17242b;--mdx-muted:#66767f;--mdx-line:#dce2e5;--mdx-line-strong:#c6cfd4;--mdx-accent:#0e6b66;--mdx-accent-dark:#0a524e;--mdx-accent-soft:#ddefed;--mdx-deep:#0b3f3c;--mdx-panel:#f5f7f8;--mdx-ok:#1f6b43;--mdx-warn:#7d5200;--mdx-violet:#5b3f91}
+body:has(.mdx){background:#edf0f1;color:var(--mdx-ink);font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif}
+body:has(.mdx) .app-sidebar{width:236px;background:var(--mdx-deep);box-shadow:none}
+body:has(.mdx) .app-brand{font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:15px;padding:20px 16px;border-bottom:0}
+body:has(.mdx) .app-brand-icon{width:34px;height:34px;border:0;border-radius:9px;background:#fff;color:var(--mdx-accent);font-size:18px}
+body:has(.mdx) .app-menu{padding:8px 12px}
+body:has(.mdx) .app-menu a{min-height:38px;padding:9px 10px;border-radius:8px;color:#cfe3e1;font-size:13px;font-weight:500}
+body:has(.mdx) .app-menu a:hover{background:#ffffff12;transform:none}
+body:has(.mdx) .app-menu a.active{background:#fff;color:var(--mdx-deep);box-shadow:none;font-weight:700}
+body:has(.mdx) .sidebar-user{color:#9cc0bc;border-color:#ffffff20}
+body:has(.mdx) .sidebar-logout{color:#cfe3e1}
+body:has(.mdx) .app-main{margin-right:236px;padding:0;max-width:none}
+body:has(.mdx) .app-topbar{height:56px;margin:0;padding:0 28px;border-radius:0;background:#fffffff5;border:0;border-bottom:1px solid var(--mdx-line);box-shadow:none;gap:14px;top:0}
+body:has(.mdx) .app-topbar-title{font-size:13px;color:var(--mdx-muted);font-weight:500}
+body:has(.mdx) .app-workbar{margin-inline:auto;padding:3px;border:1px solid var(--mdx-line);border-radius:10px;background:var(--mdx-panel)}
+body:has(.mdx) .app-workbtn{height:32px;padding:0 11px;border:0;border-radius:7px;background:transparent;color:#4b5b64;font-size:12.5px;box-shadow:none}
+body:has(.mdx) .app-workbtn:hover:not(:disabled){background:#fff;border:0;box-shadow:0 0 0 1px var(--mdx-line-strong)}
+body:has(.mdx) .app-work-save:not(:disabled){background:var(--mdx-accent);color:#fff}
+body:has(.mdx) .app-work-save:not(:disabled):hover{background:var(--mdx-accent-dark)}
+body:has(.mdx) .app-work-status{min-width:100px;text-align:center;color:var(--mdx-muted);font-size:12px}
+body:has(.mdx) .app-topbar-date{border:1px solid var(--mdx-line);border-radius:8px;padding:5px 10px;background:#fff;color:#4b5b64;font-size:12px}
+body:has(.mdx) .container{padding:0 28px;max-width:1500px;margin:0 auto}
+body:has(.mdx) .module-nav{display:none}
+.mdx{max-width:1440px;padding:26px 0 56px;color:var(--mdx-ink)}
+.mdx-head{align-items:flex-end;gap:16px;padding:0;margin:0 0 18px;border:0}
+.mdx-head h1{margin:0;font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:24px;line-height:1.35;font-weight:700;letter-spacing:0;color:var(--mdx-ink)}
+.mdx-head p{margin:3px 0 0;max-width:none;color:#4b5b64;font-size:13.5px}
+.mdx-breadcrumb{margin-top:5px;color:var(--mdx-muted);font-size:12px}
+.mdx-breadcrumb strong{color:var(--mdx-accent);font-weight:700}
+.mdx-head-actions{gap:8px;justify-content:flex-start}
+.mdx-action{height:38px;padding:0 13px;border:1px solid var(--mdx-line-strong);border-radius:9px;background:#fff;color:var(--mdx-ink);font-size:12.5px;box-shadow:none}
+.mdx-action:hover{background:var(--mdx-panel);border-color:#a9b6bc;transform:none;box-shadow:none}
+.mdx-primary,.mdx-primary:hover{background:var(--mdx-accent);border-color:var(--mdx-accent);color:#fff;box-shadow:none}
+.mdx .layout{grid-template-columns:340px minmax(0,1fr);gap:16px;align-items:start}
+.mdx .card{background:#fff;border:1px solid var(--mdx-line);border-radius:12px;box-shadow:none}
+.mdx .tree-card{top:72px;max-height:calc(100vh - 88px)}
+.mdx .tree-head{padding:12px;background:#fff;border-bottom:1px solid var(--mdx-line)}
+.mdx .tree-head strong{color:var(--mdx-ink);font-size:14px}
+.mdx .tree-head .muted{background:#e6ebed;color:#4b5b64;padding:2px 8px;font-size:11.5px}
+.mdx .tree-search{width:calc(100% - 24px);margin:10px 12px 8px;height:36px;padding:0 11px;border:1px solid var(--mdx-line-strong);border-radius:9px;background:#fff;box-shadow:none;font-size:13px}
+.mdx .tree-search:focus{border-color:var(--mdx-accent);box-shadow:0 0 0 3px var(--mdx-accent-soft)}
+.mdx .tree-filter-bar{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 9px}
+.mdx .tree-filter{height:27px;padding:0 10px;border:1px solid var(--mdx-line-strong);border-radius:999px;background:#fff;color:#4b5b64;font-size:11.5px;font-weight:600}
+.mdx .tree-filter[aria-pressed="true"]{background:var(--mdx-ink);border-color:var(--mdx-ink);color:#fff}
+.mdx .tree .tree-library-title{display:flex;align-items:center;gap:8px;padding:12px 8px 4px;color:#4b5b64;font-size:12px;font-weight:700}
+.mdx .tree-library-title small{font-size:11px;color:var(--mdx-muted);font-weight:400}
+.mdx .tree-node{min-height:34px;padding:5px 8px;border-radius:8px;color:var(--mdx-ink);font-size:13px;font-weight:500;gap:8px}
+.mdx .tree-node:hover{background:#f5f7f8;color:var(--mdx-ink)}
+.mdx .tree-node.active{background:var(--mdx-accent-soft);color:var(--mdx-accent-dark);box-shadow:none;font-weight:700}
+.mdx .tree-toggle{width:15px;height:15px;min-width:15px;background:transparent;color:var(--mdx-muted);font-size:13px}
+.mdx .tree-actions{gap:4px}
+.mdx .tree-add,.mdx .tree-action{min-width:24px;height:24px;padding:0 6px;border-color:transparent;border-radius:7px;color:var(--mdx-accent);font-size:11px}
+.mdx .tree-add:hover,.mdx .tree-action:hover{background:var(--mdx-accent-soft);border-color:var(--mdx-accent-soft);color:var(--mdx-accent-dark);transform:none}
+.mdx .children{padding-inline-start:12px}
+.mdx .tree-toolbar{padding:9px 12px;border-color:var(--mdx-line);background:#fff;font-size:12px;color:#4b5b64}
+.mdx .tree-toolbar button{color:var(--mdx-accent)}
+.mdx .tree-root-dropzone{background:var(--mdx-accent-soft);border-color:var(--mdx-accent);color:var(--mdx-accent-dark)}
+.mdx .editor{padding:0;overflow:hidden}
+.mdx .editor-head{padding:15px 18px;background:#fff;border-bottom:1px solid var(--mdx-line)}
+.mdx .editor-head small{font-size:12px;letter-spacing:0;text-transform:none;color:var(--mdx-muted);font-weight:500}
+.mdx .editor-head h2{font-size:17px;font-weight:700;color:var(--mdx-ink)}
+.mdx .body{padding:16px 18px;background:#fff}
+.mdx #empty{min-height:460px;border:0;border-radius:0;background:#fff;color:var(--mdx-muted);font-size:13.5px}
+.mdx #empty::before{color:var(--mdx-accent);opacity:.75}
+.mdx .panel{padding:0;background:#fff}
+.mdx .type-overview{display:grid;gap:16px}
+.mdx .type-hero{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 22px;border:1px solid var(--mdx-line);border-radius:12px;background:#fff}
+.mdx .type-hero-main{flex:1;min-width:220px}
+.mdx .type-path{font-size:12.5px;color:var(--mdx-muted)}
+.mdx .type-hero h3{margin:4px 0 8px;font-size:22px;line-height:1.35;font-weight:700;color:var(--mdx-ink)}
+.mdx .type-chips{display:flex;gap:7px;flex-wrap:wrap}
+.mdx .type-chip{display:inline-flex;align-items:center;gap:6px;padding:1px 10px;border-radius:999px;background:#e6ebed;color:#4b5b64;font-size:12px;font-weight:600;line-height:22px}
+.mdx .type-chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.mdx .type-chip.info{background:#e0ebf7;color:#22558f}.mdx .type-chip.frozen{background:#eae4f5;color:var(--mdx-violet)}
+.mdx .type-hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.mdx .type-summary{display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:18px 20px;border:1px solid var(--mdx-line);border-radius:12px;background:#fff}
+.mdx .type-summary-total{display:flex;align-items:baseline;gap:9px}
+.mdx .type-summary-total strong{font-family:"Noto Kufi Arabic",sans-serif;font-size:32px;line-height:1;color:var(--mdx-ok)}
+.mdx .type-summary-total span{color:#4b5b64;font-size:13px}
+.mdx .type-progress{flex:1;min-width:200px}
+.mdx .type-meter{height:9px;border-radius:5px;background:var(--mdx-line);overflow:hidden;margin-bottom:6px}
+.mdx .type-meter i{display:block;height:100%;border-radius:5px;background:#2e8557}
+.mdx .type-gap{font-size:12.5px;font-weight:600;color:var(--mdx-warn)}
+.mdx .type-gap.ok{color:var(--mdx-ok)}
+.mdx .type-models{overflow:hidden;border:1px solid var(--mdx-line);border-radius:12px;background:#fff}
+.mdx .type-models-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--mdx-line)}
+.mdx .type-models-head h3{margin:0;font-size:15px;font-weight:700;color:var(--mdx-ink)}
+.mdx .type-models-head span{font-size:12px;color:var(--mdx-muted)}
+.mdx .type-table-wrap{overflow:auto}
+.mdx .type-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12.5px}
+.mdx .type-table th{padding:10px 13px;background:#f5f7f8;color:#4b5b64;text-align:start;font-size:11.5px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--mdx-line)}
+.mdx .type-table td{padding:10px 13px;border-bottom:1px solid var(--mdx-line);vertical-align:middle}
+.mdx .type-table tr:last-child td{border-bottom:0}.mdx .type-table tbody tr{cursor:pointer}.mdx .type-table tbody tr:hover td{background:#f8fafa}
+.mdx .type-table .num{text-align:end;font-variant-numeric:tabular-nums}
+.mdx .type-status{display:inline-flex;padding:2px 9px;border-radius:999px;background:#e1f1e7;color:#1f6b43;font-size:11.5px;font-weight:600;white-space:nowrap}
+.mdx .type-status.frozen{background:#eae4f5;color:var(--mdx-violet)}
+.mdx .type-empty{padding:32px;text-align:center;color:var(--mdx-muted)}
+.mdx .btn.primary{background:var(--mdx-accent);box-shadow:none}.mdx .btn.primary:hover{background:var(--mdx-accent-dark);filter:none;transform:none;box-shadow:none}
+.mdx .btn.soft{color:var(--mdx-accent);border-color:var(--mdx-line-strong)}
+.mdx .tree-library[data-system="1"] .tree-library-title{color:#5b3f91}
+@media(max-width:1200px){body:has(.mdx) .container{padding:0 18px}.mdx .layout{grid-template-columns:minmax(290px,330px) minmax(0,1fr)}}
+@media(max-width:980px){body:has(.mdx) .app-main{margin-right:0}.mdx-head{align-items:flex-start}.mdx .layout{grid-template-columns:1fr}.mdx .tree-card{position:relative;top:auto;max-height:440px}}
+@media(max-width:700px){body:has(.mdx) .app-sidebar{position:static;width:100%;height:auto;flex-direction:column}body:has(.mdx) .app-main{margin-right:0;padding:0}body:has(.mdx) .app-topbar{position:static;height:auto;min-height:56px;flex-wrap:wrap;padding:10px 14px}body:has(.mdx) .app-workbar{margin-inline-start:auto}body:has(.mdx) .container{padding:0 14px}.mdx{padding:20px 0 36px}.mdx-head{flex-direction:column;align-items:flex-start}.mdx-head-actions{display:flex;width:100%}.mdx .tree-card{max-height:440px}.mdx .type-hero{padding:16px}.mdx .type-summary{padding:15px}.mdx .type-models-head{align-items:flex-start;flex-direction:column}}
+/* Model card workspace: aligned to the supplied Materiel mockup */
+.mdx .editor:has(#modelViewPanel.active){border:0;background:transparent;overflow:visible}.mdx .editor:has(#modelViewPanel.active) .editor-head{display:none}.mdx .editor:has(#modelViewPanel.active) .body{padding:0;background:transparent}
+#model-library-v3{gap:10px}
+#model-library-v3 .model-hero{align-items:center;gap:14px;padding:13px 16px;border:1px solid var(--mdx-line);border-radius:10px;background:#fff;box-shadow:none}
+#model-library-v3 .model-hero-img{width:76px;height:62px;min-width:76px;border-radius:8px;background:#f5f7f8;border-color:var(--mdx-line)}
+#model-library-v3 .model-hero-main{min-width:180px}
+#model-library-v3 .model-kicker{font-size:11.5px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--mdx-muted)}
+#model-library-v3 .model-hero h2{margin:3px 0 5px;font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:20px;line-height:1.35;font-weight:700;letter-spacing:0;color:var(--mdx-ink)}
+#model-library-v3 .model-meta{gap:6px;margin-top:0;font-size:12px;color:var(--mdx-muted)}
+#model-library-v3 .model-meta i{display:none}
+#model-library-v3 .model-meta .type-chip{padding:0 8px;line-height:21px;font-size:11px;font-weight:600}
+#model-library-v3 .model-meta .type-chip::before{width:6px;height:6px}
+#model-library-v3 .type-chip.ok{background:#e1f1e7;color:#1f6b43}
+#model-library-v3 .model-hero-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#model-library-v3 .model-hero-actions form{margin:0}
+#model-library-v3 .model-hero-actions .btn{min-height:31px;height:31px;padding:0 9px;border:1px solid var(--mdx-line-strong);border-radius:8px;background:#fff;color:#4b5b64;box-shadow:none;font-size:11.5px;white-space:nowrap}
+#model-library-v3 .model-hero-actions .btn.primary{background:var(--mdx-accent);border-color:var(--mdx-accent);color:#fff}
+#model-library-v3 .model-hero-actions .btn:disabled{opacity:.45;cursor:not-allowed}
+#model-library-v3 .model-view-tabs{display:flex;gap:18px;align-items:center;overflow:auto;border-bottom:1px solid var(--mdx-line);margin:0 0 10px;white-space:nowrap}
+#model-library-v3 .model-view-tabs button{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 2px;border:0;border-bottom:2px solid transparent;background:transparent;color:#4b5b64;font:inherit;font-size:12px;cursor:pointer}
+#model-library-v3 .model-view-tabs button[aria-selected="true"]{border-bottom-color:var(--mdx-accent);color:var(--mdx-accent);font-weight:700}
+#model-library-v3 .model-view-tabs .n{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 5px;border-radius:99px;background:#e6ebed;color:#4b5b64;font-size:10px;font-weight:700}
+#model-library-v3 .model-view-section[hidden]{display:none!important}
+#model-library-v3 .model-overview-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:12px;align-items:start}
+#model-library-v3 .model-view-stack{display:grid;gap:12px;align-content:start;min-width:0}
+#model-library-v3 .model-view-section .card{border:1px solid var(--mdx-line);border-radius:10px;background:#fff;box-shadow:none;overflow:hidden}
+#model-library-v3 .model-view-section .box-head{min-height:38px;padding:9px 13px;border-bottom:1px solid var(--mdx-line);background:#fff}
+#model-library-v3 .model-view-section .box-head h3{margin:0;color:var(--mdx-ink);font-size:13px;font-weight:700}
+#model-library-v3 .model-view-section .box-head .muted{font-size:11px;color:var(--mdx-muted)}
+#model-library-v3 .model-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 20px;padding:13px 16px}
+#model-library-v3 .model-data-grid>div>span,#model-library-v3 .model-battery-grid>div>span{display:block;margin-bottom:2px;color:var(--mdx-muted);font-size:11px}
+#model-library-v3 .model-data-grid strong,#model-library-v3 .model-battery-grid strong{display:block;color:var(--mdx-ink);font-size:12px;font-weight:700}
+#model-library-v3 .model-checklist{list-style:none;margin:0;padding:6px 13px 9px}
+#model-library-v3 .model-checklist li{display:flex;align-items:center;gap:8px;min-height:29px;padding:5px 0;border-bottom:1px solid #edf0f1;font-size:11.5px}
+#model-library-v3 .model-checklist li:last-child{border-bottom:0}
+#model-library-v3 .model-checklist .check-dot{display:grid;place-items:center;width:17px;height:17px;flex:none;border-radius:50%;background:#e1f1e7;color:#1f6b43;font-size:10px;font-weight:800}
+#model-library-v3 .model-checklist .missing .check-dot{background:#fbefd2;color:#7d5200}
+#model-library-v3 .model-checklist small{margin-inline-start:auto;color:var(--mdx-muted);font-size:10px}
+#model-library-v3 .model-count-card{display:grid;gap:7px;padding:10px 13px}
+#model-library-v3 .model-count-card>div{display:flex;justify-content:space-between;gap:10px;font-size:11.5px}
+#model-library-v3 .model-count-card strong{color:var(--mdx-ink)}
+#model-library-v3 .model-count-card a{color:var(--mdx-accent);text-decoration:none}
+#model-library-v3 .model-tire-grid{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:12px;align-items:start}
+#model-library-v3 .model-diagram-card{padding:10px}
+#model-library-v3 #viewWheelDiagram svg{display:block;width:100%;max-height:220px}
+#model-library-v3 .model-diagram-card>p{margin:5px 0 0;text-align:center;font-size:10.5px}
+#model-library-v3 .model-view-section .table-wrap{margin:0;overflow:auto}
+#model-library-v3 .model-view-section .tbl{border:0;border-radius:0;font-size:11.5px}
+#model-library-v3 .model-view-section .tbl th{padding:7px 9px;background:#f5f7f8;color:#4b5b64;font-size:10.5px;font-weight:600}
+#model-library-v3 .model-view-section .tbl td{padding:7px 9px;color:var(--mdx-ink)}
+#model-library-v3 .model-approved-sizes{display:flex;gap:7px;flex-wrap:wrap;padding:10px}
+#model-library-v3 .size-chip{display:inline-flex;align-items:center;padding:4px 9px;border:1px solid var(--mdx-line-strong);border-radius:8px;background:#f5f7f8;color:var(--mdx-ink);font-size:11px;font-weight:600;direction:ltr}
+#model-library-v3 .model-battery-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:15px}
+#model-library-v3 .model-battery-grid>div{padding:12px;border:1px solid var(--mdx-line);border-radius:9px;background:#fff}
+#model-library-v3 .model-empty{margin:0;padding:20px;text-align:center;color:var(--mdx-muted);font-size:12px}
+#model-library-v3 .model-spec-table td:first-child{width:42%;color:var(--mdx-muted)}
+#model-library-v3 .model-spec-table td:last-child{font-weight:600}
+@media(max-width:1200px){.mdx .layout{grid-template-columns:minmax(220px,28%) minmax(0,1fr)}}
+@media(max-width:980px){ #model-library-v3 .model-overview-grid{grid-template-columns:1fr 1fr}.mdx .layout{grid-template-columns:1fr}}
+@media(max-width:700px){ #model-library-v3 .model-hero{align-items:flex-start;flex-wrap:wrap}#model-library-v3 .model-hero-actions{width:100%}#model-library-v3 .model-overview-grid,#model-library-v3 .model-tire-grid{grid-template-columns:1fr}#model-library-v3 .model-data-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#model-library-v3 .model-battery-grid{grid-template-columns:1fr}}
+/* Mobile-first model library refinement: keep navigation compact and let the library own the screen. */
+body:has(.mdx) .app-sidebar{width:208px}
+body:has(.mdx) .app-main{margin-right:208px}
+.mdx .layout{grid-template-columns:280px minmax(0,1fr);gap:14px}
+.mdx .tree-card{max-width:280px}
+.mdx .tree-card{overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.mdx .tree-card .tree{overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-width:thin;scrollbar-color:#aebbc0 transparent}
+.mdx .tree-card .tree::-webkit-scrollbar{width:8px}
+.mdx .tree-card .tree::-webkit-scrollbar-track{background:transparent}
+.mdx .tree-card .tree::-webkit-scrollbar-thumb{background:#aebbc0;border-radius:8px}
+.mdx .tree-card .tree::-webkit-scrollbar-thumb:hover{background:#89999f}
+.mdx .type-models-head{padding:12px 14px}
+.mdx .type-table th,.mdx .type-table td{padding:9px 10px}
+@media(max-width:900px){
+  body:has(.mdx) .app-sidebar{width:176px}
+  body:has(.mdx) .app-main{margin-right:176px}
+  .mdx .layout{grid-template-columns:250px minmax(0,1fr)}
+  .mdx .tree-card{max-width:250px}
+}
+@media(max-width:700px){
+  body:has(.mdx) .app-sidebar{
+    position:static;width:100%;height:auto;min-height:52px;flex-direction:row;align-items:flex-start;
+    overflow:visible;background:var(--mdx-deep);box-shadow:none
+  }
+  body:has(.mdx) .app-brand{
+    flex:0 0 52px;width:52px;height:52px;padding:0;justify-content:center;
+    border-left:1px solid #ffffff18
+  }
+  body:has(.mdx) .app-brand-icon{width:30px;height:30px;font-size:16px}
+  body:has(.mdx) .app-brand span:not(.app-brand-icon),
+  body:has(.mdx) .sidebar-user,
+  body:has(.mdx) .sidebar-logout{display:none}
+  body:has(.mdx) .app-menu{
+    flex:1;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;
+    gap:4px;padding:6px 7px;overflow:visible
+  }
+  body:has(.mdx) .app-menu a{
+    flex:0 0 auto;min-height:34px;height:34px;padding:7px 9px;border-radius:7px;
+    font-size:11px;white-space:nowrap
+  }
+  body:has(.mdx) .app-menu a .menu-icon{font-size:15px;width:18px}
+  body:has(.mdx) .app-main{margin-right:0;padding:0}
+  body:has(.mdx) .app-topbar{
+    position:static;height:48px;min-height:48px;padding:7px 12px;
+    flex-direction:row;align-items:center;gap:8px;overflow:hidden
+  }
+  body:has(.mdx) .app-topbar-title{font-size:11px;white-space:nowrap}
+  body:has(.mdx) .app-workbar{margin-inline-start:auto;overflow:auto;max-width:68%}
+  body:has(.mdx) .app-workbtn{height:30px;padding:0 8px;font-size:10px}
+  body:has(.mdx) .app-work-status,body:has(.mdx) .app-worksep{display:none}
+  body:has(.mdx) .app-topbar-date{display:none}
+  body:has(.mdx) .container{padding:0 10px}
+  .mdx{padding:14px 0 28px}
+  .mdx-head{gap:10px;margin-bottom:12px}
+  .mdx-head h1{font-size:19px}
+  .mdx-head p{font-size:11.5px;line-height:1.7}
+  .mdx-breadcrumb{font-size:10.5px}
+  .mdx-head-actions{
+    width:100%;display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:2px
+  }
+  .mdx-action{height:34px;padding:0 10px;font-size:11px;white-space:nowrap;flex:0 0 auto}
+  .mdx .layout{grid-template-columns:1fr;gap:10px}
+  .mdx .tree-card{position:relative;top:auto;max-width:none;width:100%;max-height:250px}
+  .mdx .tree-root-dropzone{padding:6px 8px;font-size:10px}
+  .mdx .tree-head{padding:9px 10px}
+  .mdx .tree-head strong{font-size:12px}
+  .mdx .tree-search{height:32px;margin:7px 10px 6px;width:calc(100% - 20px);font-size:11.5px}
+  .mdx .tree-filter-bar{padding:0 10px 7px;gap:4px}
+  .mdx .tree-filter{height:24px;padding:0 8px;font-size:10px}
+  .mdx .tree-node{min-height:30px;padding:4px 7px;font-size:11.5px}
+  .mdx .tree-toolbar{padding:6px 9px;font-size:10.5px}
+  .mdx .editor{min-width:0}
+  .mdx .editor-head{padding:10px 12px}
+  .mdx .body{padding:10px 0}
+  .mdx #empty{min-height:220px;font-size:12px}
+  .mdx .type-hero{padding:12px;gap:10px;border-radius:9px}
+  .mdx .type-hero h3{font-size:18px}
+  .mdx .type-summary{padding:12px;gap:12px}
+  .mdx .type-summary-total strong{font-size:27px}
+  .mdx .type-progress{min-width:100%;width:100%}
+  .mdx .type-models{border-radius:9px}
+  .mdx .type-models-head{padding:10px 12px}
+  .mdx .type-table-wrap{overflow-x:auto}
+  .mdx .type-table{min-width:620px}
+  #model-library-v3 .model-hero{padding:11px 12px;gap:9px;border-radius:9px}
+  #model-library-v3 .model-hero-img{width:58px;height:48px;min-width:58px}
+  #model-library-v3 .model-hero h2{font-size:17px}
+  #model-library-v3 .model-meta{font-size:10.5px;gap:4px;flex-wrap:wrap}
+  #model-library-v3 .model-hero-actions{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-top:2px}
+  #model-library-v3 .model-hero-actions .btn{flex:0 0 auto;height:30px;min-height:30px;font-size:10.5px}
+  #model-library-v3 .model-view-tabs{gap:14px;margin-bottom:8px}
+  #model-library-v3 .model-view-tabs button{font-size:11px;min-height:32px}
+  #model-library-v3 .model-overview-grid,
+  #model-library-v3 .model-tire-grid{grid-template-columns:1fr;gap:8px}
+  #model-library-v3 .model-data-grid{grid-template-columns:1fr 1fr;gap:9px 12px;padding:11px 12px}
+  #model-library-v3 .model-battery-grid{grid-template-columns:1fr;padding:10px}
+  #model-library-v3 .model-view-section .card{border-radius:9px}
+  #model-library-v3 .model-view-section .box-head{padding:8px 11px}
+  #model-library-v3 .model-tire-grid .model-diagram-card{padding:7px}
+  #model-library-v3 #viewWheelDiagram svg{max-height:180px}
+}
+@media(max-width:380px){
+  #model-library-v3 .model-data-grid{grid-template-columns:1fr}
+  #model-library-v3 .model-view-tabs{gap:10px}
+}
+</style>
+{% endblock %}
 {% block content %}
 <div dir="rtl" class="mdx">
-<style>
-.mdx{padding:18px;max-width:1750px;margin:auto;color:#1e293b}.mdx *{box-sizing:border-box}.mdx-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}.mdx-head h1{margin:0;color:#173b63}.mdx-head p{margin:5px 0 0;color:#64748b}.layout{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;min-height:720px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 5px 18px #0f172a0d}.tree-card{padding:12px}.tree-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:6px 4px 12px}.tree{margin-top:8px}.tree-node{display:flex;align-items:center;gap:7px;width:100%;padding:8px;border:0;background:transparent;border-radius:8px;text-align:right;font:inherit;cursor:pointer}.tree-node:hover,.tree-node.active{background:#eef5fa}.tree-node.active{font-weight:800;color:#173b63}.tree-toggle{width:18px;color:#64748b}.tree-actions{margin-right:auto;display:flex;align-items:center;flex-shrink:0;white-space:nowrap;gap:2px}.tree-add,.tree-more{border:0;background:transparent;cursor:pointer;color:#173b63;border-radius:6px;padding:2px 5px;font-weight:900}.tree-add:hover,.tree-more:hover{background:#dbeafe}.tree-action{margin-right:auto;border:0;background:transparent;color:#173b63;border-radius:6px;padding:2px 5px;font-weight:900;cursor:pointer}.tree-action:hover,.tree-action:focus{background:#dbeafe}.children{max-height:0;opacity:0;overflow:hidden;padding-right:20px;transition:max-height .22s ease,opacity .18s ease}.open>.children{max-height:5000px;opacity:1}.tree-search{width:100%;margin:10px 0;padding:9px;border:1px solid #d7dee8;border-radius:8px;font:inherit}.editor{padding:0;overflow:hidden}.editor-head{padding:18px;border-bottom:1px solid #e5e7eb}.editor-head h2{margin:0;color:#173b63}.editor-head small{color:#64748b}.body{padding:18px}.panel{display:none}.panel.active{display:block}.box{border:1px solid #e2e8f0;border-radius:12px;margin-bottom:14px;overflow:hidden}.box-head{display:flex;justify-content:space-between;align-items:center;padding:10px 13px;background:#f8fafc;border-bottom:1px solid #e5e7eb}.box-head h3{margin:0;font-size:15px;color:#173b63}.box-body{padding:13px}.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.field{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:800}.field input,.field select{padding:9px;border:1px solid #d7dee8;border-radius:8px;font:inherit;width:100%}.check{display:flex;gap:7px;align-items:center;padding:9px;border:1px solid #e5e7eb;border-radius:8px;background:#f8fafc}.btn{border:0;border-radius:8px;padding:8px 11px;cursor:pointer;font:inherit;font-weight:800}.primary{background:#173b63;color:#fff}.soft{background:#eaf1f6;color:#173b63}.danger{background:#fee2e2;color:#991b1b}.table-wrap{overflow:auto}.tbl{width:100%;border-collapse:collapse}.tbl th,.tbl td{border-bottom:1px solid #e5e7eb;padding:6px;text-align:right}.tbl th{background:#f8fafc;color:#64748b;font-size:12px}.tbl input,.tbl select{width:100%;padding:7px;border:1px solid #d7dee8;border-radius:6px;font:inherit}.save{display:flex;gap:8px;margin-top:14px}.muted{color:#64748b;font-size:13px}.empty{min-height:500px;display:grid;place-items:center;text-align:center;color:#64748b}.ref-form{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end}.ref-form input,.ref-form select{padding:9px;border:1px solid #d7dee8;border-radius:8px;font:inherit}.notice{padding:10px;border-radius:8px;margin-bottom:12px;font-weight:800}.success{background:#dcfce7;color:#166534}.warning{background:#fef3c7;color:#92400e}.section-focus{outline:2px solid #93c5fd;outline-offset:2px}.import-help{padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af;font-size:12px;line-height:1.7;margin-top:10px}.master-reference-block{margin-bottom:10px;padding:8px 0;border-bottom:1px solid #eef2f7}.master-reference-heading{font-size:11px;color:#94a3b8;font-weight:800;padding:4px 8px}@media(max-width:640px){.layout{grid-template-columns:1fr}.fields{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.fields,.ref-form{grid-template-columns:1fr}.mdx{padding:8px}}
-/* Master Data Workspace v2.4 — fixed two-column RTL layout + smooth tree transitions. */
-.mdx{min-height:calc(100vh - 4rem);padding:16px 20px}.mdx-head{align-items:center}.mdx-breadcrumb{margin-top:7px;font-size:11px;color:#7b8da1}.mdx-breadcrumb strong{color:#4f46e5}.mdx-head-actions{display:flex;gap:8px;align-items:center}.mdx-action{border:1px solid #d9e2ec;background:#fff;color:#334155;border-radius:9px;padding:9px 12px;font-weight:700;cursor:pointer}.mdx-primary{background:#4f46e5;color:#fff;border-color:#4f46e5}.layout{height:calc(100vh - 155px);min-height:560px;align-items:stretch}.tree-card{height:100%;max-height:none;overflow:hidden;display:flex;flex-direction:column}.tree-card>.master-reference-block{flex:1;min-height:0;overflow-y:auto}.tree-toolbar{padding:8px 12px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;align-items:center;gap:8px;font-size:11px;color:#64748b}.tree-toolbar button{border:0;background:none;color:#475569;font-weight:700;cursor:pointer}.tree-count{margin-right:auto}.tree-root-dropzone{display:none;margin:8px 10px;padding:9px;border:2px dashed #818cf8;border-radius:9px;background:#eef2ff;color:#4338ca;text-align:center;font-size:11px;font-weight:800}.tree-root-dropzone.is-active{display:block;animation:masterDropPulse 1.1s ease-in-out infinite}.tree-node{transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}.tree-group>.children{transition:grid-template-rows .22s ease,opacity .18s ease}.tree-node.dragging{opacity:.42;transform:scale(.985)}@keyframes masterDropPulse{50%{transform:translateY(-1px);box-shadow:0 0 0 4px rgba(99,102,241,.08)}}
-@media(max-width:900px){.layout{height:auto;min-height:0}.tree-card{height:auto;max-height:48vh}.mdx-head{flex-wrap:wrap}.mdx-head-actions{width:100%}}
-
-#specLibraryPicker{margin-bottom:12px;padding:12px;border:1px solid #cfe7da;border-radius:12px;background:#f3faf6}.spec-picker-group{padding:9px 0;border-bottom:1px solid #dcebe3}.spec-picker-group:last-child{border-bottom:0}.spec-picker-group>strong{display:block;color:#245444;margin-bottom:7px}.spec-picker-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.spec-picker-grid label{padding:7px 9px;border:1px solid #dcebe3;border-radius:8px;background:#fff;font-size:12px;font-weight:700}@media(max-width:700px){.spec-picker-grid{grid-template-columns:1fr 1fr}}#specRows .spec-group,#viewSpecRows .spec-group{border:1px solid #dcebe3;border-radius:14px;background:#fbfefc;margin-bottom:12px;overflow:hidden}.spec-group-title{padding:10px 13px;background:#edf8f2;font-weight:800;color:#245444}.spec-group-grid{padding:12px}.spec-group-grid .field{margin:0}
-</style>
-<style id="master-data-model-library-v3">
-#model-library-v3{display:flex;flex-direction:column;gap:14px}
-#model-library-v3 .model-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:24px 26px;border:1px solid #dceee5;border-radius:18px;background:linear-gradient(135deg,#ffffff 0%,#f4fbf7 100%);box-shadow:0 8px 28px rgba(15,80,50,.07)}
-#model-library-v3 .model-kicker{font-size:11px;font-weight:900;color:#2d8b68;letter-spacing:.08em;margin-bottom:5px}
-#model-library-v3 .model-hero h2{margin:0;color:#173b32;font-size:25px}
-#model-library-v3 .model-meta{display:flex;gap:8px;align-items:center;margin-top:7px;color:#71827b;font-size:13px}
-#model-library-v3 .model-meta i{font-style:normal;color:#a5b5ae}
-#model-library-v3 .model-summary,#model-library-v3 .technical-card{background:#fff;border:1px solid #e1ebe6;border-radius:18px;box-shadow:0 6px 24px rgba(15,80,50,.055)}
-#model-library-v3 .summary-title{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #edf2ef}
-#model-library-v3 .summary-title span:first-child{display:block;font-size:17px;font-weight:900;color:#21483b}
-#model-library-v3 .summary-title small{display:block;margin-top:4px;color:#83918b;font-size:11px}
-#model-library-v3 .model-badge{font-size:10px!important;color:#318063!important;background:#eaf7f0;padding:6px 9px;border-radius:20px}
-#model-library-v3 .summary-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:#edf2ef}
-#model-library-v3 .summary-grid>div{background:#fff;padding:15px 16px}
-#model-library-v3 .summary-grid small,.mini-stats small{display:block;color:#87958f;font-size:11px;margin-bottom:5px}
-#model-library-v3 .summary-grid strong,.mini-stats strong{color:#26483e;font-size:14px}
-#model-library-v3 .model-jumps{display:flex;gap:8px;flex-wrap:wrap;padding:13px 16px}
-#model-library-v3 .model-jumps a{padding:8px 11px;border:1px solid #dbe9e2;border-radius:9px;text-decoration:none;color:#28765a;background:#f7fbf9;font-size:12px;font-weight:800}
-#model-library-v3 .model-jumps a:hover{background:#eaf7f0}
-#model-library-v3 .technical-card{padding:18px}
-#model-library-v3 .technical-card-head{display:flex;justify-content:space-between;align-items:end;padding:3px 4px 15px;border-bottom:1px solid #edf2ef;margin-bottom:14px}
-#model-library-v3 .technical-eyebrow{font-size:9px;color:#4c9b7a;font-weight:900;letter-spacing:.1em}
-#model-library-v3 .technical-card h3{margin:3px 0 0;color:#21483b;font-size:19px}
-#model-library-v3 .technical-card-head>span{font-size:11px;color:#9aa7a1}
-#model-library-v3 .technical-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-#model-library-v3 .tech-section{border:1px solid #e5eee9;border-radius:14px;overflow:hidden;background:#fbfdfc}
-#model-library-v3 .tech-section-head{display:flex;gap:10px;align-items:center;padding:14px 15px;background:#f5faf7;border-bottom:1px solid #e5eee9}
-#model-library-v3 .tech-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#e5f5ec;font-size:17px}
-#model-library-v3 .tech-section h4{margin:0;color:#294d41;font-size:14px}
-#model-library-v3 .tech-section p{margin:3px 0 0;color:#89968f;font-size:10px}
-#model-library-v3 .tech-section>.fields,#model-library-v3 .tech-section>.table-wrap,#model-library-v3 .tech-section>.mini-stats,#model-library-v3 .tech-section>.approved-sizes,#model-library-v3 .tech-empty,#model-library-v3 .maintenance-note{margin:13px 14px}
-#model-library-v3 .mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-#model-library-v3 .mini-stats>div{padding:11px;border:1px solid #e4eee9;border-radius:10px;background:#fff}
-#model-library-v3 .approved-sizes{padding:11px;border:1px solid #e4eee9;border-radius:10px;background:#fff;color:#71827b;font-size:11px;font-weight:800}
-#model-library-v3 .approved-sizes #viewSizesBody{margin-top:7px}
-#model-library-v3 .approved-sizes #viewSizesBody tr{display:inline-block;margin:3px}
-#model-library-v3 .approved-sizes #viewSizesBody td{display:block;border:1px solid #dcebe3;border-radius:8px;padding:5px 8px;color:#2d6f58;background:#f3faf6}
-#model-library-v3 .tech-empty{padding:14px;border:1px dashed #dce8e2;border-radius:10px;color:#94a19b;font-size:11px}
-#model-library-v3 .maintenance-note{padding:13px;border-radius:10px;background:#f3faf6;color:#4e7063;font-size:12px;line-height:1.7}
-#model-library-v3 .tech-maintenance{grid-column:1/-1}
-@media(max-width:1000px){ #model-library-v3 .summary-grid{grid-template-columns:repeat(3,1fr)}#model-library-v3 .technical-grid{grid-template-columns:1fr}}
-@media(max-width:640px){ #model-library-v3 .model-hero{padding:18px;align-items:flex-start;flex-direction:column}#model-library-v3 .summary-grid{grid-template-columns:repeat(2,1fr)}#model-library-v3 .model-jumps a{flex:1;text-align:center}}
-</style>
-<style id="master-data-model-library-v4">
-#model-library-v3{display:block!important;background:#f3faf6;border:1px solid #d8ebe1;border-radius:20px;padding:18px!important}
-#model-library-v3 .model-hero{background:linear-gradient(135deg,#ffffff 0%,#e9f7ef 100%)!important;border-color:#cfe7da!important;border-radius:18px!important;padding:22px!important}
-#model-library-v3 .model-hero h2{font-size:27px!important;color:#173b32!important}
-#model-library-v3 .model-summary,#model-library-v3 .technical-card{border-color:#d5e9df!important;border-radius:16px!important}
-#model-library-v3 .summary-title{background:#fbfefc}
-#model-library-v3 .summary-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
-#model-library-v3 .summary-grid>div{min-height:72px}
-#model-library-v3 .technical-card{background:#ffffff!important}
-#model-library-v3 .tech-section{background:#fbfefc;border-color:#dcebe3}
-#model-library-v3 .tech-section-head{background:#edf8f2}
-#model-library-v3 .tech-icon{background:#dff2e7}
-#model-library-v3 .model-jumps a{background:#edf8f2!important;border-color:#cfe7da!important}
-#model-library-v3 .model-jumps a:hover{background:#dff2e7!important}
-@media(max-width:1000px){ #model-library-v3 .summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-@media(max-width:640px){ #model-library-v3{padding:10px!important}#model-library-v3 .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-</style>
 <div id="tree-toast" class="tree-toast" hidden><span id="toast-message"></span></div>
-<div class="mdx-head"><div><h1>مركز البيانات الأساسية للمعدات</h1><p>إدارة التصنيف والطرازات والمراجع من مساحة عمل RTL تفاعلية.</p><div class="mdx-breadcrumb">الرئيسية / تصنيف الأسطول والمعدات / <strong>شجرة المعدات</strong></div></div><div class="mdx-head-actions"><button type="button" id="btn-export-tree" class="mdx-action">تصدير الشجرة (JSON)</button><button type="button" id="btn-manage-specs" class="mdx-action">⚙️ مكتبة الخصائص الفنية</button><button type="button" id="btn-manage-brands" class="mdx-action">🏷️ إدارة العلامات التجارية</button><button type="button" id="btn-add-root-category" class="mdx-action mdx-primary">＋ إضافة تصنيف رئيسي</button></div></div>
+<div class="mdx-head"><div><h1>أنواع العتاد</h1><p>استعرض التصنيفات والأنواع والطرازات من مساحة عمل واحدة.</p><div class="mdx-breadcrumb">إدارة العتاد / <strong>أنواع العتاد</strong></div></div><div class="mdx-head-actions"><button type="button" id="btn-export-tree" class="mdx-action">تصدير الشجرة (JSON)</button><button type="button" id="btn-manage-specs" class="mdx-action">⚙️ مكتبة الخصائص الفنية</button><button type="button" id="btn-manage-brands" class="mdx-action">🏷️ إدارة العلامات التجارية</button><button type="button" id="btn-add-root-category" class="mdx-action mdx-primary">＋ إضافة تصنيف رئيسي</button></div></div>
 {% if request.query_params.get('notice') %}<div class="notice {{ request.query_params.get('notice_type','success') }}">{{ request.query_params.get('notice') }}</div>{% endif %}
 <div class="layout">
-<aside class="card tree-card"><div id="tree-root-dropzone" class="tree-root-dropzone">⬇️ إفلات هنا لنقل الطراز إلى المستوى الرئيسي</div><div class="tree-head"><strong>شجرة مركز البيانات</strong><span class="muted">{{ models|length }} طراز</span></div><input class="tree-search" id="treeSearch" placeholder="بحث..."><div class="tree" id="tree">
-<div class="master-reference-block">
-<div class="tree-group open" data-library-root="private">
-<button class="tree-node" data-ref="private-categories" type="button"><span class="tree-toggle">⌄</span>👤 مكتبتي الخاصة<span class="tree-actions"><span class="tree-add" data-add="category">＋</span></span></button><div class="children"><button class="tree-node" data-new-ref="category" type="button">＋ إضافة تصنيف رئيسي</button>
-{% for c in categories if not c.is_system %}<div class="tree-group open"><button class="tree-node" data-ref-item="category" data-system="0" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button"><span class="tree-toggle">⌄</span>📁 {{ c.name }}<span class="tree-actions"><span class="tree-add" data-add="type">＋ نوع</span></span></button><div class="children"><button class="tree-node" data-new-ref="type" data-new-type-for-category="{{ c.id }}" type="button">＋ إضافة نوع عتاد</button>
-{% for t in types if t.category_id == c.id %}{% set type_models = models|selectattr('equipment_type_id','equalto',t.id)|list %}<div class="tree-group{% if type_models %} open{% endif %}" data-type-group="{{ t.id }}"><button class="tree-node" data-ref-item="type" data-system="0" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category-id="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit or '' }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is not none else '' }}" type="button"><span class="tree-toggle">›</span>🗂 {{ t.name }}<span class="tree-actions"><span class="tree-add" data-add="model" data-new-model-for-type="{{ t.id }}">＋ طراز</span></span></button><div class="children"><button class="tree-node" data-new-ref="model" data-new-model-for-type="{{ t.id }}" type="button">＋ إضافة طراز</button>
-{% for m in models if m.equipment_type_id == t.id %}<div class="tree-group model-group"><button class="tree-node model-row" data-model-row="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" data-private-library="1" type="button"><span class="tree-toggle">›</span>🚙 {{ m.name }}<span class="tree-actions"><span class="tree-action" data-copy="{{ m.id }}" title="نسخ الطراز">⧉</span><span class="tree-action" data-delete="{{ m.id }}" title="حذف الطراز">🗑</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📋 البطاقة الفنية المختصرة</button><div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات<span class="tree-actions"><span class="tree-action" data-tree-add="position">＋ موضع</span><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="positions" type="button">↳ مواضع الإطارات</button><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div><button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button><button class="tree-node" data-model="{{ m.id }}" data-section="specs" type="button">⚙ الخصائص الفنية</button></div></div>{% endfor %}
+<aside class="card tree-card"><div id="tree-root-dropzone" class="tree-root-dropzone">⬇️ إفلات هنا لنقل الطراز إلى المستوى الرئيسي</div><div class="tree-head"><strong>شجرة مركز البيانات — التصنيفات والأنواع</strong><span class="muted">{{ types|length }} نوع</span></div><input class="tree-search" id="treeSearch" placeholder="ابحث في الأنواع والنماذج..." aria-label="البحث في الشجرة"><div class="tree-filter-bar" role="group" aria-label="تصفية الأنواع"><button type="button" class="tree-filter" data-tree-filter="all" aria-pressed="true">الكل</button><button type="button" class="tree-filter" data-tree-filter="frozen" aria-pressed="false">المجمّد</button><button type="button" class="tree-filter" data-tree-filter="empty" aria-pressed="false">دون عتاد</button></div><div class="tree" id="tree">
+{% for library_system, library_label in [(false, 'مكتبتي الخاصة'), (true, 'مكتبة النظام')] %}
+<section class="tree-library" data-system="{{ 1 if library_system else 0 }}"><div class="tree-library-title">{% if library_system %}🔒{% else %}👤{% endif %}<span>{{ library_label }}</span>{% if library_system %}<small>مرجعية</small>{% endif %}</div>
+<div class="tree-group open" data-library-root="{% if library_system %}system{% else %}private{% endif %}"><button class="tree-node" data-ref="{% if library_system %}system{% else %}private{% endif %}-categories" data-system="{{ 1 if library_system else 0 }}" type="button"><span class="tree-toggle">⌄</span>{% if library_system %}التصنيفات الأساسية{% else %}تصنيفات المؤسسة{% endif %}<span class="tree-actions">{% if not library_system %}<span class="tree-add" data-add="category">＋</span>{% endif %}</span></button><div class="children">
+{% if not library_system %}<button class="tree-node" data-new-ref="category" type="button">＋ إضافة تصنيف رئيسي</button>{% endif %}
+{% if not library_system %}{% for t in types if not t.category_id %}<button class="tree-node" data-ref-item="type" data-system="0" data-category="" data-category-id="" data-id="{{ t.id }}" data-name="{{ t.name }}" data-frozen="{{ 1 if t.is_frozen|default(false) else 0 }}" data-actual-count="{{ (equipment_type_counts|default({})).get(t.id, 0) }}" data-measurement-unit="{{ t.measurement_unit|default('') }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is defined and t.theoretical_quantity is not none else '' }}" type="button">{{ t.name }}</button>{% endfor %}{% endif %}
+{% for c in categories if (c.is_system|default(false)) == library_system %}<div class="tree-group open"><button class="tree-node" data-ref-item="category" data-system="{{ 1 if library_system else 0 }}" data-id="{{ c.id }}" data-name="{{ c.name }}" data-code="{{ c.code or '' }}" type="button"><span class="tree-toggle">⌄</span>📁 {{ c.name }}<span class="tree-actions">{% if not library_system %}<span class="tree-add" data-add="type">＋ نوع</span>{% endif %}</span></button><div class="children">
+{% if not library_system %}<button class="tree-node" data-new-ref="type" data-new-type-for-category="{{ c.id }}" type="button">＋ إضافة نوع عتاد</button>{% endif %}
+{% for t in types if t.category_id == c.id %}{% set type_models = models|selectattr('equipment_type_id','equalto',t.id)|list %}<div class="tree-group{% if type_models %} open{% endif %}" data-type-group="{{ t.id }}"><button class="tree-node" data-ref-item="type" data-system="{{ 1 if library_system else 0 }}" data-frozen="{{ 1 if t.is_frozen|default(false) else 0 }}" data-actual-count="{{ (equipment_type_counts|default({})).get(t.id, 0) }}" data-id="{{ t.id }}" data-name="{{ t.name }}" data-category="{{ t.category_id or '' }}" data-category-id="{{ t.category_id or '' }}" data-measurement-unit="{{ t.measurement_unit|default('') }}" data-theoretical-quantity="{{ t.theoretical_quantity if t.theoretical_quantity is defined and t.theoretical_quantity is not none else '' }}" type="button"><span class="tree-toggle">›</span>🗂 {{ t.name }}<span class="tree-actions"><span class="muted">{{ (equipment_type_counts|default({})).get(t.id, 0) }}</span>{% if not library_system %}<span class="tree-add" data-add="model" data-new-model-for-type="{{ t.id }}">＋ طراز</span>{% endif %}</span></button><div class="children">
+{% if not library_system %}<button class="tree-node" data-new-ref="model" data-new-model-for-type="{{ t.id }}" type="button">＋ إضافة طراز</button>{% endif %}
+{% for m in type_models %}<div class="tree-group model-group"><button class="tree-node model-row" data-model-row="{{ m.id }}" data-tree-edit="{{ m.id }}" data-tree-delete="{{ m.id }}" data-equipment-type-id="{{ m.equipment_type_id or '' }}" data-private-library="{{ 0 if library_system else 1 }}" data-frozen="{{ 1 if m.is_frozen else 0 }}" data-actual-count="{{ equipment_model_counts.get(m.id, 0) }}" type="button"><span class="tree-toggle">›</span>{% if m.image_url %}<img class="tree-thumb" src="{{ m.image_url }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}🚙 {{ m.brand.name ~ ' ' if m.brand else '' }}{{ m.name }}<span class="tree-actions">{% if not library_system %}<span class="tree-action" data-copy="{{ m.id }}" title="نسخ الطراز">⧉</span><span class="tree-action" data-delete="{{ m.id }}" title="حذف الطراز">🗑</span>{% endif %}</span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="basic" type="button">📋 البطاقة الفنية المختصرة</button><div class="tree-group"><button class="tree-node" data-model="{{ m.id }}" data-section="tires" type="button"><span class="tree-toggle">›</span>🛞 الإطارات<span class="tree-actions"><span class="tree-action" data-tree-add="size">＋ مقاس</span></span></button><div class="children"><button class="tree-node" data-model="{{ m.id }}" data-section="sizes" type="button">↳ المقاسات المعتمدة</button></div></div><button class="tree-node" data-model="{{ m.id }}" data-section="batteries" type="button">🔋 البطاريات</button><button class="tree-node" data-model="{{ m.id }}" data-section="specs" aria-label="الخصائص التقنية" type="button">⚙ الخصائص الفنية</button></div></div>{% endfor %}
 </div></div>{% endfor %}
-</div></div>{% endfor %}
-</div></div></div></div></div></div></div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>|</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">العناصر: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
-<main class="card editor"><div class="editor-head"><small id="crumb">مركز البيانات الأساسية</small><h2 id="title">اختر عنصراً من الشجرة</h2></div><div class="body">
-<div id="empty" class="empty">الإضافة والتعديل يتمان من داخل الشجرة.<br>اختر عقدة أو «＋» من داخل الشجرة للبدء.</div>
+</div></div>{% else %}<div class="tree-node muted">لا توجد تصنيفات في هذه المكتبة.</div>{% endfor %}
+</div></div></section>
+{% endfor %}
+</div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>·</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">الطرازات: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
+<main class="card editor"><div class="editor-head"><small id="crumb">إدارة العتاد / أنواع العتاد</small><h2 id="title">اختر نوعاً من الشجرة</h2></div><div class="body">
+<div id="empty" class="empty">اختر تصنيفاً أو نوع عتاد من الشجرة لعرض تفاصيله.<br>يمكنك إضافة التصنيفات والأنواع والطرازات من أزرار الشجرة.</div>
+<div id="typePanel" class="panel"><div id="typeContent"></div></div>
 <div id="refPanel" class="panel"><div class="box"><div class="box-head"><h3 id="refTitle"></h3></div><div class="box-body" id="refBody"></div></div></div>
 <template id="typeRefFormTemplate"><form class="ref-form" method="post" action="/equipment-types/create"><label>الاسم<input name="name" required></label><label>وحدة القياس<select name="measurement_unit" required><option value="km">كم</option><option value="hours">ساعات</option></select></label><label>فئة المؤسسة<select name="category_id" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label>التعداد النظري<input name="theoretical_quantity" type="number"></label><button class="btn primary">حفظ</button></form></template>
-<div id="modelViewPanel" class="panel">
-<div class="model-library-shell" id="model-library-v3">
+<div id="modelViewPanel" class="panel"><div class="model-library-shell" id="model-library-v3">
   <section class="model-hero">
+    <img id="viewModelImage" class="model-hero-img" alt="" hidden>
     <div class="model-hero-main">
-      <div class="model-kicker">البطاقة الفنية للطراز</div>
+      <div class="model-kicker" id="viewModelPath">البطاقة الفنية للطراز</div>
       <h2 id="viewModelName">—</h2>
-      <div class="model-meta"><span id="viewModelBrand">—</span><i>•</i><span id="viewModelCategory">—</span><i>•</i><span id="viewModelType">—</span></div>
+      <div class="model-meta"><span id="viewModelBrand">—</span><i>•</i><span id="viewModelType">—</span><span class="type-chip ok" id="viewModelStatus">معتمد</span><span class="type-chip" id="viewModelMobility">متحرك</span><span class="type-chip info" id="viewModelActualCount">0 عتادًا فعليًا</span></div>
     </div>
-    <button type="button" class="btn primary" id="editModelBtn">✎ تعديل الطراز</button>
-  </section>
-  <section class="model-summary">
-    <div class="summary-title"><div><span>البطاقة الفنية المختصرة</span><small>مرجع سريع للمعلومات الأساسية للطراز</small></div><span class="model-badge">Technical Profile</span></div>
-    <div class="summary-grid">
-      <div><small>الحركة</small><strong id="viewMobility">—</strong></div>
-      <div><small>السائق</small><strong id="viewRequiresDriver">—</strong></div>
-      <div><small>الإطارات</small><strong id="viewHasTires">—</strong></div>
-      <div><small>عدد المواضع</small><strong id="viewTirePositions">—</strong></div>
-      <div><small>البطاريات</small><strong id="viewHasBatteries">—</strong></div>
-      <div><small>عدد البطاريات</small><strong id="viewBatteryCountSummary">—</strong></div>
-    </div>
-    <div class="model-jumps">
-      <a href="#model-full-card">البطاقة الفنية الكاملة ↓</a>
-      <a href="#model-specs-card">الخصائص التقنية</a>
-      <a href="#model-tires-card">الإطارات</a>
-      <a href="#model-batteries-card">البطاريات</a>
+    <div class="model-hero-actions">
+      <button type="button" class="btn soft" id="copyModelBtn">⧉ نسخ</button>
+      <form id="freezeModelForm" method="post"><button type="submit" class="btn soft" id="freezeModelBtn">✳ تجميد</button></form>
+      <form id="deleteModelForm" method="post" onsubmit="return confirm('هل تريد حذف هذا الطراز؟')"><button type="submit" class="btn soft" id="deleteModelBtn">⌫ حذف</button></form>
+      <button type="button" class="btn primary" id="editModelBtn">✎ تعديل البطاقة</button>
     </div>
   </section>
-  <section class="technical-card" id="model-full-card">
-    <div class="technical-card-head"><div><span class="technical-eyebrow">TECHNICAL CARD</span><h3>البطاقة الفنية الكاملة</h3></div><span>مرجع الطراز</span></div>
-    <div class="technical-grid">
-      <section class="tech-section" id="model-specs-card">
-        <div class="tech-section-head"><div class="tech-icon">⚙</div><div><h4>الخصائص التقنية</h4><p>المواصفات الفنية المعرفة لهذا الطراز.</p></div></div>
-        <div id="viewSpecRows" class="fields"></div>
-        <div class="tech-empty" id="viewSpecEmpty">لا توجد خصائص تقنية مسجلة.</div>
-      </section>
-      <section class="tech-section" id="model-tires-card">
-        <div class="tech-section-head"><div class="tech-icon">🛞</div><div><h4>الإطارات</h4><p>التهيئة الفنية للإطارات ومواقعها ومقاساتها.</p></div></div>
-        <div class="mini-stats">
-          <div><small>عدد المحاور</small><strong id="viewAxleCount">—</strong></div>
-          <div><small>المقاس الافتراضي</small><strong id="viewTireSize">—</strong></div>
-        </div>
-        <div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th></tr></thead><tbody id="viewPositionsBody"></tbody></table></div>
-        <div class="approved-sizes"><span>المقاسات المعتمدة</span><div id="viewSizesBody"></div></div>
-      </section>
-      <section class="tech-section" id="model-batteries-card">
-        <div class="tech-section-head"><div class="tech-icon">🔋</div><div><h4>البطاريات</h4><p>المواصفات الكهربائية الأساسية للبطاريات.</p></div></div>
-        <div class="mini-stats">
-          <div><small>العدد</small><strong id="viewBatteryCount">—</strong></div>
-          <div><small>السعة Ah</small><strong id="viewBatteryCapacity">—</strong></div>
-          <div><small>الجهد V</small><strong id="viewBatteryVoltage">—</strong></div>
-        </div>
-      </section>
-      <section class="tech-section tech-maintenance">
-        <div class="tech-section-head"><div class="tech-icon">🔧</div><div><h4>شروط الصيانة</h4><p>مرجع الوصول إلى قواعد الصيانة الخاصة بالطراز.</p></div></div>
-        <div class="maintenance-note">تُدار قواعد الصيانة حسب الطراز وتطبّق على العتاد المنتمي إليه.</div>
-      </section>
+  <div class="model-view-tabs" role="tablist" aria-label="أقسام البطاقة الفنية للطراز">
+    <button type="button" role="tab" aria-selected="true" data-model-view-tab="overview">نظرة عامة</button>
+    <button type="button" role="tab" aria-selected="false" data-model-view-tab="tires">الإطارات <span class="n" id="viewTireTabCount">0</span></button>
+    <button type="button" role="tab" aria-selected="false" data-model-view-tab="batteries">البطاريات</button>
+    <button type="button" role="tab" aria-selected="false" data-model-view-tab="specs">الخصائص الفنية <span class="n" id="viewSpecTabCount">0</span></button>
+    <button type="button" role="tab" aria-selected="false" data-model-view-tab="equipment">العتاد المرتبط <span class="n" id="viewEquipmentTabCount">0</span></button>
+  </div>
+  <section class="model-view-section is-active" data-model-view-panel="overview">
+    <div class="model-overview-grid">
+      <div class="model-view-stack">
+        <section class="card model-data-card"><div class="box-head"><h3>البطاقة الفنية</h3><span class="muted">مرجع الطراز</span></div>
+          <div class="model-data-grid">
+            <div><span>العلامة التجارية</span><strong id="viewModelBrandValue">—</strong></div>
+            <div><span>نوع العتاد</span><strong id="viewModelTypeValue">—</strong></div>
+            <div><span>الحركة</span><strong id="viewMobilityValue">—</strong></div>
+            <div><span>يتطلب سائقًا</span><strong id="viewRequiresDriver">—</strong></div>
+            <div><span>الإطارات</span><strong id="viewHasTires">—</strong></div>
+            <div><span>المقاس الافتراضي</span><strong id="viewTireSize">—</strong></div>
+            <div><span>البطاريات</span><strong id="viewHasBatteries">—</strong></div>
+            <div><span>وحدة القياس</span><strong id="viewModelUnit">—</strong></div>
+          </div>
+        </section>
+      </div>
+      <div class="model-view-stack">
+        <section class="card"><div class="box-head"><h3>اكتمال البطاقة</h3><span class="muted" id="viewCompletenessCount">0 من 4</span></div><ul class="model-checklist" id="viewCompleteness"></ul></section>
+        <section class="card model-count-card"><div><span>العتاد الفعلي</span><strong id="viewModelAssetCount">0</strong></div><div><span>شروط الصيانة المطبقة</span><strong><a href="/maintenance">عرض الصيانة</a></strong></div></section>
+      </div>
     </div>
   </section>
-</div></div><div id="modelPanel" class="panel"><form id="modelForm" method="post" action="/equipment-types/models/create"><input type="hidden" id="modelId"><input type="hidden" name="positions_json" id="positionsJson" value="[]"><input type="hidden" name="sizes_json" id="sizesJson" value="[]"><input type="hidden" name="specs_json" id="specsJson" value="[]"><div class="box" data-workspace-section="basic"><div class="box-head"><h3>البيانات الأساسية</h3><span class="muted">الطراز هو المركز</span></div><div class="box-body"><div class="fields"><label class="field">اسم الطراز<input id="modelName" name="name" required></label><label class="field">الفئة<select id="modelCategory" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label class="field">نوع العتاد<select id="modelType" name="equipment_type_id" required><option value="">اختر</option>{% for t in types %}<option value="{{ t.id }}" data-category="{{ t.category_id or '' }}">{{ t.name }}</option>{% endfor %}</select></label><label class="field">العلامة التجارية <span class="muted">(اختيارية)</span><div style="display:flex;gap:6px"><select id="modelBrand" name="brand_id" style="flex:1"><option value="">بدون علامة تجارية</option>{% for b in brands if b.is_active %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select><button type="button" class="btn soft" id="addBrandFromModel" title="إضافة علامة تجارية">＋ إضافة</button></div></label><label class="field">الحركة<select name="mobility_type" id="mobility"><option value="mobile">متحرك</option><option value="towed">مجرور</option></select></label><label class="check"><input id="requiresDriver" type="checkbox" name="requires_driver" checked> يتطلب سائقاً</label></div></div></div>
-<div class="box" id="tiresEditorBox" data-workspace-section="tires"><div class="box-head"><h3>الإطارات التابعة</h3><label class="check"><input id="hasTires" type="checkbox" name="has_tires"> مجهز بإطارات</label></div><div class="box-body"><div class="fields"><label class="field">عدد المواضع<input id="tirePositions" type="number" min="0" name="tire_positions_required" value="0"></label><label class="field">عدد المحاور<input id="axleCount" type="number" min="1" name="axle_count"></label><label class="field">المقاس الافتراضي<input id="tireSize" name="tire_size"></label></div><div class="box" style="margin-top:13px"><div class="box-head"><h3>مواضع الإطارات</h3><div><button type="button" class="btn soft" id="addPosition">＋ إضافة صف</button><button type="button" class="btn soft" id="importPositions">📥 Excel</button></div></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th><th></th></tr></thead><tbody id="positionsBody"></tbody></table></div></div></div><div class="box"><div class="box-head"><h3>المقاسات المعتمدة</h3><div><button type="button" class="btn soft" id="addSize">＋ إضافة صف</button><button type="button" class="btn soft" id="importSizes">📥 Excel</button></div></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المقاس</th><th></th></tr></thead><tbody id="sizesBody"></tbody></table></div></div></div></div></div>
+  <section class="model-view-section" data-model-view-panel="tires" hidden>
+    <div class="model-tire-grid">
+      <section class="card model-diagram-card"><div id="viewWheelDiagram" aria-label="مخطط مواضع الإطارات"></div><p class="muted" id="viewTireLayoutSummary"></p></section>
+      <div class="model-view-stack">
+        <section class="card"><div class="box-head"><h3>مواضع الإطارات</h3><span class="muted" id="viewTirePositionCount"></span></div><div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>الجهة</th><th>النوع</th><th>الوصف</th></tr></thead><tbody id="viewPositionsBody"></tbody></table></div></section>
+        <section class="card"><div class="box-head"><h3>المقاسات المعتمدة</h3></div><div class="model-approved-sizes" id="viewSizesBody"></div></section>
+      </div>
+    </div>
+  </section>
+  <section class="model-view-section" data-model-view-panel="batteries" hidden>
+    <section class="card"><div class="box-head"><h3>البطاريات</h3></div><div class="model-battery-grid">
+      <div><span>العدد</span><strong id="viewBatteryCount">—</strong></div>
+      <div><span>السعة Ah</span><strong id="viewBatteryCapacity">—</strong></div>
+      <div><span>الجهد V</span><strong id="viewBatteryVoltage">—</strong></div>
+    </div><p class="model-empty" id="viewBatteryEmpty" hidden>هذا الطراز غير مجهز ببطاريات.</p></section>
+  </section>
+  <section class="model-view-section" data-model-view-panel="specs" hidden>
+    <section class="card"><div class="box-head"><h3>الخصائص الفنية</h3><span class="muted" id="viewSpecCount"></span></div><div class="table-wrap"><table class="tbl model-spec-table"><tbody id="viewSpecRows"></tbody></table></div><p class="model-empty" id="viewSpecEmpty" hidden>لا توجد خصائص فنية مسجلة لهذا الطراز.</p></section>
+  </section>
+  <section class="model-view-section" data-model-view-panel="equipment" hidden>
+    <section class="card"><div class="box-head"><h3>العتاد المرتبط</h3><span class="muted" id="viewEquipmentCount"></span></div><div class="table-wrap"><table class="tbl"><thead><tr><th>رقم التسجيل</th><th>الوضعية</th><th class="num">العداد</th></tr></thead><tbody id="viewEquipmentRows"></tbody></table></div><p class="model-empty" id="viewEquipmentEmpty" hidden>لا يوجد عتاد فعلي مسجل لهذا الطراز.</p></section>
+  </section>
+</div></div><div id="modelPanel" class="panel"><form id="modelForm" method="post" action="/equipment-types/models/create"><input type="hidden" id="modelId"><input type="hidden" name="positions_json" id="positionsJson" value="[]"><input type="hidden" name="sizes_json" id="sizesJson" value="[]"><input type="hidden" name="specs_json" id="specsJson" value="[]"><div class="ws-tabs" id="modelWorkspaceTabs" role="tablist"><button type="button" class="btn soft is-active" role="tab" data-model-workspace-tab="0">البيانات الأساسية</button><button type="button" class="btn soft" role="tab" data-model-workspace-tab="1">الإطارات</button><button type="button" class="btn soft" role="tab" data-model-workspace-tab="2">البطاريات</button><button type="button" class="btn soft" role="tab" data-model-workspace-tab="3">البطاقة الفنية</button></div><div class="box" data-workspace-section="basic"><div class="box-head"><h3>البيانات الأساسية</h3><span class="muted">الطراز هو المركز</span></div><div class="box-body"><div class="fields"><label class="field">اسم الطراز<input id="modelName" name="name" required></label><label class="field">الفئة<select id="modelCategory" required><option value="">اختر</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label class="field">نوع العتاد<select id="modelType" name="equipment_type_id" required><option value="">اختر</option>{% for t in types %}<option value="{{ t.id }}" data-category="{{ t.category_id or '' }}">{{ t.name }}</option>{% endfor %}</select></label><label class="field">العلامة التجارية <span class="muted">(اختيارية)</span><div style="display:flex;gap:6px"><select id="modelBrand" name="brand_id" style="flex:1"><option value="">بدون علامة تجارية</option>{% for b in brands if b.is_active %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select><button type="button" class="btn soft" id="addBrandFromModel" title="إضافة علامة تجارية">＋ إضافة</button></div></label><label class="field">صورة الطراز <span class="muted">(اختيارية)</span><div style="display:flex;gap:8px;align-items:center"><input type="file" id="modelImage" name="image" accept="image/*" style="flex:1"><input type="hidden" id="modelImageUrl" name="image_url"><img id="modelImagePreview" src="" alt="" style="width:60px;height:45px;object-fit:cover;border-radius:8px;display:none"></div></label><label class="field">الحركة<select name="mobility_type" id="mobility"><option value="mobile">متحرك</option><option value="towed">مجرور</option></select></label><label class="check"><input id="requiresDriver" type="checkbox" name="requires_driver" checked> يتطلب سائقاً</label></div></div></div>
+<div class="box" id="tiresEditorBox" data-workspace-section="tires"><div class="box-head"><h3>الإطارات التابعة</h3><label class="check"><input id="hasTires" type="checkbox" name="has_tires"> مجهز بإطارات</label></div><div class="box-body"><div class="fields"><label class="field">عدد المواضع <span class="muted">(يُحسب من التوزيع)</span><input id="tirePositions" type="number" min="0" name="tire_positions_required" value="0" readonly title="يُحسب تلقائيًا من توزيع العجلات على المحاور"></label><label class="field">عدد المحاور<input id="axleCount" type="number" min="1" name="axle_count"></label><label class="field">المقاس الافتراضي<input id="tireSize" name="tire_size"></label></div><div class="box" style="margin-top:13px"><div class="box-head"><h3>توزيع العجلات على المحاور</h3><span class="muted">مفرد = إطارة واحدة لكل جهة · مزدوج = إطارتان (داخلي + خارجي) لكل جهة</span></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المحور</th><th>نوع العجلات</th></tr></thead><tbody id="axleWheelBody"></tbody></table></div><p class="muted" id="axleWheelHint">اكتب <b>عدد المحاور</b> أعلاه لتظهر المحاور هنا، ثم اختر لكل محور: مفرد أم مزدوج.</p><p class="muted" id="positionsSummary"></p></div></div><div class="box"><div class="box-head"><h3>المقاسات المعتمدة</h3><div><button type="button" class="btn soft" id="addSize">＋ إضافة صف</button></div></div><div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>المقاس</th><th></th></tr></thead><tbody id="sizesBody"></tbody></table></div></div></div></div></div>
 <div class="box" id="batteriesEditorBox" data-workspace-section="batteries"><div class="box-head"><h3>البطاريات التابعة</h3><label class="check"><input id="hasBatteries" type="checkbox" name="has_batteries"> مجهز ببطاريات</label></div><div class="box-body"><div class="fields"><label class="field">العدد<input id="batteryCount" type="number" min="0" name="battery_count_required" value="0"></label><label class="field">السعة Ah<input id="batteryCapacity" type="number" step="0.1" name="battery_capacity_ah"></label><label class="field">الفولط V<input id="batteryVoltage" type="number" step="0.1" name="battery_voltage_v"></label></div></div></div>
-<div class="box" id="specsEditorBox" data-workspace-section="specs"><div class="box-head"><h3>البطاقة الفنية — الخصائص</h3><button type="button" class="btn soft" id="chooseSpecs">＋ اختيار الخصائص من مكتبة الخصائص الفنية</button></div><div class="box-body"><div id="specLibraryPicker" hidden></div><div id="specRows"></div><p class="muted">اختر الخصائص المطلوبة مباشرة من مكتبة الخصائص الفنية المركزية، ثم أدخل قيمة كل خاصية لهذا الطراز. لا يتم نسخ الخصائص من طراز آخر.</p><div class="import-help"><button type="button" class="btn soft" id="importSpecs">📥 استيراد قيم الخصائص من Excel</button></div></div></div><div class="save"><button class="btn primary" type="submit">حفظ الطراز</button><button class="btn soft" type="button" id="cancelModel">إلغاء</button></div></form></div>
-</div></main></div>
-<input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<div class="box" id="specsEditorBox" data-workspace-section="specs"><div class="box-head"><h3>البطاقة الفنية — الخصائص</h3><button type="button" class="btn soft" id="chooseSpecs">＋ اختيار الخصائص من مكتبة الخصائص الفنية</button></div><div class="box-body"><div id="specLibraryPicker" hidden></div><div id="specRows"></div><p class="muted">اختر الخصائص المطلوبة مباشرة من مكتبة الخصائص الفنية المركزية، ثم أدخل قيمة كل خاصية لهذا الطراز. لا يتم نسخ الخصائص من طراز آخر.</p></div></div><div class="save"><button class="btn primary" type="submit">حفظ الطراز</button><button class="btn soft" type="button" id="cancelModel">إلغاء</button></div></form></div>
+</div></main></div></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const DATA={{ tire_master_data|tojson }}; const DEFS={{ spec_definitions|tojson }}; let currentModel=null; let importTarget=null;
+const DATA={{ tire_master_data|tojson }}; const LINKED_EQUIPMENT={{ linked_equipment|default({})|tojson }}; const DEFS={{ spec_definitions|tojson }}; let currentModel=null; let currentTypeId=null;
+const TYPE_DATA=Object.fromEntries([
+{% for t in types %}[{{ t.id|tojson }},{"id":{{ t.id|tojson }},"name":{{ t.name|tojson }},"category":{{ (t.category.name if t.category else '')|tojson }},"categoryId":{{ (t.category_id or '')|tojson }},"unit":{{ (t.measurement_unit or '')|tojson }},"theoretical":{{ t.theoretical_quantity|default(none)|tojson }},"frozen":{{ t.is_frozen|default(false)|tojson }},"system":{{ (t.category.is_system if t.category else false)|tojson }},"actualCount":{{ (equipment_type_counts|default({})).get(t.id,0)|tojson }},"models":[{% for m in models if m.equipment_type_id == t.id %}{"id":{{ m.id|tojson }},"name":{{ m.name|tojson }},"brand":{{ (m.brand.name if m.brand else '')|tojson }},"mobility":{{ m.mobility_type|default('mobile')|tojson }},"hasTires":{{ m.has_tires|default(false)|tojson }},"tirePositions":{{ m.tire_positions_required|default(0)|tojson }},"hasBatteries":{{ m.has_batteries|default(false)|tojson }},"batteryCount":{{ m.battery_count_required|default(0)|tojson }},"frozen":{{ m.is_frozen|default(false)|tojson }},"actualCount":{{ (equipment_model_counts|default({})).get(m.id,0)|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]}]{% if not loop.last %},{% endif %}{% endfor %}]);
+function htmlSafe(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+function viewType(nodeOrId){const id=String(typeof nodeOrId==='object'?nodeOrId.dataset.id:nodeOrId);const t=TYPE_DATA[id];if(!t)return;currentTypeId=id;const node=document.querySelector(`#tree [data-ref-item="type"][data-id="${CSS.escape(id)}"]`);if(node){document.querySelectorAll('#tree .tree-node.active').forEach(x=>x.classList.remove('active'));node.classList.add('active')}
+ const count=t.models.length,actual=Number(t.actualCount||0),hasTarget=t.theoretical!==null&&t.theoretical!==''&&Number.isFinite(Number(t.theoretical)),target=hasTarget?Number(t.theoretical):null,gap=hasTarget?target-actual:null,pct=hasTarget&&target>0?Math.min(100,Math.round(actual/target*100)):0;
+ const unit=t.unit==='hours'?'ساعات':'كم';const chips=`<span class="type-chip">وحدة القياس: ${unit}</span><span class="type-chip info">${count} طراز</span>${t.frozen?'<span class="type-chip frozen">مجمّد</span>':''}`;
+ const actionEdit=t.system?'':`<button type="button" class="btn soft" data-type-edit="${htmlSafe(id)}">✎ تعديل النوع</button>`;const addModel=t.system?'':`<button type="button" class="btn primary" data-type-add-model="${htmlSafe(id)}">＋ إضافة طراز</button>`;
+ const progress=hasTarget?`<div class="type-progress"><div class="type-meter" role="img" aria-label="${pct}%"><i style="width:${pct}%"></i></div><div class="type-gap ${gap<=0?'ok':''}">${gap>0?`متبقٍ ${gap} من التعداد النظري`:gap<0?`زيادة ${Math.abs(gap)} عن التعداد النظري`:'اكتمل التعداد النظري'}</div></div>`:'<span class="muted">لم يُحدّد تعداد نظري لهذا النوع.</span>';
+ const rows=t.models.length?t.models.map(m=>`<tr data-type-model="${htmlSafe(m.id)}"><td><strong>${htmlSafe([m.brand,m.name].filter(Boolean).join(' '))}</strong></td><td>${m.mobility==='towed'?'مجرور':'متحرك'}</td><td>${m.hasTires?`${Number(m.tirePositions||0)} موضع`:'—'}</td><td>${m.hasBatteries?`${Number(m.batteryCount||0)} بطارية`:'—'}</td><td class="num">${Number(m.actualCount||0)}</td><td><span class="type-status ${m.frozen?'frozen':''}">${m.frozen?'مجمّد':'معتمد'}</span></td></tr>`).join(''):'<tr><td colspan="6" class="type-empty">لا توجد طرازات مرتبطة بهذا النوع بعد.</td></tr>';
+ $('typeContent').innerHTML=`<div class="type-overview"><section class="type-hero"><div class="type-hero-main"><div class="type-path">${htmlSafe(t.category||'تصنيف غير محدد')}</div><h3>${htmlSafe(t.name)}</h3><div class="type-chips">${chips}</div></div><div class="type-hero-actions">${actionEdit}${addModel}</div></section><section class="type-summary"><div class="type-summary-total"><strong>${actual}</strong><span>قطعة عتاد فعلية${hasTarget?` من ${target}`:''}</span></div>${progress}</section><section class="type-models"><div class="type-models-head"><h3>الطرازات</h3><span>${count} طراز مرتبط بهذا النوع</span></div><div class="type-table-wrap"><table class="type-table"><thead><tr><th>الطراز</th><th>الحركة</th><th>الإطارات</th><th>البطاريات</th><th class="num">العتاد الفعلي</th><th>الحالة</th></tr></thead><tbody>${rows}</tbody></table></div></section></div>`;
+ show($('typePanel'));title(t.name,t.category||'أنواع العتاد');
+}
+$('typeContent').addEventListener('click',event=>{const edit=event.target.closest('[data-type-edit]');if(edit){const t=TYPE_DATA[edit.dataset.typeEdit];refPanel('type',t.id,t.name,{categoryId:t.categoryId,measurementUnit:t.unit,theoreticalQuantity:t.theoretical});return}const add=event.target.closest('[data-type-add-model]');if(add){openNewModel(add.dataset.typeAddModel);window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0,{all:true});return}const row=event.target.closest('[data-type-model]');if(row){const id=row.dataset.typeModel;viewModel(id);window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0,{all:true});document.querySelector(`#tree [data-model-row="${CSS.escape(id)}"]`)?.classList.add('active')}});
 const CATEGORIES=Object.fromEntries([{% for c in categories %}[{{ c.id|string|tojson }},{{ c.name|tojson }}]{% if not loop.last %},{% endif %}{% endfor %}]);
 const TYPES=Object.fromEntries([{% for t in types %}[{{ t.id|string|tojson }},{{ t.name|tojson }}]{% if not loop.last %},{% endif %}{% endfor %}]);
 const BRAND_DATA=Object.fromEntries([{% for b in brands %}[{{ b.id|string|tojson }},{"name":{{ b.name|tojson }},"active":{{ "true" if b.is_active else "false" }}}]{% if not loop.last %},{% endif %}{% endfor %}]); const BRANDS=Object.fromEntries(Object.entries(BRAND_DATA).map(([id,b])=>[id,b.name]));Object.fromEntries(Object.entries(BRAND_DATA).map(([id,b])=>[id,b.name]));
@@ -189,17 +420,32 @@ function renderSpecLibrary(d){
   const groups=new Map(); defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
   const total=defs.length, chosen=defs.filter(def=>selected.has(Number(def.id))).length;
   picker.innerHTML='<div class="spec-library-toolbar"><strong>مكتبة الخصائص الفنية المركزية</strong><span>'+chosen+' / '+total+' محددة</span></div>'+
-    [...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
+    [...groups.entries()].map(([group,items])=>'<div class="spec-picker-group"><strong>'+group+'</strong><div class="spec-picker-grid">'+items.map(def=>'<label><input type="checkbox" class="spec-pick" data-definition="'+def.id+'" '+(selected.has(Number(def.id))?'checked':'')+'> '+def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'')+'</label>').join('')+'</div></div>').join('');
   picker.querySelectorAll('.spec-pick').forEach(x=>x.addEventListener('change',()=>{
     const values=Object.fromEntries([...document.querySelectorAll('#specRows .spec-value')].map(v=>[Number(v.dataset.definition),v.value]));
     const specs=[...picker.querySelectorAll('.spec-pick:checked')].map(y=>({definition_id:Number(y.dataset.definition),value:values[Number(y.dataset.definition)]||''}));
     renderSpecEditor({...d,specs}); sync(); renderSpecLibrary({...d,specs});
   }));
 }
+function normalizeSpecValue(def,value=''){
+  const raw=String(value||'').trim();
+  if(def.data_type!=='select') return raw;
+  const options=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean);
+  const list=options.join(',');
+  if(!raw) return '';
+  if(raw===list) return '';
+  if(list && raw.endsWith(list)){
+    const prefix=raw.slice(0,raw.length-list.length).trim();
+    if(options.includes(prefix)) return prefix;
+  }
+  return options.includes(raw)?raw:'';
+}
 function specInput(def,value=''){
-  const safe=String(value||'').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
+  const selected=normalizeSpecValue(def,value);
+  const safe=selected.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
   if(def.data_type==='select'){
-    const opts=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean).map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===String(value)?' selected':'')+'>'+v+'</option>').join('');
+    const options=(def.options||'').split(',').map(v=>v.trim()).filter(Boolean);
+    const opts=options.map(v=>'<option value="'+v.replaceAll('"','&quot;')+'"'+(String(v)===selected?' selected':'')+'>'+v+'</option>').join('');
     return '<select class="spec-value" data-definition="'+def.id+'"><option value="">اختر</option>'+opts+'</select>';
   }
   return '<input class="spec-value" data-definition="'+def.id+'" type="'+(def.data_type==='number'?'number':'text')+'" value="'+safe+'">';
@@ -213,26 +459,65 @@ function renderSpecEditor(d){
   defs.forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
   if(!DEFS.length){$('specRows').innerHTML='<span class="muted">مكتبة الخصائص الفنية لا تحتوي خصائص بعد.</span>';return}
   if(!defs.length){$('specRows').innerHTML='<span class="muted">لم يتم اختيار خصائص لهذا الطراز بعد. اضغط «＋ اختيار الخصائص من مكتبة الخصائص الفنية» لإضافة الخصائص المطلوبة.</span>';return}
-  $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
+  $('specRows').innerHTML=[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<label class="field"><span>'+def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':'')+'</span>'+specInput(def,values[Number(def.id)]||'')+'</label>').join('')+'</div></div>').join('');
 }
 function renderSpecView(d){
-  const values=Object.fromEntries((d.specs||[]).map(x=>[Number(x.definition_id),x.value]));
-  const defs=DEFS;
-  const groups=new Map();
-  defs.filter(def=>values[Number(def.id)]!==undefined && values[Number(def.id)]!=='').forEach(def=>{const key=def.group_name||'الخصائص الفنية';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(def)});
-  $('viewSpecRows').innerHTML=groups.size?[...groups.entries()].map(([group,items])=>'<div class="spec-group"><div class="spec-group-title">'+group+'</div><div class="fields spec-group-grid">'+items.map(def=>'<div class="field"><span>'+def.name+(def.unit?' ('+def.unit+')':'')+'</span><strong>'+String(values[Number(def.id)]).replaceAll('<','&lt;')+'</strong></div>').join('')+'</div></div>').join(''):'<span class="muted">لا توجد خصائص مسجلة لهذا الطراز.</span>';
-  $('viewSpecEmpty').style.display=groups.size?'none':'block';
+ const values=Object.fromEntries((d.specs||[]).map(x=>{const def=DEFS.find(y=>Number(y.id)===Number(x.definition_id));return [Number(x.definition_id),normalizeSpecValue(def||{data_type:'text'},x.value)]}));
+ const rows=DEFS.filter(def=>values[Number(def.id)]!==undefined&&values[Number(def.id)]!=='').map(def=>'<tr><td>'+htmlSafe(def.name+(def.data_type!=='select'&&def.unit?' ('+def.unit+')':''))+'</td><td>'+htmlSafe(values[Number(def.id)])+'</td></tr>').join('');
+ $('viewSpecRows').innerHTML=rows;$('viewSpecEmpty').hidden=!!rows;
+ const count=(d.specs||[]).filter(x=>String(x.value||'').trim()).length;$('viewSpecCount').textContent=count+' خصائص';$('viewSpecTabCount').textContent=String(count);
 }
-
-
-window.MATERIEL_MASTER_DATA_READY=true;
+function setModelViewTab(tab){
+ document.querySelectorAll('[data-model-view-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.modelViewTab===tab)));
+ document.querySelectorAll('[data-model-view-panel]').forEach(panel=>{const active=panel.dataset.modelViewPanel===tab;panel.hidden=!active;panel.classList.toggle('is-active',active)});
+}
+function renderWheelDiagram(positions){
+ const rows=Array.isArray(positions)?positions:[],axles=[...new Set(rows.map(p=>Number(p.axle_number)).filter(Number.isFinite))].sort((a,b)=>a-b);
+ const height=Math.max(150,Math.min(300,72+Math.max(1,axles.length-1)*54)),yOf=axle=>axles.length<2?height/2:36+axles.indexOf(axle)*(height-72)/(axles.length-1);
+ const bodyX=54,bodyW=82,bodyY=18,bodyH=height-36;
+ const frame='<rect x="'+bodyX+'" y="'+bodyY+'" width="'+bodyW+'" height="'+bodyH+'" rx="12" fill="#e6ebed" stroke="#aebbc1" stroke-width="2"/><rect x="'+(bodyX+8)+'" y="'+(bodyY+8)+'" width="'+(bodyW-16)+'" height="22" rx="6" fill="#c6cfd4"/><rect x="'+(bodyX+8)+'" y="'+(bodyY+bodyH-30)+'" width="'+(bodyW-16)+'" height="18" rx="5" fill="#c6cfd4"/>';
+ const bars=axles.map(axle=>'<line x1="'+(bodyX+4)+'" y1="'+yOf(axle)+'" x2="'+(bodyX+bodyW-4)+'" y2="'+yOf(axle)+'" stroke="#9aa7ae" stroke-width="4"/>').join('');
+ const wheels=rows.map((p,i)=>{const axle=Number(p.axle_number),side=p.side==='right'?'right':'left',inner=p.position_type==='inner',x=side==='left'?(inner?43:27):(inner?139:155),y=yOf(axle)-11;return '<g><rect x="'+x+'" y="'+y+'" width="15" height="22" rx="4" fill="#0e6b66" stroke="#fff" stroke-width="1.5"/><text x="'+(x+7.5)+'" y="'+(y+15)+'" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">'+(i+1)+'</text></g>'}).join('');
+ $('viewWheelDiagram').innerHTML=rows.length?'<svg viewBox="0 0 190 '+height+'" role="img" aria-label="توزيع '+rows.length+' موضع إطار على '+axles.length+' محاور">'+frame+bars+wheels+'</svg>':'<div class="model-empty">لا توجد مواضع إطارات مسجلة.</div>';
+ $('viewTireLayoutSummary').textContent=rows.length?rows.length+' مواضع · '+axles.length+' محاور':'لا يوجد توزيع محفوظ';
+}
+function renderLinkedEquipment(modelId,d){
+ const rows=LINKED_EQUIPMENT[String(modelId)]||[],unit=TYPE_DATA[String(d.equipment_type_id)]?.unit||'km';
+ const operational={available:'متاح',in_mission:'في مهمة',in_maintenance:'في الصيانة',in_external_workshop:'في ورشة خارجية',unavailable:'غير متاح'};
+ $('viewEquipmentRows').innerHTML=rows.map(item=>{const value=unit==='hours'?item.hours:item.odometer,label=unit==='hours'?'ساعة':'كم',meter=value===null||value===undefined||value===''?'—':Number(value).toLocaleString('ar-DZ');return '<tr><td>'+(item.registration_number?'<a href="/equipment/'+encodeURIComponent(item.id)+'">'+htmlSafe(item.registration_number)+'</a>':htmlSafe(item.asset_code||'غير مسجل'))+'</td><td><span class="type-status">'+htmlSafe(operational[item.operational_status]||item.operational_status||'غير محدد')+'</span></td><td class="num">'+meter+(meter==='—'?'':' '+label)+'</td></tr>'}).join('');
+ $('viewEquipmentEmpty').hidden=rows.length>0;$('viewEquipmentCount').textContent=rows.length+' عتاد';$('viewEquipmentTabCount').textContent=String(rows.length);
+}
+function renderCompleteness(d){
+ const positions=d.positions||[],specCount=(d.specs||[]).filter(x=>String(x.value||'').trim()).length;
+ const checks=[['البيانات الأساسية',Boolean(d.name&&d.equipment_type_id),d.brand_id?'بيانات الطراز والعلامة التجارية':'نوع العتاد والحركة'],['الإطارات',!d.has_tires||positions.length>0,d.has_tires?positions.length+' مواضع':'غير مجهز بإطارات'],['البطاريات',!d.has_batteries||Number(d.battery_count_required||0)>0,d.has_batteries?Number(d.battery_count_required||0)+' بطاريات':'غير مجهز ببطاريات'],['الخصائص الفنية',specCount>0,specCount+' خصائص']];
+ $('viewCompleteness').innerHTML=checks.map(([label,ok,detail])=>'<li class="'+(ok?'':'missing')+'"><span class="check-dot">'+(ok?'✓':'!')+'</span><span>'+label+'</span><small>'+htmlSafe(detail)+'</small></li>').join('');$('viewCompletenessCount').textContent=checks.filter(x=>x[1]).length+' من '+checks.length;
+}
+function viewModel(id){
+ const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);const type=TYPE_DATA[String(d.equipment_type_id)]||{},brand=BRANDS[String(d.brand_id)]||'بدون علامة تجارية',positions=d.positions||[],specCount=(d.specs||[]).filter(x=>String(x.value||'').trim()).length;
+ title(d.name||'عرض الطراز','الطراز');$('viewModelName').textContent=d.name||'—';
+ const heroImg=$('viewModelImage');if(heroImg){const src=d.image_url||'';if(src){heroImg.src=src;heroImg.hidden=false}else{heroImg.removeAttribute('src');heroImg.hidden=true}}
+ $('viewModelPath').textContent=(CATEGORIES[String(d.category_id)]||'التصنيف')+' › '+(type.name||'نوع العتاد');$('viewModelBrand').textContent=brand;$('viewModelType').textContent=type.name||'—';$('viewModelBrandValue').textContent=brand;$('viewModelTypeValue').textContent=type.name||'—';
+ $('viewModelStatus').textContent=d.is_frozen?'مجمّد':'معتمد';$('viewModelStatus').classList.toggle('frozen',!!d.is_frozen);$('viewModelStatus').classList.toggle('ok',!d.is_frozen);
+ $('viewModelMobility').textContent=d.mobility_type==='towed'?'مجرور':'متحرك';$('viewMobilityValue').textContent=d.mobility_type==='towed'?'مجرور':'متحرك';
+ $('viewModelActualCount').textContent=Number(d.actual_count||0)+' عتادًا فعليًا';$('viewModelAssetCount').textContent=Number(d.actual_count||0);
+ $('viewRequiresDriver').textContent=d.requires_driver?'نعم':'لا';$('viewHasTires').textContent=d.has_tires?positions.length+' مواضع · '+new Set(positions.map(x=>x.axle_number)).size+' محاور':'بلا إطارات';$('viewTireSize').textContent=d.tire_size||'—';
+ $('viewHasBatteries').textContent=d.has_batteries?String(d.battery_count_required??0)+' بطاريات':'بلا بطاريات';$('viewModelUnit').textContent=type.unit==='hours'?'ساعات':'كم';
+ $('viewTireTabCount').textContent=String(d.has_tires?positions.length:0);$('viewTirePositionCount').textContent=positions.length+' مواضع';
+ $('viewPositionsBody').innerHTML=positions.map(x=>'<tr><td>'+htmlSafe(x.axle_number??'—')+'</td><td>'+(x.side==='right'?'يمين':'يسار')+'</td><td>'+htmlSafe(({single:'مفرد',inner:'داخلي',outer:'خارجي'}[x.position_type]||x.position_type||'—'))+'</td><td>'+htmlSafe(x.description||'—')+'</td></tr>').join('')||'<tr><td colspan="4" class="muted">لا توجد مواضع</td></tr>';
+ $('viewSizesBody').innerHTML=(d.sizes||[]).map(x=>'<span class="size-chip">'+htmlSafe(typeof x==='string'?x:x.size||'—')+'</span>').join('')||'<span class="muted">لا توجد مقاسات معتمدة</span>';
+ $('viewBatteryCount').textContent=d.battery_count_required??0;$('viewBatteryCapacity').textContent=d.battery_capacity_ah??'—';$('viewBatteryVoltage').textContent=d.battery_voltage_v??'—';$('viewBatteryEmpty').hidden=!!d.has_batteries;
+ $('viewSpecTabCount').textContent=String(specCount);$('viewSpecCount').textContent=specCount+' خصائص';renderSpecView(d);renderWheelDiagram(positions);renderLinkedEquipment(id,d);renderCompleteness(d);
+ const freezeForm=$('freezeModelForm');freezeForm.action='/equipment-types/models/'+encodeURIComponent(id)+(d.is_frozen?'/unfreeze':'/freeze');$('freezeModelBtn').textContent=d.is_frozen?'↻ إعادة اعتماد':'✳ تجميد';
+ $('deleteModelForm').action='/equipment-types/models/'+encodeURIComponent(id)+'/delete';$('deleteModelBtn').disabled=Number(d.actual_count||0)>0;$('deleteModelBtn').title=Number(d.actual_count||0)>0?'لا يمكن حذف طراز مرتبط بعتاد فعلي':'حذف الطراز';$('copyModelBtn').dataset.copyModel=String(id);
+ setModelViewTab('overview');show($('modelViewPanel'));
+}window.MATERIEL_MASTER_DATA_READY=true;
 document.querySelectorAll('[data-model-row]').forEach(row=>{const id=String(row.dataset.modelRow||'');const d=DATA[id]||DATA[Number(id)];if(d&&row.dataset.equipmentTypeId)d.equipment_type_id=Number(row.dataset.equipmentTypeId)});
 function show(el){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$('empty').style.display='none';el.classList.add('active')}
 function title(t,c='مركز البيانات الأساسية'){$('title').textContent=t;$('crumb').textContent=c}
 function expandGroup(el,open=true){const group=el?.closest('.tree-group');if(group)group.classList.toggle('open',open)}
 function selectNode(node){document.querySelectorAll('#tree .tree-node.active').forEach(x=>x.classList.remove('active'));node?.classList.add('active')}
-function focusModelSection(section){const map={basic:['modelName'],tires:['hasTires','hasTires','tiresEditorBox'],positions:['positionsBody','positionsBody','tiresEditorBox'],sizes:['sizesBody','sizesBody','tiresEditorBox'],batteries:['batteriesEditorBox'],specs:['specRows','specRows','specsEditorBox']};const ids=map[section]||map.basic;const target=$(ids[0]);if(target&&target.focus)target.focus();const box=$(ids[2]||ids[0]);if(box?.classList){box.classList.add('section-focus');setTimeout(()=>box.classList.remove('section-focus'),900)}}
-function resetModel(){currentModel=null;$('modelForm').reset();$('modelId').value='';$('positionsBody').innerHTML='';$('sizesBody').innerHTML='';$('specRows').innerHTML='';$('positionsJson').value='[]';$('sizesJson').value='[]';$('specsJson').value='[]';$('modelForm').action='/equipment-types/models/create';$('hasTires').checked=false;$('hasBatteries').checked=false;$('requiresDriver').checked=true;$('modelCategory').value='';$('modelType').value='';$('modelBrand').value='';}
+function focusModelSection(section){const map={basic:['modelName'],tires:['hasTires','hasTires','tiresEditorBox'],sizes:['sizesBody','sizesBody','tiresEditorBox'],batteries:['batteriesEditorBox'],specs:['specRows','specRows','specsEditorBox']};const ids=map[section]||map.basic;const target=$(ids[0]);if(target&&target.focus)target.focus();const box=$(ids[2]||ids[0]);if(box?.classList){box.classList.add('section-focus');setTimeout(()=>box.classList.remove('section-focus'),900)}const idx=window.MATERIEL_MODEL_WORKSPACE_SECTIONS?.[section];if(idx!=null)window.MATERIEL_MODEL_WORKSPACE_SELECT?.(idx)}
+function resetModel(){currentModel=null;$('modelForm').reset();$('modelId').value='';$('sizesBody').innerHTML='';$('specRows').innerHTML='';$('positionsJson').value='[]';$('sizesJson').value='[]';$('specsJson').value='[]';$('modelForm').action='/equipment-types/models/create';$('modelImageUrl').value='';if($('modelImagePreview')){$('modelImagePreview').removeAttribute('src');$('modelImagePreview').style.display='none'}if($('modelImage'))$('modelImage').value='';$('hasTires').checked=false;$('hasBatteries').checked=false;$('requiresDriver').checked=true;$('modelCategory').value='';$('modelType').value='';$('modelBrand').value='';savedPositions=[];layoutOverflow=false;renderAxleWheelPicker();}
 function openNewModel(typeId=''){resetModel();if(typeId){$('modelType').value=String(typeId);refreshModelTypeContext(typeId)}else{renderSpecEditor({equipment_type_id:0,category_id:0,specs:[]});$('specLibraryPicker').hidden=true}title('إضافة طراز','الطرازات');show($('modelPanel'));$('modelName').focus()}
 function renderBrandManager(){
 const rows=Object.entries(BRAND_DATA).sort((a,b)=>a[1].name.localeCompare(b[1].name,'ar'));
@@ -256,30 +541,36 @@ function refPanel(kind,id=null,name='',extra={}){
 <label>نوع العتاد المقترح <span class="muted">(اختياري للتصفية والاقتراح فقط)</span><select name="equipment_type_id"><option value="">كل الأنواع</option>${Object.entries(TYPES).map(([id,n])=>'<option value="'+id+'">'+n+'</option>').join('')}</select></label>
 <button class="btn primary">حفظ الخاصية</button></form>`;
 }
-function addPos(x={}){const tr=document.createElement('tr');tr.dataset.id=x.id||'';tr.innerHTML=`<td><input class="p-axle" type="number" min="1" value="${x.axle_number||''}"></td><td><select class="p-side"><option value="left">يسار</option><option value="right">يمين</option></select></td><td><select class="p-type"><option value="single">مفرد</option><option value="inner">داخلي</option><option value="outer">خارجي</option></select></td><td><input class="p-desc" value="${String(x.description||'').replaceAll('"','&quot;')}"></td><td><button type="button" class="btn danger del">حذف</button></td>`;if(x.side)tr.querySelector('.p-side').value=x.side;if(x.position_type)tr.querySelector('.p-type').value=x.position_type;tr.querySelector('.del').onclick=()=>{tr.remove();sync()};$('positionsBody').appendChild(tr);tr.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',sync))}
 function addSize(v=''){const tr=document.createElement('tr');tr.innerHTML=`<td><input class="s-size" value="${String(v||'').replaceAll('"','&quot;')}"></td><td><button type="button" class="btn danger del">حذف</button></td>`;tr.querySelector('.del').onclick=()=>{tr.remove();sync()};$('sizesBody').appendChild(tr);tr.querySelector('.s-size').addEventListener('input',sync)}
-function renderPositions(rows){$('positionsBody').innerHTML='';(rows||[]).forEach(addPos);sync()}
 function renderSizes(rows){$('sizesBody').innerHTML='';(rows||[]).forEach(x=>addSize(typeof x==='string'?x:x.size));sync()}
-function sync(){const pos=[...document.querySelectorAll('#positionsBody tr')].map((tr,i)=>({id:tr.dataset.id?Number(tr.dataset.id):null,axle_number:Number(tr.querySelector('.p-axle').value||0),side:tr.querySelector('.p-side').value,position_type:tr.querySelector('.p-type').value,description:tr.querySelector('.p-desc').value,sort_order:i}));const sizes=[...document.querySelectorAll('.s-size')].map(x=>x.value.trim()).filter(Boolean);const specs=[...document.querySelectorAll('.spec-value')].map(x=>({definition_id:Number(x.dataset.definition),value:x.value})).filter(x=>x.value!=='');$('positionsJson').value=JSON.stringify(pos);$('sizesJson').value=JSON.stringify(sizes);$('specsJson').value=JSON.stringify(specs)}
-function editModel(id,section='basic'){const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);$('modelForm').action='/equipment-types/models/'+id+'/update';$('modelId').value=id;title(d.name||'تعديل الطراز','الطراز');$('modelName').value=d.name||'';$('modelCategory').value=d.category_id??'';$('modelType').value=d.equipment_type_id??'';$('modelBrand').value=d.brand_id??'';$('mobility').value=d.mobility_type||'mobile';$('requiresDriver').checked=!!d.requires_driver;$('hasTires').checked=!!d.has_tires;$('tirePositions').value=d.tire_positions_required??0;$('axleCount').value=d.axle_count??'';$('tireSize').value=d.tire_size||'';$('hasBatteries').checked=!!d.has_batteries;$('batteryCount').value=d.battery_count_required??0;$('batteryCapacity').value=d.battery_capacity_ah??'';$('batteryVoltage').value=d.battery_voltage_v??'';renderPositions(d.positions||d.master?.positions||[]);renderSizes(d.sizes||d.master?.sizes||[]);$('specRows').innerHTML='';$('specLibraryPicker').hidden=true;renderSpecEditor(d);renderSpecLibrary(d);show($('modelPanel'));focusModelSection(section);sync()}
-function viewModel(id){
- const d=DATA[String(id)]||DATA[id]||{}; currentModel=Number(id); title(d.name||'عرض الطراز','الطراز');
- $('viewModelName').textContent=d.name||'—'; $('viewModelCategory').textContent=CATEGORIES[String(d.category_id)]||'—'; $('viewModelType').textContent=TYPES[String(d.equipment_type_id)]||'—'; $('viewModelBrand').textContent=BRANDS[String(d.brand_id)]||'بدون علامة تجارية'; $('viewMobility').textContent=d.mobility_type==='towed'?'مجرور':'متحرك'; $('viewRequiresDriver').textContent=d.requires_driver?'نعم':'لا';
- $('viewHasTires').textContent=d.has_tires?'نعم':'لا'; $('viewTirePositions').textContent=d.tire_positions_required??0; $('viewAxleCount').textContent=d.axle_count??'—'; $('viewTireSize').textContent=d.tire_size||'—';
- $('viewPositionsBody').innerHTML=(d.positions||[]).map(x=>'<tr><td>'+ (x.axle_number??'—') +'</td><td>'+ (x.side==='right'?'يمين':'يسار') +'</td><td>'+ ({single:'مفرد',inner:'داخلي',outer:'خارجي'}[x.position_type]||x.position_type||'—') +'</td><td>'+ (x.description||'—') +'</td></tr>').join('')||'<tr><td colspan="4" class="muted">لا توجد مواضع</td></tr>';
- $('viewSizesBody').innerHTML=(d.sizes||[]).map(x=>'<tr><td>'+ (typeof x==='string'?x:x.size||'—') +'</td></tr>').join('')||'<tr><td class="muted">لا توجد مقاسات</td></tr>';
- $('viewHasBatteries').textContent=d.has_batteries?'نعم':'لا'; $('viewBatteryCount').textContent=d.battery_count_required??0;$('viewBatteryCountSummary').textContent=d.battery_count_required??0; $('viewBatteryCapacity').textContent=d.battery_capacity_ah??'—'; $('viewBatteryVoltage').textContent=d.battery_voltage_v??'—';
- renderSpecView(d);
- show($('modelViewPanel'));
-}
-function importExcel(target){importTarget=target;$('excelFile').value='';$('excelFile').click()}
-
-$('modelForm').addEventListener('submit',e=>{['tirePositions','batteryCount'].forEach(k=>{if($(k).value.trim()==='')$(k).value='0'});sync();if(!$('modelType').value){e.preventDefault();alert('اختر نوع العتاد أولاً.')}});$('editModelBtn').onclick=()=>editModel(currentModel);$('cancelModel').onclick=()=>{if(currentModel)viewModel(currentModel);else{document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$('empty').style.display='grid';title('اختر عنصراً من الشجرة')}};$('addPosition').onclick=()=>addPos();$('addSize').onclick=()=>addSize();$('importPositions').onclick=()=>importExcel('positions');$('importSizes').onclick=()=>importExcel('sizes');$('importSpecs').onclick=()=>importExcel('specs');function refreshModelTypeContext(typeId){const id=String(typeId||$('modelType').value||'');const o=$('modelType').selectedOptions[0];const categoryId=o?.dataset.category||'';$('modelCategory').value=categoryId;const context={equipment_type_id:id?Number(id):0,category_id:categoryId?Number(categoryId):0,specs:[]};renderSpecEditor(context);renderSpecLibrary(context);}
+/* قاعدة توليد المواضع من عدد المحاور ونوع عجلات كل محور (قرار المستخدم 2026-09-30):
+   مفرد = موضع واحد لكل جهة (٢ للمحور) · مزدوج = داخلي + خارجي لكل جهة (٤ للمحور).
+   مثال ٣ محاور: [مفرد، مزدوج، مزدوج] = ٢ + ٤ + ٤ = ١٠ مواضع.
+   لا يوجد جدول مواضع: التوزيع نفسه هو المواضع، فلا يُحفظ إلا ناتج التوليد.
+   الخادم يرفض الحفظ إذا اختلف عدد المواضع عن العدد المطلوب، لذلك يُحسب الحقل من التوليد دائمًا. */
+const AXLE_SIDE_ORDER=['right','left'];
+const WHEEL_CHOICE_TYPES={single:['single'],dual:['inner','outer']};
+const MAX_PICKER_AXLES=60;
+let savedPositions=[];let layoutOverflow=false;
+function axleLayout(){return [...document.querySelectorAll('#axleWheelBody tr')].map(tr=>({axle:Number(tr.dataset.axle),wheel:(tr.querySelector('input:checked')||{}).value||'single'}))}
+function expandAxleLayout(layout){const out=[];(layout||[]).forEach(item=>{const types=WHEEL_CHOICE_TYPES[item.wheel]||WHEEL_CHOICE_TYPES.single;AXLE_SIDE_ORDER.forEach(side=>types.forEach(type=>out.push({axle_number:item.axle,side,position_type:type})))});return out}
+function axleCountValue(){return Math.max(0,Number($('axleCount').value)||0)}
+function positionsSignature(rows){return (rows||[]).map(r=>`${r.axle_number}/${r.side}/${r.position_type}`).sort().join('|')}
+/* معرّفات المواضع المحفوظة تُبقي كما هي: الخادم يحذف ما لا يُرسَل، والحذف مرفوض
+   لموضع استُخدم في سجل حركات. الأوصاف تُنقل كما هي أيضًا فلا تُمحى بالتهيئة. */
+function generatedPositions(){const saved=new Map(savedPositions.map(p=>[`${p.axle_number}/${p.side}/${p.position_type}`,p]));return expandAxleLayout(axleLayout()).map((r,i)=>{const match=saved.get(`${r.axle_number}/${r.side}/${r.position_type}`);return {id:match?match.id:null,axle_number:r.axle_number,side:r.side,position_type:r.position_type,description:match?(match.description||''):'',sort_order:i}})}
+function updatePositionsSummary(rows){const el=$('positionsSummary');if(!el)return;if(!rows.length){el.textContent='';return}const singles=rows.filter(r=>r.position_type==='single').length;let text=`الإجمالي ${rows.length} موضع: ${singles} مفرد · ${rows.length-singles} مزدوج`;if(savedPositions.length&&positionsSignature(rows)!==positionsSignature(savedPositions))text+=' — تختلف عن المواضع المحفوظة، فالحفظ سيعيد توزيعها';el.textContent=text}
+function renderAxleWheelPicker(){const body=$('axleWheelBody');const hint=$('axleWheelHint');if(!body)return;const previous=Object.fromEntries(axleLayout().map(x=>[x.axle,x.wheel]));const total=axleCountValue();const count=Math.min(total,MAX_PICKER_AXLES);body.innerHTML='';for(let n=1;n<=count;n++){const mine=savedPositions.filter(r=>Number(r.axle_number)===n);const types=new Set(mine.map(r=>r.position_type));const wheel=mine.length?((types.has('inner')||types.has('outer'))?'dual':'single'):(previous[n]||(n>1?(previous[n-1]||'single'):'single'));const tr=document.createElement('tr');tr.dataset.axle=String(n);tr.innerHTML=`<td>المحور ${n}</td><td><label class="check"><input type="radio" name="axle-wheel-${n}" value="single"${wheel==='single'?' checked':''}> مفرد</label> <label class="check"><input type="radio" name="axle-wheel-${n}" value="dual"${wheel==='dual'?' checked':''}> مزدوج</label></td>`;tr.querySelectorAll('input').forEach(r=>r.addEventListener('change',sync));body.appendChild(tr)}layoutOverflow=total>MAX_PICKER_AXLES;if(hint)hint.innerHTML=layoutOverflow?`عدد المحاور (${total}) يتجاوز الحدّ المدعوم للتوليد (${MAX_PICKER_AXLES})؛ لم يتغيّر التوزيع. استخدم عددًا ≤ ${MAX_PICKER_AXLES}.`:total?'':'اكتب <b>عدد المحاور</b> أعلاه لتظهر المحاور هنا، ثم اختر لكل محور: مفرد أم مزدوج.'}
+function sync(){const pos=layoutOverflow?JSON.parse($('positionsJson').value||'[]'):generatedPositions();const sizes=[...document.querySelectorAll('.s-size')].map(x=>x.value.trim()).filter(Boolean);const specs=[...document.querySelectorAll('.spec-value')].map(x=>({definition_id:Number(x.dataset.definition),value:x.value})).filter(x=>x.value!=='');$('positionsJson').value=JSON.stringify(pos);$('sizesJson').value=JSON.stringify(sizes);$('specsJson').value=JSON.stringify(specs);$('tirePositions').value=pos.length;updatePositionsSummary(pos)}
+function editModel(id,section='basic'){const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);$('modelForm').action='/equipment-types/models/'+id+'/update';$('modelId').value=id;title(d.name||'تعديل الطراز','الطراز');$('modelName').value=d.name||'';$('modelCategory').value=d.category_id??'';$('modelType').value=d.equipment_type_id??'';$('modelBrand').value=d.brand_id??'';$('modelImageUrl').value=d.image_url||'';const preview=$('modelImagePreview');if(d.image_url){preview.src=d.image_url;preview.style.display='block'}else{preview.src='';preview.style.display='none'}$('mobility').value=d.mobility_type||'mobile';$('requiresDriver').checked=!!d.requires_driver;$('hasTires').checked=!!d.has_tires;$('axleCount').value=d.axle_count??'';$('tireSize').value=d.tire_size||'';$('hasBatteries').checked=!!d.has_batteries;$('batteryCount').value=d.battery_count_required??0;$('batteryCapacity').value=d.battery_capacity_ah??'';$('batteryVoltage').value=d.battery_voltage_v??'';savedPositions=d.positions||d.master?.positions||[];renderSizes(d.sizes||d.master?.sizes||[]);renderAxleWheelPicker();$('specRows').innerHTML='';$('specLibraryPicker').hidden=true;renderSpecEditor(d);renderSpecLibrary(d);show($('modelPanel'));focusModelSection(section);sync()}
+document.querySelector('#model-library-v3').addEventListener('click',event=>{const tab=event.target.closest('[data-model-view-tab]');if(tab){setModelViewTab(tab.dataset.modelViewTab);return}const copy=event.target.closest('[data-copy-model]');if(copy){const id=copy.dataset.copyModel;editModel(id);$('modelName').value+=' - نسخة';$('modelId').value='';$('modelForm').action='/equipment-types/models/create';window.MATERIEL_MODEL_WORKSPACE_SELECT?.(0,{all:true})}});
+$('deleteModelForm').addEventListener('submit',event=>{if($('deleteModelBtn').disabled)event.preventDefault()});$('modelImage').addEventListener('change',function(){const file=this.files[0];if(!file)return;const reader=new FileReader();reader.onload=function(e){$('modelImageUrl').value=e.target.result;$('modelImagePreview').src=e.target.result;$('modelImagePreview').style.display='block'};reader.readAsDataURL(file)});
+$('modelForm').addEventListener('submit',e=>{['tirePositions','batteryCount'].forEach(k=>{if($(k).value.trim()==='')$(k).value='0'});sync();if(!$('modelType').value){e.preventDefault();alert('اختر نوع العتاد أولاً.')}});$('editModelBtn').onclick=()=>editModel(currentModel);$('cancelModel').onclick=()=>{if(currentModel)viewModel(currentModel);else if(currentTypeId)viewType(currentTypeId);else{document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$('empty').style.display='grid';title('اختر نوعاً من الشجرة')}};$('addSize').onclick=()=>{addSize();sync()};$('axleCount').addEventListener('input',()=>{renderAxleWheelPicker();sync()});document.querySelectorAll('#modelWorkspaceTabs [data-model-workspace-tab]').forEach(b=>b.addEventListener('click',()=>window.MATERIEL_MODEL_WORKSPACE_SELECT?.(Number(b.dataset.modelWorkspaceTab))));function refreshModelTypeContext(typeId){const id=String(typeId||$('modelType').value||'');const o=$('modelType').selectedOptions[0];const categoryId=o?.dataset.category||'';$('modelCategory').value=categoryId;const context={equipment_type_id:id?Number(id):0,category_id:categoryId?Number(categoryId):0,specs:[]};renderSpecEditor(context);renderSpecLibrary(context);}
 $('modelType').onchange=()=>refreshModelTypeContext($('modelType').value);$('chooseSpecs').onclick=()=>{const p=$('specLibraryPicker');if(!p)return;const d=DATA[String(currentModel)]||DATA[currentModel]||{equipment_type_id:Number($('modelType').value||0),category_id:Number($('modelCategory').value||0),specs:[]};renderSpecLibrary(d);p.hidden=false;p.scrollIntoView({behavior:'smooth',block:'nearest'});};
 
 $('addBrandFromModel').onclick=()=>{refPanel('brand');}; $('btn-manage-brands').onclick=()=>{refPanel('brand');}; $('btn-manage-specs').onclick=()=>{refPanel('spec');};
-window.show=show;window.title=title;window.resetModel=resetModel;window.openNewModel=openNewModel;window.refPanel=refPanel;window.editModel=editModel;window.viewModel=viewModel;window.refreshModelTypeContext=refreshModelTypeContext;window.addPos=addPos;window.addSize=addSize;window.sync=sync;window.MATERIEL_MASTER_DATA={DATA,CATEGORIES,TYPES,BRANDS};window.MATERIEL_MASTER_DATA_READY=true;
-$('excelFile').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(typeof XLSX==='undefined'){alert('تعذر تحميل قارئ Excel.');return}try{const data=await file.arrayBuffer();const wb=XLSX.read(data,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(ws,{defval:''});if(!rows.length)throw Error('الملف لا يحتوي بيانات.');const norm=k=>String(k).trim().toLowerCase();const keys=Object.keys(rows[0]);const find=names=>keys.find(k=>names.includes(norm(k)));if(importTarget==='sizes'){const k=find(['المقاس','size','tire size','tire_size']);if(!k)throw Error('لم أجد عمود المقاس.');renderSizes(rows.map(r=>r[k]))}else if(importTarget==='positions'){const a=find(['المحور','axle','axle_number']),s=find(['الجهة','side']),t=find(['النوع','type','position_type']),d=find(['الوصف','description']);if(!a&&!s&&!t&&!d)throw Error('لم أجد أعمدة المواضع.');renderPositions(rows.map(r=>({axle_number:r[a]||1,side:r[s]||'left',position_type:r[t]||'single',description:r[d]||''})))}else{const sizeK=find(['المقاس','size','tire size','tire_size']);if(sizeK)renderSizes(rows.map(r=>r[sizeK]));const a=find(['المحور','axle','axle_number']);if(a)renderPositions(rows.map(r=>({axle_number:r[a]||1,side:r[find(['الجهة','side'])]||'left',position_type:r[find(['النوع','type','position_type'])]||'single',description:r[find(['الوصف','description'])||'']||''})));DEFS.forEach(d=>{const k=keys.find(x=>norm(x)===norm(d.name));if(k){const el=document.querySelector('[data-definition="'+d.id+'"]');if(el)el.value=rows[0][k]||''}});sync()}alert('تم تحميل البيانات إلى المحرر. راجعها ثم اضغط حفظ الطراز.')}catch(err){alert('تعذر استيراد الملف: '+err.message)}});
+window.show=show;window.title=title;window.viewType=viewType;window.resetModel=resetModel;window.openNewModel=openNewModel;window.refPanel=refPanel;window.editModel=editModel;window.viewModel=viewModel;window.refreshModelTypeContext=refreshModelTypeContext;window.addSize=addSize;window.sync=sync;window.MATERIEL_MASTER_DATA={DATA,CATEGORIES,TYPES,BRANDS};window.MATERIEL_MASTER_DATA_READY=true;
 </script>
 <script src="/static/js/master-data-tree.js?v={{ tree_js_version|default('master-data-workspace-7') }}"></script>
 {% endblock %}
+

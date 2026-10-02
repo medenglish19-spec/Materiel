@@ -1,17 +1,120 @@
 {% extends "base.html" %}
-{% block title %}تفاصيل العتاد{% endblock %}
+{% block title %}ملف العتاد{% endblock %}
 {% block content %}
-<div class="record-page equipment-record" dir="rtl">
-  <a class="record-back" href="/equipment">← العودة إلى العتاد</a>
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · EQUIPMENT</div><h2>{{ item.asset_code }}</h2><div class="record-muted">الملف التشغيلي للعتاد وجميع الوحدات المرتبطة به.</div></div><div class="record-actions"><a href="/equipment/{{ item.id }}/meters" class="btn-outline">📊 العداد</a><a href="/equipment/{{ item.id }}/maintenance" class="btn-primary">🛠 الصيانة</a></div></header>
-  <section class="record-panel"><div class="record-section-head"><h3>بطاقة العتاد</h3><div class="record-hint">المعلومات الأساسية والحالة الحالية</div></div>
-    <div class="record-summary"><div class="record-box"><span>الرقم</span><b>{{ item.asset_code }}</b></div><div class="record-box"><span>رقم التسجيل</span><b>{{ item.registration_number or '-' }}</b></div><div class="record-box"><span>النوع</span><b>{{ item.equipment_type.name if item.equipment_type else '-' }}</b></div><div class="record-box"><span>الطراز</span><b>{{ item.equipment_model.name if item.equipment_model else '-' }}</b></div><div class="record-box"><span>الحالة الفنية</span><b>{% if item.technical_condition == 'ready' %}جاهز{% elif item.technical_condition == 'ready_restricted' %}جاهز مع قيود{% else %}عاطل{% endif %}</b></div><div class="record-box"><span>الوضعية</span><b>{% if item.operational_status == 'available' %}متاح{% elif item.operational_status == 'in_mission' %}في مهمة{% elif item.operational_status == 'in_maintenance' %}في الصيانة{% elif item.operational_status == 'in_external_workshop' %}في ورشة خارجية{% else %}غير متاح{% endif %}</b></div></div>
-    <div class="record-form compact"><div class="field"><label>الوثيقة</label><div>{{ item.acquisition_document or '-' }}</div></div><div class="field"><label>رقم الهيكل</label><div>{{ item.vin or '-' }}</div></div><div class="field"><label>تاريخ الاقتناء</label><div>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else '-' }}</div></div><div class="field"><label>أول سير / بدء الاستغلال</label><div>{{ item.first_service_date.strftime('%d/%m/%Y') if item.first_service_date else '-' }}</div></div><div class="field"><label>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</label><div>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</div></div>{% if item.notes %}<div class="field record-wide"><label>ملاحظات</label><div>{{ item.notes }}</div></div>{% endif %}</div>
-  </section>
-  {% if item.equipment_model %}<section class="record-panel"><div class="record-section-head"><h3>⚙️ مواصفات الطراز · Master Data</h3><div class="record-hint">مرتبطة بالطراز وليس بكل عتاد بشكل منفصل{% for spec in item.equipment_model.spec_values %}<span class="chip">{{ spec.definition.name }}: {{ spec.value }}{% if spec.definition.unit %} {{ spec.definition.unit }}{% endif %}</span>{% endfor %}</div></div><div class="record-summary">{% if item.equipment_model.brand %}<div class="record-box"><span>العلامة</span><b>{{ item.equipment_model.brand.name }}</b></div>{% endif %}<div class="record-box"><span>الإطارات</span><b>{{ 'نعم' if item.equipment_model.has_tires else 'لا' }}</b></div>{% if item.equipment_model.tire_positions_required %}<div class="record-box"><span>مواضع الإطارات</span><b>{{ item.equipment_model.tire_positions_required }}</b></div>{% endif %}{% if item.equipment_model.tire_size %}<div class="record-box"><span>مقاس الإطار</span><b>{{ item.equipment_model.tire_size }}</b></div>{% endif %}<div class="record-box"><span>البطاريات</span><b>{{ 'نعم' if item.equipment_model.has_batteries else 'لا' }}</b></div>{% if item.equipment_model.battery_count_required %}<div class="record-box"><span>عدد البطاريات</span><b>{{ item.equipment_model.battery_count_required }}</b></div>{% endif %}{% if item.equipment_model.battery_capacity_ah %}<div class="record-box"><span>السعة</span><b>{{ item.equipment_model.battery_capacity_ah }} Ah</b></div>{% endif %}{% if item.equipment_model.battery_voltage_v %}<div class="record-box"><span>الجهد</span><b>{{ item.equipment_model.battery_voltage_v }} V</b></div>{% endif %}</div></section>{% endif %}
-  <section class="record-panel"><div class="record-section-head"><div><h3>🛞 الإطارات المركبة</h3><div class="record-hint">هذه هي الإطارات المركبة حاليًا حسب آخر حركة صحيحة لكل إطار</div></div><a href="/equipment/{{ item.id }}/tires" class="btn-outline">فتح السجل الكامل</a></div>{% if installed_tires %}<div class="record-table-wrap"><table class="record-table"><thead><tr><th>الموضع</th><th>الرقم التسلسلي</th><th>الماركة / الطراز</th><th>المقاس</th><th>الصلاحية</th><th>الحالة</th><th>العداد</th></tr></thead><tbody>{% for t in installed_tires %}<tr><td>{{ t.state.position.name if t.state.position else '-' }}</td><td><a class="tire-serial-link" href="/tires/{{ t.tire.id }}">{{ t.tire.serial_number }}</a></td><td>{{ t.tire.brand or '-' }}{% if t.tire.model %} · {{ t.tire.model }}{% endif %}</td><td>{{ t.tire.size or '-' }}</td><td>{{ t.tire.expiry_date or '-' }}</td><td>{% if t.condition == 'expired' %}<span class="record-badge expired">منتهي الصلاحية</span>{% elif t.condition == 'damaged' %}<span class="record-badge damaged">تالف</span>{% else %}<span class="record-badge good">سليم</span>{% endif %}</td><td>{{ t.state.movement.meter_value if t.state.movement and t.state.movement.meter_value is not none else '-' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="record-empty">لا توجد إطارات مركبة حاليًا.</div>{% endif %}</section>
-  <section class="record-panel"><div class="record-section-head"><h3>🔋 البطاريات المركبة</h3><a href="/equipment/{{ item.id }}/batteries" class="btn-outline">فتح السجل الكامل</a></div>{% if installed_batteries %}<div class="record-table-wrap"><table class="record-table"><thead><tr><th>الرقم التسلسلي</th><th>الماركة / الطراز</th><th>تاريخ الصنع</th><th>الاستحقاق</th><th>الحالة</th><th>العداد</th></tr></thead><tbody>{% for b in installed_batteries %}<tr><td><a class="tire-serial-link" href="/batteries/{{ b.battery.id }}">{{ b.battery.serial_number }}</a></td><td>{{ b.battery.brand or '-' }}{% if b.battery.model %} · {{ b.battery.model }}{% endif %}</td><td>{{ b.battery.manufacture_date.strftime('%d/%m/%Y') if b.battery.manufacture_date else '-' }}</td><td>{{ b.due_date.strftime('%d/%m/%Y') if b.due_date else '-' }}</td><td>{% if b.condition == 'expired' %}<span class="record-badge expired">مستحقة للاستبدال</span>{% elif b.condition == 'damaged' %}<span class="record-badge damaged">تالف</span>{% else %}<span class="record-badge good">سليمة</span>{% endif %}</td><td>{{ b.state.movement.meter_value if b.state.movement and b.state.movement.meter_value is not none else '-' }}</td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="record-empty">لا توجد بطاريات مركبة حاليًا.</div>{% endif %}</section>
-  <section class="record-panel"><div class="record-section-head"><h3>🧭 الوصول السريع</h3><div class="record-hint">كل سجل يحتفظ بوظيفته الحالية</div></div><div class="record-summary"><a class="record-box" href="/equipment/{{ item.id }}/meters"><span>📊 قراءات العداد</span><b>فتح السجل ←</b></a><a class="record-box" href="/equipment/{{ item.id }}/maintenance"><span>🛠 الصيانة</span><b>فتح السجل ←</b></a><a class="record-box" href="/equipment/{{ item.id }}/tires"><span>🛞 الإطارات</span><b>فتح السجل ←</b></a><a class="record-box" href="/equipment/{{ item.id }}/batteries"><span>🔋 البطاريات</span><b>فتح السجل ←</b></a></div></section>
-  <div class="record-actions"><a href="/equipment" class="btn-secondary">العودة إلى القائمة</a><a href="/equipment/{{ item.id }}/edit" class="btn-primary">تعديل العتاد</a><form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');"><button type="submit" class="btn-danger">حذف العتاد</button></form></div>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet">
+<style>
+.equipment-detail{--ed-bg:#EDF0F1;--ed-surface:#FFF;--ed-surface2:#F5F7F8;--ed-line:#DCE2E5;--ed-line2:#C6CFD4;--ed-ink:#17242B;--ed-ink2:#4B5B64;--ed-ink3:#66767F;--ed-brand:#0E6B66;--ed-brand2:#0A524E;--ed-soft:#DDEFED;--ed-ok:#1F6B43;--ed-okbg:#E1F1E7;--ed-warn:#7D5200;--ed-warnbg:#FBEFD2;--ed-bad:#A4271F;--ed-badbg:#F9E1DE;--ed-info:#22558F;--ed-infobg:#E0EBF7;font-family:"IBM Plex Sans Arabic","Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;background:var(--ed-bg);color:var(--ed-ink);font-size:14px;line-height:1.65;padding:24px 28px 56px;max-width:1440px;margin:0 auto}
+.equipment-detail *{box-sizing:border-box}.ed-back{display:inline-flex;gap:6px;align-items:center;color:var(--ed-brand);text-decoration:none;font-weight:600;font-size:13px;margin-bottom:10px}.ed-hero{display:flex;gap:18px;align-items:center;flex-wrap:wrap;padding:18px 22px;margin-bottom:16px;background:#fff;border:1px solid var(--ed-line);border-radius:12px}.ed-hero-main{flex:1;min-width:240px}.ed-plate{display:inline-block;direction:ltr;unicode-bidi:isolate;text-align:center;border:2px solid var(--ed-ink);border-radius:7px;padding:0 14px;font-weight:700;letter-spacing:.05em;background:#fff;font-variant-numeric:tabular-nums;font-size:20px;line-height:34px;white-space:nowrap}.ed-hero h1{margin:5px 0 0;font-size:16px;font-weight:600;color:var(--ed-ink2)}.ed-hero-ids{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px}.ed-id-box{border:1px solid var(--ed-line);background:var(--ed-surface2);border-radius:10px;padding:7px 12px 9px;min-width:180px}.ed-id-label{display:block;font-size:11.5px;font-weight:700;color:var(--ed-ink3);margin-bottom:6px}.ed-id-box .ed-plate{font-size:17px;line-height:27px;padding:0 11px;border-width:1.5px;border-radius:6px}.ed-id-value{display:block;font-size:16px;font-weight:700;color:var(--ed-ink);direction:ltr;text-align:right;line-height:27px;letter-spacing:.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.ed-hero-meta{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}.ed-meta-item{display:flex;flex-direction:column;align-items:flex-start;gap:5px}.ed-meta-label{display:block;font-size:11.5px;font-weight:700;color:var(--ed-ink3)}.ed-actions{display:flex;gap:8px;flex-wrap:wrap}.ed-btn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 15px;border-radius:9px;border:1px solid var(--ed-line2);background:#fff;font-weight:600;font-size:13.5px;color:var(--ed-ink);text-decoration:none}.ed-btn:hover{background:var(--ed-surface2);border-color:#A9B6BC}.ed-btn.pri{background:var(--ed-brand);border-color:var(--ed-brand);color:#fff}.ed-btn.pri:hover{background:var(--ed-brand2)}.ed-chip{display:inline-flex;align-items:center;gap:6px;padding:1px 10px;border-radius:999px;font-size:12.5px;font-weight:600;white-space:nowrap;line-height:22px}.ed-chip:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.ed-chip.ok{background:var(--ed-okbg);color:var(--ed-ok)}.ed-chip.warn{background:var(--ed-warnbg);color:var(--ed-warn)}.ed-chip.bad{background:var(--ed-badbg);color:var(--ed-bad)}.ed-chip.info{background:var(--ed-infobg);color:var(--ed-info)}.ed-tabs{display:flex;gap:2px;border-bottom:1px solid var(--ed-line);margin-bottom:18px;overflow-x:auto}.ed-tabs a{border:0;background:transparent;padding:10px 14px;font-weight:600;font-size:13.5px;color:var(--ed-ink2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}.ed-tabs a:hover{color:var(--ed-ink)}.ed-tabs a.active{color:var(--ed-brand);border-bottom-color:var(--ed-brand)}.ed-tabs .n{font-size:11.5px;background:#E6EBED;color:var(--ed-ink2);border-radius:999px;padding:0 7px;font-weight:700}.ed-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}.ed-col{display:grid;gap:16px;align-content:start}.ed-card{background:var(--ed-surface);border:1px solid var(--ed-line);border-radius:12px;overflow:hidden}.ed-card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--ed-line)}.ed-card-h h2{margin:0;font-size:15px;font-weight:700}.ed-card-h .sub{font-size:12.5px;color:var(--ed-ink3)}.ed-card-b{padding:16px 18px}.ed-kv{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 22px}.ed-kv>div>span{display:block;font-size:12.5px;color:var(--ed-ink3)}.ed-kv>div>b{font-weight:600;font-size:14px}.ed-ops{list-style:none;margin:0;padding:0}.ed-ops li{display:grid;grid-template-columns:minmax(0,1fr) 150px 96px;gap:14px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--ed-line)}.ed-ops li:last-child{border-bottom:0}.ed-ops b{font-weight:600}.ed-ops .left{text-align:end;font-size:13px}.ed-bar{height:7px;border-radius:4px;background:var(--ed-line);overflow:hidden;min-width:90px}.ed-bar i{display:block;height:100%;border-radius:4px;background:#2E8557}.ed-bar.warn i{background:#C48A12}.ed-bar.bad i{background:#B93B31}.ed-table-wrap{overflow:auto}.ed-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}.ed-table th{background:var(--ed-surface2);text-align:start;font-weight:600;font-size:12.5px;color:var(--ed-ink2);padding:10px 14px;border-bottom:1px solid var(--ed-line);white-space:nowrap}.ed-table td{padding:11px 14px;border-bottom:1px solid var(--ed-line);vertical-align:middle}.ed-table tr:last-child td{border-bottom:0}.ed-muted{color:var(--ed-ink3)}.ed-sub{display:block;font-size:12px;color:var(--ed-ink3)}.ed-plate-sm{display:inline-block;direction:ltr;border:1.5px solid var(--ed-ink);border-radius:5px;padding:0 8px;font-weight:700;background:#fff;font-variant-numeric:tabular-nums;font-size:13px;line-height:22px;white-space:nowrap}.ed-model-specs{display:flex;gap:8px;flex-wrap:wrap}.ed-spec{border:1px dashed var(--ed-line2);border-radius:9px;padding:8px 11px;background:var(--ed-surface2);font-size:13px;color:var(--ed-ink2)}.ed-spec b{color:var(--ed-ink)}.ed-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ed-link{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--ed-line);border-radius:9px;text-decoration:none;color:var(--ed-ink);background:#fff}.ed-link:hover{background:var(--ed-surface2);border-color:var(--ed-line2)}.ed-link span{color:var(--ed-ink2);font-weight:600}.ed-link b{color:var(--ed-brand);font-size:13px}.ed-empty{padding:30px;text-align:center;color:var(--ed-ink3)}@media(max-width:1100px){.ed-grid{grid-template-columns:1fr}}@media(max-width:760px){.equipment-detail{padding:18px 14px 48px}.ed-kv,.ed-links{grid-template-columns:1fr}.ed-ops li{grid-template-columns:1fr}.ed-ops .left{text-align:start}.ed-hero{padding:16px}.ed-hero-ids,.ed-hero-meta{width:100%}.ed-id-box{flex:1 1 180px}.ed-actions{width:100%}.ed-btn{flex:1;justify-content:center}}
+</style>
+
+<div class="equipment-detail" dir="rtl">
+  <a class="ed-back" href="/equipment">‹ العودة إلى العتاد</a>
+
+  <div class="ed-hero">
+    <div class="ed-hero-main">
+      <h1>
+        {{ item.equipment_type.name if item.equipment_type else 'عتاد' }}
+        · {{ item.equipment_model.name if item.equipment_model else '-' }}
+      </h1>
+      <div class="ed-hero-ids">
+        <div class="ed-id-box">
+          <span class="ed-id-label">رقم التسجيل</span>
+          <span class="ed-plate">{{ item.registration_number or "غير مسجل" }}</span>
+        </div>
+        <div class="ed-id-box">
+          <span class="ed-id-label">رقم الهيكل</span>
+          <b class="ed-id-value">{{ item.vin or "غير مسجل" }}</b>
+        </div>
+      </div>
+    </div>
+    <div class="ed-hero-meta">
+      <div class="ed-meta-item">
+        <span class="ed-meta-label">الوضعية</span>
+        <span class="ed-chip {% if item.operational_status in ['available','ready','active'] %}ok{% elif item.operational_status in ['maintenance','in_maintenance'] %}warn{% elif item.operational_status in ['external_workshop','mission'] %}info{% else %}bad{% endif %}">{{ label('operational', item.operational_status) }}</span>
+      </div>
+      <div class="ed-meta-item">
+        <span class="ed-meta-label">الحالة الفنية</span>
+        <span class="ed-chip {% if item.technical_condition in ['good','ready','excellent'] %}ok{% elif item.technical_condition in ['warning','restricted'] %}warn{% else %}bad{% endif %}">{{ label('technical', item.technical_condition) }}</span>
+      </div>
+    </div>
+    <div class="ed-actions">
+      <a class="ed-btn" href="/equipment/{{ item.id }}/meters">⚙ العداد</a>
+      <a class="ed-btn" href="/faults-repairs/faults">⚠ تسجيل عطل</a>
+      <a class="ed-btn pri" href="/maintenance/records#newRecord">🔧 تسجيل صيانة</a>
+    </div>
+  </div>
+
+  <nav class="ed-tabs" aria-label="ملف العتاد">
+    <a class="active" href="/equipment/{{ item.id }}">نظرة عامة</a>
+    <a href="/equipment/{{ item.id }}/meters">العداد</a>
+    <a href="/equipment/{{ item.id }}/maintenance">الصيانة</a>
+    <a href="/equipment/{{ item.id }}/tires">الإطارات</a>
+    <a href="/equipment/{{ item.id }}/batteries">البطاريات</a>
+    <a href="/equipment/{{ item.id }}/fuel">الوقود</a>
+    <a href="/faults-repairs/faults">الأعطال</a>
+  </nav>
+
+  <div class="ed-grid">
+    <div class="ed-col">
+      <section class="ed-card">
+        <div class="ed-card-h">
+          <h2>بطاقة العتاد</h2>
+          <span class="sub">المعلومات الأساسية والحالة الحالية</span>
+        </div>
+        <div class="ed-card-b">
+          <div class="ed-kv">
+            
+            <div><span>رقم التسجيل</span><b>{{ item.registration_number or '-' }}</b></div>
+            <div><span>النوع</span><b>{{ item.equipment_type.name if item.equipment_type else '-' }}</b></div>
+            <div><span>الطراز</span><b>{{ item.equipment_model.name if item.equipment_model else '-' }}</b></div>
+            <div><span>رقم الهيكل</span><b style="direction:ltr;display:inline-block">{{ item.vin or '-' }}</b></div>
+            <div><span>الوثيقة</span><b>{{ item.acquisition_document or '-' }}</b></div>
+            <div><span>تاريخ الاقتناء</span><b>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else '-' }}</b></div>
+            <div><span>أول سير / بدء الاستغلال</span><b>{{ item.first_service_date.strftime('%d/%m/%Y') if item.first_service_date else '-' }}</b></div>
+            <div><span>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</span><b>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</b></div>
+            {% if item.notes %}<div><span>ملاحظات</span><b>{{ item.notes }}</b></div>{% endif %}
+          </div>
+        </div>
+      </section>
+
+      {% if item.equipment_model %}
+      <section class="ed-card">
+        <div class="ed-card-h">
+          <h2>المواصفات الفنية للطراز</h2>
+          <span class="sub">بيانات Master Data المرتبطة بالطراز</span>
+        </div>
+        <div class="ed-card-b">
+          <div class="ed-kv">
+            {% if item.equipment_model.brand %}<div><span>العلامة</span><b>{{ item.equipment_model.brand.name }}</b></div>{% endif %}
+            <div><span>الإطارات</span><b>{{ 'نعم' if item.equipment_model.has_tires else 'لا' }}</b></div>
+            {% if item.equipment_model.tire_positions_required %}<div><span>مواضع الإطارات</span><b>{{ item.equipment_model.tire_positions_required }}</b></div>{% endif %}
+            {% if item.equipment_model.tire_size %}<div><span>مقاس الإطار</span><b>{{ item.equipment_model.tire_size }}</b></div>{% endif %}
+            <div><span>البطاريات</span><b>{{ 'نعم' if item.equipment_model.has_batteries else 'لا' }}</b></div>
+            {% if item.equipment_model.battery_count_required %}<div><span>عدد البطاريات</span><b>{{ item.equipment_model.battery_count_required }}</b></div>{% endif %}
+            {% if item.equipment_model.battery_capacity_ah %}<div><span>سعة البطارية</span><b>{{ item.equipment_model.battery_capacity_ah }} Ah</b></div>{% endif %}
+            {% if item.equipment_model.battery_voltage_v %}<div><span>جهد البطارية</span><b>{{ item.equipment_model.battery_voltage_v }} V</b></div>{% endif %}
+          </div>
+          {% if item.equipment_model.spec_values %}
+          <div class="ed-model-specs" style="margin-top:16px">
+            {% for spec in item.equipment_model.spec_values %}
+            <div class="ed-spec"><b>{{ spec.definition.name }}:</b> {{ spec.value }}{% if spec.definition.data_type != 'select' and spec.definition.unit %} {{ spec.definition.unit }}{% endif %}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <div class="ed-actions" style="margin-top:18px;justify-content:flex-start">
+    <a class="ed-btn" href="/equipment">العودة إلى القائمة</a>
+    <a class="ed-btn pri" href="/equipment/{{ item.id }}/edit">تعديل العتاد</a>
+    <form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');" style="margin:0">
+      <button type="submit" class="ed-btn" style="color:#A4271F;border-color:#E7BDB9">حذف العتاد</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

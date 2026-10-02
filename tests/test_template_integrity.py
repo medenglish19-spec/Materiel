@@ -45,3 +45,18 @@ def test_numerical_status_template_contains_required_labels():
     text = path.read_text(encoding="utf-8")
     for label in ("النظري", "المحقق", "الاحتياج", "الفائض", "عتاد خارج TED"):
         assert label in text
+
+def test_maintenance_plans_new_plan_control_contract():
+    path = ROOT / "app/modules/maintenance/templates/maintenance_plans.html"
+    text = path.read_text(encoding="utf-8")
+
+    assert 'id="btnNewPlan"' in text
+    assert 'data-action="new-plan"' in text
+    assert "function newPlan()" in text
+
+    content_start = text.index("{% block content %}")
+    content_end = text.index("{% endblock %}", content_start)
+    content = text[content_start:content_end]
+
+    assert "<script>" in content
+    assert "function newPlan()" in content

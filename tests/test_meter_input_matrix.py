@@ -75,7 +75,7 @@ def test_manual_option_multiple_numeric_formats_and_retry_after_error(db):
     )
     assert response.status_code == 200
     assert float(db.query(MeterReading).one().odometer) == 1234.5
-    assert equipment.operational_status == "unavailable"
+    assert equipment.operational_status == "available"
 
     with pytest.raises(HTTPException) as exc:
         meter_reading_create(
@@ -209,7 +209,8 @@ def test_excel_option_accepts_arabic_english_headers_reordered_dates_and_values(
     assert km_values == [2000.5, 2100.0]
     assert hour_values == [75.2]
     assert equipment_km.operational_status == "available"
-    assert equipment_hours.operational_status == "unavailable"
+    assert equipment_hours.operational_status == "available"
+    assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment_hours.id).one().equipment_status == "unavailable"
 
 
 def test_excel_error_identifies_equipment_and_retry_with_corrected_file(db):

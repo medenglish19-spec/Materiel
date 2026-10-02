@@ -37,12 +37,12 @@ def batteries_page(request: Request, db: Session = Depends(get_db), current_user
         equipment = state.get("equipment") if state else None
         statuses[battery.id] = services.status(battery, state, db=db)
         due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
-    return templates.TemplateResponse("batteries.html", {"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates})
+    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates})
 
 
 @router.get("/batteries/settings", response_class=HTMLResponse)
 def battery_settings_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return templates.TemplateResponse("battery_settings.html", {"request": request, "user": current_user, "validity_years": services.get_validity_years(db)})
+    return templates.TemplateResponse(request=request, name="battery_settings.html", context={"request": request, "user": current_user, "validity_years": services.get_validity_years(db)})
 
 
 @router.post("/batteries/settings")
@@ -73,7 +73,7 @@ def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_
     history = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery_id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).all()
     state = services.current_state(db, battery_id)
     equipment = state.get("equipment") if state else None
-    return templates.TemplateResponse("battery_detail.html", {"request": request, "user": current_user, "battery": battery, "state": state, "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "current_equipment": equipment, "replacement_due_date": services.replacement_due_date(db, battery, equipment), "validity_years": services.get_validity_years(db), "today": date.today()})
+    return templates.TemplateResponse(request=request, name="battery_detail.html", context={"request": request, "user": current_user, "battery": battery, "state": state, "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "current_equipment": equipment, "replacement_due_date": services.replacement_due_date(db, battery, equipment), "validity_years": services.get_validity_years(db), "today": date.today()})
 
 
 @router.post("/batteries/{battery_id}/movements")
@@ -108,4 +108,4 @@ def equipment_battery_page(request: Request, equipment_id: int, db: Session = De
             items.append(battery)
             due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
             statuses[battery.id] = services.status(battery, state, equipment=equipment, db=db)
-    return templates.TemplateResponse("equipment_batteries.html", {"request": request, "user": current_user, "equipment": equipment, "items": items, "due_dates": due_dates, "statuses": statuses, "validity_years": services.get_validity_years(db)})
+    return templates.TemplateResponse(request=request, name="equipment_batteries.html", context={"request": request, "user": current_user, "equipment": equipment, "items": items, "due_dates": due_dates, "statuses": statuses, "validity_years": services.get_validity_years(db)})
