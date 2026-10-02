@@ -177,7 +177,8 @@ def test_excel_arabic_headers_reverse_order_invalid_row_and_operation_log(db):
 
     readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).order_by(MeterReading.reading_date).all()
     assert len(readings) == 2
-    assert [float(x.odometer) for x in readings] == [333.0, 0.0]\n    assert readings[-1].equipment_status == "unavailable"
+    assert [float(x.odometer) for x in readings] == [333.0, 0.0]
+    assert readings[-1].equipment_status == "unavailable"
     assert equipment.operational_status == "available"
 
     operation = db.query(MeterReadingOperation).one()
