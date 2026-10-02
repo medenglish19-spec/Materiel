@@ -167,7 +167,7 @@ def test_finished_mission_leaves_equipment_available():
 
 
 def test_mission_ending_today_is_not_counted_as_running():
-    """الحد الفاصل: المهمة المنتهية اليوم انتهت فعلاً (المعيار end_date > today)."""
+    """الحد الفاصل: المهمة المنتهية اليوم ما زالت جارية حتى نهاية اليوم."""
     from app.modules.equipment import services
 
     db = _fixture()
@@ -175,7 +175,7 @@ def test_mission_ending_today_is_not_counted_as_running():
         equipment = _add_equipment(db, "EFF-4")
         _add_mission(db, equipment, end_date=date.today())
 
-        assert services.effective_operational_status(db, equipment) == "available"
+        assert services.effective_operational_status(db, equipment) == "in_mission"
     finally:
         db.close()
 
