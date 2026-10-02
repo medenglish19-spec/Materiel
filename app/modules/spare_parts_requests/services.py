@@ -46,6 +46,7 @@ def serialize_request(obj):
         "equipment_id": obj.equipment_id,
         "status": obj.status,
         "notes": obj.notes,
+        "equipment_code": obj.equipment.asset_code if obj.equipment else None,
         "equipment_registration": obj.equipment.registration_number if obj.equipment else None,
         "report_number": report_number,
         "items": [_serialize(i) for i in obj.items],
