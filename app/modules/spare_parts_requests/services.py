@@ -23,6 +23,7 @@ def _serialize(item):
         "spare_part_id": item.spare_part_id,
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
+        "received_date": item.received_date,
         "recipient": item.recipient,
         "supplier_institution": item.supplier_institution,
         "notes": item.notes,
@@ -103,8 +104,8 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
     if not db.query(SparePart).filter(SparePart.id == data.spare_part_id).first():
         raise ValueError("قطعة الغيار غير موجودة")
-    if data.received_quantity > 0 and (not data.recipient or not data.supplier_institution):
-        raise ValueError("عند تسجيل استلام يجب إدخال المستلم والمؤسسة الممونة")
+    if data.received_quantity > 0 and (not data.received_date or not data.recipient or not data.supplier_institution):
+        raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     item = SparePartRequestItem(request_id=request_id, **data.model_dump())
     db.add(item)
     db.commit()
@@ -118,8 +119,8 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     values = data.model_dump(exclude_unset=True)
     for key, value in values.items():
         setattr(item, key, value)
-    if item.received_quantity > 0 and (not item.recipient or not item.supplier_institution):
-        raise ValueError("عند تسجيل استلام يجب إدخال المستلم والمؤسسة الممونة")
+    if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
+        raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     db.commit()
     db.refresh(item)
     return item
@@ -178,13 +179,13 @@ def received_register(db: Session):
             "part_name": item.spare_part.name if item.spare_part else "—",
             "requested_quantity": item.requested_quantity,
             "received_quantity": item.received_quantity,
+            "received_date": item.received_date,
             "equipment": {
                 "asset_code": req.equipment.asset_code if req.equipment else "—",
             },
             "registration_number": req.equipment.registration_number if req.equipment else "—",
             "recipient": item.recipient or "—",
             "supplier_institution": item.supplier_institution or "—",
-            "report_number": report_number or "—",
         })
     return result
 
