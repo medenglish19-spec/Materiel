@@ -164,16 +164,17 @@ async function load(){
 }
 
 function row(x){
-  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'">'+detailHtml(x)+'</div></td></tr>';
+  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_code||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'">'+detailHtml(x)+'</div></td></tr>';
 }
 
 // حقول الطلب كما في أعمدة الجدول، كل رقم في إطار مستقل بعنوانه.
+// «العتاد» هو الرمز الداخلي للعتاد، و«رقم التسجيل» رقمه لدى الإدارة.
 function detailHtml(x){
   const fields=[
     ['رقم وثيقة الطلب',x.request_number],
     ['التاريخ',x.request_date],
     ['المصدر',SOURCE[x.source_type]||x.source_type],
-    ['العتاد',x.equipment_registration],
+    ['العتاد',x.equipment_code],
     ['رقم التسجيل',x.equipment_registration],
     ['رقم التقرير',x.report_number],
     ['الحالة',STATUS[x.status]||x.status]
