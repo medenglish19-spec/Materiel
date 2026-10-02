@@ -142,7 +142,10 @@ document.getElementById('requestForm').addEventListener('submit',async e=>{
     notes:row.querySelector('.new-note').value||null
   })).filter(x=>x.spare_part_id&&x.requested_quantity>0);
   const msg=document.getElementById('formMsg');
-  if(!items.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
+  if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
+  if(!items.length){msg.textContent='أكمل كل بند: انقر على قطعة الغيار من القائمة وأدخل الكمية';msg.className='msg err';return;}
+  // الاستبعاد الصامت يضيع البند بلا تنبيه، فلا يُحفظ الطلب ما لم يكتمل كل بنده.
+  if(items.length<rows.length){msg.textContent='يوجد بند غير مكتمل: انقر على قطعة الغيار من القائمة وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
   const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
   const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
   const data=await r.json().catch(()=>({}));
@@ -191,7 +194,7 @@ function itemsHtml(x){
     +x.items.map(i=>'<tr>'
       +'<td>'+esc(i.part_name||'—')+'</td>'
       +'<td>'+esc(i.requested_quantity)+'</td>'
-      +'<td><input data-item="'+i.id+'" class="received" type="number" min="0" step="1" value="'+esc(i.received_quantity??'')+'" placeholder="الكمية المستلمة"></td>'
+      +'<td><input data-item="'+i.id+'" class="received" type="number" min="1" step="1" value="'+esc(i.received_quantity??'')+'" placeholder="الكمية المستلمة"></td>'
       +'<td><input data-item="'+i.id+'" class="received-date" type="date" value="'+esc(i.received_date||'')+'"></td>'
       +'<td><input data-item="'+i.id+'" class="recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
       +'<td><input data-item="'+i.id+'" class="supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
@@ -204,7 +207,13 @@ async function saveItem(id,btn){
   // الزر داخل خلية، فالحقول ليست في والده المباشر؛ نقرأ من الصف كلّه.
   const root=btn.closest('tr');
   if(!root)return;
-  const body={received_quantity:Number(root.querySelector('.received').value||0),received_date:root.querySelector('.received-date').value||null,recipient:root.querySelector('.recipient').value||null,supplier_institution:root.querySelector('.supplier').value||null};
+  const raw=root.querySelector('.received').value.trim();
+  const qty=Number(raw||0);
+  // تسجيل الاستلام بعدد صحيح 1 فأكثر؛ الصفر حالة داخلية تعني «لم يُستلم بعد».
+  if(raw&&!(Number.isInteger(qty)&&qty>0)){alert('الكمية المستلمة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
+  const body={received_date:root.querySelector('.received-date').value||null,recipient:root.querySelector('.recipient').value||null,supplier_institution:root.querySelector('.supplier').value||null};
+  // لا نرسل الصفر أبداً: نرسل العدد فقط إن سُجّل استلام فعلاً.
+  if(qty>0)body.received_quantity=qty;
   const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
   if(r.ok)load();else alert((await r.json()).detail||'تعذر حفظ البند');
 }
