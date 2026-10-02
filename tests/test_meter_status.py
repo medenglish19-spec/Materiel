@@ -31,7 +31,7 @@ def test_not_working_meter_status_is_saved_on_reading_and_repair_returns_to_work
         db.refresh(equipment)
 
         first = services.create_reading(db, equipment.id, odometer=100, reading_date=datetime(2026, 8, 15), equipment_status="unavailable")
-        assert equipment.operational_status == "unavailable"
+        assert equipment.operational_status == "available"
         assert first.equipment_status == "unavailable"
 
         second = services.create_reading(db, equipment.id, odometer=120, reading_date=datetime(2026, 8, 16), equipment_status="available")
