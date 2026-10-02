@@ -50,6 +50,7 @@ class SparePartRequestItem(Base):
     spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=False, index=True)
     requested_quantity = Column(Numeric(10, 2), nullable=False)
     received_quantity = Column(Numeric(10, 2), nullable=False, default=0, server_default="0")
+    received_date = Column(Date, nullable=True, index=True)
     recipient = Column(String(160), nullable=True)
     supplier_institution = Column(String(200), nullable=True)
     notes = Column(Text, nullable=True)
