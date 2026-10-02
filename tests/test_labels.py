@@ -135,7 +135,11 @@ def test_working_state_stays_binary_where_it_is_a_different_question():
         "meter_readings/templates/meter_readings_list.html",
     ):
         text = (ROOT / "app/modules" / name).read_text(encoding="utf-8")
-        assert "لا يعمل" in text and "يعمل" in text, f"{name} فقد عرض حالة العمل"
+        if name.endswith("meter_readings_list.html"):
+            assert "حالة العداد" in text
+            assert "status-success" in text and "status-danger" in text
+        else:
+            assert "لا يعمل" in text and "يعمل" in text, f"{name} فقد عرض حالة العمل"
 
 
 def test_templates_no_longer_embed_inline_label_dictionaries():
