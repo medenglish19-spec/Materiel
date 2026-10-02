@@ -125,7 +125,7 @@ function setupPartPicker(row){
 function addRequestItemRow(){
   const wrap=document.createElement('div');
   wrap.className='new-item';
-  wrap.innerHTML='<div class="new-part-box"><input class="new-part-text" type="text" autocomplete="off" placeholder="اكتب اسم قطعة الغيار *" required><div class="new-part-suggest"></div></div><input type="hidden" class="new-part-id"><input class="new-qty" type="number" min="0.01" step="0.01" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
+  wrap.innerHTML='<div class="new-part-box"><input class="new-part-text" type="text" autocomplete="off" placeholder="اكتب اسم قطعة الغيار *" required><div class="new-part-suggest"></div></div><input type="hidden" class="new-part-id"><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
   document.getElementById('newItems').appendChild(wrap);
   setupPartPicker(wrap);
 }
@@ -191,7 +191,7 @@ function itemsHtml(x){
     +x.items.map(i=>'<tr>'
       +'<td>'+esc(i.part_name||'—')+'</td>'
       +'<td>'+esc(i.requested_quantity)+'</td>'
-      +'<td><input data-item="'+i.id+'" class="received" type="number" min="0" step="0.01" value="'+esc(i.received_quantity??'')+'" placeholder="الكمية المستلمة"></td>'
+      +'<td><input data-item="'+i.id+'" class="received" type="number" min="0" step="1" value="'+esc(i.received_quantity??'')+'" placeholder="الكمية المستلمة"></td>'
       +'<td><input data-item="'+i.id+'" class="received-date" type="date" value="'+esc(i.received_date||'')+'"></td>'
       +'<td><input data-item="'+i.id+'" class="recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
       +'<td><input data-item="'+i.id+'" class="supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
