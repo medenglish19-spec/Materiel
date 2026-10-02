@@ -22,7 +22,7 @@ def requests(status: str | None = None, source_type: str | None = None, db: Sess
 @router.post("", response_model=SparePartRequestOut, status_code=201)
 def create(data: SparePartRequestCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     try:
-        return services.create_request(db, data, user.id)
+        return services.serialize_request(services.create_request(db, data, user.id))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
