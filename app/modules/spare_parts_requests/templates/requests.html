@@ -40,6 +40,7 @@ const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
 const SOURCE={fault:'الأعطال',repair:'التصليحات'};
 const sourceType=document.getElementById('sourceType'),sourceId=document.getElementById('sourceId'),requestDate=document.getElementById('requestDate'),equipmentView=document.getElementById('equipmentView');
+const repairId=new URLSearchParams(location.search).get('repair_id');
 
 async function loadSources(){
   sourceId.innerHTML='<option value="">اختر المصدر *</option>';
@@ -52,6 +53,16 @@ sourceType.addEventListener('change',loadSources);
 sourceId.addEventListener('change',()=>{const o=sourceId.options[sourceId.selectedIndex];if(!o||!o.value)return;requestDate.value=o.dataset.date||'';equipmentView.value=o.dataset.registration||'—';});
 
 document.getElementById('newBtn').addEventListener('click',()=>{const f=document.getElementById('requestForm');f.style.display=f.style.display==='none'?'grid':'none';});
+
+async function openRepairRequest(){
+  if(!repairId)return;
+  const f=document.getElementById('requestForm');
+  f.style.display='grid';
+  sourceType.value='repair';
+  await loadSources();
+  sourceId.value=repairId;
+  sourceId.dispatchEvent(new Event('change'));
+}
 
 document.getElementById('requestForm').addEventListener('submit',async e=>{
   e.preventDefault();
@@ -108,6 +119,7 @@ document.getElementById('rows').addEventListener('change',async e=>{
 });
 document.getElementById('filterStatus').addEventListener('change',load);
 document.getElementById('filterSource').addEventListener('change',load);
+openRepairRequest();
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 load();
 </script>
