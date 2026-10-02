@@ -238,8 +238,8 @@ def test_dashboard_shows_the_seeded_equipment_with_arabic_labels(pages):
     client, _ = pages
     body = client.get("/dashboard").text
 
-    assert "ع-1" in body or "111-TEST" in body or "إجمالي العتاد" in body
-    assert "في مهمة" in body, "المهمة الجارية لم تنعكس على لوحة القيادة"
+    assert "111-TEST" in body, "العتاد المزروع غير ظاهر في لوحة القيادة"
+    assert "نسبة الجاهزية الفنية" in body\n    assert "العتاد العاطل" in body\n    assert "في مهمة" in body, "مؤشر المهمة الجارية غير ظاهر على لوحة القيادة"
     for raw in ("available", "in_mission", "in_maintenance", "unavailable"):
         assert f">{raw}<" not in body, f"مفتاح خام في اللوحة: {raw}"
 
