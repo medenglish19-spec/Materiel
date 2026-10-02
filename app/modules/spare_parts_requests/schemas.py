@@ -11,6 +11,7 @@ class SparePartRequestItemCreate(BaseModel):
     spare_part_id: int
     requested_quantity: Decimal = Field(gt=0)
     received_quantity: Decimal = Field(default=0, ge=0)
+    received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
@@ -35,6 +36,7 @@ class SparePartRequestCreate(BaseModel):
 class SparePartRequestItemUpdate(BaseModel):
     requested_quantity: Decimal | None = Field(default=None, gt=0)
     received_quantity: Decimal | None = Field(default=None, ge=0)
+    received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
@@ -56,6 +58,7 @@ class SparePartRequestItemOut(BaseModel):
     spare_part_id: int
     requested_quantity: Decimal
     received_quantity: Decimal
+    received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
