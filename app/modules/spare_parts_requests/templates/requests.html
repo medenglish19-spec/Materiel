@@ -1,28 +1,114 @@
 {% extends "base.html" %}
-{% block title %}طلبات قطع الغيار{% endblock %}
+{% block title %}طلبات الغيار{% endblock %}
 {% block content %}
-<div dir="rtl" style="max-width:1200px;margin:auto">
 <style>
-.spr-head{display:flex;justify-content:space-between;align-items:end;margin-bottom:14px}.spr-sub{font-size:11px;color:#718096;margin-top:5px}.spr-actions{display:flex;gap:7px;flex-wrap:wrap}.spr-btn{padding:8px 12px;border:1px solid #dce4ea;border-radius:7px;background:#fff;color:#245d88;text-decoration:none;font-size:10px;font-weight:800}.spr-btn.primary{background:#0875d1;color:#fff;border-color:#0875d1}.spr-panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:auto}.spr-filter{display:flex;gap:7px;align-items:center;padding:11px;border-bottom:1px solid #edf1f4}.spr-filter select{height:32px;border:1px solid #dce4ea;border-radius:6px;padding:0 8px;font:inherit;font-size:10px}.spr-table{width:100%;min-width:850px;border-collapse:collapse}.spr-table th,.spr-table td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px}.spr-table th{background:#f8fafc;color:#718096}.spr-badge{display:inline-flex;padding:4px 7px;border-radius:999px;background:#eef5fb;color:#245d88;font-size:9px;font-weight:800}.spr-empty{text-align:center;padding:28px;color:#8a96a3}.spr-source{color:#526273;font-weight:700}.spr-count{display:inline-flex;min-width:26px;height:26px;align-items:center;justify-content:center;border-radius:8px;background:#f1f6fa;color:#245d88;font-weight:800;font-size:10px}@media(max-width:650px){.spr-head{align-items:flex-start;flex-direction:column;gap:9px}}
+.spr{direction:rtl}.spr .top{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:14px}.spr h1{margin:0;color:#183955;font-size:23px}.spr .muted{font-size:11px;color:#718096;margin-top:5px}.spr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:auto}.spr .bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:11px;border-bottom:1px solid #edf1f4}.spr button,.spr select,.spr input,.spr textarea{font:inherit;font-size:10px}.spr button{border:0;border-radius:6px;padding:8px 12px;background:#0875d1;color:#fff;font-weight:800;cursor:pointer}.spr .secondary{background:#fff;color:#245d88;border:1px solid #dce4ea}.spr select,.spr input,.spr textarea{border:1px solid #dce4ea;border-radius:6px;padding:7px;background:#fff}.spr table{width:100%;min-width:1050px;border-collapse:collapse}.spr th,.spr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}.spr th{background:#f8fafc;color:#718096}.spr .request-row{cursor:pointer}.spr .request-row:hover{background:#fbfdff}.spr .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#245d88;font-weight:800}.spr .detail{display:none;background:#fafcfe}.spr .detail.open{display:table-row}.spr .items{padding:12px}.spr .items table{min-width:950px}.spr .empty{text-align:center;padding:30px;color:#8794a2}.spr .form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;border-bottom:1px solid #edf1f4}.spr .wide{grid-column:1/-1}.spr .item-edit{display:grid;grid-template-columns:1.5fr .8fr auto;gap:6px;align-items:center;margin-top:8px}.spr .item-line{display:grid;grid-template-columns:1.4fr .7fr .7fr 1fr 1.3fr auto;gap:6px;align-items:center;border-top:1px solid #edf1f4;padding:8px 0}.spr .item-line input{width:100%;box-sizing:border-box}.spr .msg{font-size:10px}.spr .err{color:#a04444}.spr .ok{color:#26734d}@media(max-width:700px){.spr .top{align-items:flex-start;flex-direction:column}.spr .form{grid-template-columns:1fr 1fr}.spr .item-line,.spr .item-edit{grid-template-columns:1fr 1fr}.spr .wide{grid-column:1/-1}}
 </style>
-<div class="spr-head"><div><h1 style="margin:0;color:#183955;font-size:23px">طلبات قطع الغيار</h1><div class="spr-sub">وحدة مستقلة تجمع طلبات القطع من الصيانة والتصليحات والإطارات والبطاريات في سجل واحد.</div></div></div>
-<div class="spr-panel">
-<div class="spr-filter"><select id="source"><option value="">كل المصادر</option><option value="maintenance">الصيانة</option><option value="repair">التصليحات</option><option value="tire">الإطارات</option><option value="battery">البطاريات</option></select><select id="status"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">معتمد</option><option value="partially_fulfilled">جزئي</option><option value="fulfilled">مكتمل</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select><span class="spr-count" id="pendingCount">—</span><span style="font-size:10px;color:#718096">طلبات قيد المتابعة</span></div>
-<table class="spr-table"><thead><tr><th>الطلب</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>الأولوية</th><th>الحالة</th><th>عدد البنود</th></tr></thead><tbody id="rows"><tr><td colspan="7" class="spr-empty">جارٍ التحميل...</td></tr></tbody></table>
+<div class="spr">
+  <div class="top">
+    <div><h1>طلبات الغيار</h1><div class="muted">طلبات الغيار المرتبطة بالأعطال أو التصليحات. اضغط على الطلب لفتح بنوده في نفس الصفحة.</div></div>
+    <a href="/spare-parts-received" style="color:#245d88;font-size:11px;font-weight:800">سجل قطع الغيار المستلم ←</a>
+  </div>
+  <div class="panel">
+    <div class="bar">
+      <button type="button" id="newBtn">+ طلب غيار</button>
+      <select id="filterStatus"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
+      <select id="filterSource"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+      <span id="pendingCount" style="font-size:10px;color:#718096"></span>
+    </div>
+
+    <form id="requestForm" class="form" style="display:none">
+      <input name="request_number" placeholder="رقم وثيقة الطلب *" required>
+      <select name="source_type" id="sourceType" required><option value="">المصدر *</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+      <select name="source_id" id="sourceId" required><option value="">اختر المصدر *</option></select>
+      <input name="request_date" id="requestDate" type="date" required>
+      <input id="equipmentView" class="wide" placeholder="العتاد / رقم التسجيل" readonly>
+      <textarea name="notes" class="wide" placeholder="ملاحظات"></textarea>
+      <div class="wide"><button type="submit">حفظ الطلب</button> <span id="formMsg" class="msg"></span></div>
+    </form>
+
+    <table>
+      <thead><tr><th>رقم وثيقة الطلب</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">جارٍ التحميل...</td></tr></tbody>
+    </table>
+  </div>
 </div>
-</div>
+
 <script>
-(async function(){
-const rows=document.getElementById('rows'),source=document.getElementById('source'),status=document.getElementById('status'),count=document.getElementById('pendingCount');
-const sourceNames={maintenance:'الصيانة',repair:'التصليحات',tire:'الإطارات',battery:'البطاريات'};
-const statusNames={pending:'قيد الانتظار',approved:'معتمد',partially_fulfilled:'جزئي',fulfilled:'مكتمل',rejected:'مرفوض',cancelled:'ملغى'};
-async function load(){
- const p=new URLSearchParams(); if(source.value)p.set('source_type',source.value); if(status.value)p.set('status',status.value);
- const r=await fetch('/api/spare-parts-requests?'+p,{credentials:'same-origin'}); const data=await r.json();
- rows.innerHTML=data.length?data.map(x=>'<tr><td><b>'+x.request_number+'</b></td><td>'+x.request_date+'</td><td class="spr-source">'+sourceNames[x.source_type]+'</td><td>'+(x.equipment_id||'—')+'</td><td>'+x.priority+'</td><td><span class="spr-badge">'+statusNames[x.status]+'</span></td><td>'+x.items.length+'</td></tr>').join(''):'<tr><td colspan="7" class="spr-empty">لا توجد طلبات.</td></tr>';
+const PARTS={{ parts|map(attribute='id')|list|tojson }};
+const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
+const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
+const SOURCE={fault:'الأعطال',repair:'التصليحات'};
+const sourceType=document.getElementById('sourceType'),sourceId=document.getElementById('sourceId'),requestDate=document.getElementById('requestDate'),equipmentView=document.getElementById('equipmentView');
+
+async function loadSources(){
+  sourceId.innerHTML='<option value="">اختر المصدر *</option>';
+  if(!sourceType.value)return;
+  const r=await fetch('/api/spare-parts-requests/sources/'+sourceType.value,{credentials:'same-origin'});
+  const data=await r.json();
+  data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent='#'+x.id+' — '+x.report_number+' — '+x.registration_number;o.dataset.date=x.date;o.dataset.registration=x.registration_number;sourceId.appendChild(o);});
 }
-async function loadCount(){const r=await fetch('/api/spare-parts-requests/stats/pending-count',{credentials:'same-origin'});count.textContent=(await r.json()).count}
-source.onchange=load;status.onchange=load;load();loadCount();
-})();
+sourceType.addEventListener('change',loadSources);
+sourceId.addEventListener('change',()=>{const o=sourceId.options[sourceId.selectedIndex];if(!o||!o.value)return;requestDate.value=o.dataset.date||'';equipmentView.value=o.dataset.registration||'—';});
+
+document.getElementById('newBtn').addEventListener('click',()=>{const f=document.getElementById('requestForm');f.style.display=f.style.display==='none'?'grid':'none';});
+
+document.getElementById('requestForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const fd=new FormData(e.target);
+  const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items:[]};
+  const msg=document.getElementById('formMsg');
+  const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok){msg.textContent=data.detail||'تعذر حفظ الطلب';msg.className='msg err';return;}
+  e.target.reset();msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
+});
+
+async function load(){
+  const p=new URLSearchParams();
+  if(document.getElementById('filterStatus').value)p.set('status',document.getElementById('filterStatus').value);
+  if(document.getElementById('filterSource').value)p.set('source_type',document.getElementById('filterSource').value);
+  const r=await fetch('/api/spare-parts-requests?'+p,{credentials:'same-origin'});
+  const data=await r.json();
+  document.getElementById('rows').innerHTML=data.length?data.map(row).join(''):'<tr><td colspan="7" class="empty">لا توجد طلبات.</td></tr>';
+  document.getElementById('pendingCount').textContent='قيد الانتظار: '+data.filter(x=>x.status==='pending').length;
+}
+
+function row(x){
+  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+SOURCE[x.source_type]+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items"><b>بنود الطلب</b><div id="i'+x.id+'">'+itemsHtml(x)+'</div><div class="item-edit"><select id="p'+x.id+'"><option value="">قطعة الغيار</option>'+PARTS.map((id,i)=>'<option value="'+id+'">'+esc(PART_NAMES[i])+'</option>').join('')+'</select><input id="q'+x.id+'" type="number" min="0.01" step="0.01" placeholder="الكمية المطلوبة"><button type="button" onclick="addItem('+x.id+')">إضافة</button></div></div></td></tr>';
+}
+
+function itemsHtml(x){
+  if(!x.items.length)return '<div style="padding:10px;color:#8794a2">لم تضاف بنود بعد.</div>';
+  return x.items.map(i=>'<div class="item-line"><b>'+esc(i.part_name||'—')+'</b><span>مطلوبة: '+i.requested_quantity+'</span><input data-item="'+i.id+'" class="received" type="number" min="0" step="0.01" value="'+i.received_quantity+'"><input data-item="'+i.id+'" class="recipient" placeholder="المستلم" value="'+esc(i.recipient||'')+'"><input data-item="'+i.id+'" class="supplier" placeholder="المؤسسة الممونة" value="'+esc(i.supplier_institution||'')+'"><button type="button" class="secondary" onclick="saveItem('+i.id+',this)">حفظ</button></div>').join('');
+}
+
+async function addItem(id){
+  const p=document.getElementById('p'+id).value,q=Number(document.getElementById('q'+id).value);
+  if(!p||!q)return;
+  const r=await fetch('/api/spare-parts-requests/'+id+'/items',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({spare_part_id:Number(p),requested_quantity:q})});
+  if(!r.ok)alert((await r.json()).detail||'تعذر إضافة البند');else load();
+}
+
+async function saveItem(id,btn){
+  const root=btn.parentElement;
+  const body={received_quantity:Number(root.querySelector('.received').value||0),recipient:root.querySelector('.recipient').value||null,supplier_institution:root.querySelector('.supplier').value||null};
+  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+  if(r.ok)load();else alert((await r.json()).detail||'تعذر حفظ البند');
+}
+
+document.getElementById('rows').addEventListener('click',e=>{
+  const tr=e.target.closest('.request-row');
+  if(tr&&!e.target.classList.contains('status'))document.getElementById('d'+tr.dataset.id).classList.toggle('open');
+});
+document.getElementById('rows').addEventListener('change',async e=>{
+  if(!e.target.classList.contains('status'))return;
+  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});
+  if(!r.ok)alert((await r.json()).detail||'تعذر تغيير الحالة');else load();
+});
+document.getElementById('filterStatus').addEventListener('change',load);
+document.getElementById('filterSource').addEventListener('change',load);
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+load();
 </script>
 {% endblock %}
