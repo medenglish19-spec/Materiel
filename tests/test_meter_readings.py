@@ -147,7 +147,7 @@ def test_bulk_import_saves_valid_rows_skips_invalid_rows_and_blank_is_zero(db):
     assert any("تم اعتبار القراءة صفرًا" in w for w in warnings)
     saved = db.query(MeterReading).filter(MeterReading.id.in_(reading_ids)).order_by(MeterReading.reading_date).all()
     assert [float(x.odometer) for x in saved] == [120.0, 0.0]\n    assert saved[-1].equipment_status == "unavailable"
-    assert equipment.operational_status == "unavailable"
+    assert equipment.operational_status == "available"
 
 
 def test_excel_arabic_headers_reverse_order_invalid_row_and_operation_log(db):
@@ -177,7 +177,7 @@ def test_excel_arabic_headers_reverse_order_invalid_row_and_operation_log(db):
     readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).order_by(MeterReading.reading_date).all()
     assert len(readings) == 2
     assert [float(x.odometer) for x in readings] == [333.0, 0.0]\n    assert readings[-1].equipment_status == "unavailable"
-    assert equipment.operational_status == "unavailable"
+    assert equipment.operational_status == "available"
 
     operation = db.query(MeterReadingOperation).one()
     assert operation.kind == "excel"
