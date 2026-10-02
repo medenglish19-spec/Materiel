@@ -20,6 +20,7 @@ from app.modules.equipment import services as equipment_services
 from app.modules.tires import batch_state as tire_batch_state
 from app.modules.tires import services as tire_services
 from app.modules.notifications.services import get_all_notifications
+from app.modules.spare_parts_requests import services as spare_parts_request_services
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -41,7 +42,7 @@ def dashboard_page(
     technically_ready_count = sum(1 for item in equipment if item.technical_condition == "ready")
     broken_count = sum(1 for item in equipment if item.technical_condition == "broken")
     readiness_percentage = (technically_ready_count / total_equipment * 100) if total_equipment else 0
-    waiting_parts_count = faults_repairs_services.dashboard_stats(db)["faults_by_status"].get("waiting_parts", 0)
+    waiting_parts_count = spare_parts_request_services.pending_count(db)
 
     # Dashboard display uses current state only. Batch loaders avoid an N+1
     # movement query per asset while preserving the existing state shape.
