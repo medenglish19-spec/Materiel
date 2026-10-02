@@ -9,73 +9,81 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("spare_part_requests") as batch:
-        batch.drop_constraint("ck_spare_part_request_source_type", type_="check")
-        batch.drop_constraint("ck_spare_part_request_status", type_="check")
-        batch.drop_constraint("ck_spare_part_request_priority", type_="check")
-        batch.drop_constraint("ck_spare_part_request_source_match", type_="check")
-        batch.add_column(sa.Column("fault_id", sa.Integer(), nullable=True))
-        batch.create_foreign_key("fk_spare_part_request_fault", "faults", ["fault_id"], ["id"], ondelete="SET NULL")
-        batch.create_index("ix_spare_part_request_fault", ["fault_id"])
-        batch.alter_column("request_number", existing_type=sa.String(length=50), type_=sa.String(length=80))
-        batch.alter_column("status", existing_type=sa.String(length=30), type_=sa.String(length=20), server_default="pending")
-        batch.create_check_constraint(
-            "ck_spare_part_request_source_type",
-            "source_type IN ('fault', 'repair')",
-        )
-        batch.create_check_constraint(
-            "ck_spare_part_request_status",
-            "status IN ('pending', 'approved', 'rejected', 'cancelled')",
-        )
-        batch.create_check_constraint(
-            "ck_spare_part_request_source_match",
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "spare_part_requests" in inspector.get_table_names():
+        if bind.execute(sa.text("SELECT COUNT(*) FROM spare_part_requests")).scalar():
+            raise RuntimeError("Cannot redesign spare_part_requests while it contains data.")
+        op.drop_table("spare_part_request_items")
+        op.drop_table("spare_part_requests")
+
+    op.create_table(
+        "spare_part_requests",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("request_number", sa.String(80), nullable=False),
+        sa.Column("request_date", sa.Date(), nullable=False),
+        sa.Column("source_type", sa.String(20), nullable=False),
+        sa.Column("fault_id", sa.Integer(), nullable=True),
+        sa.Column("repair_id", sa.Integer(), nullable=True),
+        sa.Column("equipment_id", sa.Integer(), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+        sa.Column("requested_by_id", sa.Integer(), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.ForeignKeyConstraint(["fault_id"], ["faults.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["repair_id"], ["repairs.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["equipment_id"], ["equipment.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["requested_by_id"], ["users.id"], ondelete="SET NULL"),
+        sa.UniqueConstraint("request_number", name="uq_spare_part_request_number"),
+        sa.CheckConstraint("source_type IN ('fault', 'repair')", name="ck_spare_part_request_source_type"),
+        sa.CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="ck_spare_part_request_status"),
+        sa.CheckConstraint(
             "(source_type = 'fault' AND fault_id IS NOT NULL AND repair_id IS NULL) OR "
             "(source_type = 'repair' AND repair_id IS NOT NULL AND fault_id IS NULL)",
-        )
+            name="ck_spare_part_request_source_match",
+        ),
+    )
+    for name, columns in [
+        ("ix_spare_part_request_number", ["request_number"]),
+        ("ix_spare_part_request_date", ["request_date"]),
+        ("ix_spare_part_request_source_type", ["source_type"]),
+        ("ix_spare_part_request_status", ["status"]),
+        ("ix_spare_part_request_fault", ["fault_id"]),
+        ("ix_spare_part_request_repair", ["repair_id"]),
+        ("ix_spare_part_request_equipment", ["equipment_id"]),
+    ]:
+        op.create_index(name, "spare_part_requests", columns)
 
-    with op.batch_alter_table("spare_part_request_items") as batch:
-        batch.drop_constraint("ck_spare_part_request_item_approved_nonnegative", type_="check")
-        batch.drop_constraint("ck_spare_part_request_item_issued_nonnegative", type_="check")
-        batch.drop_constraint("ck_spare_part_request_item_approved_lte_requested", type_="check")
-        batch.drop_constraint("ck_spare_part_request_item_issued_lte_approved", type_="check")
-        batch.add_column(sa.Column("received_quantity", sa.Numeric(10, 2), nullable=False, server_default="0"))
-        batch.add_column(sa.Column("recipient", sa.String(160), nullable=True))
-        batch.add_column(sa.Column("supplier_institution", sa.String(200), nullable=True))
-        batch.create_check_constraint(
-            "ck_spare_part_request_item_received_nonnegative",
-            "received_quantity >= 0",
-        )
-        batch.create_index("ix_spare_part_request_item_received", ["received_quantity"])
+    op.create_table(
+        "spare_part_request_items",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("request_id", sa.Integer(), nullable=False),
+        sa.Column("spare_part_id", sa.Integer(), nullable=False),
+        sa.Column("requested_quantity", sa.Numeric(10, 2), nullable=False),
+        sa.Column("received_quantity", sa.Numeric(10, 2), nullable=False, server_default="0"),
+        sa.Column("recipient", sa.String(160), nullable=True),
+        sa.Column("supplier_institution", sa.String(200), nullable=True),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.ForeignKeyConstraint(["request_id"], ["spare_part_requests.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["spare_part_id"], ["spare_parts.id"], ondelete="RESTRICT"),
+        sa.UniqueConstraint("request_id", "spare_part_id", name="uq_spare_part_request_item_part"),
+        sa.CheckConstraint("requested_quantity > 0", name="ck_spare_part_request_item_requested_positive"),
+        sa.CheckConstraint("received_quantity >= 0", name="ck_spare_part_request_item_received_nonnegative"),
+    )
+    op.create_index("ix_spare_part_request_item_request", "spare_part_request_items", ["request_id"])
+    op.create_index("ix_spare_part_request_item_part", "spare_part_request_items", ["spare_part_id"])
 
 
 def downgrade():
-    with op.batch_alter_table("spare_part_request_items") as batch:
-        batch.drop_index("ix_spare_part_request_item_received")
-        batch.drop_constraint("ck_spare_part_request_item_received_nonnegative", type_="check")
-        batch.drop_column("supplier_institution")
-        batch.drop_column("recipient")
-        batch.drop_column("received_quantity")
-        batch.create_check_constraint("ck_spare_part_request_item_issued_lte_approved", "issued_quantity <= approved_quantity")
-        batch.create_check_constraint("ck_spare_part_request_item_approved_lte_requested", "approved_quantity <= requested_quantity")
-        batch.create_check_constraint("ck_spare_part_request_item_issued_nonnegative", "issued_quantity >= 0")
-        batch.create_check_constraint("ck_spare_part_request_item_approved_nonnegative", "approved_quantity >= 0")
-
-    with op.batch_alter_table("spare_part_requests") as batch:
-        batch.drop_constraint("ck_spare_part_request_source_match", type_="check")
-        batch.drop_constraint("ck_spare_part_request_status", type_="check")
-        batch.drop_constraint("ck_spare_part_request_source_type", type_="check")
-        batch.drop_index("ix_spare_part_request_fault")
-        batch.drop_constraint("fk_spare_part_request_fault", type_="foreignkey")
-        batch.drop_column("fault_id")
-        batch.alter_column("status", existing_type=sa.String(length=20), type_=sa.String(length=30))
-        batch.alter_column("request_number", existing_type=sa.String(length=80), type_=sa.String(length=50))
-        batch.create_check_constraint("ck_spare_part_request_priority", "priority IN ('normal', 'urgent')")
-        batch.create_check_constraint("ck_spare_part_request_source_type", "source_type IN ('maintenance', 'repair', 'tire', 'battery')")
-        batch.create_check_constraint("ck_spare_part_request_status", "status IN ('pending', 'approved', 'partially_fulfilled', 'fulfilled', 'rejected', 'cancelled')")
-        batch.create_check_constraint(
-            "ck_spare_part_request_source_match",
-            "(source_type = 'maintenance' AND maintenance_record_id IS NOT NULL AND repair_id IS NULL AND tire_id IS NULL AND battery_id IS NULL) OR "
-            "(source_type = 'repair' AND maintenance_record_id IS NULL AND repair_id IS NOT NULL AND tire_id IS NULL AND battery_id IS NULL) OR "
-            "(source_type = 'tire' AND maintenance_record_id IS NULL AND repair_id IS NULL AND tire_id IS NOT NULL AND battery_id IS NULL) OR "
-            "(source_type = 'battery' AND maintenance_record_id IS NULL AND repair_id IS NULL AND tire_id IS NULL AND battery_id IS NOT NULL)",
-        )
+    op.drop_index("ix_spare_part_request_item_part", table_name="spare_part_request_items")
+    op.drop_index("ix_spare_part_request_item_request", table_name="spare_part_request_items")
+    op.drop_table("spare_part_request_items")
+    for name in [
+        "ix_spare_part_request_equipment", "ix_spare_part_request_repair",
+        "ix_spare_part_request_fault", "ix_spare_part_request_status",
+        "ix_spare_part_request_source_type", "ix_spare_part_request_date",
+        "ix_spare_part_request_number",
+    ]:
+        op.drop_index(name, table_name="spare_part_requests")
+    op.drop_table("spare_part_requests")
