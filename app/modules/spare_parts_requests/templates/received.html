@@ -23,7 +23,7 @@ async function load(){const r=await fetch('/api/spare-parts-requests/received-re
 function render(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
-  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+x.requested_quantity+'</td><td>'+x.received_quantity+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td><td>'+esc(x.report_number)+'</td></tr>').join(''):'<tr><td colspan="9" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+x.requested_quantity+'</td><td>'+x.received_quantity+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="9" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
 }
 document.getElementById('q').addEventListener('input',render);
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
