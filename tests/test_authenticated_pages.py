@@ -238,22 +238,24 @@ def test_dashboard_shows_the_seeded_equipment_with_arabic_labels(pages):
     client, _ = pages
     body = client.get("/dashboard").text
 
-    assert "111-TEST" in body, "العتاد المزروع غير ظاهر في لوحة القيادة"
     assert "نسبة الجاهزية الفنية" in body
     assert "العتاد العاطل" in body
-    assert "في مهمة" in body, "مؤشر المهمة الجارية غير ظاهر على لوحة القيادة"
-    for raw in ("available", "in_mission", "in_maintenance", "unavailable"):
+    assert "قيد التصليح — ورشة داخلية" in body
+    assert "قيد التصليح — ورشة خارجية" in body
+    assert "عتاد في مهمة" in body
+    assert "طلبات قطع الغيار قيد الانتظار" in body
+    for raw in ("available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable"):
         assert f">{raw}<" not in body, f"مفتاح خام في اللوحة: {raw}"
 
 
 def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
-    """العتاد مخزَّن `available` ومربوط بمهمة جارية ⇒ الواجهة تقول «في مهمة»."""
+    """العتاد مخزَّن `available` لكن لديه تصليح داخلي نشط ⇒ الواجهة تعرض الحالة الفعّالة."""
     client, ids = pages
     body = client.get("/equipment").text
 
     assert "111-TEST" in body, "العتاد المزروع غير ظاهر في القائمة"
-    assert "في مهمة" in body, "الوضعية الفعّالة لم تُعرض"
-    assert 'data-status="in_mission"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
+    assert "قيد الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
+    assert 'data-status="in_maintenance"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
 
 
 def test_fault_pages_show_arabic_status_and_severity(pages):
