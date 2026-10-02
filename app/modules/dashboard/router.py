@@ -15,6 +15,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.batteries import services as battery_services
+from app.modules.faults_repairs import services as faults_repairs_services
 from app.modules.equipment import services as equipment_services
 from app.modules.tires import batch_state as tire_batch_state
 from app.modules.tires import services as tire_services
@@ -37,7 +38,10 @@ def dashboard_page(
     for status in effective_statuses.values():
         status_counts[status] = status_counts.get(status, 0) + 1
     total_equipment = len(equipment)
+    technically_ready_count = sum(1 for item in equipment if item.technical_condition == "ready")
     broken_count = sum(1 for item in equipment if item.technical_condition == "broken")
+    readiness_percentage = (technically_ready_count / total_equipment * 100) if total_equipment else 0
+    waiting_parts_count = faults_repairs_services.dashboard_stats(db)["faults_by_status"].get("waiting_parts", 0)
 
     # Dashboard display uses current state only. Batch loaders avoid an N+1
     # movement query per asset while preserving the existing state shape.
@@ -88,6 +92,9 @@ def dashboard_page(
             "total_equipment": total_equipment,
             "status_counts": status_counts,
             "broken_count": broken_count,
+            "technically_ready_count": technically_ready_count,
+            "readiness_percentage": readiness_percentage,
+            "waiting_parts_count": waiting_parts_count,
             "expired_tires": expired_tires,
             "replacement_due_batteries": replacement_due_batteries,
             "notifications": notifications,
