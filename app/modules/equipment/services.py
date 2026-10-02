@@ -72,8 +72,8 @@ def _effective_status(
     repair_status = active_repairs.get(equipment.id)
     if repair_status:
         return repair_status
-    if equipment.operational_status == "unavailable":
-        return "unavailable"
+    if equipment.operational_status in {"in_maintenance", "in_external_workshop", "unavailable"}:
+        return equipment.operational_status
     if equipment.id in active_equipment_ids:
         return "in_mission"
     return "available"
