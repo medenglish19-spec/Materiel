@@ -27,6 +27,9 @@ def create(data: SparePartRequestCreate, db: Session = Depends(get_db), user: Us
         raise HTTPException(400, str(exc))
 
 
+@router.get("/stats/pending-count")
+def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    return {"count": services.pending_count(db)}
 @router.get("/{request_id}", response_model=SparePartRequestOut)
 def get(request_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = services.get_request(db, request_id)
@@ -46,9 +49,6 @@ def status(request_id: int, data: SparePartRequestStatusUpdate, db: Session = De
         raise HTTPException(400, str(exc))
 
 
-@router.get("/stats/pending-count")
-def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return {"count": services.pending_count(db)}
 @router.get("/stats/pending-count")
 def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return {"count": services.pending_count(db)}
