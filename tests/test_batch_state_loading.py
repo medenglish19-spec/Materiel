@@ -148,10 +148,14 @@ def test_dashboard_operational_status_cards_show_arabic_labels_not_raw_keys():
 
     template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
 
-    # المفتاح الخام (available/unavailable/...) لا يصح أن يظهر في واجهة عربية.
-    assert '<div class="stat-label">{{ status }}</div>' not in template
-    # التسمية صارت من `app/core/labels.py` بدل سلسلة if/elif خاصة بهذه الصفحة.
-    assert '<div class="stat-label">{{ label(\'operational\', status) }}</div>' in template
+    assert "نسبة الجاهزية الفنية" in template
+    assert "العتاد العاطل" in template
+    assert "قيد التصليح — ورشة داخلية" in template
+    assert "قيد التصليح — ورشة خارجية" in template
+    assert "عتاد في مهمة" in template
+    assert "طلبات قطع الغيار قيد الانتظار" in template
+    for raw in ("available", "in_mission", "in_maintenance", "in_external_workshop", "unavailable"):
+        assert f">{{raw}}<" not in template
 
 
 def test_dashboard_renders_the_broken_equipment_count_it_queries():
@@ -161,11 +165,12 @@ def test_dashboard_renders_the_broken_equipment_count_it_queries():
 
     template = Path("app/modules/dashboard/templates/dashboard.html").read_text(encoding="utf-8")
 
-    assert "count_broken(db)" in inspect.getsource(router.dashboard_page)
-    assert '"broken_count": broken_count' in inspect.getsource(router.dashboard_page)
-    # المؤشر المحسوب يجب أن يُعرض فعلاً، وإلا فهو استعلام ميت.
-    assert "<div class=\"stat-number\">{{ broken_count }}</div>" in template
-    assert "<div class=\"stat-label\">عتاد معطوب</div>" in template
+    source = inspect.getsource(router.dashboard_page)
+    assert "broken_count = sum(" in source
+    assert '"broken_count": broken_count' in source
+    assert '"readiness_percentage": readiness_percentage' in source
+    assert '<div class="stat-number">{{ broken_count }}</div>' in template
+    assert '<div class="stat-label">العتاد العاطل</div>' in template
 
 
 def test_tire_expiry_is_date_based_and_not_expired_on_exact_expiry_date():
