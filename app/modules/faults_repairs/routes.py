@@ -81,9 +81,3 @@ def technician_detail_page(technician_id: int, request: Request, db: Session = D
         raise HTTPException(status_code=404, detail="الفني غير موجود")
     return templates.TemplateResponse(request=request, name="technician_detail.html", context={"request": request, "user": user, "analysis": analysis})
 
-@router.get("/faults-repairs/spare-parts", response_class=HTMLResponse)
-def spare_parts_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    parts = db.query(SparePart).order_by(SparePart.name).all()
-    usage = part_usage_stats(db)
-    usage_by_number = {x["part_number"]: x for x in usage}
-    return templates.TemplateResponse(request=request, name="spare_parts.html", context={"request": request, "user": user, "parts": parts, "usage_by_number": usage_by_number})
