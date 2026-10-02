@@ -157,12 +157,14 @@ def test_templates_no_longer_embed_inline_label_dictionaries():
 def test_operational_status_pages_use_the_shared_label():
     """الصفحات التي تعرض وضعية نصوصاً تستدعي `label`."""
     for name in (
-        "dashboard/templates/dashboard.html",
         "equipment/templates/equipment_list.html",
         "equipment/templates/equipment_detail.html",
     ):
         text = (ROOT / "app" / "modules" / name).read_text(encoding="utf-8")
         assert "label('operational'" in text, f"{name} لا يستخدم التسمية الموحّدة"
+
+    # لوحة القيادة تعرض مؤشرات تشغيلية عددية بتسميات عربية صريحة،
+    # ولا تعرض مفاتيح الوضعية التشغيلية الخام كنص.
 
     # صفحة التعداد العددي لا تعرض وضعية كنص (نِسَب فقط)، فلها خريطة في JS.
     for name in (
