@@ -90,7 +90,8 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     db.add(obj)
     db.flush()
     for item in data.items:
-        obj.items.append(SparePartRequestItem(**item.model_dump()))
+        values = item.model_dump(exclude={"spare_part_name"})
+        obj.items.append(SparePartRequestItem(**values))
     db.commit()
     return get_request(db, obj.id)
 
