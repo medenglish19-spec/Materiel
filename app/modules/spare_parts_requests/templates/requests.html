@@ -184,7 +184,7 @@ function detailHtml(x){
   ];
   if(x.notes)fields.push(['ملاحظات',x.notes]);
   const canAddItem=x.status==='pending'||x.status==='approved';
-  return '<div class="detail-actions"><button type="button" class="secondary edit-request" data-id="'+x.id+'">تعديل</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف</button>'+(canAddItem?'<button type="button" class="secondary" onclick="showAddItem('+x.id+',this)">+ إضافة بند</button>':'')+'</div><div class="req-fields">'+fields
+  return '<div class="detail-actions"><button type="button" class="secondary edit-request" data-id="'+x.id+'">تعديل الطلب</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>'+(canAddItem?'<button type="button" class="secondary" onclick="showAddItem('+x.id+',this)">+ إضافة بند</button>':'')+'</div><div class="req-fields">'+fields
     .map(([k,v])=>'<div class="rf"><span class="rf-k">'+esc(k)+'</span><span class="rf-v">'+esc(v??'—')+'</span></div>').join('')
     +'</div><b>بنود الطلب</b>'+itemsHtml(x);
 }
