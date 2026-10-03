@@ -9,6 +9,7 @@ SOURCE_TYPES = {"fault", "repair"}
 
 class SparePartRequestItemCreate(BaseModel):
     spare_part_id: int
+    spare_part_name: str | None = None
     requested_quantity: int = Field(gt=0)
     received_quantity: int = Field(default=0, ge=0)
     received_date: date | None = None
@@ -41,6 +42,7 @@ class SparePartRequestUpdate(BaseModel):
 
 class SparePartRequestItemUpdate(BaseModel):
     spare_part_id: int | None = None
+    spare_part_name: str | None = None
     requested_quantity: int | None = Field(default=None, gt=0)
     received_quantity: int | None = Field(default=None, ge=0)
     received_date: date | None = None
