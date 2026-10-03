@@ -423,3 +423,19 @@ def test_template_offers_free_text_with_optional_suggestions():
     # وحقول الاستلام والتاريخ والمستلم والمؤسسة والملاحظات باقية.
     for field in ("edit-received", "edit-received-date", "edit-recipient", "edit-supplier", "edit-notes"):
         assert field in template
+
+
+def test_validation_errors_are_never_shown_as_object_object():
+    """`detail` من FastAPI مصفوفة كائنات: عرضها خاماً ينتج «[object Object]»."""
+    from pathlib import Path
+
+    template = (
+        Path(__file__).resolve().parents[1]
+        / "app" / "modules" / "spare_parts_requests" / "templates" / "requests.html"
+    ).read_text(encoding="utf-8")
+
+    assert "function errText(" in template
+    # لا يبقى أي موضع يعرض detail خاماً إلى المستخدم.
+    assert ".detail||" not in template
+    assert ".detail ||" not in template
+    assert template.count("errText(") >= 11  # التعريف + كل مواضع العرض
