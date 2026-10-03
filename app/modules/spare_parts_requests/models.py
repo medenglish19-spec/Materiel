@@ -47,7 +47,8 @@ class SparePartRequestItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(Integer, ForeignKey("spare_part_requests.id", ondelete="CASCADE"), nullable=False, index=True)
-    spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=False, index=True)
+    spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=True, index=True)
+    spare_part_name = Column(String(160), nullable=True)
     requested_quantity = Column(Numeric(10, 2), nullable=False)
     received_quantity = Column(Numeric(10, 2), nullable=False, default=0, server_default="0")
     received_date = Column(Date, nullable=True, index=True)

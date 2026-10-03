@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 REQUEST_STATUSES = {"pending", "approved", "rejected", "cancelled"}
@@ -8,13 +8,27 @@ SOURCE_TYPES = {"fault", "repair"}
 
 
 class SparePartRequestItemCreate(BaseModel):
-    spare_part_id: int
+    spare_part_id: int | None = None
+    spare_part_name: str | None = Field(default=None, max_length=160)
     requested_quantity: int = Field(gt=0)
     received_quantity: int = Field(default=0, ge=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
+
+    @field_validator("spare_part_name")
+    @classmethod
+    def clean_name(cls, value):
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def part_reference_present(self):
+        if not self.spare_part_id and not self.spare_part_name:
+            raise ValueError("اسم قطعة الغيار مطلوب")
+        return self
 
 
 class SparePartRequestCreate(BaseModel):
@@ -41,12 +55,20 @@ class SparePartRequestUpdate(BaseModel):
 
 class SparePartRequestItemUpdate(BaseModel):
     spare_part_id: int | None = None
+    spare_part_name: str | None = Field(default=None, max_length=160)
     requested_quantity: int | None = Field(default=None, gt=0)
     received_quantity: int | None = Field(default=None, ge=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
+
+    @field_validator("spare_part_name")
+    @classmethod
+    def clean_name(cls, value):
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SparePartRequestStatusUpdate(BaseModel):
@@ -62,7 +84,8 @@ class SparePartRequestStatusUpdate(BaseModel):
 
 class SparePartRequestItemOut(BaseModel):
     id: int
-    spare_part_id: int
+    spare_part_id: int | None
+    spare_part_name: str | None = None
     requested_quantity: Decimal
     received_quantity: Decimal
     received_date: date | None = None
