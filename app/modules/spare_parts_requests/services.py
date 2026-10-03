@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.modules.faults_repairs.models import Fault, Repair, SparePart
 from .models import SparePartRequest, SparePartRequestItem
-from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate
+from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
 
 
 def _source(db: Session, source_type: str, source_id: int):
@@ -94,12 +94,42 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     return get_request(db, obj.id)
 
 
+def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpdate):
+    if obj.status != "pending":
+        raise ValueError("لا يمكن تعديل طلب إلا وهو قيد الانتظار")
+    values = data.model_dump(exclude_unset=True)
+    if "request_number" in values:
+        other = db.query(SparePartRequest).filter(
+            SparePartRequest.request_number == values["request_number"],
+            SparePartRequest.id != obj.id,
+        ).first()
+        if other:
+            raise ValueError("رقم وثيقة الطلب مستخدم مسبقًا")
+    if "request_date" in values:
+        _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
+        if values["request_date"] != source_date:
+            raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
+    for key, value in values.items():
+        setattr(obj, key, value)
+    db.commit()
+    return get_request(db, obj.id)
+
+
+def delete_request(db: Session, obj: SparePartRequest):
+    if obj.status == "approved":
+        raise ValueError("لا يمكن حذف طلب معتمد")
+    if any(item.received_quantity > 0 for item in obj.items):
+        raise ValueError("لا يمكن حذف طلب يحتوي على كمية مستلمة")
+    db.delete(obj)
+    db.commit()
+
+
 def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     request = get_request(db, request_id)
     if not request:
         raise ValueError("طلب الغيار غير موجود")
-    if request.status == "cancelled":
-        raise ValueError("لا يمكن تعديل طلب ملغى")
+    if request.status != "pending":
+        raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار")
     if db.query(SparePartRequestItem).filter_by(request_id=request_id, spare_part_id=data.spare_part_id).first():
         raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
     if not db.query(SparePart).filter(SparePart.id == data.spare_part_id).first():
@@ -117,6 +147,20 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     if item.request.status == "cancelled":
         raise ValueError("لا يمكن تعديل طلب ملغى")
     values = data.model_dump(exclude_unset=True)
+    if any(k in values for k in ("spare_part_id", "requested_quantity")) and item.request.status != "pending":
+        raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
+    if item.received_quantity > 0 and any(k in values for k in ("spare_part_id", "requested_quantity")):
+        raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
+    if "spare_part_id" in values:
+        duplicate = db.query(SparePartRequestItem).filter(
+            SparePartRequestItem.request_id == item.request_id,
+            SparePartRequestItem.spare_part_id == values["spare_part_id"],
+            SparePartRequestItem.id != item.id,
+        ).first()
+        if duplicate:
+            raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
+        if not db.query(SparePart).filter(SparePart.id == values["spare_part_id"]).first():
+            raise ValueError("قطعة الغيار غير موجودة")
     for key, value in values.items():
         setattr(item, key, value)
     if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
@@ -124,6 +168,15 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     db.commit()
     db.refresh(item)
     return item
+
+
+def delete_item(db: Session, item: SparePartRequestItem):
+    if item.received_quantity > 0:
+        raise ValueError("لا يمكن حذف بند تم تسجيل استلام له")
+    if item.request.status != "pending":
+        raise ValueError("لا يمكن حذف بند إلا من طلب قيد الانتظار")
+    db.delete(item)
+    db.commit()
 
 
 def update_status(db: Session, obj: SparePartRequest, data: SparePartRequestStatusUpdate):
@@ -169,11 +222,6 @@ def received_register(db: Session):
     result = []
     for item in rows:
         req = item.request
-        report_number = None
-        if req.source_type == "fault" and req.fault:
-            report_number = req.fault.report_number
-        elif req.source_type == "repair" and req.repair:
-            report_number = req.repair.fault.report_number if req.repair.fault else req.repair.repair_document
         result.append({
             "request_number": req.request_number,
             "part_name": item.spare_part.name if item.spare_part else "—",
