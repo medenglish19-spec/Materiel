@@ -194,11 +194,11 @@ function itemsHtml(x){
     +x.items.map(i=>'<tr>'
       +'<td>'+esc(i.part_name||'—')+'</td>'
       +'<td>'+esc(i.requested_quantity)+'</td>'
-      +'<td><input data-item="'+i.id+'" class="received" type="number" min="1" step="1" value="'+esc(i.received_quantity??'')+'" placeholder="الكمية المستلمة"></td>'
-      +'<td><input data-item="'+i.id+'" class="received-date" type="date" value="'+esc(i.received_date||'')+'"></td>'
-      +'<td><input data-item="'+i.id+'" class="recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
-      +'<td><input data-item="'+i.id+'" class="supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
-      +'<td><button type="button" class="secondary" onclick="editItem('+i.id+',this)">تعديل</button> <button type="button" class="secondary" onclick="saveItem('+i.id+',this)">حفظ</button> <button type="button" class="danger" onclick="deleteItem('+i.id+')">حذف</button></td>'
+      +'<td>'+esc(i.received_quantity||0)+'</td>'
+      +'<td>'+esc(i.received_date||'—')+'</td>'
+      +'<td>'+esc(i.recipient||'—')+'</td>'
+      +'<td>'+esc(i.supplier_institution||'—')+'</td>'
+      +'<td><button type="button" class="secondary" onclick="editItem('+i.id+',this)">تعديل</button> <button type="button" class="danger" onclick="deleteItem('+i.id+')">حذف</button></td>'
       +'</tr>').join('')
     +'</tbody></table>';
 }
@@ -226,12 +226,46 @@ async function deleteRequest(id){
 async function editItem(id,btn){
   const row=btn.closest('tr');
   if(!row)return;
-  const current=Number(row.querySelector('td:nth-child(2)').textContent||0);
-  const value=prompt('الكمية المطلوبة',current);
-  if(value===null)return;
-  const qty=Number(value);
+  const r=await fetch('/api/spare-parts-requests/items/'+id,{credentials:'same-origin'});
+  if(!r.ok){alert((await r.json()).detail||'تعذر تحميل البند');return;}
+  const item=await r.json();
+  const received=Number(item.received_quantity||0);
+  const options=PARTS.map((partId,i)=>'<option value="'+partId+'" '+(Number(partId)===Number(item.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('');
+  row.innerHTML='<td><select class="edit-part" style="min-width:180px">'+options+'</select></td>'
+    +'<td><input class="edit-requested" type="number" min="1" step="1" value="'+esc(item.requested_quantity)+'"></td>'
+    +'<td><input class="edit-received" type="number" min="0" step="1" value="'+esc(received)+'"></td>'
+    +'<td><input class="edit-received-date" type="date" value="'+esc(item.received_date||'')+'"></td>'
+    +'<td><input class="edit-recipient" value="'+esc(item.recipient||'')+'" placeholder="المستلم"></td>'
+    +'<td><input class="edit-supplier" value="'+esc(item.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
+    +'<td><input class="edit-notes" value="'+esc(item.notes||'')+'" placeholder="ملاحظات"><button type="button" class="secondary" onclick="saveEditedItem('+id+',this)">حفظ</button> <button type="button" class="secondary" onclick="load()">إلغاء</button></td>';
+  if(received>0){
+    row.querySelector('.edit-part').disabled=true;
+    row.querySelector('.edit-requested').disabled=true;
+  }
+}
+
+async function saveEditedItem(id,btn){
+  const row=btn.closest('tr');
+  if(!row)return;
+  const qty=Number(row.querySelector('.edit-requested').value);
+  const received=Number(row.querySelector('.edit-received').value||0);
   if(!Number.isInteger(qty)||qty<=0){alert('الكمية المطلوبة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
-  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({requested_quantity:qty})});
+  if(!Number.isInteger(received)||received<0){alert('الكمية المستلمة يجب أن تكون عدداً صحيحاً 0 فأكثر');return;}
+  const body={
+    spare_part_id:Number(row.querySelector('.edit-part').value),
+    requested_quantity:qty,
+    received_quantity:received,
+    received_date:row.querySelector('.edit-received-date').value||null,
+    recipient:row.querySelector('.edit-recipient').value.trim()||null,
+    supplier_institution:row.querySelector('.edit-supplier').value.trim()||null,
+    notes:row.querySelector('.edit-notes').value.trim()||null
+  };
+  if(received===0){
+    body.received_date=null;
+    body.recipient=null;
+    body.supplier_institution=null;
+  }
+  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
   if(r.ok)load();else alert((await r.json()).detail||'تعذر تعديل البند');
 }
 
