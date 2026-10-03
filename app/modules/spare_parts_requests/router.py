@@ -99,6 +99,14 @@ def add_item(request_id: int, data: SparePartRequestItemCreate, db: Session = De
         raise HTTPException(400, str(exc))
 
 
+@router.get("/items/{item_id}", response_model=SparePartRequestItemOut)
+def get_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    return services.serialize_item(obj)
+
+
 @router.patch("/items/{item_id}", response_model=SparePartRequestItemOut)
 def item(item_id: int, data: SparePartRequestItemUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()

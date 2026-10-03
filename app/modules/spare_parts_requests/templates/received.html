@@ -19,7 +19,7 @@
 </div>
 <script>
 let data=[];
-async function load(){const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'});data=await r.json();render();}
+async function load(){try{const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'});if(!r.ok)throw new Error('HTTP '+r.status);data=await r.json();render()}catch(e){document.getElementById('rows').innerHTML='<tr><td colspan="9" class="empty">تعذر تحميل السجل. أعد تحديث الصفحة.</td></tr>'}}
 function render(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));

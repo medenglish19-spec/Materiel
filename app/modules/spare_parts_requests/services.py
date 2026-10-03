@@ -17,7 +17,7 @@ def _source(db: Session, source_type: str, source_id: int):
     return obj, obj.fault.equipment_id if obj.fault else None, obj.repair_date
 
 
-def _serialize(item):
+def serialize_item(item):
     return {
         "id": item.id,
         "spare_part_id": item.spare_part_id,
@@ -50,7 +50,7 @@ def serialize_request(obj):
         "equipment_code": obj.equipment.asset_code if obj.equipment else None,
         "equipment_registration": obj.equipment.registration_number if obj.equipment else None,
         "report_number": report_number,
-        "items": [_serialize(i) for i in obj.items],
+        "items": [serialize_item(i) for i in obj.items],
     }
 
 
