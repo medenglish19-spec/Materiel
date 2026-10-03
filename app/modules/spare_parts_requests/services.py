@@ -68,7 +68,17 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     if data.request_date != source_date:
         raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
 
-    part_ids = [x.spare_part_id for x in data.items]
+    part_ids = []
+    for item in data.items:
+        name = (item.spare_part_name or "").strip()
+        if name:
+            part = db.query(SparePart).filter(SparePart.name == name).first()
+            if not part:
+                raise ValueError("قطعة الغيار غير موجودة في سجل قطع الغيار")
+            item.spare_part_id = part.id
+        if not item.spare_part_id:
+            raise ValueError("اسم قطعة الغيار مطلوب")
+        part_ids.append(item.spare_part_id)
     if len(part_ids) != len(set(part_ids)):
         raise ValueError("لا يمكن تكرار قطعة الغيار داخل الطلب")
     if part_ids:
