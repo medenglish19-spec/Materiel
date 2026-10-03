@@ -72,63 +72,6 @@ async function openRepairRequest(){
   sourceId.dispatchEvent(new Event('change'));
 }
 
-// يربط حقل البحث بقائمة الاقتراحات: كتابة تُرشِّح، ونقر يُثبّت الاسم والمعرّف.
-function setupPartPicker(row){
-  const text=row.querySelector('.new-part-text');
-  const hidden=row.querySelector('.new-part-id');
-  const list=row.querySelector('.new-part-suggest');
-  const close=()=>{list.innerHTML='';list.classList.remove('open');};
-  const matches=q=>{
-    const needle=q.trim().toLowerCase();
-    if(!needle)return[];
-    const out=[];
-    PARTS.forEach((id,i)=>{
-      const name=String(PART_NAMES[i]??'');
-      const num=String(PART_NUMBERS[i]??'');
-      const hay=(name+' '+num).toLowerCase();
-      if(hay.includes(needle))out.push({id:id,name:name,num:num});
-    });
-    return out.slice(0,12);
-  };
-  const choose=p=>{
-    hidden.value=p.id;
-    text.value=p.name+(p.num?' — '+p.num:'');
-    text.dataset.partId=String(p.id);
-    close();
-  };
-  text.addEventListener('input',()=>{
-    // أي تحرير جديد للاسم يُبطل الاختيار السابق، فلا يُحفظ معرّف لا يطابق المكتوب.
-    hidden.value='';
-    delete text.dataset.partId;
-    const found=matches(text.value);
-    if(!found.length){close();return;}
-    list.innerHTML=found.map((p,i)=>'<button type="button" class="new-part-opt" data-i="'+i+'">'+esc(p.name)+(p.num?' <small>'+esc(p.num)+'</small>':'')+'</button>').join('');
-    list._found=found;
-    list.classList.add('open');
-  });
-  list.addEventListener('click',e=>{
-    const btn=e.target.closest('.new-part-opt');
-    if(!btn)return;
-    choose(list._found[Number(btn.dataset.i)]);
-  });
-  text.addEventListener('focus',()=>{if(text.value.trim())text.dispatchEvent(new Event('input'));});
-  text.addEventListener('blur',()=>setTimeout(close,120));
-  text.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&list.classList.contains('open')){
-      const first=list.querySelector('.new-part-opt');
-      if(first){e.preventDefault();choose(list._found[Number(first.dataset.i)]);}
-    }
-    if(e.key==='Escape')close();
-  });
-}
-
-function addRequestItemRow(){
-  const wrap=document.createElement('div');
-  wrap.className='new-item';
-  wrap.innerHTML='<div class="new-part-box"><input class="new-part-text" type="text" autocomplete="off" placeholder="اكتب اسم قطعة الغيار *" required><div class="new-part-suggest"></div></div><input type="hidden" class="new-part-id"><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
-  document.getElementById('newItems').appendChild(wrap);
-  setupPartPicker(wrap);
-}
 document.getElementById('addRequestItem').addEventListener('click',addRequestItemRow);
 
 document.getElementById('requestForm').addEventListener('submit',async e=>{
@@ -137,13 +80,13 @@ document.getElementById('requestForm').addEventListener('submit',async e=>{
   const rows=[...document.querySelectorAll('#newItems .new-item')];
   // البند بلا قطعة مختارة أو بكمية غير صالحة يُستبعد ولا يُرسل معرّفاً مفبركاً.
   const items=rows.map(row=>({
-    spare_part_id:Number(row.querySelector('.new-part-id').value||0),
+    spare_part_name:row.querySelector('.new-part-text').value.trim(),
     requested_quantity:Number(row.querySelector('.new-qty').value||0),
     notes:row.querySelector('.new-note').value||null
-  })).filter(x=>x.spare_part_id&&x.requested_quantity>0);
+  })).filter(x=>x.spare_part_name&&x.requested_quantity>0);
   const msg=document.getElementById('formMsg');
   if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
-  if(!items.length){msg.textContent='أكمل كل بند: انقر على قطعة الغيار من القائمة وأدخل الكمية';msg.className='msg err';return;}
+  if(!items.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية';msg.className='msg err';return;}
   // الاستبعاد الصامت يضيع البند بلا تنبيه، فلا يُحفظ الطلب ما لم يكتمل كل بنده.
   if(items.length<rows.length){msg.textContent='يوجد بند غير مكتمل: انقر على قطعة الغيار من القائمة وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
   const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
