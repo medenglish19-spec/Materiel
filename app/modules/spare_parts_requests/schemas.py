@@ -42,7 +42,7 @@ class SparePartRequestUpdate(BaseModel):
 class SparePartRequestItemUpdate(BaseModel):
     spare_part_id: int | None = None
     requested_quantity: int | None = Field(default=None, gt=0)
-    received_quantity: int | None = Field(default=None, gt=0)
+    received_quantity: int | None = Field(default=None, ge=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
