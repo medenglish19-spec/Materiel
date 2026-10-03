@@ -147,6 +147,8 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     if item.request.status == "cancelled":
         raise ValueError("لا يمكن تعديل طلب ملغى")
     values = data.model_dump(exclude_unset=True)
+    if any(k in values for k in ("spare_part_id", "requested_quantity")) and item.request.status != "pending":
+        raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
     if item.received_quantity > 0 and any(k in values for k in ("spare_part_id", "requested_quantity")):
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
     if "spare_part_id" in values:
