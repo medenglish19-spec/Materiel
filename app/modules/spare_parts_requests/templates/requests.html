@@ -183,7 +183,8 @@ function detailHtml(x){
     ['الحالة',STATUS[x.status]||x.status]
   ];
   if(x.notes)fields.push(['ملاحظات',x.notes]);
-  return '<div class="detail-actions"><button type="button" class="secondary edit-request" data-id="'+x.id+'">تعديل</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف</button></div><div class="req-fields">'+fields
+  const canAddItem=x.status==='pending'||x.status==='approved';
+  return '<div class="detail-actions"><button type="button" class="secondary edit-request" data-id="'+x.id+'">تعديل</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف</button>'+(canAddItem?'<button type="button" class="secondary" onclick="showAddItem('+x.id+',this)">+ إضافة بند</button>':'')+'</div><div class="req-fields">'+fields
     .map(([k,v])=>'<div class="rf"><span class="rf-k">'+esc(k)+'</span><span class="rf-v">'+esc(v??'—')+'</span></div>').join('')
     +'</div><b>بنود الطلب</b>'+itemsHtml(x);
 }
@@ -201,6 +202,32 @@ function itemsHtml(x){
       +'<td><button type="button" class="secondary" onclick="editItem('+i.id+',this)">تعديل</button> <button type="button" class="danger" onclick="deleteItem('+i.id+')">حذف</button></td>'
       +'</tr>').join('')
     +'</tbody></table>';
+}
+
+async function showAddItem(requestId,btn){
+  const host=btn.closest('.items');
+  if(!host)return;
+  if(host.querySelector('.add-item-line'))return;
+  const options=PARTS.map((partId,i)=>'<option value="'+partId+'">'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('');
+  const box=document.createElement('div');
+  box.className='add-item-line';
+  box.style.cssText='display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px';
+  box.innerHTML='<select class="add-part"><option value="">اختر قطعة الغيار *</option>'+options+'</select><input class="add-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *"><input class="add-note" placeholder="ملاحظات"><span><button type="button" class="secondary" onclick="saveNewItem('+requestId+',this)">حفظ</button> <button type="button" class="secondary" onclick="this.closest(\'.add-item-line\').remove()">إلغاء</button></span>';
+  host.appendChild(box);
+}
+
+async function saveNewItem(requestId,btn){
+  const box=btn.closest('.add-item-line');
+  if(!box)return;
+  const partId=Number(box.querySelector('.add-part').value||0);
+  const qty=Number(box.querySelector('.add-qty').value||0);
+  if(!partId){alert('اختر قطعة الغيار');return;}
+  if(!Number.isInteger(qty)||qty<=0){alert('الكمية المطلوبة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
+  const body={spare_part_id:partId,requested_quantity:qty,received_quantity:0,received_date:null,recipient:null,supplier_institution:null,notes:box.querySelector('.add-note').value.trim()||null};
+  const r=await fetch('/api/spare-parts-requests/'+requestId+'/items',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok){alert(data.detail||'تعذر إضافة البند');return;}
+  load();
 }
 
 async function editRequest(id){

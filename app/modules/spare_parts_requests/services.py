@@ -128,8 +128,8 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     request = get_request(db, request_id)
     if not request:
         raise ValueError("طلب الغيار غير موجود")
-    if request.status != "pending":
-        raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار")
+    if request.status not in {"pending", "approved"}:
+        raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار أو معتمد")
     if db.query(SparePartRequestItem).filter_by(request_id=request_id, spare_part_id=data.spare_part_id).first():
         raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
     if not db.query(SparePart).filter(SparePart.id == data.spare_part_id).first():
