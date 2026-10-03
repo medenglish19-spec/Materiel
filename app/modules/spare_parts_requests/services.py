@@ -21,6 +21,7 @@ def _serialize(item):
     return {
         "id": item.id,
         "spare_part_id": item.spare_part_id,
+        "part_name": item.spare_part.name if item.spare_part else None,
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
         "received_date": item.received_date,
@@ -130,6 +131,11 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         raise ValueError("طلب الغيار غير موجود")
     if request.status not in {"pending", "approved"}:
         raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار أو معتمد")
+    if data.spare_part_name:
+        part = db.query(SparePart).filter(SparePart.name == data.spare_part_name.strip()).first()
+        if not part:
+            raise ValueError("قطعة الغيار غير موجودة في سجل قطع الغيار")
+        data.spare_part_id = part.id
     if db.query(SparePartRequestItem).filter_by(request_id=request_id, spare_part_id=data.spare_part_id).first():
         raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
     if not db.query(SparePart).filter(SparePart.id == data.spare_part_id).first():
@@ -151,6 +157,12 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
     if item.received_quantity > 0 and any(k in values for k in ("spare_part_id", "requested_quantity")):
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
+    if values.get("spare_part_name"):
+        part = db.query(SparePart).filter(SparePart.name == values["spare_part_name"].strip()).first()
+        if not part:
+            raise ValueError("قطعة الغيار غير موجودة في سجل قطع الغيار")
+        values["spare_part_id"] = part.id
+        values.pop("spare_part_name", None)
     if "spare_part_id" in values:
         duplicate = db.query(SparePartRequestItem).filter(
             SparePartRequestItem.request_id == item.request_id,
