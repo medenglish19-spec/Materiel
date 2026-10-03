@@ -8,9 +8,10 @@ SOURCE_TYPES = {"fault", "repair"}
 
 
 class SparePartRequestItemCreate(BaseModel):
-    spare_part_id: int
+    spare_part_id: int | None = None
+    part_name: str | None = Field(default=None, max_length=200)
     requested_quantity: int = Field(gt=0)
-    received_quantity: int = Field(default=0, ge=0)
+    received_quantity: int = Field(default=0, gt=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
@@ -41,8 +42,9 @@ class SparePartRequestUpdate(BaseModel):
 
 class SparePartRequestItemUpdate(BaseModel):
     spare_part_id: int | None = None
+    part_name: str | None = Field(default=None, max_length=200)
     requested_quantity: int | None = Field(default=None, gt=0)
-    received_quantity: int | None = Field(default=None, ge=0)
+    received_quantity: int | None = Field(default=None, gt=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
@@ -62,7 +64,7 @@ class SparePartRequestStatusUpdate(BaseModel):
 
 class SparePartRequestItemOut(BaseModel):
     id: int
-    spare_part_id: int
+    spare_part_id: int | None = None
     requested_quantity: Decimal
     received_quantity: Decimal
     received_date: date | None = None

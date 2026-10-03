@@ -17,17 +17,41 @@ def _source(db: Session, source_type: str, source_id: int):
     return obj, obj.fault.equipment_id if obj.fault else None, obj.repair_date
 
 
+def _resolve_part(db: Session, part_id: int | None, name: str | None):
+    """يبني (spare_part_id, part_name) من رابط اختياري بالمخزون واسم حر.
+
+    الربط بالمخزون اختياري: إن اختير من المكتبة يُربط ويُشتق منه الاسم عند
+    عدم تمرير اسم، وإن لم يُختَر يُحفظ الاسم الحر وحده دون مطابقة حرفية
+    بسجل قطع الغيار (المطابقة الحرفية هي ما كان يمنع الاسم الحر أصلاً).
+    """
+    part_id = part_id if part_id else None
+    name = (name or "").strip() or None
+    if part_id:
+        part = db.query(SparePart).filter(SparePart.id == part_id).first()
+        if not part:
+            raise ValueError("قطعة الغيار غير موجودة")
+        return part.id, name or part.name
+    if not name:
+        raise ValueError("اسم قطعة الغيار مطلوب")
+    return None, name
+
+
+def _item_identity(part_id: int | None, part_name: str | None):
+    """معرّف منع التكرار: المعرّف المرجعي إن وُجد، وإلا الاسم الحرّ."""
+    return ("id", part_id) if part_id else ("name", (part_name or "").strip().casefold())
+
+
 def serialize_item(item):
     return {
         "id": item.id,
         "spare_part_id": item.spare_part_id,
+        "part_name": item.part_name or (item.spare_part.name if item.spare_part else None),
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
         "received_date": item.received_date,
         "recipient": item.recipient,
         "supplier_institution": item.supplier_institution,
         "notes": item.notes,
-        "part_name": item.spare_part.name if item.spare_part else None,
     }
 
 
@@ -67,13 +91,13 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     if data.request_date != source_date:
         raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
 
-    part_ids = [x.spare_part_id for x in data.items]
-    if len(part_ids) != len(set(part_ids)):
+    resolved = [
+        _resolve_part(db, item.spare_part_id, item.part_name)
+        for item in data.items
+    ]
+    identities = [_item_identity(part_id, part_name) for part_id, part_name in resolved]
+    if len(identities) != len(set(identities)):
         raise ValueError("لا يمكن تكرار قطعة الغيار داخل الطلب")
-    if part_ids:
-        parts = {p.id for p in db.query(SparePart).filter(SparePart.id.in_(part_ids)).all()}
-        if len(parts) != len(part_ids):
-            raise ValueError("إحدى قطع الغيار غير موجودة")
 
     obj = SparePartRequest(
         request_number=data.request_number,
@@ -88,8 +112,15 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     )
     db.add(obj)
     db.flush()
-    for item in data.items:
-        obj.items.append(SparePartRequestItem(**item.model_dump()))
+    for item, (part_id, part_name) in zip(data.items, resolved):
+        values = item.model_dump(exclude={"spare_part_id", "part_name"})
+        obj.items.append(
+            SparePartRequestItem(
+                **values,
+                spare_part_id=part_id,
+                part_name=part_name,
+            )
+        )
     db.commit()
     return get_request(db, obj.id)
 
@@ -130,13 +161,20 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         raise ValueError("طلب الغيار غير موجود")
     if request.status not in {"pending", "approved"}:
         raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار أو معتمد")
-    if db.query(SparePartRequestItem).filter_by(request_id=request_id, spare_part_id=data.spare_part_id).first():
-        raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
-    if not db.query(SparePart).filter(SparePart.id == data.spare_part_id).first():
-        raise ValueError("قطعة الغيار غير موجودة")
+    part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name)
+    identity = _item_identity(part_id, part_name)
+    for existing in request.items:
+        if _item_identity(existing.spare_part_id, existing.part_name) == identity:
+            raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
     if data.received_quantity > 0 and (not data.received_date or not data.recipient or not data.supplier_institution):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
-    item = SparePartRequestItem(request_id=request_id, **data.model_dump())
+    values = data.model_dump(exclude={"part_name", "spare_part_id"})
+    item = SparePartRequestItem(
+        request_id=request_id,
+        spare_part_id=part_id,
+        part_name=part_name,
+        **values,
+    )
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -147,20 +185,23 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     if item.request.status == "cancelled":
         raise ValueError("لا يمكن تعديل طلب ملغى")
     values = data.model_dump(exclude_unset=True)
-    if any(k in values for k in ("spare_part_id", "requested_quantity")) and item.request.status != "pending":
+    touches_assignment = any(k in values for k in ("spare_part_id", "part_name", "requested_quantity"))
+    if touches_assignment and item.request.status != "pending":
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
-    if item.received_quantity > 0 and any(k in values for k in ("spare_part_id", "requested_quantity")):
+    if item.received_quantity > 0 and touches_assignment:
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
-    if "spare_part_id" in values:
-        duplicate = db.query(SparePartRequestItem).filter(
-            SparePartRequestItem.request_id == item.request_id,
-            SparePartRequestItem.spare_part_id == values["spare_part_id"],
-            SparePartRequestItem.id != item.id,
-        ).first()
-        if duplicate:
-            raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
-        if not db.query(SparePart).filter(SparePart.id == values["spare_part_id"]).first():
-            raise ValueError("قطعة الغيار غير موجودة")
+    if "spare_part_id" in values or "part_name" in values:
+        part_id, part_name = _resolve_part(
+            db,
+            values.get("spare_part_id", item.spare_part_id),
+            values.get("part_name", item.part_name),
+        )
+        identity = _item_identity(part_id, part_name)
+        for other in item.request.items:
+            if other.id != item.id and _item_identity(other.spare_part_id, other.part_name) == identity:
+                raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
+        values["spare_part_id"] = part_id
+        values["part_name"] = part_name
     for key, value in values.items():
         setattr(item, key, value)
     if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
@@ -224,7 +265,7 @@ def received_register(db: Session):
         req = item.request
         result.append({
             "request_number": req.request_number,
-            "part_name": item.spare_part.name if item.spare_part else "—",
+            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
             "received_quantity": item.received_quantity,
             "received_date": item.received_date,
