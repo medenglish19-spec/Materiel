@@ -9,11 +9,8 @@ SOURCE_TYPES = {"fault", "repair"}
 
 class SparePartRequestItemCreate(BaseModel):
     spare_part_id: int
-    # الكمية المطلوبة عدد صحيح، 1 فأكثر.
     requested_quantity: int = Field(gt=0)
-    # الصفر حالة داخلية تعني «لم يُستلم بعد» ولا تُقبل إلا بالإهمال عند إنشاء الطلب.
-    # تسجيل استلام يجب أن يكون بعدد صحيح 1 فأكثر، فلا يُقبل صفر ولا كسر.
-    received_quantity: int = Field(default=0, gt=0)
+    received_quantity: int = Field(default=0, ge=0)
     received_date: date | None = None
     recipient: str | None = None
     supplier_institution: str | None = None
@@ -36,9 +33,15 @@ class SparePartRequestCreate(BaseModel):
         return value
 
 
+class SparePartRequestUpdate(BaseModel):
+    request_number: str | None = Field(default=None, min_length=1, max_length=80)
+    request_date: date | None = None
+    notes: str | None = None
+
+
 class SparePartRequestItemUpdate(BaseModel):
+    spare_part_id: int | None = None
     requested_quantity: int | None = Field(default=None, gt=0)
-    # عند تسجيل استلام: عدد صحيح 1 فأكثر. الصفر غير مقبول هنا.
     received_quantity: int | None = Field(default=None, gt=0)
     received_date: date | None = None
     recipient: str | None = None
