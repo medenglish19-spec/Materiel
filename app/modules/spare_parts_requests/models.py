@@ -58,7 +58,7 @@ class SparePartRequestItem(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("request_id", "spare_part_id", name="uq_spare_part_request_item_part"),
+        # spare_part_id nullable: لا نمنع التكرار على المعرّف الفارغ؛ المنع يتم في الخدمة بالاسم الحر.
         CheckConstraint("requested_quantity > 0", name="ck_spare_part_request_item_requested_positive"),
         CheckConstraint("received_quantity >= 0", name="ck_spare_part_request_item_received_nonnegative"),
     )

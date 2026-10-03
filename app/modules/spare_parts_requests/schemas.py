@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 REQUEST_STATUSES = {"pending", "approved", "rejected", "cancelled"}
@@ -16,6 +16,19 @@ class SparePartRequestItemCreate(BaseModel):
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
+
+    @field_validator("part_name")
+    @classmethod
+    def clean_name(cls, value):
+        if value is None:
+            return None
+        return value.strip() or None
+
+    @model_validator(mode="after")
+    def part_reference_present(self):
+        if not self.spare_part_id and not self.part_name:
+            raise ValueError("اسم قطعة الغيار مطلوب")
+        return self
 
 
 class SparePartRequestCreate(BaseModel):
@@ -49,6 +62,13 @@ class SparePartRequestItemUpdate(BaseModel):
     recipient: str | None = None
     supplier_institution: str | None = None
     notes: str | None = None
+
+    @field_validator("part_name")
+    @classmethod
+    def clean_name(cls, value):
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SparePartRequestStatusUpdate(BaseModel):

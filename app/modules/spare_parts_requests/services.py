@@ -22,7 +22,7 @@ def _resolve_part(db: Session, part_id: int | None, name: str | None):
 
     الربط بالمخزون اختياري: إن اختير من المكتبة يُربط ويُشتق منه الاسم عند
     عدم تمرير اسم، وإن لم يُختَر يُحفظ الاسم الحر وحده دون مطابقة حرفية
-    بسجل قطع الغيار (المطابقة الحرفية هي ما كان يمنع الاسم الحر أصلاً).
+    بسجل قطع الغيار (المطابقة الحرفية هي ما كان تمنع الاسم الحر أصلاً).
     """
     part_id = part_id if part_id else None
     name = (name or "").strip() or None
@@ -265,7 +265,7 @@ def received_register(db: Session):
         req = item.request
         result.append({
             "request_number": req.request_number,
-            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+"part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
             "received_quantity": item.received_quantity,
             "received_date": item.received_date,

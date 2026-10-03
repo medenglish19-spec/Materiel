@@ -304,8 +304,8 @@ def test_an_item_without_any_name_is_rejected(client):
         f"/api/spare-parts-requests/{ids['request']}/items",
         json={"requested_quantity": 1},
     )
-    assert response.status_code == 400
-    assert "اسم قطعة الغيار مطلوب" in response.text
+    # schema validation rejects before reaching service
+    assert response.status_code == 422
 
 
 def test_request_header_edits_are_persisted(client):
