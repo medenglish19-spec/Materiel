@@ -170,7 +170,7 @@ def list_documents(db, document_type=None):
     ).all()]
 
 
-def available_register(db):
+def available_register(db, exclude_document_id=None):
     rows = db.query(SparePartRequestItem).join(SparePartRequest).options(
         joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
         joinedload(SparePartRequestItem.spare_part),
@@ -179,7 +179,7 @@ def available_register(db):
     ).all()
     result = []
     for item in rows:
-        qty = available_quantity(db, item)
+        qty = available_quantity(db, item, exclude_document_id)
         if qty <= 0:
             continue
         result.append({
@@ -193,7 +193,7 @@ def available_register(db):
     return result
 
 
-def return_register(db):
+def return_register(db, exclude_document_id=None):
     rows = db.query(SparePartMovementItem).join(SparePartMovementDocument).options(
         joinedload(SparePartMovementItem.document),
         joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
@@ -203,7 +203,7 @@ def return_register(db):
     ).all()
     result = []
     for line in rows:
-        qty = returnable_quantity(db, line)
+        qty = returnable_quantity(db, line, exclude_document_id)
         if qty <= 0:
             continue
         item = line.request_item
