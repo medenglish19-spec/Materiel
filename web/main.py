@@ -18,7 +18,7 @@ from app.modules.faults_repairs.router import router as faults_repairs_router
 from app.modules.spare_parts_requests.router import router as spare_parts_requests_router
 from app.modules.spare_parts_requests.routes import received_page, requests_page
 from app.modules.spare_parts_movements.router import router as spare_parts_movements_router
-from app.modules.spare_parts_movements.routes import router as spare_parts_movements_pages_router
+from app.modules.spare_parts_movements.routes import distribution_page, router as spare_parts_movements_pages_router
 from app.modules.faults_repairs.routes import router as faults_repairs_pages_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
         logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
         init_db()
         create_default_admin()
-        # تحذيرات ما قبل النشر: تُسجَّل ولا توقف الإقلاع (انظر core/config.py).
+        # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
         for warning in security_warnings(_database_file()):
             logger.warning("[security] %s", warning)
         yield
@@ -108,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(spare_parts_movements_pages_router, tags=["spare_parts_movements_pages"])
     app.add_api_route("/spare-parts-requests", requests_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_requests_page", tags=["spare_parts_requests_pages"])
     app.add_api_route("/spare-parts-received", received_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_received_page", tags=["spare_parts_requests_pages"])
+    app.add_api_route("/spare-parts-distribution", distribution_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_distribution_page", tags=["spare_parts_movements_pages"])
     app.include_router(tires_router, tags=["tires"])
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])
