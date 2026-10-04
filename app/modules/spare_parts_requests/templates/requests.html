@@ -170,7 +170,7 @@ function itemRow(i,x){
 
 async function deleteRequest(id){if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));}
 
-async function deleteItem(id){if(!confirm('حذف بند قطع الغيار؟'))return;const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف البند'));}
+
 
 /* بند جديد داخل منطقة البنود: يُحفظ مع بقية التعديلات بزر الحفظ. */
 function addLineRow(host){
