@@ -523,6 +523,82 @@ def test_server_error_messages_reach_the_page(client):
     )
 
 
+def test_a_received_item_is_not_resent_with_its_assignment(client):
+    """A locked row must not carry spare_part_id / part_name / requested_quantity.
+
+    itemRow() already disabled .i-part and .i-qty for a received item, but
+    itemBody() kept reading their .value -- a disabled input still has one -- so
+    every save re-sent the assignment and the server refused it with
+    "لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام" (400).
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    # the row advertises that it is locked
+    assert 'data-locked="1"' in html, "itemRow must flag a locked row"
+    assert "const locked=received>0||x.status!=='pending';" in html
+
+    # the name field belongs to the same assignment, so it is locked too
+    name_line = next(
+        line for line in html.splitlines() if 'class="i-name" value=' in line
+    )
+    assert "+(locked?' disabled':'')" in name_line, (
+        ".i-name must be disabled on a locked row, the server rejects a change there"
+    )
+
+    # and saveRequest drops those three keys instead of sending them
+    assert (
+        "delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;"
+        in html
+    ), "a locked row must not re-send its assignment"
+    assert "if(itemId&&p.tr.dataset.locked){" in html
+
+    # a brand-new row is never locked, so it still sends everything
+    add_line = html[html.index("function addLineRow") : html.index("function itemBody")]
+    assert "data-locked" not in add_line
+    assert "disabled" not in add_line
+
+
+def test_the_locked_guard_stays_on_the_server(client):
+    """Trimming the payload is a courtesy; the server keeps the authority."""
+    services_src = (
+        ROOT / "app" / "modules" / "spare_parts_requests" / "services.py"
+    ).read_text(encoding="utf-8")
+
+    assert "لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام" in services_src
+    assert "if item.received_quantity > 0 and touches_assignment:" in services_src
+
+
+def test_the_header_receipt_date_is_read_and_sent(client):
+    """detailHtml() renders .f-rdate and the API accepts received_date.
+
+    saveRequest() used to ignore the field entirely, so a receipt date typed in
+    the request header was silently discarded.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    assert 'class="f-rdate"' in html, "the header receipt date field is missing"
+
+    save = html[html.index("async function saveRequest") :]
+    assert "host.querySelector('.f-rdate')" in save, (
+        "saveRequest must read the header receipt date"
+    )
+    assert "const headerDate=head?head.value.trim():'';" in save, (
+        "read it defensively: a null element used to crash the save"
+    )
+    assert "received_date:receipt||null" in save, (
+        "the header receipt date must be sent to the API"
+    )
+    # one receipt date for the whole request: header and items must agree
+    assert "dates[0]!==headerDate" in save
+
+    schemas_src = (
+        ROOT / "app" / "modules" / "spare_parts_requests" / "schemas.py"
+    ).read_text(encoding="utf-8")
+    assert "received_date" in schemas_src
+
+
 def test_a_duplicate_part_is_refused_before_sending(client):
     """The duplicate rule is checked in the page, with the server's own rule.
 

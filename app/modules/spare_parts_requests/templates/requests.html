@@ -173,8 +173,8 @@ function itemRow(i,x){
   const received=Number(i.received_quantity||0);
   const locked=received>0||x.status!=='pending';
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
-  return '<tr class="item-line" data-item-id="'+(i.id||'')+'">'
-    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"></td>'
+  return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
+    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *""'+(locked?' disabled':'')+'></td>'
     +'<td><select class="i-part"'+(locked?' disabled':'')+'>'+options+'</select></td>'
     +'<td><input class="i-qty" type="number" min="1" step="1" value="'+esc(i.requested_quantity)+'"'+(locked?' disabled':'')+'></td>'
     +'<td><input class="received" type="number" min="1" step="1" value="'+(received>0?received:'')+'" placeholder="لم يُستلم بعد"></td>'
@@ -251,9 +251,11 @@ async function saveRequest(id,btn){
 
   /* الطلب يُستلم مرة واحدة: تاريخ واحد للطلب كله، يُكتب في رأسه أو في أي
      بند، ولا يصحّ أن تختلف التواريخ بين البنود. */
+  const head=host.querySelector('.f-rdate');
+  const headerDate=head?head.value.trim():'';
   const dates=[...new Set(live.map(tr=>{const i=tr.querySelector('.i-rdate');return i?i.value:'';}).filter(Boolean))];
-  if(dates.length>1){setMsg(RECEIPT_CONFLICT,'err');return;}
-  const receipt=dates[0];
+  if(dates.length>1||(dates.length===1&&headerDate&&dates[0]!==headerDate)){setMsg(RECEIPT_CONFLICT,'err');return;}
+  const receipt=headerDate||dates[0];
   if(receipt&&date&&receipt<date){setMsg(RECEIPT_BEFORE_REQUEST,'err');return;}
 
   const payloads=[];
@@ -280,7 +282,7 @@ async function saveRequest(id,btn){
   }
 
   try{
-    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,notes:notes})});
+    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,received_date:receipt||null,notes:notes})});
     if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ بيانات الطلب'),'err');return;}
 
     for(const p of payloads){
@@ -289,6 +291,10 @@ async function saveRequest(id,btn){
       /* بند استُلم فعلاً: لا يُصفَّر سجل الاستلام، ولا تُعدَّل بيانات الاستلام إلا إن أدخلها المستخدم. */
       if(itemId&&p.received===0){
         delete body.received_quantity;delete body.received_date;delete body.recipient;delete body.supplier_institution;
+      }
+      /* البند المُقفل (مسجل استلاماً أو الطلب غير قيد الانتظار): تعيينه وكمية طلبه مقفلان، وإعادةها يرفضها الخادم، لأن الإحلال معنوع والحقلان أعيداً. */
+      if(itemId&&p.tr.dataset.locked){
+        delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;
       }
       let r;
       if(itemId){
