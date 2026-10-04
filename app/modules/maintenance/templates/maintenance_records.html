@@ -46,8 +46,13 @@
         <td>{{ r.work_order or '—' }}</td><td>{{ r.workshop or '—' }}</td>
         <td><span class="badge success">{{ 'مكتملة' if r.status == 'completed' else r.status }}</span></td><td>{{ r.description or '—' }}</td>
         <td style="white-space:nowrap">
-          {% if r.operation_id %}<a class="m-btn" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a>{% endif %}
-          <form method="post" action="/maintenance/records/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>
+          {% if r.operation_id %}<a class="m-btn primary" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a>{% endif %}
+          <details class="action-menu">
+            <summary aria-label="إجراءات سجل الصيانة">⋮ الإجراءات</summary>
+            <div class="action-menu-items">
+              <form method="post" action="/maintenance/records/{{ r.id }}/delete" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');"><button type="submit" style="color:#A4271F">🗑 حذف</button></form>
+            </div>
+          </details>
         </td>
       </tr>
       {% else %}<tr><td colspan="12" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
