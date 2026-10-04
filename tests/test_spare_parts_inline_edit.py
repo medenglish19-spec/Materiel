@@ -10,6 +10,9 @@
 """
 
 import re
+import shutil
+import subprocess
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -597,6 +600,69 @@ def test_the_header_receipt_date_is_read_and_sent(client):
         ROOT / "app" / "modules" / "spare_parts_requests" / "schemas.py"
     ).read_text(encoding="utf-8")
     assert "received_date" in schemas_src
+
+
+def _render_item_row(node: str, item_js: str, context_js: str) -> str:
+    """Run itemRow() in Node and return the HTML it produced."""
+    template = TEMPLATE.read_text(encoding="utf-8")
+    source = template[
+        template.index("function itemRow") : template.index("function itemBody")
+    ].strip()
+    harness = (
+        "const PARTS=[1];const PART_NAMES=['p'];const PART_NUMBERS=[''];\n"
+        "const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;');\n"
+        + source
+        + "\nprocess.stdout.write(itemRow("
+        + item_js
+        + ","
+        + context_js
+        + "));\n"
+    )
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".js", encoding="utf-8", delete=False
+    ) as handle:
+        handle.write(harness)
+        filename = handle.name
+    try:
+        done = subprocess.run(
+            [node, filename], capture_output=True, text=True, encoding="utf-8"
+        )
+    finally:
+        Path(filename).unlink(missing_ok=True)
+    assert done.returncode == 0, f"itemRow() لم يعمل: {done.stderr}"
+    return done.stdout
+
+
+def test_the_item_name_field_is_a_well_formed_input(client):
+    """itemRow() builds HTML by hand, so a stray quote goes unnoticed.
+
+    Locking .i-name with `+(locked?' disabled':'')` once left an extra `"` in
+    the string, and the row rendered as
+    `<input class="i-name" ... placeholder="... *"">` -- a tag carrying a bogus
+    attribute. The page still worked, so nothing caught it. Render the row and
+    check the tag for real instead.
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node غير متوفر")
+
+    item = "{id:1,part_name:'x',spare_part_id:1,requested_quantity:2,received_quantity:0}"
+    expected = (
+        r"""<input class="i-name" value="[^"]*" placeholder="[^"]*"( disabled)?>"""
+    )
+
+    for context, locked in (("{status:'pending'}", False), ("{status:'done'}", True)):
+        markup = _render_item_row(node, item, context)
+        tags = [t for t in re.findall(r"<input\b[^>]*>", markup) if "i-name" in t]
+        assert len(tags) == 1, f"لم يُرسم حقل الاسم: {markup}"
+
+        # every attribute spelled name="value": a loose quote would leave a
+        # dangling one that this pattern cannot account for
+        found = re.fullmatch(expected, tags[0])
+        assert found, f"وسم حقل الاسم غير صالح: {tags[0]!r}"
+        assert bool(found.group(1)) is locked, (
+            "السطر المقفول يجب أن يكون للاسم معطّلاً، والسطر المفتوح غير معطّل"
+        )
 
 
 def test_a_duplicate_part_is_refused_before_sending(client):

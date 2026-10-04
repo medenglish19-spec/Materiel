@@ -174,7 +174,7 @@ function itemRow(i,x){
   const locked=received>0||x.status!=='pending';
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
   return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
-    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *""'+(locked?' disabled':'')+'></td>'
+    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
     +'<td><select class="i-part"'+(locked?' disabled':'')+'>'+options+'</select></td>'
     +'<td><input class="i-qty" type="number" min="1" step="1" value="'+esc(i.requested_quantity)+'"'+(locked?' disabled':'')+'></td>'
     +'<td><input class="received" type="number" min="1" step="1" value="'+(received>0?received:'')+'" placeholder="لم يُستلم بعد"></td>'
