@@ -28,7 +28,6 @@ class SparePartMovementDocument(Base):
 
     __table_args__ = (
         CheckConstraint("document_type IN ('distribution', 'return')", name="ck_spare_part_movement_document_type"),
-        CheckConstraint("(document_type = 'distribution' AND source_document_id IS NULL) OR (document_type = 'return' AND source_document_id IS NOT NULL)", name="ck_spare_part_movement_document_source"),
     )
 
     items = relationship("SparePartMovementItem", back_populates="document", cascade="all, delete-orphan", order_by="SparePartMovementItem.id")
