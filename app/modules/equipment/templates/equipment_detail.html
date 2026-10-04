@@ -112,9 +112,14 @@
   <div class="ed-actions" style="margin-top:18px;justify-content:flex-start">
     <a class="ed-btn" href="/equipment">العودة إلى القائمة</a>
     <a class="ed-btn pri" href="/equipment/{{ item.id }}/edit">تعديل العتاد</a>
-    <form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');" style="margin:0">
-      <button type="submit" class="ed-btn" style="color:#A4271F;border-color:#E7BDB9">حذف العتاد</button>
-    </form>
+    <details class="action-menu">
+      <summary aria-label="إجراءات العتاد">⋮ الإجراءات</summary>
+      <div class="action-menu-items">
+        <form method="post" action="/equipment/{{ item.id }}/delete" onsubmit="return confirm('هل أنت متأكد من حذف هذا العتاد؟ لا يمكن التراجع عن هذا الإجراء.');">
+          <button type="submit" style="color:#A4271F">🗑 حذف العتاد</button>
+        </form>
+      </div>
+    </details>
   </div>
 </div>
 {% endblock %}
