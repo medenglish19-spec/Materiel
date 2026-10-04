@@ -53,9 +53,12 @@ const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
 const SOURCE={fault:'الأعطال',repair:'التصليحات'};
 const RECEIPT_BEFORE_REQUEST='تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب.';
+const DUPLICATE_PART='قطعة الغيار موجودة بالفعل في الطلب.';
 const RECEIPT_CONFLICT='طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد.';
 /* التحقق قد يعود مصفوفة حقول، فنصهرها نصاً يُقرأ بدل «[object Object]». */
 function errText(d,fallback){
+  /* الخادم يأتي بمحمول {detail:'…'} ولا مع msg: فاصل العيان العربية أبدًا مع الرسالة العامة. */
+  if(d&&typeof d==='object'&&!Array.isArray(d)&&typeof d.detail!=='undefined') return errText(d.detail,fallback);
   if(Array.isArray(d)) return d.map(function(x){return x&&x.msg?x.msg:String(x);}).join(' — ');
   if(d&&typeof d==='object') return d.msg||fallback;
   return d||fallback;
@@ -258,6 +261,22 @@ async function saveRequest(id,btn){
     const parsed=itemBody(tr);
     if(parsed.error){setMsg(parsed.error,'err');return;}
     payloads.push({tr:tr,body:parsed.body,received:parsed.received});
+  }
+
+  /* منع التكرار قبل الإرسال: القاعدة نفسها في الخادم — المعرّف المرجعي إن وجد، وإلا الاسم الحرّ بصيغة الأحرف. */
+  const identityOf=tr=>{
+    const sel=tr.querySelector('.i-part'),inp=tr.querySelector('.i-name');
+    const pid=Number(sel&&sel.value||0);
+    const nm=String(inp?inp.value:'').trim().toLowerCase();
+    return pid?'id:'+pid:'name:'+nm;
+  };
+  for(const p of payloads){
+    if(p.tr.dataset.itemId)continue;
+    const key=identityOf(p.tr);
+    if([...host.querySelectorAll('tr.item-line')].some(o=>o!==p.tr&&!o.classList.contains('gone')&&identityOf(o)===key)){
+      setMsg(DUPLICATE_PART,'err');
+      return;
+    }
   }
 
   try{

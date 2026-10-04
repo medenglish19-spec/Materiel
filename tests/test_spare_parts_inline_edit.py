@@ -493,3 +493,72 @@ def test_the_request_row_cells_match_the_table_headers(client):
 
     # and so does the "no requests" placeholder
     assert re.search(r'colspan="%d" class="empty"' % columns, html)
+
+
+def test_server_error_messages_reach_the_page(client):
+    """errText() must read a FastAPI error body, not just {msg: ...}.
+
+    saveRequest() passes the whole response body to errText(). FastAPI answers
+    {"detail": "..."}, so errText() found no .msg and returned the generic
+    fallback: every server-side reason for a 400 stayed invisible and only the
+    raw network line showed in the console.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    block = html[html.index("function errText") : html.index("const sourceType")]
+    assert "d.detail" in block, (
+        "errText() must unwrap the FastAPI 'detail' field, otherwise the "
+        "server's Arabic message is replaced by the generic fallback"
+    )
+
+    # saveRequest() hands the body (not body.detail) to errText, so errText has
+    # to cope with both shapes. Only the call sites matter here, not the
+    # recursive call inside errText itself.
+    call_sites = html.replace(block, "")
+    assert "errText(d," in call_sites, "saveRequest should pass the parsed body"
+    assert "errText(d.detail," not in call_sites, (
+        "if the call sites pass body.detail then errText no longer needs to "
+        "unwrap it; keep exactly one of the two styles"
+    )
+
+
+def test_a_duplicate_part_is_refused_before_sending(client):
+    """The duplicate rule is checked in the page, with the server's own rule.
+
+    Request 2 already held both library parts the dropdown offers, so every
+    save produced another POST /items -> 400. The rule now runs before the
+    round-trip and the Arabic message is shown instead.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    assert "const DUPLICATE_PART=" in html
+    assert "const identityOf=tr=>" in html, "the identity helper is missing"
+    assert "setMsg(DUPLICATE_PART,'err')" in html
+
+    # the identity rule must match services._item_identity: library id when the
+    # row is linked, otherwise the trimmed + casefolded free name
+    helper = html[html.index("const identityOf=tr=>") : html.index("for(const p of payloads)")]
+    assert "'id:'+pid" in helper
+    assert ".toLowerCase()" in helper
+    assert ".trim()" in helper
+
+    # only brand-new rows are pre-checked; stored rows keep the server's verdict
+    check = html[html.index("for(const p of payloads){") :]
+    check = check[: check.index("try{")]
+    assert "if(p.tr.dataset.itemId)continue;" in check
+
+
+def test_the_received_register_survives_a_refused_duplicate(client):
+    """The server still owns the rule; the page only avoids the wasted call."""
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    services_src = (
+        ROOT / "app" / "modules" / "spare_parts_requests" / "services.py"
+    ).read_text(encoding="utf-8")
+    assert "قطعة الغيار موجودة بالفعل في الطلب" in services_src, (
+        "the server-side duplicate guard must stay in place"
+    )
+    assert 'raise ValueError("اسم قطعة الغيار مطلوب")' in services_src
