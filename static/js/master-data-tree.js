@@ -441,16 +441,6 @@
       }
       return;
     }
-    const actionMenu = event.target.closest('[data-action-menu]');
-    if (actionMenu) {
-      stop(event);
-      const row = actionMenu.closest('[data-model-row],[data-ref-item]');
-      if (row) {
-        const rect = actionMenu.getBoundingClientRect();
-        showMenu(row, rect.left, rect.bottom + 4);
-      }
-      return;
-    }
     const copy = event.target.closest('[data-copy]');
     if (copy) { stop(event); copyModel(copy.dataset.copy); return; }
     const del = event.target.closest('[data-delete]');
