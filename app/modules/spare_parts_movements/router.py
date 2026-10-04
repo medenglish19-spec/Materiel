@@ -12,13 +12,13 @@ def documents(document_type: str | None = None, db=Depends(get_db), _: User = De
     return services.list_documents(db, document_type)
 
 @router.get("/returnable")
-def returnable(db=Depends(get_db), _: User = Depends(get_current_user)):
-    return services.return_register(db)
+def returnable(exclude_document_id: int | None = None, db=Depends(get_db), _: User = Depends(get_current_user)):
+    return services.return_register(db, exclude_document_id)
 
 
 @router.get("/available")
-def available(db=Depends(get_db), _: User = Depends(get_current_user)):
-    return services.available_register(db)
+def available(exclude_document_id: int | None = None, db=Depends(get_db), _: User = Depends(get_current_user)):
+    return services.available_register(db, exclude_document_id)
 
 @router.get("/history/{request_item_id}")
 def item_history(request_item_id: int, db=Depends(get_db), _: User = Depends(get_current_user)):
