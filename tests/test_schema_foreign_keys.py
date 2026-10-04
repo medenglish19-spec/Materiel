@@ -112,3 +112,43 @@ def test_every_foreign_key_points_at_a_table_that_exists():
             )
 
     assert checked, "the metadata declares no foreign keys at all -- did it load?"
+
+
+def test_every_foreign_key_in_the_models_is_named():
+    """create_all() must produce the same names the migrations write."""
+    from app.database import model_registry  # noqa: F401
+    from app.database.base import Base
+
+    unnamed, checked = [], 0
+    for table_name, table in Base.metadata.tables.items():
+        for fkc in table.foreign_key_constraints:
+            checked += 1
+            if not fkc.name:
+                unnamed.append(f"{table_name}({', '.join(sorted(fkc.columns))})")
+
+    assert checked, "no foreign keys in the metadata -- did model_registry load?"
+    assert not unnamed, (
+        f"{len(unnamed)} of {checked} model foreign keys are unnamed, so a database "
+        "built by create_all() does not match one built by the migrations, and the "
+        "next batch_alter_table() on those tables fails with 'Constraint must have a "
+        f"name'. The convention belongs in database/base.py: {unnamed[:5]}"
+    )
+
+
+@pytest.mark.parametrize("table,expected", [
+    ("spare_part_movement_documents",
+     "fk_spare_part_movement_documents_source_document_id"),
+    ("spare_part_movement_items",
+     "fk_spare_part_movement_items_source_item_id"),
+])
+def test_a_fresh_database_names_its_keys_the_way_the_migration_does(table, expected):
+    """The same constraint must not get two different names depending on the path."""
+    from app.database import model_registry  # noqa: F401
+    from app.database.base import Base
+
+    names = {c.name for c in Base.metadata.tables[table].foreign_key_constraints}
+    assert expected in names, (
+        f"{table} would be created with {sorted(n for n in names if n)}, while "
+        f"stage12 writes {expected!r} -- a fresh database and a migrated one would "
+        "disagree about the same constraint"
+    )

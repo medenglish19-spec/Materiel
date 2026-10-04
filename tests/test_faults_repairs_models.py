@@ -16,7 +16,7 @@ def test_fault_repair_part_model_contracts():
 
 
 def test_fault_statuses_are_explicit():
-    checks = {c.name: str(c.sqltext) for c in Fault.__table__.constraints if c.name}
+    checks = {c.name: str(c.sqltext) for c in Fault.__table__.constraints if isinstance(c, CheckConstraint) and c.name}
     assert "ck_fault_status" in checks
     assert "waiting_parts" in checks["ck_fault_status"]
     assert "ck_fault_severity" in checks
