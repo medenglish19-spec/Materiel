@@ -7,6 +7,7 @@
 <div class="spm">
   <div class="head"><div><h1>توزيع وإرجاع الغيار</h1><div class="muted">كل وثيقة مرتبطة بالغيار المستلم، والكمية المتبقية تُحسب تلقائياً.</div></div><a href="/spare-parts-received" style="font-size:11px;font-weight:800;color:#245d88">سجل الاستلام ←</a></div>
   <div class="tabs"><button class="tab active" data-type="distribution">التوزيع</button><button class="tab" data-type="return">الإرجاع</button></div>
+  <div id="balance" style="font-size:11px;font-weight:800;color:#6b7280;margin:-3px 0 10px">الغيار المستلم المتبقي: —</div>
   <div class="panel">
     <div class="bar"><button id="newBtn" class="btn">＋ وثيقة <span id="newLabel">توزيع</span></button><input id="search" placeholder="بحث في رقم الوثيقة أو التعيين أو المستلم"><select id="docFilter"><option value="">كل الوثائق</option><option value="distribution">التوزيع</option><option value="return">الإرجاع</option></select></div>
     <div id="form" class="form">
@@ -36,7 +37,7 @@ function renderLines(){
   if(!available.length){host.innerHTML='<tr><td colspan="6" class="empty">لا يوجد غيار مستلم متاح لهذه العملية.</td></tr>';return}
   host.innerHTML=available.map(x=>'<tr data-item="'+x.request_item_id+'"><td>'+esc(x.part_name)+'</td><td>'+esc(x.request_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+x.received_quantity+'</td><td>'+x.available_quantity+'</td><td><input class="qty" type="number" min="0" step="1" max="'+x.available_quantity+'" placeholder="الكمية"></td></tr>').join('')
 }
-async function loadAvailable(){const r=await fetch('/api/spare-parts-movements/available',{credentials:'same-origin'});available=r.ok?await r.json():[];renderLines()}
+async function loadAvailable(){const r=await fetch('/api/spare-parts-movements/available',{credentials:'same-origin'});available=r.ok?await r.json():[];const total=available.reduce((s,x)=>s+Number(x.available_quantity||0),0);document.getElementById('balance').textContent='الغيار المستلم المتبقي: '+available.length+' بند / '+total+' قطعة';renderLines()}
 function renderDocs(){
   const q=document.getElementById('search').value.trim().toLowerCase(),filter=document.getElementById('docFilter').value;
   const rows=docs.filter(d=>(!filter||d.document_type===filter)&&JSON.stringify(d).toLowerCase().includes(q));
