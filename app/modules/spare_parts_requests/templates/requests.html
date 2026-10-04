@@ -89,17 +89,19 @@ document.getElementById('addRequestItem').addEventListener('click',addRequestIte
 
 document.getElementById('requestForm').addEventListener('submit',async e=>{
   e.preventDefault();
-  const fd=new FormData(e.target);
-  const rows=[...document.querySelectorAll('#newItems .new-item')];
-  const items=rows.map(row=>{const partRaw=row.querySelector('.new-part').value;const name=row.querySelector('.new-name').value.trim();return {spare_part_id:partRaw?Number(partRaw):null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
-  const msg=document.getElementById('formMsg');
-  if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
-  if(items.length<rows.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
-  const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
-  const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
-  const data=await r.json().catch(()=>({}));
-  if(!r.ok){msg.textContent=errText(data.detail,'تعذر حفظ الطلب');msg.className='msg err';return;}
-  e.target.reset();document.getElementById('newItems').innerHTML='';msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
+  try{
+    const fd=new FormData(e.target);
+    const rows=[...document.querySelectorAll('#newItems .new-item')];
+    const items=rows.map(row=>{const partRaw=row.querySelector('.new-part').value;const name=row.querySelector('.new-name').value.trim();return {spare_part_id:partRaw?Number(partRaw):null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
+    const msg=document.getElementById('formMsg');
+    if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
+    if(items.length<rows.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
+    const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
+    const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){msg.textContent=errText(data.detail,'تعذر حفظ الطلب');msg.className='msg err';return;}
+    e.target.reset();document.getElementById('newItems').innerHTML='';msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
+  }catch(err){console.error('create request error:',err);const msg=document.getElementById('formMsg');msg.textContent='خطأ غير متوقع: '+err.message;msg.className='msg err';}
 });
 document.getElementById('newItems').addEventListener('click',e=>{if(e.target.classList.contains('remove-request-item'))e.target.parentElement.remove();});
 
@@ -217,6 +219,7 @@ function itemBody(tr){
 
 async function saveRequest(id,btn){
   const host=btn.closest('.items');
+  if(!host){console.error('saveRequest: .items ancestor not found for button',btn);alert('خطأ: زر الحفظ خارج منطقة الطلب');return;}
   const msg=host.querySelector('.msg');
   const setMsg=(t,k)=>{msg.className='msg'+(k?' '+k:'');msg.textContent=t;};
   setMsg('جارٍ الحفظ...','');
@@ -245,7 +248,7 @@ async function saveRequest(id,btn){
   }
 
   try{
-    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,received_date:receipt||null,notes:notes})});
+    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,notes:notes})});
     if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ بيانات الطلب'),'err');return;}
 
     for(const p of payloads){
@@ -282,7 +285,7 @@ async function saveRequest(id,btn){
   }
 }
 document.getElementById('rows').addEventListener('click',async e=>{ const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
-  const save=e.target.closest('.save-request');if(save){e.stopPropagation();await saveRequest(Number(save.dataset.id),save);return;}
+  const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
   const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
   const add=e.target.closest('.add-line');if(add){e.stopPropagation();addLineRow(add.closest('.items'));return;}
