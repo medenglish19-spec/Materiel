@@ -12,6 +12,20 @@ RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام وا
 REQUEST_NUMBER_TAKEN = "رقم الطلب مستخدم مسبقًا، يرجى إدخال رقم آخر."
 
 
+def _request_number(value: str | None) -> str:
+    """رقم الطلب نصٌّ حرّ: عدّة أرقام ورموز وحروف، ويبقى كما كتبه المستخدم.
+
+    تُزال المسافات الطرفية وحدها: أحد المدخلين يقليم الرقم (رأس الطلب)
+    والآخر لا (نموذج الإنشاء)، فكانت « NB-1 » و«NB-1» تُحفظان معاً بلا أن
+    يراهما الفحص متساويتين. لا نمسّ الأحرف ولا حالة الأحرف ولا الرموز:
+    «70001/26» و«NB-1-A» يبقىان كما هما.
+    """
+    number = (value or "").strip()
+    if not number:
+        raise ValueError("رقم الطلب مطلوب")
+    return number
+
+
 def _check_request_number_free(db: Session, request_number: str, exclude_id: int | None = None):
     """رقم طلب الغيار فريد تماماً: لا طلبان بالرقم نفسه.
 
@@ -151,7 +165,8 @@ def serialize_request(obj):
 
 
 def create_request(db: Session, data: SparePartRequestCreate, user_id: int | None = None):
-    _check_request_number_free(db, data.request_number)
+    number = _request_number(data.request_number)
+    _check_request_number_free(db, number)
     _, equipment_id, source_date = _source(db, data.source_type, data.source_id)
     existing = db.query(SparePartRequest).filter(
         SparePartRequest.fault_id == (data.source_id if data.source_type == "fault" else None),
@@ -180,7 +195,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         raise ValueError("لا يمكن تكرار قطعة الغيار داخل الطلب")
 
     obj = SparePartRequest(
-        request_number=data.request_number,
+        request_number=number,
         request_date=data.request_date,
         received_date=receipt_date,
         source_type=data.source_type,
@@ -214,7 +229,9 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         raise ValueError("لا يمكن تعديل طلب إلا وهو قيد الانتظار")
     values = data.model_dump(exclude_unset=True)
     if "request_number" in values:
-        _check_request_number_free(db, values["request_number"], obj.id)
+        number = _request_number(values["request_number"])
+        _check_request_number_free(db, number, obj.id)
+        values["request_number"] = number
     if "request_date" in values:
         _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
         if values["request_date"] != source_date:

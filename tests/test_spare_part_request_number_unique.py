@@ -260,6 +260,69 @@ class TestUpdateRequestNumber:
         assert response.json()["request_number"] == "NB-911"
 
 
+# ------------------------------- نصٌّ حرّ: أرقام ورموز وحروف، بلا إعادة صياغة
+
+
+class TestNumberIsFreeText:
+    def test_letters_digits_and_symbols_are_kept_as_typed(self, client):
+        """رقم كـ«70001/26» أو«NB-1-A» يُحفظ كما هو، بلا تغيير ولا ترتيب."""
+        page, new_fault = client
+
+        response = _create(page, new_fault(DAY_ONE), "70001/26-أ.ب", DAY_ONE)
+
+        assert response.status_code == 201, response.text
+        assert response.json()["request_number"] == "70001/26-أ.ب"
+
+    def test_surrounding_spaces_do_not_open_a_second_number(self, client):
+        """« NB-920 » و«NB-920» رقم واحد، لا رقمان مختلفان."""
+        page, new_fault = client
+        first = _create(page, new_fault(DAY_ONE), "  NB-920  ", DAY_ONE)
+        assert first.status_code == 201, first.text
+        assert first.json()["request_number"] == "NB-920", "المسافات الطرفية جزء من الرقم؟"
+
+        response = _create(page, new_fault(DAY_TWO), "NB-920", DAY_TWO)
+
+        assert response.status_code == 400, response.text
+        assert response.text == '{"detail":"' + TAKEN + '"}'
+
+    def test_editing_keeps_its_own_number_despite_stray_spaces(self, client):
+        """طلب يبعث رقمه بمسافة طرفية يبقى على رقمه، لا يُرفَض خطأً."""
+        page, new_fault = client
+        created = _create(page, new_fault(DAY_ONE), "NB-921", DAY_ONE).json()
+
+        response = page.patch(
+            f"/api/spare-parts-requests/{created['id']}",
+            json={"request_number": " NB-921 "},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["request_number"] == "NB-921"
+
+    def test_a_blank_number_is_refused(self, client):
+        """رقم من مسافات ليس رقماً، ولا رقمان منه يتفرّدان بلا معنى."""
+        page, new_fault = client
+
+        response = _create(page, new_fault(DAY_ONE), "   ", DAY_ONE)
+
+        assert response.status_code == 400, response.text
+        assert "رقم الطلب مطلوب" in response.text
+
+    def test_letter_case_makes_a_different_number(self, client):
+        """«nb-922» و«NB-922» رقمان مختلفان: المقارنة حرفية كما في القاعدة."""
+        page, new_fault = client
+        assert _create(page, new_fault(DAY_ONE), "nb-922", DAY_ONE).status_code == 201
+
+        response = _create(page, new_fault(DAY_TWO), "NB-922", DAY_TWO)
+
+        assert response.status_code == 201, response.text
+
+    def test_the_comparison_is_exact_on_both_sides(self):
+        """القاعدة تقارن بالنص كما هو، فلا يختلف قولها عن قول الفحص."""
+        column = SparePartRequest.__table__.c.request_number
+        assert column.type.python_type is str
+        assert column.unique is True
+
+
 # --------------------------------------- القيد نفسه في القاعدة وشبكة الأمان
 
 
