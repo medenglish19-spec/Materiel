@@ -18,13 +18,15 @@ def _run_alembic_upgrade(config: Config) -> None:
         command.upgrade(config, "head")
         logger.info("Database startup: Alembic upgrade completed.")
     except BaseException as exc:
-        inspector = inspect(engine)
-        tables = sorted(inspector.get_table_names())
-        logger.exception(
-            "Alembic upgrade failed. database=%s tables=%s",
-            settings.DATABASE_URL,
-            tables,
-        )
+        # Log first. Listing the tables needs a working database, and when the
+        # database is what failed that call raises too -- replacing the real
+        # error with one from the error handler and still printing nothing.
+        logger.exception("Alembic upgrade failed. database=%s error=%r", settings.DATABASE_URL, exc)
+        try:
+            tables = sorted(inspect(engine).get_table_names())
+            logger.error("Alembic upgrade failed with %d table(s) present: %s", len(tables), tables)
+        except Exception:
+            logger.debug("could not list tables after the failed migration", exc_info=True)
         if isinstance(exc, SystemExit):
             raise RuntimeError("Alembic startup migration exited unexpectedly") from exc
         raise

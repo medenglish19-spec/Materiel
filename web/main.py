@@ -51,14 +51,19 @@ def create_app() -> FastAPI:
     async def lifespan(_app: FastAPI):
         configure_logging()
         logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
-        init_db()
-        create_default_admin()
-        # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
-        for warning in security_warnings(_database_file()):
-            logger.warning("[security] %s", warning)
-        yield
-        logger.info("Shutting down %s", settings.APP_NAME)
-        shutdown_logging()
+        # shutdown_logging() drains the log queue, so it has to run even when
+        # startup fails -- otherwise the traceback of a failed migration is
+        # still queued when the process dies and never reaches stderr or app.log.
+        try:
+            init_db()
+            create_default_admin()
+            # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
+            for warning in security_warnings(_database_file()):
+                logger.warning("[security] %s", warning)
+            yield
+            logger.info("Shutting down %s", settings.APP_NAME)
+        finally:
+            shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

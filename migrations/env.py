@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -6,7 +7,14 @@ from app.database.base import Base
 from app.database import model_registry  # noqa: F401
 
 config = context.config
-if config.config_file_name is not None:
+# fileConfig() rewrites the root logger and sets disabled=True on every logger
+# that already exists. The app configures logging itself before it migrates
+# (app/core/logging.py: a QueueHandler on root, drained to stderr and app.log),
+# so running fileConfig() here silences every later startup message -- including
+# logger.exception() for a failed migration, which is how a broken migration used
+# to end as a silent "exited early" with no traceback anywhere.
+# Only configure logging here when nobody else has, i.e. under the `alembic` CLI.
+if config.config_file_name is not None and not logging.getLogger().handlers:
     fileConfig(config.config_file_name)
 target_metadata = Base.metadata
 
