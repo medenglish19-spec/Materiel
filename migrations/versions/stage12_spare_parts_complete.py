@@ -21,7 +21,16 @@ def upgrade() -> None:
                 sa.Column(
                     "source_document_id",
                     sa.Integer(),
-                    sa.ForeignKey("spare_part_movement_documents.id", ondelete="RESTRICT"),
+                    # batch_alter_table() re-adds a column's ForeignKey as a
+                    # standalone constraint and rejects unnamed ones with
+                    # "ValueError: Constraint must have a name", which aborted
+                    # startup on every existing database. This name is
+                    # load-bearing -- do not drop it.
+                    sa.ForeignKey(
+                        "spare_part_movement_documents.id",
+                        name="fk_spare_part_movement_documents_source_document_id",
+                        ondelete="RESTRICT",
+                    ),
                     nullable=True,
                 )
             )
@@ -46,7 +55,12 @@ def upgrade() -> None:
                 sa.Column(
                     "source_item_id",
                     sa.Integer(),
-                    sa.ForeignKey("spare_part_movement_items.id", ondelete="RESTRICT"),
+                    # named for the same reason as the one above
+                    sa.ForeignKey(
+                        "spare_part_movement_items.id",
+                        name="fk_spare_part_movement_items_source_item_id",
+                        ondelete="RESTRICT",
+                    ),
                     nullable=True,
                 )
             )
