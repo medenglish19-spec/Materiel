@@ -800,6 +800,29 @@ def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):
     assert "سيحذف البند من سجل الاستلام" in html
 
 
+def test_the_router_declares_no_duplicate_endpoint(client):
+    """كان `stats/pending-count` معرَّفاً مرتين بنفس اسم الدالة.
+
+    التكرار لا يكسر الاستجابات، لكنه يخلط مواصفة OpenAPI: عملية واحدةٌ تحمل
+    الاسم نفسه لمسارين، فيصدر تحذير Duplicate Operation ID، وتصبح أسماء
+    العمليات في مولّدات العملاء غير فريدة.
+    """
+    from app.modules.spare_parts_requests.router import router
+
+    seen: dict = {}
+    for route in router.routes:
+        for method in sorted(getattr(route, "methods", []) or []):
+            key = (method, route.path)
+            assert key not in seen, (
+                f"{method} {route.path} معرّف مرتين: '{seen[key]}' و '{route.name}'"
+            )
+            seen[key] = route.name
+
+    assert ("DELETE", "/api/spare-parts-requests/items/{item_id}/receipt") in seen, (
+        "مسار التراجع عن الاستلام مفقود من الموجّه"
+    )
+
+
 def _render_item_row(node: str, item_js: str, context_js: str) -> str:
     """Run itemRow() in Node and return the HTML it produced."""
     template = TEMPLATE.read_text(encoding="utf-8")

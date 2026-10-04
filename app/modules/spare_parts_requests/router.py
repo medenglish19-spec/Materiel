@@ -139,8 +139,3 @@ def delete_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(g
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-
-
-@router.get("/stats/pending-count")
-def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return {"count": services.pending_count(db)}
