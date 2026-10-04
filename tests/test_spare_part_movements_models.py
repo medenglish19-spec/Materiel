@@ -10,6 +10,8 @@ def test_spare_part_movement_models():
     assert "document_type" in SparePartMovementDocument.__table__.columns
     assert "request_item_id" in SparePartMovementItem.__table__.columns
     assert "quantity" in SparePartMovementItem.__table__.columns
+    assert "source_document_id" in SparePartMovementDocument.__table__.columns
+    assert "source_item_id" in SparePartMovementItem.__table__.columns
 
 
 def test_movement_constraints():
