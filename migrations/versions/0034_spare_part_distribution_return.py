@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "0034_spare_part_distribution_return"
-down_revision: Union[str, Sequence[str], None] = ("0033_complete_technical_taxonomy", "add_received_date_spare_part_items")
+down_revision: Union[str, Sequence[str], None] = "add_received_date_spare_part_items"
 branch_labels = None
 depends_on = None
 
