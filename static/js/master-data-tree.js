@@ -44,6 +44,32 @@
   const sectionMap = { basic: 0, tires: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const masterData = () => (window.MATERIEL_MASTER_DATA && window.MATERIEL_MASTER_DATA.DATA) || {};
+  let actionPopup = null;
+  const closeActionPopup = () => { if (actionPopup) { actionPopup.remove(); actionPopup = null; } };
+  const showMenu = (node, x, y) => {
+    closeActionPopup();
+    if (!node) return;
+    const id = node.dataset.modelRow || node.dataset.id || '';
+    const isModel = !!node.dataset.modelRow;
+    const menu = document.createElement('div');
+    menu.className = 'action-menu-items master-tree-action-popup';
+    menu.style.position = 'fixed'; menu.style.zIndex = '10000'; menu.style.insetInlineEnd = 'auto';
+    menu.innerHTML = isModel
+      ? '<button type="button" data-menu-edit>✏ تعديل</button><button type="button" data-menu-copy>📋 نسخ</button><button type="button" data-menu-delete class="danger">🗑 حذف</button>'
+      : '<button type="button" data-menu-edit>✏ تعديل</button>';
+    document.body.appendChild(menu);
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = Math.min(Math.max(8, x), Math.max(8, window.innerWidth - rect.width - 8)) + 'px';
+    menu.style.top = Math.min(Math.max(8, y), Math.max(8, window.innerHeight - rect.height - 8)) + 'px';
+    menu.querySelector('[data-menu-edit]').onclick = () => { closeActionPopup(); if (isModel) { if (workspaceReady('editModel')) window.editModel(id); } else { editReference(node); } };
+    if (isModel) {
+      menu.querySelector('[data-menu-copy]').onclick = () => { closeActionPopup(); copyModel(id); };
+      menu.querySelector('[data-menu-delete]').onclick = () => { closeActionPopup(); postDelete('/equipment-types/models/' + encodeURIComponent(id) + '/delete', 'حذف الطراز؟'); };
+    }
+    actionPopup = menu;
+    setTimeout(() => document.addEventListener('click', closeActionPopup, {once:true}), 0);
+  };
+
   /* The inline workspace script owns refPanel/editModel/viewModel/... and publishes them on window.
      If it failed to run, say so instead of leaving the buttons silently dead. */
   const workspaceReady = (...names) => {
