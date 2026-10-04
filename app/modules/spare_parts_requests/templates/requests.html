@@ -222,7 +222,6 @@ async function saveRequest(id,btn){
   setMsg('جارٍ الحفظ...','');
   const number=host.querySelector('.f-number').value.trim();
   const date=host.querySelector('.f-date').value;
-  const headerDate=host.querySelector('.f-rdate').value;
   const notes=host.querySelector('.f-notes').value.trim()||null;
   if(!number){setMsg('رقم وثيقة الطلب مطلوب','err');return;}
   if(!date){setMsg('تاريخ الطلب مطلوب','err');return;}
@@ -234,8 +233,8 @@ async function saveRequest(id,btn){
   /* الطلب يُستلم مرة واحدة: تاريخ واحد للطلب كله، يُكتب في رأسه أو في أي
      بند، ولا يصحّ أن تختلف التواريخ بين البنود. */
   const dates=[...new Set(live.map(tr=>{const i=tr.querySelector('.i-rdate');return i?i.value:'';}).filter(Boolean))];
-  if(dates.length>1||(dates.length===1&&headerDate&&dates[0]!==headerDate)){setMsg(RECEIPT_CONFLICT,'err');return;}
-  const receipt=dates[0]||headerDate;
+  if(dates.length>1){setMsg(RECEIPT_CONFLICT,'err');return;}
+  const receipt=dates[0];
   if(receipt&&date&&receipt<date){setMsg(RECEIPT_BEFORE_REQUEST,'err');return;}
 
   const payloads=[];
