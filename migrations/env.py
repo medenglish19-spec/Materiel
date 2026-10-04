@@ -30,23 +30,36 @@ if config.config_file_name is not None and not logging.getLogger().handlers:
 target_metadata = Base.metadata
 
 
+def _database_url() -> str:
+    """The URL to migrate, in one place so no two paths can disagree.
+
+    A caller that wants a different database passes it in the usual Alembic
+    way, ``Config.set_main_option("sqlalchemy.url", ...)``. Honouring that is
+    not a convenience: overriding it silently means a test or a tool that
+    asked for a scratch file writes to the real database instead, with nothing
+    in the output to say so.
+
+    alembic.ini deliberately carries no sqlalchemy.url. With none there, and
+    none set by the caller, this falls back to the database the app is
+    configured for -- which is what both the app and the `alembic` CLI want.
+    """
+    return config.get_main_option("sqlalchemy.url") or settings.DATABASE_URL
+
+
 def run_migrations_offline() -> None:
-    context.configure(url=settings.DATABASE_URL, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"}, compare_type=True, compare_server_default=True, render_as_batch=settings.DATABASE_URL.startswith("sqlite"))
+    url = _database_url()
+    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"}, compare_type=True, compare_server_default=True, render_as_batch=url.startswith("sqlite"))
     with context.begin_transaction(): context.run_migrations()
 
 
 def run_migrations_online() -> None:
+    url = _database_url()
     configuration = config.get_section(config.config_ini_section, {})
-    # Alembic always migrates the database the *app* is configured for, so this
-    # deliberately wins over both alembic.ini and anything a caller put in
-    # Config.set_main_option("sqlalchemy.url", ...). To migrate a different
-    # database, change settings.DATABASE_URL (the DATABASE_URL environment
-    # variable) -- setting it on the Config silently does nothing.
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
-    connect_args = {"timeout": 5} if settings.DATABASE_URL.startswith("sqlite") else {}
+    configuration["sqlalchemy.url"] = url
+    connect_args = {"timeout": 5} if url.startswith("sqlite") else {}
     connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool, connect_args=connect_args)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True, compare_server_default=True, render_as_batch=settings.DATABASE_URL.startswith("sqlite"))
+        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True, compare_server_default=True, render_as_batch=url.startswith("sqlite"))
         with context.begin_transaction(): context.run_migrations()
 
 
