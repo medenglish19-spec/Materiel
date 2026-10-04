@@ -432,7 +432,15 @@
     const del = event.target.closest('[data-delete]');
     if (del) { stop(event); postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`, 'حذف الطراز؟'); return; }
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) { stop(event); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
+    if (toggle) {
+      const modelRow = toggle.closest('[data-model-row]');
+      if (modelRow) {
+        stop(event); selectNode(modelRow);
+        if (workspaceReady('viewModel')) { window.viewModel(modelRow.dataset.modelRow); selectSection(0, { all: true }); }
+        return;
+      }
+      stop(event); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return;
+    }
     const row = event.target.closest('[data-model-row]');
     if (row) {
       selectNode(row); row.closest('.tree-group')?.classList.add('open'); syncArrows();
