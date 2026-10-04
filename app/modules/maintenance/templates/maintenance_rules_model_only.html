@@ -230,7 +230,7 @@
       <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
       <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
       <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
-      <td style="white-space:nowrap"><details class="action-menu"><summary aria-label="إجراءات العملية">⋮</summary><div class="action-menu-items"><button class="m-btn" type="button" data-edit="${op.id}">✏ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button><button class="m-btn" type="button" data-delete="${op.id}">🗑 حذف</button></div></details></td>
+      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button><button class="m-btn" type="button" data-delete="${op.id}">🗑 حذف</button></td>
     </tr>`;
     }).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
     document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
