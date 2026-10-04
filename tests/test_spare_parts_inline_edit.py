@@ -9,6 +9,7 @@
 ربط بالمخزون، و`spare_part_id` يبقى اختيارياً.
 """
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -372,3 +373,54 @@ def test_the_whole_page_still_renders_for_a_logged_in_user(client):
         response = page.get(path)
         assert response.status_code == 200, f"{path} رجعت {response.status_code}"
         assert "Traceback" not in response.text
+
+
+def test_the_new_request_form_is_a_real_form_element(client):
+    """The create-request container must be a <form>, not a <div>.
+
+    A `submit` event is only dispatched by real <form> elements. When the
+    container was a <div>, pressing "save request" did absolutely nothing:
+    the listener never ran, no message appeared, nothing was logged, and the
+    request was never created.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    opened = re.search(r"<(form|div)\b[^>]*>", html[html.index('id="requestForm"') - 200 :])
+    assert opened, "no opening tag for #requestForm"
+    assert 'id="requestForm"' in opened.group(0)
+    assert opened.group(1) == "form", (
+        "#requestForm must be a <form> so that its submit event can fire, "
+        f"but it is a <{opened.group(1)}>"
+    )
+    # novalidate keeps our Arabic messages instead of the browser's tooltips
+    assert "novalidate" in opened.group(0)
+    assert html.count("<form") == html.count("</form>")
+
+
+def test_the_save_request_button_is_inside_that_form(client):
+    """The submit button must live between <form ...> and its </form>."""
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    open_at = re.search(r"<form\b[^>]*\bid=\"requestForm\"", html)
+    close_at = html.index("</form>", open_at.end())
+    button_at = html.index('id="saveRequest"')
+
+    assert open_at.end() <= button_at < close_at, (
+        "the save-request button is outside the form, so submitting cannot work"
+    )
+    tag = html[html.rindex("<button", open_at.end(), button_at): html.index(">", button_at)]
+    assert 'type="submit"' in tag
+
+
+def test_the_submit_listener_is_still_wired_to_the_form(client):
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    assert (
+        "getElementById('requestForm').addEventListener('submit'" in html
+    )
+    # the handler must prevent the native navigation before posting to the API
+    handler_at = html.index("getElementById('requestForm').addEventListener('submit'")
+    assert "preventDefault" in html[handler_at : handler_at + 200]

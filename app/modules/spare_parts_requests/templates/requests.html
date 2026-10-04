@@ -29,7 +29,7 @@
       <select id="filterSource"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
       <span id="pendingCount" class="badge">قيد الانتظار: 0</span>
     </div>
-    <div id="requestForm" class="form" style="display:none">
+    <form id="requestForm" class="form" style="display:none" novalidate>
       <input name="request_number" id="requestNumber" placeholder="رقم وثيقة الطلب *" required>
       <select name="source_type" id="sourceType"><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="repair">تصليح</option></select>
       <select name="source_id" id="sourceId" required><option value="">اختر المصدر *</option></select>
@@ -42,7 +42,7 @@
         <button type="button" class="secondary" id="addRequestItem">+ إضافة بند</button>
       </div>
       <div class="wide"><button type="submit" id="saveRequest">حفظ الطلب</button><span id="formMsg"></span></div>
-    </div>
+    </form>
     <div class="table-scroll"><table><thead><tr><th>رقم وثيقة الطلب</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة</th></tr></thead><tbody id="rows"></tbody></table></div>
   </div>
 </div>
@@ -285,7 +285,6 @@ async function saveRequest(id,btn){
   }
 }
 document.getElementById('rows').addEventListener('click',async e=>{
-  console.log('click on rows:', e.target.className, e.target.closest('.save-request')?.className);
   const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
   const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
