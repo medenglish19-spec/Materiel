@@ -30,13 +30,8 @@
                         <td>{{ row.note }}</td>
                         <td><span class="status status-{{ row.status_class }}">{{ row.status }}</span></td>
                         <td class="actions">
-                            <details class="action-menu">
-                                <summary aria-label="إجراءات القراءة">⋮</summary>
-                                <div class="action-menu-items">
-                                    <button type="button" class="action-btn edit" data-id="{{ row.id }}" data-date="{{ row.date }}" data-value="{{ row.reading|replace(',', '') }}" data-note="{{ row.note if row.note != '—' else '' }}">✏ تعديل</button>
-                                    <button type="button" class="action-btn delete" data-id="{{ row.id }}">🗑 حذف</button>
-                                </div>
-                            </details>
+                            <button type="button" class="action-btn edit" data-id="{{ row.id }}" data-date="{{ row.date }}" data-value="{{ row.reading|replace(',', '') }}" data-note="{{ row.note if row.note != '—' else '' }}">تعديل</button>
+                            <button type="button" class="action-btn delete" data-id="{{ row.id }}">حذف</button>
                         </td>
                     </tr>
                 {% else %}<tr><td colspan="7" class="empty">لا توجد قراءات مسجلة لهذا العتاد.</td></tr>{% endfor %}
