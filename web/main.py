@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import subprocess
 from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -46,6 +47,37 @@ def _database_file() -> str | None:
     return tail
 
 
+def _git_commit() -> str:
+    """The commit this process is running, or a marker when git cannot say."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return done.stdout.strip() or "unknown"
+
+
+def _route_count(app: FastAPI) -> int:
+    """Every endpoint, including the ones inside included routers.
+
+    This FastAPI keeps include_router() results as _IncludedRouter wrappers
+    that carry no .path, so counting app.routes on its own reports only the
+    handful registered directly and hides everything else -- which is how a
+    server that never picked up a new route can look complete.
+    """
+    total = 0
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        total += 1
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            pending.extend(original.routes)
+    return total
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -57,6 +89,14 @@ def create_app() -> FastAPI:
         try:
             init_db()
             create_default_admin()
+            # What this process actually is. A server left running across
+            # commits serves old routes while the working tree has moved on,
+            # and the resulting 404 looks like a missing route in the code
+            # rather than a stale process. One line settles it.
+            logger.info(
+                "Startup facts: commit=%s routes=%d database=%s",
+                _git_commit(), _route_count(_app), settings.DATABASE_URL,
+            )
             # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
             for warning in security_warnings(_database_file()):
                 logger.warning("[security] %s", warning)
