@@ -34,6 +34,9 @@ class SparePartRequestItemCreate(BaseModel):
 class SparePartRequestCreate(BaseModel):
     request_number: str = Field(min_length=1, max_length=80)
     request_date: date
+    # تاريخ استلام الطلب: اختياري عند الإنشاء (قد لا يكون قد استُلم بعد)،
+    # ويشترك فيه كل بنود الطلب.
+    received_date: date | None = None
     source_type: str
     source_id: int
     notes: str | None = None
@@ -50,6 +53,8 @@ class SparePartRequestCreate(BaseModel):
 class SparePartRequestUpdate(BaseModel):
     request_number: str | None = Field(default=None, min_length=1, max_length=80)
     request_date: date | None = None
+    # تغيير تاريخ الاستلام مسموح وينتقل إلى كل بنود الطلب.
+    received_date: date | None = None
     notes: str | None = None
 
 
@@ -100,6 +105,7 @@ class SparePartRequestOut(BaseModel):
     id: int
     request_number: str
     request_date: date
+    received_date: date | None = None
     source_type: str
     fault_id: int | None
     repair_id: int | None

@@ -16,6 +16,8 @@ class SparePartRequest(Base):
     id = Column(Integer, primary_key=True, index=True)
     request_number = Column(String(80), nullable=False, unique=True, index=True)
     request_date = Column(Date, nullable=False, default=date.today, index=True)
+    # الطلب يُستلم مرة واحدة: تاريخ واحد على مستوى الطلب تتشاركه كل بنوده.
+    received_date = Column(Date, nullable=True, index=True)
     source_type = Column(String(20), nullable=False, index=True)
     fault_id = Column(Integer, ForeignKey("faults.id", ondelete="SET NULL"), nullable=True, index=True)
     repair_id = Column(Integer, ForeignKey("repairs.id", ondelete="SET NULL"), nullable=True, index=True)

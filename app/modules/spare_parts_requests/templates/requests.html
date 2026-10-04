@@ -52,6 +52,14 @@ const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
 const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
 const SOURCE={fault:'الأعطال',repair:'التصليحات'};
+const RECEIPT_BEFORE_REQUEST='تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب.';
+const RECEIPT_CONFLICT='طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد.';
+/* التحقق قد يعود مصفوفة حقول، فنصهرها نصاً يُقرأ بدل «[object Object]». */
+function errText(d,fallback){
+  if(Array.isArray(d)) return d.map(function(x){return x&&x.msg?x.msg:String(x);}).join(' — ');
+  if(d&&typeof d==='object') return d.msg||fallback;
+  return d||fallback;
+}
 const sourceType=document.getElementById('sourceType'),sourceId=document.getElementById('sourceId'),requestDate=document.getElementById('requestDate'),equipmentView=document.getElementById('equipmentView');
 const repairId=new URLSearchParams(location.search).get('repair_id');
 
@@ -90,7 +98,7 @@ document.getElementById('requestForm').addEventListener('submit',async e=>{
   const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
   const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
   const data=await r.json().catch(()=>({}));
-  if(!r.ok){msg.textContent=data.detail||'تعذر حفظ الطلب';msg.className='msg err';return;}
+  if(!r.ok){msg.textContent=errText(data.detail,'تعذر حفظ الطلب');msg.className='msg err';return;}
   e.target.reset();document.getElementById('newItems').innerHTML='';msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
 });
 document.getElementById('newItems').addEventListener('click',e=>{if(e.target.classList.contains('remove-request-item'))e.target.parentElement.remove();});
@@ -116,6 +124,7 @@ function detailHtml(x){
   return '<div class="req-fields">'
     +edi('رقم وثيقة الطلب','<input class="f-number" value="'+esc(x.request_number)+'" placeholder="رقم وثيقة الطلب">')
     +edi('تاريخ الطلب','<input class="f-date" type="date" value="'+esc(x.request_date)+'">')
+    +edi('تاريخ الاستلام','<input class="f-rdate" type="date" value="'+esc(x.received_date||'')+'">')
     +ro('المصدر',SOURCE[x.source_type]||x.source_type)
     +ro('العتاد',x.equipment_code)
     +ro('رقم التسجيل',x.equipment_registration)
@@ -159,9 +168,9 @@ function itemRow(i,x){
     +'</tr>';
 }
 
-async function deleteRequest(id){if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert((await r.json()).detail||'تعذر حذف الطلب');}
+async function deleteRequest(id){if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));}
 
-async function deleteItem(id){if(!confirm('حذف بند قطع الغيار؟'))return;const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert((await r.json()).detail||'تعذر حذف البند');}
+async function deleteItem(id){if(!confirm('حذف بند قطع الغيار؟'))return;const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف البند'));}
 
 /* بند جديد داخل منطقة البنود: يُحفظ مع بقية التعديلات بزر الحفظ. */
 function addLineRow(host){
@@ -213,6 +222,7 @@ async function saveRequest(id,btn){
   setMsg('جارٍ الحفظ...','');
   const number=host.querySelector('.f-number').value.trim();
   const date=host.querySelector('.f-date').value;
+  const headerDate=host.querySelector('.f-rdate').value;
   const notes=host.querySelector('.f-notes').value.trim()||null;
   if(!number){setMsg('رقم وثيقة الطلب مطلوب','err');return;}
   if(!date){setMsg('تاريخ الطلب مطلوب','err');return;}
@@ -220,6 +230,13 @@ async function saveRequest(id,btn){
   const rows=[...host.querySelectorAll('tr.item-line')];
   const live=[],dropped=[];
   rows.forEach(tr=>{ (tr.classList.contains('gone')?dropped:live).push(tr); });
+
+  /* الطلب يُستلم مرة واحدة: تاريخ واحد للطلب كله، يُكتب في رأسه أو في أي
+     بند، ولا يصحّ أن تختلف التواريخ بين البنود. */
+  const dates=[...new Set(live.map(tr=>{const i=tr.querySelector('.i-rdate');return i?i.value:'';}).filter(Boolean))];
+  if(dates.length>1||(dates.length===1&&headerDate&&dates[0]!==headerDate)){setMsg(RECEIPT_CONFLICT,'err');return;}
+  const receipt=dates[0]||headerDate;
+  if(receipt&&date&&receipt<date){setMsg(RECEIPT_BEFORE_REQUEST,'err');return;}
 
   const payloads=[];
   for(const tr of live){
@@ -229,8 +246,8 @@ async function saveRequest(id,btn){
   }
 
   try{
-    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,notes:notes})});
-    if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(d.detail||'تعذر حفظ بيانات الطلب','err');return;}
+    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,received_date:receipt||null,notes:notes})});
+    if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ بيانات الطلب'),'err');return;}
 
     for(const p of payloads){
       const itemId=p.tr.dataset.itemId;
@@ -245,14 +262,14 @@ async function saveRequest(id,btn){
       }else{
         r=await fetch('/api/spare-parts-requests/'+id+'/items',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
       }
-      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(d.detail||'تعذر حفظ أحد البنود','err');return;}
+      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ أحد البنود'),'err');return;}
     }
 
     for(const tr of dropped){
       const itemId=tr.dataset.itemId;
       if(!itemId)continue;
       const r=await fetch('/api/spare-parts-requests/items/'+itemId,{method:'DELETE',credentials:'same-origin'});
-      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(d.detail||'تعذر حذف أحد البنود','err');return;}
+      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(errText(d,'تعذر حذف أحد البنود'),'err');return;}
     }
   }catch(err){
     setMsg('تعذر الاتصال بالخادم. أعد المحاولة.','err');
@@ -276,7 +293,7 @@ document.getElementById('rows').addEventListener('click',async e=>{
 });
 document.getElementById('rows').addEventListener('change',async e=>{
   if(!e.target.classList.contains('status'))return;
-  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok)alert((await r.json()).detail||'تعذر تغيير الحالة');else load();
+  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok)alert(errText((await r.json()).detail,'تعذر تغيير الحالة'));else load();
 });
 document.getElementById('filterStatus').addEventListener('change',load);document.getElementById('filterSource').addEventListener('change',load);
 openRepairRequest();function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}load();

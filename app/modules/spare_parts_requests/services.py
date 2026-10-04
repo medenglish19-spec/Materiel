@@ -4,6 +4,35 @@ from app.modules.faults_repairs.models import Fault, Repair, SparePart
 from .models import SparePartRequest, SparePartRequestItem
 from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
 
+RECEIPT_BEFORE_REQUEST = "تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب."
+RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد."
+
+
+def _check_receipt_date(request_date, received_date):
+    """تاريخ الاستلام اختياري، لكن إن أُدخل فلا يسبق تاريخ الطلب.
+
+    تاريخ الطلب هو المرجع لإنشاء الطلب، ولا يصحّ أن يُستلم قبله.
+    """
+    if received_date is not None and request_date is not None and received_date < request_date:
+        raise ValueError(RECEIPT_BEFORE_REQUEST)
+
+
+def _receipt_conflicts(request, received_date):
+    """هل يخالف التاريخ المُرسل تاريخ استلام الطلب القائم؟"""
+    if received_date is None or request.received_date is None:
+        return False
+    return received_date != request.received_date
+
+
+def _store_receipt_date(request, received_date):
+    """تخزين تاريخ استلام الطلب على الطلب ونقله إلى كل بنوده.
+
+    الطلب يُستلم مرة واحدة، فلا معنى لتاريخ مختلف بين بنوده.
+    """
+    request.received_date = received_date
+    for item in request.items:
+        item.received_date = received_date
+
 
 def _source(db: Session, source_type: str, source_id: int):
     if source_type == "fault":
@@ -48,7 +77,7 @@ def serialize_item(item):
         "part_name": item.part_name or (item.spare_part.name if item.spare_part else None),
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
-        "received_date": item.received_date,
+        "received_date": item.request.received_date or item.received_date,
         "recipient": item.recipient,
         "supplier_institution": item.supplier_institution,
         "notes": item.notes,
@@ -65,6 +94,7 @@ def serialize_request(obj):
         "id": obj.id,
         "request_number": obj.request_number,
         "request_date": obj.request_date,
+        "received_date": obj.received_date,
         "source_type": obj.source_type,
         "fault_id": obj.fault_id,
         "repair_id": obj.repair_id,
@@ -91,6 +121,15 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     if data.request_date != source_date:
         raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
 
+    # تاريخ استلام واحد للطلب: إمّا على الطلب، أو على بنوده فكلها تتطابق.
+    dates = {item.received_date for item in data.items if item.received_date}
+    if data.received_date:
+        dates.add(data.received_date)
+    if len(dates) > 1:
+        raise ValueError(RECEIPT_CONFLICT)
+    receipt_date = next(iter(dates), None)
+    _check_receipt_date(data.request_date, receipt_date)
+
     resolved = [
         _resolve_part(db, item.spare_part_id, item.part_name)
         for item in data.items
@@ -102,6 +141,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     obj = SparePartRequest(
         request_number=data.request_number,
         request_date=data.request_date,
+        received_date=receipt_date,
         source_type=data.source_type,
         fault_id=data.source_id if data.source_type == "fault" else None,
         repair_id=data.source_id if data.source_type == "repair" else None,
@@ -114,6 +154,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     db.flush()
     for item, (part_id, part_name) in zip(data.items, resolved):
         values = item.model_dump(exclude={"spare_part_id", "part_name"})
+        values["received_date"] = receipt_date
         obj.items.append(
             SparePartRequestItem(
                 **values,
@@ -140,6 +181,15 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
         if values["request_date"] != source_date:
             raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
+        _check_receipt_date(
+            values["request_date"], values.get("received_date", obj.received_date)
+        )
+    if "received_date" in values:
+        _check_receipt_date(
+            values.get("request_date", obj.request_date), values["received_date"]
+        )
+        if values["received_date"] != obj.received_date:
+            _store_receipt_date(obj, values["received_date"])
     for key, value in values.items():
         setattr(obj, key, value)
     db.commit()
@@ -161,6 +211,11 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         raise ValueError("طلب الغيار غير موجود")
     if request.status not in {"pending", "approved"}:
         raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار أو معتمد")
+    _check_receipt_date(request.request_date, data.received_date)
+    if _receipt_conflicts(request, data.received_date):
+        raise ValueError(RECEIPT_CONFLICT)
+    if data.received_date and request.received_date is None:
+        _store_receipt_date(request, data.received_date)
     part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name)
     identity = _item_identity(part_id, part_name)
     for existing in request.items:
@@ -169,6 +224,8 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     if data.received_quantity > 0 and (not data.received_date or not data.recipient or not data.supplier_institution):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     values = data.model_dump(exclude={"part_name", "spare_part_id"})
+    # بند الطلب الجديد يشارك تاريخ استلام الطلب، لا تاريخاً خاصاً به.
+    values["received_date"] = request.received_date
     item = SparePartRequestItem(
         request_id=request_id,
         spare_part_id=part_id,
@@ -202,8 +259,14 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
                 raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
         values["spare_part_id"] = part_id
         values["part_name"] = part_name
+    if "received_date" in values:
+        _check_receipt_date(item.request.request_date, values["received_date"])
+        if _receipt_conflicts(item.request, values["received_date"]):
+            raise ValueError(RECEIPT_CONFLICT)
     for key, value in values.items():
         setattr(item, key, value)
+    if "received_date" in values and values["received_date"] != item.request.received_date:
+        _store_receipt_date(item.request, values["received_date"])
     if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     db.commit()
@@ -268,7 +331,7 @@ def received_register(db: Session):
 "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
             "received_quantity": item.received_quantity,
-            "received_date": item.received_date,
+            "received_date": req.received_date or item.received_date,
             "equipment": {
                 "asset_code": req.equipment.asset_code if req.equipment else "—",
             },
