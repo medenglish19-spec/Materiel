@@ -17,6 +17,8 @@ from app.modules.equipment_types.router import router as equipment_types_router
 from app.modules.faults_repairs.router import router as faults_repairs_router
 from app.modules.spare_parts_requests.router import router as spare_parts_requests_router
 from app.modules.spare_parts_requests.routes import received_page, requests_page
+from app.modules.spare_parts_movements.router import router as spare_parts_movements_router
+from app.modules.spare_parts_movements.routes import router as spare_parts_movements_pages_router
 from app.modules.faults_repairs.routes import router as faults_repairs_pages_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
@@ -102,6 +104,8 @@ def create_app() -> FastAPI:
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
     app.include_router(spare_parts_requests_router, tags=["spare_parts_requests"])
+    app.include_router(spare_parts_movements_router, tags=["spare_parts_movements"])
+    app.include_router(spare_parts_movements_pages_router, tags=["spare_parts_movements_pages"])
     app.add_api_route("/spare-parts-requests", requests_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_requests_page", tags=["spare_parts_requests_pages"])
     app.add_api_route("/spare-parts-received", received_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_received_page", tags=["spare_parts_requests_pages"])
     app.include_router(tires_router, tags=["tires"])
