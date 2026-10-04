@@ -181,15 +181,15 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
         if values["request_date"] != source_date:
             raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
+    # فحص واحد يغطّي تغيير التاريخين معاً أو أحدهما: المقارنة دائماً بين
+    # التاريخ الجديد وتاريخ الطلب المرجعي، فلا يُتحقَّق من نفس القارنة مرتين.
+    if "request_date" in values or "received_date" in values:
         _check_receipt_date(
-            values["request_date"], values.get("received_date", obj.received_date)
+            values.get("request_date", obj.request_date),
+            values.get("received_date", obj.received_date),
         )
-    if "received_date" in values:
-        _check_receipt_date(
-            values.get("request_date", obj.request_date), values["received_date"]
-        )
-        if values["received_date"] != obj.received_date:
-            _store_receipt_date(obj, values["received_date"])
+    if "received_date" in values and values["received_date"] != obj.received_date:
+        _store_receipt_date(obj, values["received_date"])
     for key, value in values.items():
         setattr(obj, key, value)
     db.commit()
