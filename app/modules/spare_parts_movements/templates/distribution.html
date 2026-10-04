@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}توزيع وإرجاع الغيار{% endblock %}
+{% block content %}
+<style>
+.spm{direction:rtl}.spm .head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.spm h1{margin:0;color:#183955;font-size:22px}.spm .muted{font-size:11px;color:#718096;margin-top:5px}.spm .tabs{display:flex;gap:6px;margin-bottom:10px}.spm .tab{border:1px solid #dce4ea;background:#fff;border-radius:7px;padding:8px 13px;cursor:pointer;font:inherit;font-size:11px;font-weight:800;color:#5f6f7c}.spm .tab.active{background:#245d88;color:#fff;border-color:#245d88}.spm .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden;margin-bottom:12px}.spm .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #edf1f4}.spm input,.spm select,.spm textarea{height:32px;box-sizing:border-box;border:1px solid #dce4ea;border-radius:6px;padding:0 8px;font:inherit;font-size:10px;background:#fff}.spm textarea{height:60px;padding:7px;resize:vertical}.spm .btn{height:32px;border:0;border-radius:6px;padding:0 12px;background:#245d88;color:#fff;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.spm .btn.secondary{background:#eef3f6;color:#35566e}.spm .table-scroll{overflow:auto}.spm table{width:100%;min-width:980px;border-collapse:collapse}.spm th,.spm td{padding:9px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}.spm th{background:#f8fafc;color:#718096}.spm .empty{text-align:center;padding:28px;color:#8794a2}.spm .form{display:none;padding:12px;background:#fbfcfd;border-bottom:1px solid #edf1f4}.spm .form.open{display:block}.spm .grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:9px}.spm .field{display:flex;flex-direction:column;gap:4px}.spm .field label{font-size:10px;font-weight:800;color:#657582}.spm .field.wide{grid-column:span 2}.spm .actions{display:flex;gap:7px;align-items:end}.spm .notice{font-size:10px;color:#b54708;margin-top:7px}@media(max-width:760px){.spm .grid{grid-template-columns:1fr 1fr}.spm .field.wide{grid-column:span 2}}@media(max-width:520px){.spm .grid{grid-template-columns:1fr}.spm .field.wide{grid-column:span 1}.spm .actions{align-items:stretch;flex-direction:column}.spm .actions .btn{width:100%}}
+</style>
+<div class="spm">
+  <div class="head"><div><h1>توزيع وإرجاع الغيار</h1><div class="muted">كل وثيقة مرتبطة بالغيار المستلم، والكمية المتبقية تُحسب تلقائياً.</div></div><a href="/spare-parts-received" style="font-size:11px;font-weight:800;color:#245d88">سجل الاستلام ←</a></div>
+  <div class="tabs"><button class="tab active" data-type="distribution">التوزيع</button><button class="tab" data-type="return">الإرجاع</button></div>
+  <div class="panel">
+    <div class="bar"><button id="newBtn" class="btn">＋ وثيقة <span id="newLabel">توزيع</span></button><input id="search" placeholder="بحث في رقم الوثيقة أو التعيين أو المستلم"><select id="docFilter"><option value="">كل الوثائق</option><option value="distribution">التوزيع</option><option value="return">الإرجاع</option></select></div>
+    <div id="form" class="form">
+      <div class="grid">
+        <div class="field"><label>رقم الوثيقة</label><input id="docNumber" placeholder="رقم وثيقة التوزيع/الإرجاع"></div>
+        <div class="field"><label>التاريخ</label><input id="docDate" type="date"></div>
+        <div class="field"><label id="issuerLabel">المسلم</label><input id="issuer"></div>
+        <div class="field"><label id="recipientLabel">المستلم</label><input id="recipient"></div>
+        <div class="field" id="beneficiaryField"><label>الهيئة المستفيدة</label><input id="beneficiary"></div>
+        <div class="field wide"><label>الملاحظة</label><textarea id="notes"></textarea></div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">بنود الوثيقة</div>
+      <div class="table-scroll" style="margin-top:6px"><table style="min-width:760px"><thead><tr><th>التعيين</th><th>رقم الطلب</th><th>المستلم</th><th>المستلم أصلاً</th><th>المتاح</th><th>الكمية</th></tr></thead><tbody id="lines"><tr><td colspan="6" class="empty">لا توجد بنود.</td></tr></tbody></table></div>
+      <div class="notice" id="formNotice"></div>
+      <div class="actions" style="margin-top:10px"><button id="saveBtn" class="btn">حفظ الوثيقة</button><button id="cancelBtn" class="btn secondary">إلغاء</button></div>
+    </div>
+    <div class="table-scroll"><table><thead><tr><th>رقم الوثيقة</th><th>التاريخ</th><th>التعيين</th><th>الكمية</th><th>المسلم/المرجع</th><th>المستلم</th><th>الهيئة المستفيدة</th><th>ملاحظة</th></tr></thead><tbody id="rows"><tr><td colspan="8" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
+  </div>
+</div>
+<script>
+let currentType='distribution',docs=[],available=[];
+const today=new Date().toISOString().slice(0,10);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function resetForm(){document.querySelectorAll('#form input,#form textarea').forEach(x=>x.value='');document.getElementById('docDate').value=today;document.getElementById('formNotice').textContent='';renderLines()}
+function renderLines(){
+  const host=document.getElementById('lines');
+  if(!available.length){host.innerHTML='<tr><td colspan="6" class="empty">لا يوجد غيار مستلم متاح لهذه العملية.</td></tr>';return}
+  host.innerHTML=available.map(x=>'<tr data-item="'+x.request_item_id+'"><td>'+esc(x.part_name)+'</td><td>'+esc(x.request_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+x.received_quantity+'</td><td>'+x.available_quantity+'</td><td><input class="qty" type="number" min="0" step="1" max="'+x.available_quantity+'" placeholder="الكمية"></td></tr>').join('')
+}
+async function loadAvailable(){const r=await fetch('/api/spare-parts-movements/available',{credentials:'same-origin'});available=r.ok?await r.json():[];renderLines()}
+function renderDocs(){
+  const q=document.getElementById('search').value.trim().toLowerCase(),filter=document.getElementById('docFilter').value;
+  const rows=docs.filter(d=>(!filter||d.document_type===filter)&&JSON.stringify(d).toLowerCase().includes(q));
+  document.getElementById('rows').innerHTML=rows.length?rows.flatMap(d=>d.items.map(i=>'<tr><td>'+esc(d.document_number)+'</td><td>'+esc(d.document_date)+'</td><td>'+esc(i.part_name)+'</td><td>'+i.quantity+'</td><td>'+esc(d.issuer)+'</td><td>'+esc(d.recipient)+'</td><td>'+esc(d.beneficiary||'—')+'</td><td>'+esc(d.notes||i.notes||'—')+'</td></tr>')).join(''):'<tr><td colspan="8" class="empty">لا توجد وثائق.</td></tr>'
+}
+async function loadDocs(){const r=await fetch('/api/spare-parts-movements?document_type='+currentType,{credentials:'same-origin'});docs=r.ok?await r.json():[];renderDocs()}
+function setType(type){currentType=type;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.type===type));document.getElementById('newLabel').textContent=type==='distribution'?'توزيع':'إرجاع';document.getElementById('issuerLabel').textContent=type==='distribution'?'المسلم':'المرجع';document.getElementById('recipientLabel').textContent=type==='distribution'?'المستلم':'المستلم من الإرجاع';document.getElementById('beneficiaryField').style.display=type==='distribution'?'flex':'none';document.getElementById('docFilter').value=type;resetForm();loadDocs();loadAvailable()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setType(b.dataset.type)));
+document.getElementById('docFilter').addEventListener('change',e=>{const value=e.target.value;if(value){currentType=value;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.type===value));document.getElementById('newLabel').textContent=value==='distribution'?'توزيع':'إرجاع';loadDocs()}else{loadDocs()}});
+document.getElementById('search').addEventListener('input',renderDocs);
+document.getElementById('newBtn').addEventListener('click',async()=>{resetForm();await loadAvailable();document.getElementById('form').classList.add('open');document.getElementById('docNumber').focus()});
+document.getElementById('cancelBtn').addEventListener('click',()=>document.getElementById('form').classList.remove('open'));
+document.getElementById('saveBtn').addEventListener('click',async()=>{
+  const lines=[...document.querySelectorAll('#lines tr[data-item]')].map(tr=>({request_item_id:Number(tr.dataset.item),quantity:Number(tr.querySelector('.qty').value||0)})).filter(x=>x.quantity>0);
+  const body={document_number:document.getElementById('docNumber').value.trim(),document_type:currentType,document_date:document.getElementById('docDate').value,issuer:document.getElementById('issuer').value.trim(),recipient:document.getElementById('recipient').value.trim(),beneficiary:document.getElementById('beneficiary').value.trim()||null,notes:document.getElementById('notes').value.trim()||null,items:lines};
+  const n=document.getElementById('formNotice');n.textContent='';
+  if(!body.document_number||!body.document_date||!body.issuer||!body.recipient||!body.items.length){n.textContent='أكمل بيانات الوثيقة وأدخل كمية واحدة على الأقل.';return}
+  const r=await fetch('/api/spare-parts-movements',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));
+  if(!r.ok){n.textContent=d.detail||'تعذر حفظ الوثيقة.';return}
+  document.getElementById('form').classList.remove('open');await loadDocs();await loadAvailable()
+});
+setType('distribution');
+</script>
+{% endblock %}
