@@ -116,7 +116,20 @@ async function load(){
 }
 
 function row(x){
-  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_code||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></td></tr><tr class="detail id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
+  const status='<select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select>';
+  const actions='<button type="button" class="secondary open-request" data-id="'+x.id+'">\u0641\u062a\u062d</button>'
+    +'<details class="action-menu"><summary aria-label="\u0625\u062c\u0631\u0627\u0621\u0627\u062a \u0627\u0644\u0637\u0644\u0628">\u22ee</summary>'
+    +'<div class="action-menu-items"><button type="button" class="danger delete-request" data-id="'+x.id+'">\u062d\u0630\u0641 \u0627\u0644\u0637\u0644\u0628</button></div></details>';
+  return '<tr class="request-row" data-id="'+x.id+'">'
+    +'<td><b>'+esc(x.request_number)+'</b></td>'
+    +'<td>'+x.request_date+'</td>'
+    +'<td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td>'
+    +'<td>'+esc(x.equipment_code||'\u2014')+'</td>'
+    +'<td>'+esc(x.equipment_registration||'\u2014')+'</td>'
+    +'<td>'+esc(x.report_number||'\u2014')+'</td>'
+    +'<td>'+status+actions+'</td>'
+    +'</tr>'
+    +'<tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
 }
 
 function detailHtml(x){

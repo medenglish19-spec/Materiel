@@ -424,3 +424,72 @@ def test_the_submit_listener_is_still_wired_to_the_form(client):
     # the handler must prevent the native navigation before posting to the API
     handler_at = html.index("getElementById('requestForm').addEventListener('submit'")
     assert "preventDefault" in html[handler_at : handler_at + 200]
+
+
+def _row_source(html):
+    return html[html.index("function row(x)") : html.index("function detailHtml")]
+
+
+def test_the_request_row_still_carries_its_action_buttons(client):
+    """Each request row must keep the buttons that open and delete it.
+
+    Commit 89b8efe ("revert(ui): restore previous button actions") dropped the
+    whole actions cell, so the "فتح" button and the "حذف الطلب" action-menu
+    button stopped existing on the page.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+    row = _row_source(html)
+
+    assert "open-request" in row, "the open button is missing from the request row"
+    assert "delete-request" in row, "the delete action is missing from the request row"
+    assert 'class="status"' in row, "the status dropdown is missing from the request row"
+
+
+def test_the_detail_row_gets_a_usable_id(client):
+    """The detail row must expose a real id, otherwise it can never be opened.
+
+    89b8efe emitted `<tr class="detail id="d123">`, which folds the id into the
+    class attribute, so `getElementById('d'+id)` returned null: clicking a
+    request did nothing and none of the in-place edit controls ever appeared.
+    """
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+    row = _row_source(html)
+
+    assert 'class="detail" id="d' in row, (
+        "the detail <tr> must be <tr class=\"detail\" id=\"d{id}\">, got a merged "
+        "class/id attribute"
+    )
+    assert 'class="detail id=' not in row, "the class and id attributes got merged again"
+
+
+def test_the_request_row_cells_match_the_table_headers(client):
+    """The row must have exactly one cell per <th>, with no unclosed leftovers."""
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+    row = _row_source(html)
+
+    thead = html[html.index("<thead>") : html.index("</thead>")]
+    columns = thead.count("<th>")
+    assert columns == 7
+
+    request_row = row[row.index('<tr class="request-row"') : row.index("</tr>")]
+    detail_row = row[row.index('<tr class="detail"') :]
+
+    assert request_row.count("<td") == request_row.count("</td>"), (
+        "unbalanced <td> tags in the request row"
+    )
+    assert request_row.count("<td") == columns, (
+        "the request row must render exactly one <td> per <th>"
+    )
+    assert "</td></td>" not in request_row, "there is a dangling </td> in the request row"
+    assert request_row.count("<tr") == 1, "the row string must hold one <tr>"
+
+    # the detail row spans the full width of the table
+    span = re.search(r'<td colspan="(\d+)"', detail_row)
+    assert span, "the detail row has no colspan"
+    assert int(span.group(1)) == columns
+
+    # and so does the "no requests" placeholder
+    assert re.search(r'colspan="%d" class="empty"' % columns, html)
