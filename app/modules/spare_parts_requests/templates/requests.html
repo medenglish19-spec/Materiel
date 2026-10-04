@@ -284,7 +284,9 @@ async function saveRequest(id,btn){
     again.querySelector('.msg').textContent='تم حفظ التعديلات بنجاح';
   }
 }
-document.getElementById('rows').addEventListener('click',async e=>{ const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
+document.getElementById('rows').addEventListener('click',async e=>{
+  console.log('click on rows:', e.target.className, e.target.closest('.save-request')?.className);
+  const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
   const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
   const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
