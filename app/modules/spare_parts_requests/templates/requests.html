@@ -109,12 +109,12 @@ async function load(){
   if(document.getElementById('filterSource').value)p.set('source_type',document.getElementById('filterSource').value);
   const r=await fetch('/api/spare-parts-requests?'+p,{credentials:'same-origin'});
   const data=await r.json();
-  document.getElementById('rows').innerHTML=data.length?data.map(row).join(''):'<tr><td colspan="7" class="empty">لا توجد طلبات.</td></tr>';
+  document.getElementById('rows').innerHTML=data.length?data.map(row).join(''):'<tr><td colspan="8" class="empty">لا توجد طلبات.</td></tr>';
   document.getElementById('pendingCount').textContent='قيد الانتظار: '+data.filter(x=>x.status==='pending').length;
 }
 
 function row(x){
-  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_code||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
+  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_code||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td><td><button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button> <details class="action-menu"><summary aria-label="إجراءات الطلب">⋮</summary><div class="action-menu-items"><button type="button" class="edit-request" data-id="'+x.id+'">تعديل الطلب</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button></div></details></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="8"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
 }
 
 function detailHtml(x){
@@ -282,7 +282,7 @@ async function saveRequest(id,btn){
     again.querySelector('.msg').textContent='تم حفظ التعديلات بنجاح';
   }
 }
-document.getElementById('rows').addEventListener('click',async e=>{
+document.getElementById('rows').addEventListener('click',async e=>{ const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;} const edit=e.target.closest('.edit-request');if(edit){e.stopPropagation();document.getElementById('d'+edit.dataset.id).classList.add('open');return;}
   const save=e.target.closest('.save-request');if(save){e.stopPropagation();await saveRequest(Number(save.dataset.id),save);return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
   const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
