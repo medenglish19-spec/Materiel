@@ -308,10 +308,15 @@ body:has(.mdx) .app-main{margin-right:208px}
       <div class="model-meta"><span id="viewModelBrand">—</span><i>•</i><span id="viewModelType">—</span><span class="type-chip ok" id="viewModelStatus">معتمد</span><span class="type-chip" id="viewModelMobility">متحرك</span><span class="type-chip info" id="viewModelActualCount">0 عتادًا فعليًا</span></div>
     </div>
     <div class="model-hero-actions">
-      <button type="button" class="btn soft" id="copyModelBtn">⧉ نسخ</button>
-      <form id="freezeModelForm" method="post"><button type="submit" class="btn soft" id="freezeModelBtn">✳ تجميد</button></form>
-      <form id="deleteModelForm" method="post" onsubmit="return confirm('هل تريد حذف هذا الطراز؟')"><button type="submit" class="btn soft" id="deleteModelBtn">⌫ حذف</button></form>
       <button type="button" class="btn primary" id="editModelBtn">✎ تعديل البطاقة</button>
+      <details class="action-menu">
+        <summary aria-label="إجراءات الطراز">⋮ الإجراءات</summary>
+        <div class="action-menu-items">
+          <button type="button" id="copyModelBtn">⧉ نسخ</button>
+          <form id="freezeModelForm" method="post"><button type="submit">✳ تجميد</button></form>
+          <form id="deleteModelForm" method="post" onsubmit="return confirm('هل تريد حذف هذا الطراز؟')"><button type="submit" style="color:#A4271F">🗑 حذف</button></form>
+        </div>
+      </details>
     </div>
   </section>
   <div class="model-view-tabs" role="tablist" aria-label="أقسام البطاقة الفنية للطراز">
