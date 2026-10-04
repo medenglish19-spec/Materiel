@@ -3,69 +3,279 @@ from decimal import Decimal
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.modules.faults_repairs.models import Repair
 from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
 from .models import SparePartMovementDocument, SparePartMovementItem
-from .schemas import MovementDocumentCreate
+from .schemas import MovementDocumentCreate, MovementDocumentUpdate
 
-DOCUMENT_NUMBER_TAKEN = "رقم وثيقة التوزيع أو الإرجاع مستخدم مسبقًا، يرجى إدخال رقم آخر."
+DOCUMENT_NUMBER_TAKEN = "رقم الوثيقة مستخدم مسبقًا، يرجى إدخال رقم آخر."
+WAREHOUSE_LABEL = "المخزن"
 
 
-def _number(value: str) -> str:
+def _sum(values):
+    return sum((Decimal(str(v or 0)) for v in values), Decimal("0"))
+
+
+def _receipt_date(item):
+    return item.request.received_date or item.received_date
+
+
+def _number(value):
     value = (value or "").strip()
     if not value:
         raise ValueError("رقم الوثيقة مطلوب")
     return value
 
 
-def _movement_totals(db: Session, request_item_id: int):
-    rows = db.query(SparePartMovementDocument.document_type, SparePartMovementItem.quantity).join(
-        SparePartMovementItem, SparePartMovementItem.document_id == SparePartMovementDocument.id
-    ).filter(SparePartMovementItem.request_item_id == request_item_id).all()
-    distributed = sum((Decimal(str(q)) for typ, q in rows if typ == "distribution"), Decimal("0"))
-    returned = sum((Decimal(str(q)) for typ, q in rows if typ == "return"), Decimal("0"))
-    return distributed, returned
+def _unique_number(db, number, exclude=None):
+    q = db.query(SparePartMovementDocument.id).filter(
+        SparePartMovementDocument.document_number == number
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    if q.first():
+        raise ValueError(DOCUMENT_NUMBER_TAKEN)
 
 
-def available_quantity(db: Session, item: SparePartRequestItem) -> Decimal:
-    distributed, returned = _movement_totals(db, item.id)
-    received = Decimal(str(item.received_quantity or 0))
-    available = received - distributed - returned
-    return available if available > 0 else Decimal("0")
+def _distribution_total(db, request_item_id, exclude=None):
+    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "distribution",
+        SparePartMovementItem.request_item_id == request_item_id,
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([x[0] for x in q.all()])
 
 
-def _validate_item(db: Session, request_item_id: int, quantity: Decimal, movement_type: str):
-    item = db.query(SparePartRequestItem).options(
-        joinedload(SparePartRequestItem.request), joinedload(SparePartRequestItem.spare_part)
-    ).filter(SparePartRequestItem.id == request_item_id).with_for_update().first()
+def _legacy_return_total(db, request_item_id, exclude=None):
+    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return",
+        SparePartMovementItem.request_item_id == request_item_id,
+        SparePartMovementItem.source_item_id.is_(None),
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([x[0] for x in q.all()])
+
+
+def available_quantity(db, item, exclude=None):
+    value = Decimal(str(item.received_quantity or 0)) - _distribution_total(db, item.id, exclude) - _legacy_return_total(db, item.id, exclude)
+    return value if value > 0 else Decimal("0")
+
+
+def _return_total(db, source_item_id, exclude=None):
+    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return",
+        SparePartMovementItem.source_item_id == source_item_id,
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([x[0] for x in q.all()])
+
+
+def returnable_quantity(db, distribution_item, exclude=None):
+    value = Decimal(str(distribution_item.quantity or 0)) - _return_total(db, distribution_item.id, exclude)
+    return value if value > 0 else Decimal("0")
+
+
+def _item(db, item_id):
+    return db.query(SparePartRequestItem).options(
+        joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
+        joinedload(SparePartRequestItem.spare_part),
+    ).filter(SparePartRequestItem.id == item_id).with_for_update().first()
+
+
+def _distribution_line(db, item_id, quantity, document_date, exclude=None):
+    item = _item(db, item_id)
     if not item:
-        raise ValueError("بند الغيار المستلم غير موجود")
+        raise ValueError("بند الغيار غير موجود")
     if item.received_quantity <= 0:
-        raise ValueError("لا يمكن التوزيع أو الإرجاع لغيار لم يُستلم")
-    available = available_quantity(db, item)
-    if quantity > available:
-        label = "للتوزيع" if movement_type == "distribution" else "للإرجاع"
-        raise ValueError(f"الكمية المتاحة {label} هي {available} فقط")
+        raise ValueError("لا يمكن توزيع غيار لم يُستلم")
+    receipt = _receipt_date(item)
+    if not receipt:
+        raise ValueError("لا يمكن التوزيع قبل تسجيل تاريخ الاستلام")
+    if document_date < receipt:
+        raise ValueError("تاريخ التوزيع لا يمكن أن يكون قبل تاريخ الاستلام")
+    if quantity > available_quantity(db, item, exclude):
+        raise ValueError(f"الكمية المتاحة للتوزيع هي {available_quantity(db, item, exclude)} فقط")
     return item
 
 
-def create_document(db: Session, data: MovementDocumentCreate, user_id: int | None = None):
-    number = _number(data.document_number)
-    if db.query(SparePartMovementDocument.id).filter(SparePartMovementDocument.document_number == number).first():
-        raise ValueError(DOCUMENT_NUMBER_TAKEN)
-    ids = [line.request_item_id for line in data.items]
+def _return_line(db, source_item_id, quantity, document_date, exclude=None):
+    source = db.query(SparePartMovementItem).options(
+        joinedload(SparePartMovementItem.document),
+        joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request),
+    ).filter(SparePartMovementItem.id == source_item_id).with_for_update().first()
+    if not source or source.document.document_type != "distribution":
+        raise ValueError("الإرجاع يجب أن يرتبط ببند توزيع صحيح")
+    item = source.request_item
+    receipt = _receipt_date(item)
+    if not receipt:
+        raise ValueError("لا يمكن الإرجاع قبل تسجيل تاريخ الاستلام")
+    if document_date < receipt:
+        raise ValueError("تاريخ الإرجاع لا يمكن أن يكون قبل تاريخ الاستلام")
+    if document_date < source.document.document_date:
+        raise ValueError("تاريخ الإرجاع لا يمكن أن يكون قبل تاريخ التوزيع")
+    supplier = (item.supplier_institution or "").strip()
+    if not supplier:
+        raise ValueError("لا يمكن الإرجاع قبل تحديد الهيئة التي استلم منها الغيار")
+    available = returnable_quantity(db, source, exclude)
+    if quantity > available:
+        raise ValueError(f"الكمية القابلة للإرجاع هي {available} فقط")
+    return source, supplier
+
+
+def _opts():
+    return [
+        joinedload(SparePartMovementDocument.items).joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.spare_part),
+        joinedload(SparePartMovementDocument.items).joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
+        joinedload(SparePartMovementDocument.source_document).joinedload(SparePartMovementDocument.items),
+    ]
+
+
+def get_document(db, document_id):
+    return db.query(SparePartMovementDocument).options(*_opts()).filter(
+        SparePartMovementDocument.id == document_id
+    ).first()
+
+
+def _serialize_item(line):
+    item = line.request_item
+    return {
+        "id": line.id, "request_item_id": line.request_item_id,
+        "source_item_id": line.source_item_id,
+        "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+        "request_number": item.request.request_number if item.request else None,
+        "quantity": line.quantity, "notes": line.notes,
+    }
+
+
+def serialize_document(doc):
+    return {
+        "id": doc.id, "document_number": doc.document_number,
+        "document_type": doc.document_type, "document_date": doc.document_date,
+        "issuer": doc.issuer, "recipient": doc.recipient,
+        "beneficiary": doc.beneficiary, "notes": doc.notes,
+        "source_document_id": doc.source_document_id,
+        "items": [_serialize_item(x) for x in doc.items],
+    }
+
+
+def list_documents(db, document_type=None):
+    q = db.query(SparePartMovementDocument).options(*_opts())
+    if document_type:
+        q = q.filter(SparePartMovementDocument.document_type == document_type)
+    return [serialize_document(x) for x in q.order_by(
+        SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc()
+    ).all()]
+
+
+def available_register(db):
+    rows = db.query(SparePartRequestItem).join(SparePartRequest).options(
+        joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
+        joinedload(SparePartRequestItem.spare_part),
+    ).filter(SparePartRequestItem.received_quantity > 0).order_by(
+        SparePartRequest.request_date.desc(), SparePartRequest.id.desc(), SparePartRequestItem.id
+    ).all()
+    result = []
+    for item in rows:
+        qty = available_quantity(db, item)
+        if qty <= 0:
+            continue
+        result.append({
+            "request_item_id": item.id, "request_number": item.request.request_number,
+            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+            "received_quantity": item.received_quantity, "available_quantity": qty,
+            "received_date": _receipt_date(item), "supplier_institution": item.supplier_institution or "—",
+            "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",
+            "registration_number": item.request.equipment.registration_number if item.request.equipment else "—",
+        })
+    return result
+
+
+def return_register(db):
+    rows = db.query(SparePartMovementItem).join(SparePartMovementDocument).options(
+        joinedload(SparePartMovementItem.document),
+        joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
+        joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.spare_part),
+    ).filter(SparePartMovementDocument.document_type == "distribution").order_by(
+        SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc()
+    ).all()
+    result = []
+    for line in rows:
+        qty = returnable_quantity(db, line)
+        if qty <= 0:
+            continue
+        item = line.request_item
+        result.append({
+            "distribution_item_id": line.id, "distribution_document_id": line.document_id,
+            "distribution_document_number": line.document.document_number,
+            "distribution_date": line.document.document_date,
+            "request_item_id": item.id, "request_number": item.request.request_number,
+            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+            "distributed_quantity": line.quantity, "returnable_quantity": qty,
+            "distributed_to": line.document.recipient,
+            "return_recipient": item.supplier_institution or "—",
+            "received_date": _receipt_date(item),
+            "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",
+        })
+    return result
+
+
+def _same_ids(lines, attr="request_item_id"):
+    ids = [getattr(x, attr) for x in lines]
     if len(ids) != len(set(ids)):
         raise ValueError("لا يمكن تكرار نفس الغيار داخل الوثيقة")
-    obj = SparePartMovementDocument(
-        document_number=number, document_type=data.document_type, document_date=data.document_date,
-        issuer=data.issuer, recipient=data.recipient, beneficiary=data.beneficiary.strip() if data.beneficiary else None,
-        notes=data.notes.strip() if data.notes else None, created_by_id=user_id,
-    )
+
+
+def create_document(db, data: MovementDocumentCreate, user_id=None):
+    number = _number(data.document_number)
+    _unique_number(db, number)
+    if data.document_type == "distribution":
+        if not data.recipient:
+            raise ValueError("الجهة المستلمة مطلوبة")
+        _same_ids(data.items)
+        for line in data.items:
+            _distribution_line(db, line.request_item_id, line.quantity, data.document_date)
+        obj = SparePartMovementDocument(
+            document_number=number, document_type="distribution", document_date=data.document_date,
+            issuer=WAREHOUSE_LABEL, recipient=data.recipient, beneficiary=data.recipient,
+            notes=data.notes.strip() if data.notes else None, created_by_id=user_id,
+        )
+    else:
+        if not data.source_document_id:
+            raise ValueError("الإرجاع يجب أن يرتبط بوثيقة توزيع")
+        source_doc = get_document(db, data.source_document_id)
+        if not source_doc or source_doc.document_type != "distribution":
+            raise ValueError("وثيقة التوزيع المرجعية غير موجودة")
+        if not data.items:
+            raise ValueError("يجب إضافة بند واحد على الأقل")
+        suppliers = set()
+        for line in data.items:
+            if not line.source_item_id:
+                raise ValueError("كل بند إرجاع يجب أن يرتبط ببند توزيع")
+            source, supplier = _return_line(db, line.source_item_id, line.quantity, data.document_date)
+            if source.document_id != source_doc.id or source.request_item_id != line.request_item_id:
+                raise ValueError("بند الإرجاع لا ينتمي إلى وثيقة التوزيع المختارة")
+            suppliers.add(supplier)
+        if len(suppliers) != 1:
+            raise ValueError("لا يمكن جمع إرجاعات من جهات مستلمة مختلفة في وثيقة واحدة")
+        recipient = suppliers.pop()
+        obj = SparePartMovementDocument(
+            document_number=number, document_type="return", document_date=data.document_date,
+            issuer=source_doc.recipient, recipient=recipient, beneficiary=source_doc.recipient,
+            notes=data.notes.strip() if data.notes else None, source_document_id=source_doc.id,
+            created_by_id=user_id,
+        )
     db.add(obj)
     try:
         db.flush()
         for line in data.items:
-            item = _validate_item(db, line.request_item_id, line.quantity, data.document_type)
-            obj.items.append(SparePartMovementItem(request_item_id=item.id, quantity=line.quantity, notes=line.notes.strip() if line.notes else None))
+            obj.items.append(SparePartMovementItem(
+                request_item_id=line.request_item_id,
+                source_item_id=line.source_item_id if data.document_type == "return" else None,
+                quantity=line.quantity, notes=line.notes.strip() if line.notes else None,
+            ))
         db.commit()
     except IntegrityError as exc:
         db.rollback()
@@ -75,50 +285,118 @@ def create_document(db: Session, data: MovementDocumentCreate, user_id: int | No
     return get_document(db, obj.id)
 
 
-def _serialize_item(item):
-    ri = item.request_item
-    return {"id": item.id, "request_item_id": item.request_item_id, "part_name": ri.part_name or (ri.spare_part.name if ri.spare_part else None), "request_number": ri.request.request_number if ri.request else None, "quantity": item.quantity, "notes": item.notes}
+def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None):
+    obj = get_document(db, document_id)
+    if not obj:
+        raise ValueError("وثيقة الغيار غير موجودة")
+    number = _number(data.document_number) if data.document_number is not None else obj.document_number
+    _unique_number(db, number, obj.id)
+    document_date = data.document_date or obj.document_date
+
+    if obj.document_type == "distribution":
+        if obj.return_documents:
+            raise ValueError("لا يمكن تعديل توزيع له إرجاع مرتبط؛ صحح الإرجاع أولاً")
+        recipient = data.recipient or obj.recipient
+        if not recipient:
+            raise ValueError("الجهة المستلمة مطلوبة")
+        lines = data.items if data.items is not None else obj.items
+        _same_ids(lines)
+        for line in lines:
+            _distribution_line(db, line.request_item_id, line.quantity, document_date, obj.id)
+        obj.document_number, obj.document_date = number, document_date
+        obj.recipient, obj.beneficiary = recipient, recipient
+        if data.notes is not None:
+            obj.notes = data.notes.strip() or None
+        if data.items is not None:
+            obj.items.clear()
+            db.flush()
+            for line in data.items:
+                obj.items.append(SparePartMovementItem(request_item_id=line.request_item_id, quantity=line.quantity, notes=line.notes))
+    else:
+        source_id = data.source_document_id or obj.source_document_id
+        source_doc = get_document(db, source_id)
+        if not source_doc or source_doc.document_type != "distribution":
+            raise ValueError("وثيقة التوزيع المرجعية غير موجودة")
+        lines = data.items if data.items is not None else obj.items
+        if not lines:
+            raise ValueError("يجب إضافة بند واحد على الأقل")
+        suppliers = set()
+        for line in lines:
+            if not line.source_item_id:
+                raise ValueError("كل بند إرجاع يجب أن يرتبط ببند توزيع")
+            source, supplier = _return_line(db, line.source_item_id, line.quantity, document_date, obj.id)
+            if source.document_id != source_doc.id or source.request_item_id != line.request_item_id:
+                raise ValueError("بند الإرجاع لا ينتمي إلى وثيقة التوزيع المختارة")
+            suppliers.add(supplier)
+        if len(suppliers) != 1:
+            raise ValueError("لا يمكن جمع إرجاعات من جهات مستلمة مختلفة في وثيقة واحدة")
+        obj.document_number, obj.document_date = number, document_date
+        obj.source_document_id, obj.issuer, obj.recipient = source_doc.id, source_doc.recipient, suppliers.pop()
+        obj.beneficiary = source_doc.recipient
+        if data.notes is not None:
+            obj.notes = data.notes.strip() or None
+        if data.items is not None:
+            obj.items.clear()
+            db.flush()
+            for line in data.items:
+                obj.items.append(SparePartMovementItem(request_item_id=line.request_item_id, source_item_id=line.source_item_id, quantity=line.quantity, notes=line.notes))
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if "document_number" in str(getattr(exc, "orig", exc)):
+            raise ValueError(DOCUMENT_NUMBER_TAKEN) from exc
+        raise
+    return get_document(db, obj.id)
 
 
-def serialize_document(doc):
-    return {"id": doc.id, "document_number": doc.document_number, "document_type": doc.document_type, "document_date": doc.document_date, "issuer": doc.issuer, "recipient": doc.recipient, "beneficiary": doc.beneficiary, "notes": doc.notes, "items": [_serialize_item(x) for x in doc.items]}
+def delete_document(db, document_id):
+    obj = get_document(db, document_id)
+    if not obj:
+        raise ValueError("وثيقة الغيار غير موجودة")
+    if obj.document_type == "distribution" and obj.return_documents:
+        raise ValueError("لا يمكن حذف توزيع له إرجاع مرتبط؛ احذف أو صحح الإرجاع أولاً")
+    db.delete(obj)
+    db.commit()
 
 
-def _options():
-    return [
-        joinedload(SparePartMovementDocument.items).joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.spare_part),
-        joinedload(SparePartMovementDocument.items).joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request),
-    ]
-
-
-def get_document(db: Session, document_id: int):
-    return db.query(SparePartMovementDocument).options(*_options()).filter(SparePartMovementDocument.id == document_id).first()
-
-
-def list_documents(db: Session, document_type: str | None = None):
-    q = db.query(SparePartMovementDocument).options(*_options())
-    if document_type:
-        q = q.filter(SparePartMovementDocument.document_type == document_type)
-    return [serialize_document(x) for x in q.order_by(SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc()).all()]
-
-
-def available_register(db: Session):
-    items = db.query(SparePartRequestItem).join(SparePartRequest).options(
-        joinedload(SparePartRequestItem.request), joinedload(SparePartRequestItem.spare_part),
+def history(db, request_item_id):
+    item = db.query(SparePartRequestItem).options(
+        joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.fault),
+        joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.repair).joinedload(Repair.fault),
         joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
-    ).filter(SparePartRequestItem.received_quantity > 0).order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc(), SparePartRequestItem.id).all()
-    result = []
-    for item in items:
-        available = available_quantity(db, item)
-        if available <= 0:
-            continue
-        result.append({
-            "request_item_id": item.id, "request_number": item.request.request_number,
-            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
-            "received_quantity": item.received_quantity, "available_quantity": available,
-            "received_date": item.request.received_date or item.received_date,
-            "recipient": item.recipient or "—",
-            "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",
-            "registration_number": item.request.equipment.registration_number if item.request.equipment else "—",
-        })
-    return result
+        joinedload(SparePartRequestItem.spare_part),
+    ).filter(SparePartRequestItem.id == request_item_id).first()
+    if not item:
+        raise ValueError("بند الغيار غير موجود")
+    req = item.request
+    source = req.fault if req.source_type == "fault" else (req.repair.fault if req.repair else None)
+    docs = db.query(SparePartMovementDocument).join(SparePartMovementItem).filter(
+        SparePartMovementItem.request_item_id == request_item_id
+    ).order_by(SparePartMovementDocument.document_date.asc(), SparePartMovementDocument.id.asc()).all()
+    return {
+        "item": {
+            "id": item.id, "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+            "requested_quantity": item.requested_quantity, "received_quantity": item.received_quantity,
+            "received_date": _receipt_date(item), "recipient": item.recipient,
+            "supplier_institution": item.supplier_institution,
+        },
+        "request": {
+            "id": req.id, "number": req.request_number, "date": req.request_date,
+            "status": req.status, "source_type": req.source_type,
+            "source_id": req.fault_id if req.source_type == "fault" else req.repair_id,
+            "report_number": source.report_number if source else None,
+            "reason": source.description if source else req.notes,
+            "notes": req.notes,
+            "equipment": {
+                "asset_code": req.equipment.asset_code if req.equipment else None,
+                "registration_number": req.equipment.registration_number if req.equipment else None,
+            },
+        },
+        "movements": [serialize_document(d) for d in docs],
+        "balances": {
+            "available_for_distribution": available_quantity(db, item),
+            "distributed": _distribution_total(db, item.id),
+            "legacy_returned": _legacy_return_total(db, item.id),
+        },
+    }
