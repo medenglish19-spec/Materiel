@@ -172,6 +172,9 @@ function itemsHtml(x){
 function itemRow(i,x){
   const received=Number(i.received_quantity||0);
   const locked=received>0||x.status!=='pending';
+  /* استلام خاطئ على طلب ما زال قيد الانتظار: يُفتح التراجع عنه صراحةً؛
+     أما بعد القبول أو الإلغاء فالسجل نهائي ولا تراجع. */
+  const canUndo=received>0&&x.status==='pending';
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
   return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
     +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
@@ -182,8 +185,20 @@ function itemRow(i,x){
     +'<td><input class="i-recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
     +'<td><input class="i-supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
     +'<td><input class="i-note" value="'+esc(i.notes||'')+'" placeholder="ملاحظات"></td>'
-    +'<td><button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
+    +'<td>'+(canUndo?'<button type="button" class="secondary undo-receipt" title="تراجع عن الاستلام">تراجع عن الاستلام</button> ':'')+'<button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
     +'</tr>';
+}
+
+async function undoReceipt(tr){
+  const id=tr&&tr.dataset.itemId;
+  if(!id)return;
+  const name=(tr.querySelector('.i-name')||{}).value||'هذا البند';
+  if(!confirm('إلغاء الاستلام المسجّل عن البند: '+name
+    +'\n\nسيحذف البند من سجل الاستلام ويصبح قابلاً للحذف أو التعديل. متابعة؟'))return;
+  const r=await fetch('/api/spare-parts-requests/items/'+id+'/receipt',
+    {method:'DELETE',credentials:'same-origin'});
+  if(r.ok){load();return;}
+  alert(errText((await r.json()).detail,'تعذر التراجع عن الاستلام'));
 }
 
 async function deleteRequest(id){if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));}
@@ -328,6 +343,7 @@ document.getElementById('rows').addEventListener('click',async e=>{
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
   const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
   const add=e.target.closest('.add-line');if(add){e.stopPropagation();addLineRow(add.closest('.items'));return;}
+  const ur=e.target.closest('.undo-receipt');if(ur){e.stopPropagation();await undoReceipt(ur.closest('tr'));return;}
   const rm=e.target.closest('.rm-line');if(rm){e.stopPropagation();rm.closest('tr').classList.add('gone');rm.closest('tr').querySelector('.undo-line').style.display='';return;}
   const undo=e.target.closest('.undo-line');if(undo){e.stopPropagation();undo.closest('tr').classList.remove('gone');undo.style.display='none';return;}
   const tr=e.target.closest('.request-row');if(tr&&!e.target.classList.contains('status'))document.getElementById('d'+tr.dataset.id).classList.toggle('open');

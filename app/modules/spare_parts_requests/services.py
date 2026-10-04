@@ -127,6 +127,9 @@ def _item_identity(part_id: int | None, part_name: str | None):
 
 
 def serialize_item(item):
+    # تاريخ الاستلام واحد للطلب كله، فهو خاصية الطلب لا البند: لذلك يُعرض على
+    # كل بنوده حتى الذي لم يُستلم بعد. ولا حاجة لعمَل موازٍ هنا: التاريخ يُمسح
+    # من الترويسة عند التراجع عن آخر استلام.
     return {
         "id": item.id,
         "spare_part_id": item.spare_part_id,
@@ -254,9 +257,15 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
 
 def delete_request(db: Session, obj: SparePartRequest):
     if obj.status == "approved":
-        raise ValueError("لا يمكن حذف طلب معتمد")
+        raise ValueError(
+            "لا يمكن حذف طلب معتمد، فهو وثيقة معتمدة. غيّر الحالة إلى «ملغى» أو «مرفوض»."
+        )
     if any(item.received_quantity > 0 for item in obj.items):
-        raise ValueError("لا يمكن حذف طلب يحتوي على كمية مستلمة")
+        raise ValueError(
+            "لا يمكن حذف طلب تم تسجيل استلام فيه: الكميات المستلمة جزء من سجل "
+            "الاستلام ولا يمكن التراجع عنها. إن كان الاستلام خطأً فتراجع عنه بنداً بنداً "
+            "من زر «تراجع عن الاستلام»؛ وإن كان صحيحاً فغيّر الحالة إلى «ملغى»."
+        )
     db.delete(obj)
     db.commit()
 
@@ -332,11 +341,39 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
 
 def delete_item(db: Session, item: SparePartRequestItem):
     if item.received_quantity > 0:
-        raise ValueError("لا يمكن حذف بند تم تسجيل استلام له")
+        raise ValueError(
+            "لا يمكن حذف بند تم تسجيل استلام له. إن كان الاستلام خطأً فاستخدم "
+            "«تراجع عن الاستلام» على البند."
+        )
     if item.request.status != "pending":
         raise ValueError("لا يمكن حذف بند إلا من طلب قيد الانتظار")
     db.delete(item)
     db.commit()
+
+
+def undo_item_receipt(db: Session, item: SparePartRequestItem):
+    """يلغي استلام بند سُجّل بالخطأ.
+
+    الاستلام واقعة موثّقة في سجل الاستلام، فلا يُلغى إلا ما دام الطلب قيد
+    الانتظار: بعد القبول أو الإلغاء يصبح السجل نهائياً. التصفير يفضي أيضاً
+    إلى فتح الحذف، فيجب أن يكون قراراً صريحاً لا نتيجةً جانبية.
+    """
+    if item.request.status != "pending":
+        raise ValueError(
+            "لا يمكن التراجع عن الاستلام إلا لطلب قيد الانتظار؛ السجل نهائي بعد تغيير الحالة."
+        )
+    if item.received_quantity <= 0:
+        raise ValueError("لا يوجد استلام مسجل لهذا البند")
+    item.received_quantity = 0
+    item.received_date = None
+    item.recipient = None
+    item.supplier_institution = None
+    # تاريخ الاستلام في الترويسة مشترك بين البنود، فلا يبقى بلا معنى بعد آخر بند
+    if not any(other.received_quantity > 0 for other in item.request.items):
+        item.request.received_date = None
+    db.commit()
+    db.refresh(item)
+    return item
 
 
 def update_status(db: Session, obj: SparePartRequest, data: SparePartRequestStatusUpdate):

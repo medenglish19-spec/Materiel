@@ -68,6 +68,18 @@ class SparePartRequestItemUpdate(BaseModel):
     supplier_institution: str | None = None
     notes: str | None = None
 
+    @field_validator("received_quantity")
+    @classmethod
+    def received_quantity_not_null(cls, value):
+        # العمود NOT NULL، وقبل هذا لم يكن هناك ما يمنع الـ null فكانت المقارنة
+        # في update_item تُسقط العمود وتُنتج 500. التراجع عن الاستلام له مسار
+        # صريح: «تراجع عن الاستلام».
+        if value is None:
+            raise ValueError(
+                "لا يمكن تفريغ الكمية المستلمة. استخدم «تراجع عن الاستلام» على البند."
+            )
+        return value
+
     @field_validator("part_name")
     @classmethod
     def clean_name(cls, value):

@@ -125,6 +125,24 @@ def _seed(db):
     db.add(fault)
     db.flush()
 
+    # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
+    # واحد لكل عطل.
+    spare_faults = []
+    for n in range(8):
+        extra = Fault(
+            equipment_id=equipment.id,
+            reported_date=date.today(),
+            fault_type=f"عطل اختبار {n}",
+            description="وصف",
+            severity="low",
+            status="open",
+            exploitation_impact="limited",
+            created_by_id=user.id,
+        )
+        db.add(extra)
+        db.flush()
+        spare_faults.append(extra.id)
+
     part = SparePart(name="فلتر هوائي", part_number="F-1", receiving_document="وثيقة استلام")
     db.add(part)
     db.flush()
@@ -145,6 +163,8 @@ def _seed(db):
     return {
         "user": user.id,
         "part": part.id,
+        "fault": fault.id,
+        "spare_faults": spare_faults,
         "request": request_obj.id,
         "item": request_obj.items[0].id,
     }
@@ -600,6 +620,184 @@ def test_the_header_receipt_date_is_read_and_sent(client):
         ROOT / "app" / "modules" / "spare_parts_requests" / "schemas.py"
     ).read_text(encoding="utf-8")
     assert "received_date" in schemas_src
+
+
+# ------------------------------------------------- استلام خاطئ: يجب أن يكون قابلاً للتراجع
+
+
+def _new_request(page, ids, number, slot=0):
+    """طلب مستقل لكل اختبار، حتى لا تتداخل الحالة بينهم."""
+    created = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": number,
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": ids["spare_faults"][slot],
+            "items": [{"spare_part_id": ids["part"], "requested_quantity": 2}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    return created.json()["id"], created.json()["items"][0]["id"]
+
+
+def _record_receipt(page, item_id):
+    return page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={
+            "received_quantity": 1,
+            "received_date": date.today().isoformat(),
+            "recipient": "أمين المخزن",
+            "supplier_institution": "مؤسسة الاختبار",
+        },
+    )
+
+
+def test_a_null_received_quantity_is_refused_instead_of_crashing(client):
+    """كان `received_quantity: null` يُسقط الخدمة بـ 500.
+
+    الحقل يقبل None في المخطّط بينما العمود NOT NULL، فكانت المقارنة في
+    update_item تقارن None بالعدد وتُنتج TypeError بدل ردّ مفهوم.
+    """
+    page, ids = client
+    _, item_id = _new_request(page, ids, "SR-NULL-QTY", slot=0)
+
+    response = page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={"received_quantity": None},
+    )
+    assert response.status_code == 422, (
+        f"يجب أن يُرفض تفريغ الكمية برسالة مفهومة، لا أن ينهار الخادم: "
+        f"{response.status_code} {response.text}"
+    )
+
+
+def test_a_mistaken_receipt_can_be_undone(client):
+    """الاستلام الخاطئ كان يقفل الطلب للأبد: لا حذف ولا تصفير.
+
+    التصفير مرفوض في المخطّط، و null كان ينهار، وتغيير الحالة إلى «ملغى» لا
+    يفكّ الحارس لأنه ينظر إلى الكمية المستلمة لا إلى الحالة.
+    """
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-UNDO", slot=1)
+    today = date.today().isoformat()
+
+    assert _record_receipt(page, item_id).status_code == 200
+
+    # بعد الاستلام: الحذف مرفوض، برسالة تشرح出路
+    blocked = page.delete(f"/api/spare-parts-requests/{request_id}")
+    assert blocked.status_code == 400
+    assert "تراجع عن الاستلام" in blocked.text, (
+        "رسالة رفض الحذف يجب أن تذكر التراجع عن الاستلام، وإلا بقي المستخدم "
+        "بلا طريق: " + blocked.text
+    )
+
+    # التراجع عن الاستلام
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
+    body = undone.json()
+    assert float(body["received_quantity"]) == 0
+    assert body["received_date"] is None
+    assert body["recipient"] is None
+    assert body["supplier_institution"] is None
+
+    # البند خرج من سجل الاستلام
+    register = page.get("/api/spare-parts-requests/received-register").json()
+    assert not [r for r in register if r["request_number"] == "SR-UNDO"]
+
+    # والبند صار قابلاً للتعديل، والحذف صار مفتوحاً
+    edited = page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={"requested_quantity": 4, "part_name": "فلتر معدَّل"},
+    )
+    assert edited.status_code == 200, edited.text
+    assert page.delete(f"/api/spare-parts-requests/{request_id}").status_code == 200
+
+
+def test_the_shared_receipt_date_survives_until_the_last_receipt_is_undone(client):
+    """تاريخ الاستلام واحد للطلب كله، فيبقى ما دام فيه بند مستلَم.
+
+    البند الملغى يشارك بقية البنود التاريخ نفسه لأن التاريخ خاصية الطلب، لا
+    البند. وما يهمّ أن يصحّح هو الترويسة: عندما يُلغى آخر استلام لا يبقى تاريخ
+    بلا سند، وإلا ظلّ الطلب يعرض استلاماً بعد أن أُلغي كله.
+    """
+    page, ids = client
+    request_id, first = _new_request(page, ids, "SR-STALE-DATE", slot=2)
+    today = date.today().isoformat()
+
+    # بند ثانٍ يبقى مستلماً، فتتحقق الحالة التي كشفها العيب
+    added = page.post(
+        f"/api/spare-parts-requests/{request_id}/items",
+        json={"part_name": "بند ثانٍ", "requested_quantity": 1},
+    )
+    assert added.status_code == 201, added.text
+    second = added.json()["id"]
+
+    assert _record_receipt(page, first).status_code == 200
+    assert _record_receipt(page, second).status_code == 200
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["received_date"] == today
+
+    # التراجع عن بند واحد: يبقى التاريخ لمصالح البند الآخر
+    assert page.delete(f"/api/spare-parts-requests/items/{first}/receipt").status_code == 200
+    still = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert still["received_date"] == today, "التاريخ يبقى ما دام هناك بند مستلَم"
+    by_id = {i["id"]: i for i in still["items"]}
+    assert float(by_id[first]["received_quantity"]) == 0
+    assert by_id[second]["received_date"] == today
+
+    # التراجع عن آخر بند: يسقط التاريخ من الترويسة
+    assert page.delete(f"/api/spare-parts-requests/items/{second}/receipt").status_code == 200
+    cleared = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert cleared["received_date"] is None, (
+        "لا يجوز أن يبقى تاريخ استلام بعد التراجع عن آخر استلام"
+    )
+    assert {i["received_date"] for i in cleared["items"]} == {None}
+
+
+def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
+    page, ids = client
+    _, item_id = _new_request(page, ids, "SR-UNDO-TWICE", slot=3)
+
+    assert _record_receipt(page, item_id).status_code == 200
+    assert page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt").status_code == 200
+
+    again = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert again.status_code == 400, again.text
+    assert "لا يوجد استلام" in again.text
+
+
+def test_the_receipt_is_final_once_the_request_is_approved(client):
+    """الاستلام واقعة موثّقة، فبعد القبول يصبح السجل نهائياً."""
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-APPROVED-FINAL", slot=4)
+
+    assert _record_receipt(page, item_id).status_code == 200
+    approved = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status", json={"status": "approved"}
+    )
+    assert approved.status_code == 200, approved.text
+
+    refused = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert refused.status_code == 400, refused.text
+    assert "قيد الانتظار" in refused.text
+
+
+def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):
+    """التراجع يظهر على بندٍ مستلَم في طلب ما زال قيد الانتظار فقط."""
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    assert "const canUndo=received>0&&x.status==='pending';" in html, (
+        "التراجع عن الاستلام مسموح ما دام الطلب قد يتغير"
+    )
+    assert html.count('class="secondary undo-receipt"') == 1, (
+        "الزر يُرسم في خلية السطر المخزَّن فقط، لا في خلية الإضافة"
+    )
+    assert "await undoReceipt(ur.closest('tr'));" in html
+    assert "/receipt'," in html, "الزر لا يستدعي مسار التراجع عن الاستلام"
+
+    # والتأكيد يشرح أن السجل سيُحذف قبل التنفيذ
+    assert "سيحذف البند من سجل الاستلام" in html
 
 
 def _render_item_row(node: str, item_js: str, context_js: str) -> str:

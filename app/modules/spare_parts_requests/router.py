@@ -118,6 +118,17 @@ def item(item_id: int, data: SparePartRequestItemUpdate, db: Session = Depends(g
         raise HTTPException(400, str(exc))
 
 
+@router.delete("/items/{item_id}/receipt")
+def undo_receipt(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    try:
+        return services.serialize_item(services.undo_item_receipt(db, obj))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
 @router.delete("/items/{item_id}")
 def delete_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
