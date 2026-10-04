@@ -126,7 +126,6 @@ body{overflow-x:clip;}
   .btn{max-width:100%;box-sizing:border-box;padding:9px 12px;font-size:12px;}
   .equipment-card-actions{flex-wrap:wrap;}
   .equipment-card-actions .btn{flex:1 1 auto;min-width:0;}
-  .action-menu-items{min-width:140px;max-width:calc(100vw - 24px);}
   .data-table,.modern-table{font-size:12px;}
   .data-table th,.modern-table thead th,
   .data-table td,.modern-table td{padding:9px 10px;}
@@ -141,9 +140,6 @@ body{overflow-x:clip;}
   .card,.stat-card{padding:12px;}
   .page-header h2{font-size:17px;}
 }
-
-/* Global action menu: keep one primary action visible; secondary row actions live under ⋮. */
-.action-menu{position:relative;display:inline-block;direction:rtl}.action-menu>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid rgba(46,125,50,.15);border-radius:8px;background:var(--white);color:var(--text-primary);cursor:pointer;font-size:18px;font-weight:800;line-height:1}.action-menu>summary::-webkit-details-marker{display:none}.action-menu>summary:focus-visible{outline:2px solid var(--primary-light);outline-offset:2px}.action-menu[open]>summary{background:var(--bg-secondary);border-color:var(--primary-light)}.action-menu-items{position:absolute;z-index:1000;top:calc(100% + 5px);inset-inline-end:0;min-width:150px;padding:5px;background:var(--white);border:1px solid rgba(46,125,50,.12);border-radius:10px;box-shadow:var(--shadow-hover);display:flex;flex-direction:column;gap:2px}.action-menu-items a,.action-menu-items button{display:flex;align-items:center;width:100%;box-sizing:border-box;border:0;background:transparent;color:var(--text-primary);padding:8px 10px;border-radius:7px;text-decoration:none;font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-align:right;white-space:nowrap}.action-menu-items a:hover,.action-menu-items button:hover{background:var(--bg-secondary)}.action-menu-items .danger{color:var(--error)}.action-menu-items form{margin:0}.action-menu-items form button{color:var(--error)}
 </style>
 </head>
 <body>
