@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.faults_repairs.models import Fault, Repair, SparePart
@@ -6,6 +9,45 @@ from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePa
 
 RECEIPT_BEFORE_REQUEST = "تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب."
 RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد."
+REQUEST_NUMBER_TAKEN = "رقم الطلب مستخدم مسبقًا، يرجى إدخال رقم آخر."
+
+
+def _check_request_number_free(db: Session, request_number: str, exclude_id: int | None = None):
+    """رقم طلب الغيار فريد تماماً: لا طلبان بالرقم نفسه.
+
+    `exclude_id` يستثنى الطلب المعدَّل نفسه، فيحتفظ برقمه ويمنع فقط
+    أخذه رقمُ طلبٍ آخر.
+    """
+    query = db.query(SparePartRequest.id).filter(
+        SparePartRequest.request_number == request_number
+    )
+    if exclude_id is not None:
+        query = query.filter(SparePartRequest.id != exclude_id)
+    if query.first():
+        raise ValueError(REQUEST_NUMBER_TAKEN)
+
+
+def _duplicate_number(exc: IntegrityError) -> bool:
+    """هل تعذّر الحفظ بسبب تكرار رقم الطلب وحده؟"""
+    message = str(getattr(exc, "orig", exc))
+    return "request_number" in message and "UNIQUE" in message.upper()
+
+
+@contextmanager
+def _no_raw_sql(db: Session):
+    """يترجم تكرار رقم الطلب إلى رسالة مفهومة بدل خطأ SQL خام للمستخدم.
+
+    الفحص المسبق في `_check_request_number_free` وحده لا يكفي: طلبان
+    يصلان في اللحظة نفسها يمرّان به معاً، فيرفض الثاني القيدَ في القاعدة
+    عند الحفظ لا عند الفحص. خطأ قاعدة البيانات لا يمرّ إلى المستخدم أبداً.
+    """
+    try:
+        yield
+    except IntegrityError as exc:
+        db.rollback()
+        if _duplicate_number(exc):
+            raise ValueError(REQUEST_NUMBER_TAKEN) from exc
+        raise
 
 
 def _check_receipt_date(request_date, received_date):
@@ -109,8 +151,7 @@ def serialize_request(obj):
 
 
 def create_request(db: Session, data: SparePartRequestCreate, user_id: int | None = None):
-    if db.query(SparePartRequest).filter(SparePartRequest.request_number == data.request_number).first():
-        raise ValueError("رقم وثيقة الطلب مستخدم مسبقًا")
+    _check_request_number_free(db, data.request_number)
     _, equipment_id, source_date = _source(db, data.source_type, data.source_id)
     existing = db.query(SparePartRequest).filter(
         SparePartRequest.fault_id == (data.source_id if data.source_type == "fault" else None),
@@ -151,7 +192,8 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         notes=data.notes,
     )
     db.add(obj)
-    db.flush()
+    with _no_raw_sql(db):
+        db.flush()
     for item, (part_id, part_name) in zip(data.items, resolved):
         values = item.model_dump(exclude={"spare_part_id", "part_name"})
         values["received_date"] = receipt_date
@@ -162,7 +204,8 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
                 part_name=part_name,
             )
         )
-    db.commit()
+    with _no_raw_sql(db):
+        db.commit()
     return get_request(db, obj.id)
 
 
@@ -171,12 +214,7 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         raise ValueError("لا يمكن تعديل طلب إلا وهو قيد الانتظار")
     values = data.model_dump(exclude_unset=True)
     if "request_number" in values:
-        other = db.query(SparePartRequest).filter(
-            SparePartRequest.request_number == values["request_number"],
-            SparePartRequest.id != obj.id,
-        ).first()
-        if other:
-            raise ValueError("رقم وثيقة الطلب مستخدم مسبقًا")
+        _check_request_number_free(db, values["request_number"], obj.id)
     if "request_date" in values:
         _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
         if values["request_date"] != source_date:
@@ -192,7 +230,8 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         _store_receipt_date(obj, values["received_date"])
     for key, value in values.items():
         setattr(obj, key, value)
-    db.commit()
+    with _no_raw_sql(db):
+        db.commit()
     return get_request(db, obj.id)
 
 
