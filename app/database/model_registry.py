@@ -12,6 +12,7 @@ from app.modules.equipment_types import models as equipment_types_models  # noqa
 from app.modules.equipment import models as equipment_models  # noqa: F401
 from app.modules.faults_repairs import models as faults_repairs_models  # noqa: F401
 from app.modules.spare_parts_requests import models as spare_parts_requests_models  # noqa: F401
+from app.modules.spare_parts_movements import models as spare_parts_movements_models  # noqa: F401
 from app.modules.maintenance import models as maintenance_models  # noqa: F401
 from app.modules.tires import models as tires_models  # noqa: F401
 from app.modules.batteries import models as batteries_models  # noqa: F401
