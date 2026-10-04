@@ -5,7 +5,7 @@
   <h1>المستخدمون</h1>
   <p>إدارة حسابات مستخدمي النظام وصلاحياتهم.</p>
 </section>
-<div class="card" style="overflow:auto">
+<div class="card" style="overflow:hidden"><div class="table-scroll">
   <table>
     <thead><tr><th>اسم المستخدم</th><th>الاسم الكامل</th><th>الدور</th><th>الحالة</th></tr></thead>
     <tbody>
@@ -16,5 +16,6 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}
