@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 MOVEMENT_TYPES = {"distribution", "return"}
 
