@@ -340,6 +340,46 @@ def test_distributing_exactly_the_remainder_is_allowed(db):
     assert _balances(db, item)["distributed"] == 10
 
 
+def test_returnable_quantity_is_capped_by_the_received_source(db):
+    """التوزيع لا يصبح مصدرًا مستقلًا للكمية القابلة للإرجاع.
+
+    استلام 10، توزيعين 6 و4، ثم إرجاع 5 من الثاني يترك 5 فقط من الاستلام
+    كحد أقصى للإرجاع من الأول، رغم أن التوزيع الأول ما زال لديه 6.
+    """
+    item = _received_item(db, 10)
+    first = _distribute(db, item, 6)
+    second = _distribute(db, item, 4, day=2)
+
+    _return(db, item, 5, _item_id(second), day=4)
+
+    first_line = db.get(SparePartMovementItem, _item_id(first))
+    assert movements.returnable_quantity(db, first_line) == 5
+
+    with pytest.raises(ValueError, match="القابلة للإرجاع"):
+        _return(db, item, 6, _item_id(first), day=5)
+
+
+def test_returnable_register_uses_the_received_source_ceiling(db):
+    item = _received_item(db, 10)
+    first = _distribute(db, item, 6)
+    second = _distribute(db, item, 4, day=2)
+    _return(db, item, 5, _item_id(second), day=4)
+
+    rows = movements.return_register(db)
+    first_row = next(r for r in rows if r["distribution_item_id"] == _item_id(first))
+    assert first_row["returnable_quantity"] == 5
+    assert first_row["request_item_id"] == item.id
+
+
+def test_return_rejects_a_mismatched_received_source(db):
+    item = _received_item(db, 10)
+    other = _received_item(db, 5)
+    distribution = _distribute(db, item, 4)
+
+    with pytest.raises(ValueError, match="مصدر الاستلام"):
+        _return(db, other, 1, _item_id(distribution), day=4)
+
+
 def test_returning_exactly_the_remainder_is_allowed(db):
     item = _received_item(db, 10)
     doc = _distribute(db, item, 6)

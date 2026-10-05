@@ -181,9 +181,46 @@ def _return_total(db, source_item_id, exclude=None):
     return _sum([x[0] for x in q.all()])
 
 
+def _receipt_return_total(db, request_item_id, exclude=None):
+    """كل الإرجاعات المرتبطة بمصدر الاستلام نفسه.
+
+    request_item_id هو SparePartRequestItem، أي السجل الذي يحمل
+    received_quantity. لذلك هذا هو سقف الاستلام الحقيقي، بينما source_item_id
+    يبقى فقط لتحديد التوزيع الذي خرجت منه الكمية.
+    """
+    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return",
+        SparePartMovementItem.request_item_id == request_item_id,
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([x[0] for x in q.all()])
+
+
 def returnable_quantity(db, distribution_item, exclude=None):
-    value = Decimal(str(distribution_item.quantity or 0)) - _return_total(db, distribution_item.id, exclude)
-    return value if value > 0 else Decimal("0")
+    """الكمية القابلة للإرجاع = أصغر رصيد بين الاستلام والتوزيع.
+
+    الاستلام هو مصدر الكمية: received_quantity - كل الإرجاعات من نفس
+    request_item_id. والتوزيع هو السياق: distribution.quantity - الإرجاعات
+    المرتبطة بنفس source_item_id.
+    """
+    request_item = distribution_item.request_item
+    if request_item is None:
+        request_item = db.query(SparePartRequestItem).filter(
+            SparePartRequestItem.id == distribution_item.request_item_id
+        ).first()
+    if request_item is None:
+        return Decimal("0")
+
+    remaining_received = (
+        Decimal(str(request_item.received_quantity or 0))
+        - _receipt_return_total(db, request_item.id, exclude)
+    )
+    remaining_distribution = (
+        Decimal(str(distribution_item.quantity or 0))
+        - _return_total(db, distribution_item.id, exclude)
+    )
+    return _at_least_zero(min(remaining_received, remaining_distribution))
 
 
 def _status(received, distributed, returned):
@@ -292,7 +329,7 @@ def _distribution_line(db, item_id, quantity, document_date, exclude=None):
     return item
 
 
-def _return_line(db, source_item_id, quantity, document_date, exclude=None):
+def _return_line(db, source_item_id, request_item_id, quantity, document_date, exclude=None):
     quantity = _quantity(quantity)
     source = db.query(SparePartMovementItem).options(
         joinedload(SparePartMovementItem.document),
@@ -301,6 +338,8 @@ def _return_line(db, source_item_id, quantity, document_date, exclude=None):
     if not source or source.document.document_type != "distribution":
         raise ValueError("الإرجاع يجب أن يرتبط ببند توزيع صحيح")
     item = source.request_item
+    if source.request_item_id != request_item_id:
+        raise ValueError("مصدر الاستلام لا يطابق بند التوزيع")
     receipt = _receipt_date(item)
     if not receipt:
         raise ValueError("لا يمكن الإرجاع قبل تسجيل تاريخ الاستلام")
@@ -407,6 +446,8 @@ def return_register(db, exclude_document_id=None):
             "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "distributed_quantity": line.quantity, "returnable_quantity": qty,
             "distributed_to": line.document.recipient,
+            "beneficiary": line.document.beneficiary or line.document.recipient,
+            "distributor": line.document.issuer or "—",
             "return_recipient": item.supplier_institution or "—",
             "received_date": _receipt_date(item),
             "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",
@@ -446,7 +487,7 @@ def create_document(db, data: MovementDocumentCreate, user_id=None):
         for line in data.items:
             if not line.source_item_id:
                 raise ValueError("كل بند إرجاع يجب أن يرتبط ببند توزيع")
-            source, supplier = _return_line(db, line.source_item_id, line.quantity, data.document_date)
+            source, supplier = _return_line(db, line.source_item_id, line.request_item_id, line.quantity, data.document_date)
             if source.document_id != source_doc.id or source.request_item_id != line.request_item_id:
                 raise ValueError("بند الإرجاع لا ينتمي إلى وثيقة التوزيع المختارة")
             suppliers.add(supplier)
@@ -516,7 +557,7 @@ def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None)
         for line in lines:
             if not line.source_item_id:
                 raise ValueError("كل بند إرجاع يجب أن يرتبط ببند توزيع")
-            source, supplier = _return_line(db, line.source_item_id, line.quantity, document_date, obj.id)
+            source, supplier = _return_line(db, line.source_item_id, line.request_item_id, line.quantity, document_date, obj.id)
             if source.document_id != source_doc.id or source.request_item_id != line.request_item_id:
                 raise ValueError("بند الإرجاع لا ينتمي إلى وثيقة التوزيع المختارة")
             suppliers.add(supplier)
