@@ -99,6 +99,19 @@ jobs:
           rm -f ci_health_check.db
           python -c "from app.database.init_db import init_db; init_db()"
 
+      - name: Check that the app enforces foreign keys
+        # Every ON DELETE in the schema is decorative unless SQLite is told to
+        # enforce it, which is how 704 orphaned rows accumulated. This fails the
+        # build if the pragma stops being set on each new connection.
+        run: |
+          set -euxo pipefail
+          DATABASE_URL=sqlite:///./ci_health_check.db python - <<'PY'
+          from sqlalchemy import text
+          from app.database.session import engine
+          assert engine.connect().execute(text("PRAGMA foreign_keys")).fetchone()[0] == 1
+          print("foreign key enforcement is on")
+          PY
+
       - name: Check that a freshly built database is healthy
         # Catches a model change that orphans rows, or a revision that no longer
         # matches the head, before either reaches an install. Read-only, and it

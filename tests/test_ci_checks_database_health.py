@@ -66,6 +66,18 @@ def _run_lines(workflow_text: str) -> str:
     return "\n".join(blocks)
 
 
+def test_ci_checks_that_foreign_keys_are_enforced(workflow_text):
+    """The health check alone cannot catch enforcement being switched off."""
+    assert "PRAGMA foreign_keys" in workflow_text, (
+        "CI does not verify that SQLite enforces foreign keys -- every ON DELETE "
+        "in the schema is decorative without it, and that is how the orphaned "
+        "rows accumulated in the first place"
+    )
+    checks_at = workflow_text.find("PRAGMA foreign_keys")
+    tests_at = workflow_text.find("pytest -q")
+    assert checks_at != -1 and checks_at < tests_at
+
+
 def test_ci_builds_the_database_the_way_a_new_install_does(workflow_text):
     """create_all + stamp head, not an upgrade from nothing."""
     assert "init_db" in _run_lines(workflow_text), (
