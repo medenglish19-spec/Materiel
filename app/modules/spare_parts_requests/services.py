@@ -407,6 +407,12 @@ def get_request(db: Session, request_id: int):
 
 
 def received_register(db: Session):
+    """سجل الغيار المستلم، ومع كل بند رصيده وحالته.
+
+    الأرصدة تُحسب من نفس دالة الحركة التي تقرأ منها صفحة التوزيع، فالسجل
+    يعرض ما ستعرضه الصفحات الأخرى للبند نفسه بلا اختلاف. وتُحسب لكل البنود
+    في ثلاثة استعلامات، لا ثلاثة استعلامات لكل بند.
+    """
     from app.modules.spare_parts_movements import services as movement_services
 
     rows = db.query(SparePartRequestItem).join(SparePartRequest).options(
@@ -418,10 +424,12 @@ def received_register(db: Session):
         SparePartRequest.request_date.desc(), SparePartRequest.id.desc(), SparePartRequestItem.id
     ).all()
 
+    balances_by_item = movement_services._balances_for(db, rows)
+
     result = []
     for item in rows:
         req = item.request
-        balances = movement_services._compute_balances(db, item)
+        balances = balances_by_item[item.id]
         result.append({
             "request_number": req.request_number,
             "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),

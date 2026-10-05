@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased, joinedload
 
@@ -14,6 +15,10 @@ WAREHOUSE_LABEL = "المخزن"
 
 def _sum(values):
     return sum((Decimal(str(v or 0)) for v in values), Decimal("0"))
+
+
+def _at_least_zero(value):
+    return value if value > 0 else Decimal("0")
 
 
 def _quantity(value, what="الكمية"):
@@ -77,8 +82,43 @@ def _legacy_return_total(db, request_item_id, exclude=None):
     return _sum([x[0] for x in q.all()])
 
 
-def _returned_total_for_request_item(db, request_item_id, exclude=None):
-    """إجمالي الكمية المرتجعة من توزيعات هذا البند تحديداً.
+def _distribution_totals(db, request_item_ids, exclude=None):
+    """نفس `_distribution_total` لكل البنود دفعةً واحدة، مُجمَّعة بالمعرّف."""
+    if not request_item_ids:
+        return {}
+    q = (
+        db.query(SparePartMovementItem.request_item_id, func.sum(SparePartMovementItem.quantity))
+        .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
+        .filter(
+            SparePartMovementDocument.document_type == "distribution",
+            SparePartMovementItem.request_item_id.in_(request_item_ids),
+        )
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return {row[0]: _sum([row[1]]) for row in q.all()}
+
+
+def _legacy_return_totals(db, request_item_ids, exclude=None):
+    """نفس `_legacy_return_total` لكل البنود دفعةً واحدة."""
+    if not request_item_ids:
+        return {}
+    q = (
+        db.query(SparePartMovementItem.request_item_id, func.sum(SparePartMovementItem.quantity))
+        .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
+        .filter(
+            SparePartMovementDocument.document_type == "return",
+            SparePartMovementItem.source_item_id.is_(None),
+            SparePartMovementItem.request_item_id.in_(request_item_ids),
+        )
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return {row[0]: _sum([row[1]]) for row in q.all()}
+
+
+def _returned_totals(db, request_item_ids, exclude=None):
+    """إجمالي الكمية المرتجعة من توزيعات كل بند، مُجمَّعة بالمعرّف.
 
     الإرجاع لا يُقاس على البند مباشرةً بل على سند توزيعه: البند الإرجاعي
     و«سند التوزيع» المشار إليه جدول واحد، فالوصل بينهما يحتاج اسماً بديلاً
@@ -86,26 +126,49 @@ def _returned_total_for_request_item(db, request_item_id, exclude=None):
     ``JOIN spare_part_movement_items ON ... = ...id`` ويقول SQLite عموداً
     ملتبساً لأن ``quantity`` موجود على الجانبين.
     """
+    if not request_item_ids:
+        return {}
     DistItem = aliased(SparePartMovementItem)
-
     q = (
-        db.query(SparePartMovementItem.quantity)
+        db.query(DistItem.request_item_id, func.sum(SparePartMovementItem.quantity))
         .select_from(SparePartMovementItem)
         .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
         .join(DistItem, SparePartMovementItem.source_item_id == DistItem.id)
         .filter(
             SparePartMovementDocument.document_type == "return",
-            DistItem.request_item_id == request_item_id,
+            DistItem.request_item_id.in_(request_item_ids),
         )
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
-    return _sum([row[0] for row in q.all()])
+    return {row[0]: _sum([row[1]]) for row in q.all()}
+
+
+def _balances_maps(db, request_item_ids, exclude=None):
+    """المجاميع الثلاثة لكل البنود في ثلاثة استعلامات، لا ثلاثة لكل بند."""
+    ids = list(dict.fromkeys(request_item_ids))
+    return {
+        "distributed": _distribution_totals(db, ids, exclude),
+        "returned_from_distributed": _returned_totals(db, ids, exclude),
+        "legacy_returned": _legacy_return_totals(db, ids, exclude),
+    }
+
+
+def _available(received_qty, distributed, legacy_returned):
+    """المتاح للتوزيع = المستلم − الموزع − الإرجاع القديم، ولا ينزل تحت الصفر.
+
+    طرح الإرجاع القديم مقصود: قطعة عادت إلى المخزن تصير متاحة للتوزيع من جديد.
+    والصيغة هنا وحدها حتى لا يختلف رقمان للبند نفسه بين حساب وآخر.
+    """
+    return _at_least_zero(received_qty - distributed - legacy_returned)
 
 
 def available_quantity(db, item, exclude=None):
-    value = Decimal(str(item.received_quantity or 0)) - _distribution_total(db, item.id, exclude) - _legacy_return_total(db, item.id, exclude)
-    return value if value > 0 else Decimal("0")
+    return _available(
+        Decimal(str(item.received_quantity or 0)),
+        _distribution_total(db, item.id, exclude),
+        _legacy_return_total(db, item.id, exclude),
+    )
 
 
 def _return_total(db, source_item_id, exclude=None):
@@ -152,25 +215,20 @@ def _at_least_zero(value):
     return value if value > 0 else Decimal("0")
 
 
-def _compute_balances(db, item, exclude=None):
-    """أرصدة بند غيار مستلم: استلام ← توزيع ← إرجاع ← الرصيد الحالي.
+def _balance_from_maps(item, maps):
+    """رصيد بند واحد من المجاميع المحسوبة لكل البنود.
 
-    ``exclude`` هو رقم الوثيقة قيد التعديل، فتُستثنى بنودها من الحساب. لولا
-    ذلك لحُسب السطر القديم مرتين عند التعديل، فيُرفض كل تعديل — حتى تعديل
-    لا يغيّر الكمية — لأن الوثيقة تحسب نفسها ضمن نفسها.
+    الحساب كله هنا، لا في المجمّع ولا في دالة البند الواحد: فالمساران
+    (بند ببند، أو دفعة واحدة) يقرآن هذه الدالة، فلا يمكن أن يختلفا.
     """
-    received_qty = Decimal(str(item.received_quantity or 0))
-    distributed = _distribution_total(db, item.id, exclude)
+    distributed = maps["distributed"].get(item.id, Decimal("0"))
     # إرجاع مرتبط ببند توزيع يخص هذا البند تحديداً
-    returned_from_distributed = _returned_total_for_request_item(db, item.id, exclude)
+    returned_from_distributed = maps["returned_from_distributed"].get(item.id, Decimal("0"))
     # إرجاع قديم مسجَّل على البند نفسه بلا سند توزيع
-    legacy_returned = _legacy_return_total(db, item.id, exclude)
-    returned = returned_from_distributed + legacy_returned
+    legacy_returned = maps["legacy_returned"].get(item.id, Decimal("0"))
 
-    # المتاح يُقرأ من نفس الدالة التي تقرأ منها صفحة التوزيع، وإلا لعرضت
-    # الصفحتان رقمين مختلفين لنفس البند. وطرح الإرجاع القديم مقصود: قطعة
-    # عادت إلى المخزن تصير متاحة للتوزيع من جديد.
-    available = available_quantity(db, item, exclude)
+    received_qty = Decimal(str(item.received_quantity or 0))
+    returned = returned_from_distributed + legacy_returned
     # المتبقي لدى الجهة هو الموزع ناقص ما رُدّ منه فعلاً، لا ناقص كل إرجاع
     remaining_with_entity = _at_least_zero(distributed - returned_from_distributed)
 
@@ -180,12 +238,34 @@ def _compute_balances(db, item, exclude=None):
         "returned": returned,
         "returned_from_distributed": returned_from_distributed,
         "legacy_returned": legacy_returned,
-        "available_for_distribution": available,
+        "available_for_distribution": _available(received_qty, distributed, legacy_returned),
         "remaining_with_entity": remaining_with_entity,
         # الحالة تُشتقّ من الإرجاع المرتبط بتوزيع، لا من مجمل الإرجاع: هو
         # نفسه الذي اشتُقّ منه المتبقي، فلا تخالف الحالةُ الرقمَ المجاور لها
         "status": _status(received_qty, distributed, returned_from_distributed),
     }
+
+
+def _balances_for(db, items, exclude=None):
+    """أرصدة عدة بنود بثلاثة استعلامات مهما كثرت البنود.
+
+    حساب كل بند على حدة يكلّف ثلاثة استعلامات لكل صف، فتصير تكلفة السجل
+    ثلاثة أضعاف عدد البنود: صفحة واحدة تفتح مئات الاستعلامات على قاعدة
+    فيها بنود كثيرة.
+    """
+    items = list(items)
+    maps = _balances_maps(db, [item.id for item in items], exclude)
+    return {item.id: _balance_from_maps(item, maps) for item in items}
+
+
+def _compute_balances(db, item, exclude=None):
+    """أرصدة بند غيار مستلم: استلام ← توزيع ← إرجاع ← الرصيد الحالي.
+
+    ``exclude`` هو رقم الوثيقة قيد التعديل، فتُستثنى بنودها من الحساب. لولا
+    ذلك لحُسب السطر القديم مرتين عند التعديل، فيُرفض كل تعديل — حتى تعديل
+    لا يغيّر الكمية — لأن الوثيقة تحسب نفسها ضمن نفسها.
+    """
+    return _balances_for(db, [item], exclude)[item.id]
 
 
 def _item(db, item_id):
