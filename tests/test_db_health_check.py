@@ -18,10 +18,21 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.check_db_health import check, main  # noqa: E402
 
-HEAD = "stage12_spare_parts_complete"
+MERGE = "merge_spare_parts_heads_0034_receipt"
 
 
-def _fresh(path: Path, stamp: str = HEAD) -> Path:
+def _head() -> str:
+    """Read the head rather than pinning it: a new migration breaks this file otherwise."""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    from scripts.check_db_health import ROOT as PROJECT
+
+    scripts = ScriptDirectory.from_config(Config(str(PROJECT / "alembic.ini")))
+    return scripts.get_current_head()
+
+
+def _fresh(path: Path, stamp: str | None = None) -> Path:
     """A healthy database: one table, no rows, at head."""
     con = sqlite3.connect(path)
     try:
@@ -32,7 +43,8 @@ def _fresh(path: Path, stamp: str = HEAD) -> Path:
             "REFERENCES equipment_types (id))"
         )
         con.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
-        con.execute("INSERT INTO alembic_version VALUES (?)", (stamp,))
+        con.execute("INSERT INTO alembic_version VALUES (?)",
+                    (stamp if stamp is not None else _head(),))
         con.commit()
     finally:
         con.close()
@@ -112,11 +124,15 @@ def test_a_stray_temp_table_is_a_warning_not_a_silent_pass(tmp_path):
 
 
 def test_a_database_behind_head_is_reported(tmp_path):
-    db = _fresh(tmp_path / "behind.db", stamp="merge_spare_parts_heads_0034_receipt")
+    behind = MERGE
+    db = _fresh(tmp_path / "behind.db", stamp=behind)
 
     problems, _ = check(db)
 
     assert any("alembic upgrade head" in p for p in problems), problems
+    assert any(behind in p for p in problems), (
+        f"the message should name the revision it is behind: {problems}"
+    )
 
 
 def test_an_unmigrated_database_says_so(tmp_path):

@@ -125,10 +125,21 @@ def test_stage12_runs_on_an_existing_database(tmp_path):
 
     _migrate(db)  # used to raise ValueError("Constraint must have a name")
 
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    scripts = ScriptDirectory.from_config(Config(str(ROOT / "alembic.ini")))
+    head = scripts.get_current_head()
+    assert STAGE12 in {r.revision for r in scripts.walk_revisions()}, (
+        "stage12 is no longer in the migration history"
+    )
+
     con = sqlite3.connect(db)
     try:
         stamp = con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        assert stamp == STAGE12, f"the migration did not record itself: {stamp}"
+        assert stamp == head, (
+            f"the migration did not run to head: {stamp} != {head}"
+        )
         assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         con.close()
