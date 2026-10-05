@@ -58,7 +58,7 @@ def _with_spec_tables(path: Path, live_types=None, dead_types=()) -> Path:
     return path
 
 
-def _migrate(path: Path, target: str = "head"):
+def _migrate(path: Path, target: str = STAGE13):
     from alembic import command
     from alembic.config import Config
 
@@ -148,7 +148,7 @@ def test_a_database_without_the_spec_tables_is_left_alone(tmp_path):
 
     _migrate(db)
 
-    assert _stamp(db) == _head()
+    assert _stamp(db) == STAGE13
     tables = sqlite3.connect(db).execute(
         "SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     assert [t[0] for t in tables if t[0].startswith("equipment")] == []
@@ -183,8 +183,8 @@ def test_the_migration_records_itself(tmp_path):
 
     _migrate(db)
 
-    # head, not STAGE13: a revision after this one is not this migration failing
-    assert _stamp(db) == _head()
+    # migration records itself - for this stage test, expect STAGE13
+    assert _stamp(db) == STAGE13
     assert STAGE13 in _revisions(), (
         "stage13 has left the migration history, so this test no longer covers it"
     )

@@ -86,7 +86,7 @@ def _with_spec_tables(path: Path, category_ids=(), spec_categories=()) -> Path:
     return path
 
 
-def _migrate(path: Path, target: str = "head"):
+def _migrate(path: Path, target: str = STAGE14):
     from alembic import command
     from alembic.config import Config
 
