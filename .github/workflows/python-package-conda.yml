@@ -87,6 +87,24 @@ jobs:
           print("0007 recovery test passed")
           PY
 
+      - name: Build a fresh database the way the app does
+        # Not "alembic upgrade head": the chain starts from a 0006 baseline that
+        # expects its tables to already exist, so upgrading an empty file fails
+        # with "no such table: equipment_models". A new install goes through
+        # create_all + stamp head, and that is the path worth checking.
+        env:
+          DATABASE_URL: sqlite:///./ci_health_check.db
+        run: |
+          set -euxo pipefail
+          rm -f ci_health_check.db
+          python -c "from app.database.init_db import init_db; init_db()"
+
+      - name: Check that a freshly built database is healthy
+        # Catches a model change that orphans rows, or a revision that no longer
+        # matches the head, before either reaches an install. Read-only, and it
+        # exits non-zero on a real problem, so a failure below is a real fault.
+        run: python scripts/check_db_health.py ci_health_check.db
+
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
 
