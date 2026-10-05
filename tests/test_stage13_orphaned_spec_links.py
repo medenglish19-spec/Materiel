@@ -132,7 +132,11 @@ def test_nothing_is_deleted_when_the_table_is_empty(tmp_path):
 
 
 def test_a_database_without_the_spec_tables_is_left_alone(tmp_path):
-    """Older shapes must not crash the migration on the way past."""
+    """Older shapes must not crash the migration on the way past.
+
+    The stamp is compared against the current head, not against STAGE13, because
+    a later migration running afterwards is not this migration's failure.
+    """
     db = tmp_path / "bare.db"
     con = sqlite3.connect(db)
     try:
@@ -144,7 +148,7 @@ def test_a_database_without_the_spec_tables_is_left_alone(tmp_path):
 
     _migrate(db)
 
-    assert _stamp(db) == STAGE13
+    assert _stamp(db) == _head()
     tables = sqlite3.connect(db).execute(
         "SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     assert [t[0] for t in tables if t[0].startswith("equipment")] == []
@@ -179,10 +183,27 @@ def test_the_migration_records_itself(tmp_path):
 
     _migrate(db)
 
-    assert _stamp(db) == STAGE13
-    assert STAGE12 in (ROOT / "migrations" / "versions" /
-                       "stage13_remove_orphaned_spec_links.py").read_text(
-                           encoding="utf-8")
+    # head, not STAGE13: a revision after this one is not this migration failing
+    assert _stamp(db) == _head()
+    assert STAGE13 in _revisions(), (
+        "stage13 has left the migration history, so this test no longer covers it"
+    )
+
+
+def _head() -> str:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    return ScriptDirectory.from_config(
+        Config(str(ROOT / "alembic.ini"))).get_current_head()
+
+
+def _revisions() -> set:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    return {r.revision for r in ScriptDirectory.from_config(
+        Config(str(ROOT / "alembic.ini"))).walk_revisions()}
 
 
 def test_the_real_spec_definitions_are_left_for_their_owner(tmp_path):
