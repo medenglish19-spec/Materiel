@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased, joinedload
 
@@ -186,7 +186,13 @@ def _returned_total_by_received_item(db, received_request_item_id, exclude=None)
         return Decimal("0")
     q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "return",
-        SparePartMovementItem.received_request_item_id == received_request_item_id,
+        or_(
+            SparePartMovementItem.received_request_item_id == received_request_item_id,
+            (
+                SparePartMovementItem.received_request_item_id.is_(None)
+                & (SparePartMovementItem.request_item_id == received_request_item_id)
+            ),
+        ),
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
@@ -219,17 +225,12 @@ def returnable_quantity(db, distribution_item, exclude=None):
     if received_item is None:
         return Decimal("0")
 
-    remaining_received = (
-        Decimal(str(received_item.received_quantity or 0))
-        - _returned_total_by_received_item(db, received_item_id, exclude)
-    )
-    # الإرجاع يُنسب إلى بند التوزيع للتتبع، لكن كمية الإرجاع لا تُعامل
-    # كبند مستقل: السقف الحقيقي هو الرصيد المتبقي من الاستلام بعد مجموع
-    # الإرجاعات، مع عدم تجاوز مجموع ما خرج من الاستلام بالتوزيع.
-    distributed_total = _distribution_total(db, received_item_id, exclude)
     returned_total = _returned_total_by_received_item(db, received_item_id, exclude)
-    remaining_distributed = _at_least_zero(distributed_total - returned_total)
+    remaining_received = Decimal(str(received_item.received_quantity or 0)) - returned_total
+    remaining_distributed = _distribution_total(db, received_item_id, exclude) - returned_total
     return _at_least_zero(min(remaining_received, remaining_distributed))
+
+
 def _status(received, distributed, returned):
     """الحالة مشتقّة من الأرصدة نفسها، لا من حقل حالة يدوي.
 
@@ -438,11 +439,13 @@ def available_register(db, exclude_document_id=None):
 
 def return_register(db, exclude_document_id=None):
     rows = db.query(SparePartMovementItem).join(SparePartMovementDocument).options(
-        joinedload(SparePartMovementItem.document),
+        joinedload(SparePartMovementItem.document).joinedload(SparePartMovementDocument.created_by),
         joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
         joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.spare_part),
+        joinedload(SparePartMovementItem.received_request_item).joinedload(SparePartRequestItem.spare_part),
+        joinedload(SparePartMovementItem.received_request_item).joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
     ).filter(SparePartMovementDocument.document_type == "distribution").order_by(
-        SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc()
+        SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc(), SparePartMovementItem.id
     ).all()
     result = []
     for line in rows:
@@ -450,24 +453,51 @@ def return_register(db, exclude_document_id=None):
         if qty <= 0:
             continue
         item = line.request_item
+        received_item = line.received_request_item or item
+        request = received_item.request if received_item else (item.request if item else None)
+        equipment = request.equipment if request else None
+        document = line.document
+        creator = document.created_by
+        distributed_by = (
+            (creator.full_name or creator.username or getattr(creator, "name", None))
+            if creator
+            else None
+        ) or document.issuer or "—"
+        equipment_parts = []
+        if equipment and equipment.asset_code:
+            equipment_parts.append(equipment.asset_code)
+        if equipment and equipment.registration_number:
+            equipment_parts.append(equipment.registration_number)
+        equipment_label = " - ".join(equipment_parts) if equipment_parts else (
+            getattr(equipment, "name", None) or "—"
+        )
         result.append({
             "distribution_item_id": line.id,
-        "distribution_document_id": line.document_id,
-        "distribution_document_number": line.document.document_number,
-        "distribution_date": line.document.document_date,
-        "request_item_id": item.id,
-        "received_request_item_id": getattr(line, "received_request_item_id", None) or item.id,
-        "request_number": item.request.request_number,
-        "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
-        "distributed_quantity": line.quantity,
-        "returnable_quantity": qty,
-        "returnable": "نعم" if qty > 0 else "لا",
-        "distributed_to": line.document.recipient,
-        "beneficiary": line.document.beneficiary or line.document.recipient,
-        "distributor": line.document.issuer or "—",
-        "return_recipient": item.supplier_institution or "—",
-        "received_date": _receipt_date(getattr(line, "received_request_item", None) or item),
-        "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",        })
+            "distribution_document_id": document.id,
+            "distribution_document_number": document.document_number,
+            "distribution_date": document.document_date,
+            "request_item_id": item.id if item else None,
+            "received_request_item_id": received_item.id if received_item else None,
+            "request_number": request.request_number if request else "—",
+            "part_name": (
+                received_item.part_name
+                or (received_item.spare_part.name if received_item.spare_part else "—")
+                if received_item
+                else item.part_name or (item.spare_part.name if item.spare_part else "—")
+            ),
+            "distributed_quantity": line.quantity,
+            "returnable_quantity": qty,
+            "returnable": "نعم" if qty > 0 else "لا",
+            "distributed_to": document.recipient,
+            "beneficiary": document.beneficiary or document.recipient,
+            "distributor": document.issuer or "—",
+            "distributed_by": distributed_by,
+            "return_recipient": received_item.supplier_institution or "—" if received_item else "—",
+            "received_date": _receipt_date(received_item) if received_item else None,
+            "equipment": equipment_label,
+            "equipment_code": equipment.asset_code if equipment else "—",
+            "registration_number": equipment.registration_number if equipment else "—",
+        })
     return result
 
 
