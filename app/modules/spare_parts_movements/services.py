@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, aliased, joinedload
 
 from app.modules.faults_repairs.models import Repair
 from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
@@ -14,6 +14,25 @@ WAREHOUSE_LABEL = "المخزن"
 
 def _sum(values):
     return sum((Decimal(str(v or 0)) for v in values), Decimal("0"))
+
+
+def _quantity(value, what="الكمية"):
+    """يرفض ما لا يمكن أن تكون عليه كمية غيار، على الخادم لا في الصفحة.
+
+    القواعد الثلاث معاً: الصفر والسالب لا معنى لهما لحركة غيار، وقاعدة المشروع
+    أن كميات الغيار أعداد صحيحة فلا كسر. الواجهة ترشّح هذه القطع في
+    JavaScript، لكن ذلك الرشّح يمكن تجاوزه بإرسال الطلب مباشرة؛ القيد هنا هو
+    الذي يملكه الخادم فعلاً.
+
+    يُفحص الكسر قبل المقارنة لأن 2.5 ليس عدداً صحيحاً أصلاً، ورفضه كسالب
+    سيقود إلى رسالة مضلّلة.
+    """
+    quantity = Decimal(str(value if value is not None else 0))
+    if quantity != quantity.to_integral_value():
+        raise ValueError(f"{what} يجب أن تكون عدداً صحيحاً")
+    if quantity <= 0:
+        raise ValueError(f"{what} يجب أن تكون أكبر من صفر")
+    return quantity
 
 
 def _receipt_date(item):
@@ -58,6 +77,32 @@ def _legacy_return_total(db, request_item_id, exclude=None):
     return _sum([x[0] for x in q.all()])
 
 
+def _returned_total_for_request_item(db, request_item_id, exclude=None):
+    """إجمالي الكمية المرتجعة من توزيعات هذا البند تحديداً.
+
+    الإرجاع لا يُقاس على البند مباشرةً بل على سند توزيعه: البند الإرجاعي
+    و«سند التوزيع» المشار إليه جدول واحد، فالوصل بينهما يحتاج اسماً بديلاً
+    حقيقياً. استيراد العمود باسم آخر لا يصنع اسماً بديلاً، فيصير SQL هكذا
+    ``JOIN spare_part_movement_items ON ... = ...id`` ويقول SQLite عموداً
+    ملتبساً لأن ``quantity`` موجود على الجانبين.
+    """
+    DistItem = aliased(SparePartMovementItem)
+
+    q = (
+        db.query(SparePartMovementItem.quantity)
+        .select_from(SparePartMovementItem)
+        .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
+        .join(DistItem, SparePartMovementItem.source_item_id == DistItem.id)
+        .filter(
+            SparePartMovementDocument.document_type == "return",
+            DistItem.request_item_id == request_item_id,
+        )
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([row[0] for row in q.all()])
+
+
 def available_quantity(db, item, exclude=None):
     value = Decimal(str(item.received_quantity or 0)) - _distribution_total(db, item.id, exclude) - _legacy_return_total(db, item.id, exclude)
     return value if value > 0 else Decimal("0")
@@ -78,6 +123,71 @@ def returnable_quantity(db, distribution_item, exclude=None):
     return value if value > 0 else Decimal("0")
 
 
+def _status(received, distributed, returned):
+    """الحالة مشتقّة من الأرصدة نفسها، لا من حقل حالة يدوي.
+
+    الترتيب هنا هو الترتيب الأكثر تحديداً أولاً: متى تداخلت حالتان انطبقت
+    الأدق. مثال: بند استُلم 10 ووُزّع 3 رُجع منها 1، فينطبق «موزع جزئيًا»
+    (0 < 3 < 10) و«جزء متبقٍ لدى الجهة» (0 < 1 < 3) معاً؛ والثانية أدق لأنها
+    تذكر الإرجاع الذي لا تذكره الأولى.
+
+      1. مرتجع بالكامل  → رُدّ كل ما وُزّع
+      2. جزء متبقٍ       → إرجاع جزئي: 0 < رُجع < وُزّع
+      3. موزع بالكامل   → وُزّع كل ما استُلم ولا إرجاع
+      4. موزع جزئيًا     → 0 < وُزّع < استُلم
+      5. لم يوزع         → لم يُوزّع شيء
+    """
+    if received <= 0 or distributed <= 0:
+        return "received_not_distributed"
+    if returned >= distributed:
+        return "distributed_then_fully_returned"
+    if returned > 0:
+        return "partially_remaining_with_entity"
+    if distributed >= received:
+        return "fully_distributed"
+    return "partially_distributed"
+
+
+def _at_least_zero(value):
+    return value if value > 0 else Decimal("0")
+
+
+def _compute_balances(db, item, exclude=None):
+    """أرصدة بند غيار مستلم: استلام ← توزيع ← إرجاع ← الرصيد الحالي.
+
+    ``exclude`` هو رقم الوثيقة قيد التعديل، فتُستثنى بنودها من الحساب. لولا
+    ذلك لحُسب السطر القديم مرتين عند التعديل، فيُرفض كل تعديل — حتى تعديل
+    لا يغيّر الكمية — لأن الوثيقة تحسب نفسها ضمن نفسها.
+    """
+    received_qty = Decimal(str(item.received_quantity or 0))
+    distributed = _distribution_total(db, item.id, exclude)
+    # إرجاع مرتبط ببند توزيع يخص هذا البند تحديداً
+    returned_from_distributed = _returned_total_for_request_item(db, item.id, exclude)
+    # إرجاع قديم مسجَّل على البند نفسه بلا سند توزيع
+    legacy_returned = _legacy_return_total(db, item.id, exclude)
+    returned = returned_from_distributed + legacy_returned
+
+    # المتاح يُقرأ من نفس الدالة التي تقرأ منها صفحة التوزيع، وإلا لعرضت
+    # الصفحتان رقمين مختلفين لنفس البند. وطرح الإرجاع القديم مقصود: قطعة
+    # عادت إلى المخزن تصير متاحة للتوزيع من جديد.
+    available = available_quantity(db, item, exclude)
+    # المتبقي لدى الجهة هو الموزع ناقص ما رُدّ منه فعلاً، لا ناقص كل إرجاع
+    remaining_with_entity = _at_least_zero(distributed - returned_from_distributed)
+
+    return {
+        "received_quantity": received_qty,
+        "distributed": distributed,
+        "returned": returned,
+        "returned_from_distributed": returned_from_distributed,
+        "legacy_returned": legacy_returned,
+        "available_for_distribution": available,
+        "remaining_with_entity": remaining_with_entity,
+        # الحالة تُشتقّ من الإرجاع المرتبط بتوزيع، لا من مجمل الإرجاع: هو
+        # نفسه الذي اشتُقّ منه المتبقي، فلا تخالف الحالةُ الرقمَ المجاور لها
+        "status": _status(received_qty, distributed, returned_from_distributed),
+    }
+
+
 def _item(db, item_id):
     return db.query(SparePartRequestItem).options(
         joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
@@ -86,6 +196,7 @@ def _item(db, item_id):
 
 
 def _distribution_line(db, item_id, quantity, document_date, exclude=None):
+    quantity = _quantity(quantity)
     item = _item(db, item_id)
     if not item:
         raise ValueError("بند الغيار غير موجود")
@@ -102,6 +213,7 @@ def _distribution_line(db, item_id, quantity, document_date, exclude=None):
 
 
 def _return_line(db, source_item_id, quantity, document_date, exclude=None):
+    quantity = _quantity(quantity)
     source = db.query(SparePartMovementItem).options(
         joinedload(SparePartMovementItem.document),
         joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request),
@@ -394,9 +506,5 @@ def history(db, request_item_id):
             },
         },
         "movements": [serialize_document(d) for d in docs],
-        "balances": {
-            "available_for_distribution": available_quantity(db, item),
-            "distributed": _distribution_total(db, item.id),
-            "legacy_returned": _legacy_return_total(db, item.id),
-        },
+        "balances": _compute_balances(db, item),
     }

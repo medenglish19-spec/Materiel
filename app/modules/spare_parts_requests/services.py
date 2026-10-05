@@ -407,6 +407,8 @@ def get_request(db: Session, request_id: int):
 
 
 def received_register(db: Session):
+    from app.modules.spare_parts_movements import services as movement_services
+
     rows = db.query(SparePartRequestItem).join(SparePartRequest).options(
         joinedload(SparePartRequestItem.spare_part),
         joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.equipment),
@@ -419,11 +421,11 @@ def received_register(db: Session):
     result = []
     for item in rows:
         req = item.request
+        balances = movement_services._compute_balances(db, item)
         result.append({
             "request_number": req.request_number,
-"part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
-            "received_quantity": item.received_quantity,
             "received_date": req.received_date or item.received_date,
             "equipment": {
                 "asset_code": req.equipment.asset_code if req.equipment else "—",
@@ -431,6 +433,14 @@ def received_register(db: Session):
             "registration_number": req.equipment.registration_number if req.equipment else "—",
             "recipient": item.recipient or "—",
             "supplier_institution": item.supplier_institution or "—",
+            # الأرصدة من نفس دالة الحركة التي تقرأ منها صفحتا التوزيع
+            # والإرجاع، فلا يختلف رقمان للبند نفسه بين صفحة وصفحة
+            "received_quantity": balances["received_quantity"],
+            "distributed": balances["distributed"],
+            "returned": balances["returned"],
+            "available_for_distribution": balances["available_for_distribution"],
+            "remaining_with_entity": balances["remaining_with_entity"],
+            "status": balances["status"],
         })
     return result
 
