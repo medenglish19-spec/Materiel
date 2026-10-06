@@ -214,6 +214,18 @@ async function saveDoc(){
         if(!response.ok){
             let detail='تعذر حفظ الإرجاع (HTTP '+response.status+')';
             try{const error=await response.json();detail=error.detail||detail}catch{}
+            // إذا سبق طلبٌ مطابق هذا الطلب ووُثّق الإرجاع فعلاً، فقد تكون
+            // الصفحة تعرض الرصيد القديم. نعيد قراءة الرصيد قبل اعتبار العملية فاشلة.
+            try{
+                const fresh=await fetchJson('/api/spare-parts-movements/returnable');
+                const current=fresh.find(row=>Number(row.request_item_id)===receiptId);
+                const remaining=Number(current?.returnable_quantity ?? current?.remaining_quantity ?? 0);
+                if(remaining < quantity){
+                    closeForm();
+                    await load();
+                    return;
+                }
+            }catch{}
             document.getElementById('notice').textContent=detail;
             return;
         }
