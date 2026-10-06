@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "9cff3cadf131"
-down_revision = "add_received_date_spare_part_items"
+down_revision = "merge_spare_parts_received_stage14"
 branch_labels = None
 depends_on = None
 
