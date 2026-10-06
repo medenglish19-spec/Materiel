@@ -54,15 +54,17 @@ def _setup_shared(db):
     from app.modules.equipment_types.models import EquipmentModel, EquipmentType
     from app.modules.faults_repairs.models import Fault
 
-    eq_type = EquipmentType(name="شاحنات", measurement_unit="km")
+    _COUNTER["n"] += 1
+    suffix = _COUNTER["n"]
+    eq_type = EquipmentType(name=f"شاحنات-أرصدة-{suffix}", measurement_unit="km")
     db.add(eq_type)
     db.flush()
-    model = EquipmentModel(name="طراز أرصدة", equipment_type_id=eq_type.id)
+    model = EquipmentModel(name=f"طراز أرصدة-{suffix}", equipment_type_id=eq_type.id)
     db.add(model)
     db.flush()
     equipment = Equipment(
-        asset_code="BAL-1",
-        registration_number="333-BAL",
+        asset_code=f"BAL-{suffix}",
+        registration_number=f"333-BAL-{suffix}",
         equipment_type_id=eq_type.id,
         equipment_model_id=model.id,
         technical_condition="ready",
@@ -99,7 +101,6 @@ def _received_item(db, received, supplier="المؤسسة الممونة"):
     )
 
     equipment_id, fault_id = _setup_shared(db)
-    _COUNTER["n"] += 1
     request = SparePartRequest(
         request_number=f"SR-BAL-{_COUNTER['n']}",
         request_date=RECEIVED,
@@ -638,7 +639,7 @@ def test_the_received_register_keeps_the_existing_columns(db):
         "supplier_institution",
     ):
         assert key in row, f"عمود {key} اختفى من سجل الغيار المستلم"
-    assert row["equipment"]["asset_code"] == "BAL-1"
+    assert row["equipment"]["asset_code"].startswith("BAL-")
 
 
 # --------------------------------------------------------- عرض الصفحة نفسها

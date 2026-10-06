@@ -43,6 +43,7 @@ class SparePartMovementItem(Base):
     document_id = Column(Integer, ForeignKey("spare_part_movement_documents.id", ondelete="CASCADE"), nullable=False, index=True)
     request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT"), nullable=False, index=True)
     source_item_id = Column(Integer, ForeignKey("spare_part_movement_items.id", ondelete="RESTRICT"), nullable=True, index=True)
+    received_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT"), nullable=True, index=True)
     quantity = Column(Numeric(10, 2), nullable=False)
     notes = Column(Text, nullable=True)
 
@@ -53,6 +54,7 @@ class SparePartMovementItem(Base):
     )
 
     document = relationship("SparePartMovementDocument", back_populates="items")
-    request_item = relationship("SparePartRequestItem")
+    request_item = relationship("SparePartRequestItem", foreign_keys=[request_item_id])
+    received_request_item = relationship("SparePartRequestItem", foreign_keys=[received_request_item_id])
     source_item = relationship("SparePartMovementItem", remote_side=[id], back_populates="return_items")
     return_items = relationship("SparePartMovementItem", back_populates="source_item", cascade="save-update, merge")
