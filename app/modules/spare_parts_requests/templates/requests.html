@@ -184,7 +184,7 @@ function itemRow(i,x){
     +'<td><input class="i-rdate" type="date" value="'+esc(i.received_date||'')+'"></td>'
     +'<td><input class="i-recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
     +'<td><input class="i-supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
-    +'<td><input class="i-note" value="'+esc(i.notes||'')+'" placeholder="ملاحظات"></td>'
+    +'<td><textarea class="i-note" rows="1" placeholder="ملاحظات">'+esc(i.notes||'')+'</textarea></td>'
     +'<td>'+(canUndo?'<button type="button" class="secondary undo-receipt" title="تراجع عن الاستلام">تراجع عن الاستلام</button> ':'')+'<button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
     +'</tr>';
 }
