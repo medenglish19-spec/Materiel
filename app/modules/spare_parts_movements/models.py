@@ -53,6 +53,7 @@ class SparePartMovementItem(Base):
     )
 
     document = relationship("SparePartMovementDocument", back_populates="items")
-    request_item = relationship("SparePartRequestItem")
+    request_item = relationship("SparePartRequestItem", foreign_keys=[request_item_id])
+    received_request_item = relationship("SparePartRequestItem", foreign_keys=[received_request_item_id])
     source_item = relationship("SparePartMovementItem", remote_side=[id], back_populates="return_items")
     return_items = relationship("SparePartMovementItem", back_populates="source_item", cascade="save-update, merge")
