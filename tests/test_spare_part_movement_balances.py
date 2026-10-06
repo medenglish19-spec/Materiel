@@ -704,6 +704,44 @@ def test_the_received_register_shows_the_balances_and_the_state(db):
     }
 
 
+def test_deleting_a_return_cannot_create_over_distribution_history(db):
+    item = _received_item(db, 3)
+
+    _COUNTER["n"] += 1
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    distribution = SparePartMovementDocument(
+        document_number=f"D-OVER-{_COUNTER['n']}",
+        document_type="distribution",
+        document_date=RECEIVED + timedelta(days=2),
+        issuer="المخزن",
+        recipient="الورشة",
+    )
+    db.add(distribution)
+    db.flush()
+    db.add(
+        SparePartMovementItem(
+            document_id=distribution.id,
+            request_item_id=item.id,
+            received_request_item_id=item.id,
+            quantity=Decimal("4"),
+        )
+    )
+    db.flush()
+
+    return_document = _return_received(db, item, 1, day=3)
+
+    balances = _balances(db, item)
+    assert balances["status"] == "fully_distributed"
+    assert balances["distributed"] == 4
+    assert balances["returned"] == 1
+
+    with pytest.raises(ValueError, match="حذف الإرجاع"):
+        movements.delete_document(db, return_document.id)
+
+    assert _balances(db, item)["returned"] == 1
+
+
 def test_deleting_direct_return_restores_received_return_balance(db):
     item = _received_item(db, 10)
     _distribute(db, item, 4)
