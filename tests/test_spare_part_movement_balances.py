@@ -319,7 +319,8 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
     _distribute(db, item, 3)
     _return_received(db, item, 1)
     balances = _balances(db, item)
-    assert balances["distributed"] == 3
+    assert balances["distributed"] == 2
+    assert balances["distributed_total"] == 3
     assert balances["returned"] == 1
     assert movements.return_register(db)[0]["remaining_quantity"] == 6
 
@@ -367,7 +368,8 @@ def test_a_direct_return_can_settle_a_historical_over_distribution(db):
     db.commit()
 
     balances = _balances(db, item)
-    assert balances["distributed"] == 4
+    assert balances["distributed"] == 3
+    assert balances["distributed_total"] == 4
     assert balances["returned"] == 1
     assert balances["available_for_distribution"] == 0
     assert balances["status"] == "fully_distributed"
@@ -698,7 +700,8 @@ def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
     balances = _balances(db, item)
     assert balances["legacy_returned"] == 2
     assert balances["returned"] == 2
-    assert balances["distributed"] == 6
+    assert balances["distributed"] == 4
+    assert balances["distributed_total"] == 6
     # المتاح 10 - 6 - 2: القطعةان العائدتان صارتا متاحتين للتوزيع
     assert balances["available_for_distribution"] == 2
     # والمتبقي لدى الجهة لا يمسّه الإرجاع القديم: هو لم يردْ من الجهة
@@ -756,7 +759,8 @@ def test_the_received_register_shows_the_balances_and_the_state(db):
     row = _register_row(db, 10)
     assert {k: row[k] for k in BALANCE_KEYS} == {
         "received_quantity": 10,
-        "distributed": 6,
+        "distributed": 4,
+        "distributed_total": 6,
         "returned": 2,
         "available_for_distribution": 2,
         "remaining_with_entity": 6,
@@ -809,11 +813,11 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
     db.commit()
 
     balances = _balances(db, item)
-    # الحالة الحالية غير صالحة تاريخياً: التوزيع 4 يتجاوز المستلم 3،
-    # لكن وجود الإرجاع 1 يجعل صافي التوزيع 3. لذلك يجب أن تظهر الحالة
-    # غير الصالحة الآن، ويُمنع حذف الإرجاع لأنه سيكشف التجاوز فعلياً.
-    assert balances["status"] == "invalid_distribution_over_received"
-    assert balances["distributed"] == 4
+    # التوزيع التاريخي 4 صار 3 موزعة فعليًا بعد إرجاع 1، لذلك الرصيد
+    # الحالي مكتمل. لكن حذف الإرجاع سيعيد حالة التجاوز، ولذلك يُمنع الحذف.
+    assert balances["status"] == "fully_distributed"
+    assert balances["distributed"] == 3
+    assert balances["distributed_total"] == 4
     assert balances["returned"] == 1
 
     with pytest.raises(ValueError, match="حذف الإرجاع"):
@@ -894,7 +898,7 @@ COLUMNS = {
     "part_name": "الغيار",
     "asset_code": "العتاد",
     "received_quantity": "الكمية المستلمة",
-    "distributed": "الكمية الموزعة",
+    "distributed": "الموزعة فعليًا",
     "returned": "الكمية المعادة",
     "available_for_distribution": "المتاح للتوزيع",
     "status": "الحالة",
