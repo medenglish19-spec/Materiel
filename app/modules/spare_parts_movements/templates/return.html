@@ -68,7 +68,7 @@ function normalizeReceiptBalance(row){
         returned_quantity:returnedQuantity,
         remaining_quantity:Math.max(0,availableQuantity),
         equipment_code:row.equipment?.asset_code||row.equipment_code||'—',
-        supplier_institution:row.supplier_institution||row.supplier?.name||row.supplier_name||'—',
+        supplier_institution:row.supplier_institution||row.return_recipient||row.supplier?.name||row.supplier_name||'—',
         status:row.status||''
     };
 }
@@ -76,7 +76,7 @@ function normalizeReceiptBalance(row){
 function renderReceipts(){
     const select=document.getElementById('receipt');
     const rows=receipts.filter(row=>row.received_quantity>0&&row.remaining_quantity>0);
-    select.innerHTML='<option value="">اختر الاستلام</option>'+rows.map(row=>
+    select.innerHTML='<option value="">'+(rows.length?'اختر الاستلام':'لا توجد كميات قابلة للإرجاع حاليًا')+'</option>'+rows.map(row=>
         '<option value="'+row.received_request_item_id+'">طلب '+esc(row.request_number)+' — '+esc(row.part_name)+' — متبقي '+esc(row.remaining_quantity)+'</option>'
     ).join('');
     // عند فتح نموذج جديد، اختر أول بند صالح تلقائيًا حتى تظهر بيانات الاستلام
