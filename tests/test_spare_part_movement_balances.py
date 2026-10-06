@@ -780,6 +780,7 @@ COLUMNS = {
     "returned": "الكمية المعادة",
     "available_for_distribution": "المتاح للتوزيع",
     "status": "الحالة",
+    "last_movement_type": "آخر الحركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
     "recipient": "المستلم",
@@ -805,7 +806,10 @@ def test_every_balance_column_is_shown_under_its_own_header():
 
     fields = []
     for cell in row.split("</td><td>"):
-        names = re.findall(r"x\.(?:equipment\?\.)?(\w+)", cell)
+        # آخر الحركة يعرض نوع الحركة، وقد يعرض معه رقم الوثيقة؛
+        # رقم الوثيقة جزء من نفس الخلية وليس عموداً مستقلاً.
+        cell_for_field = cell.replace("x.last_movement_document_number", "")
+        names = re.findall(r"x\.(?:equipment\?\.)?(\w+)", cell_for_field)
         assert len(set(names)) == 1, f"خلية بلا قيمة واحدة: {cell}"
         fields.append(names[0])
 
