@@ -699,6 +699,31 @@ def delete_document(db, document_id):
         raise ValueError("وثيقة الغيار غير موجودة")
     if obj.document_type == "distribution" and obj.return_documents:
         raise ValueError("لا يمكن حذف توزيع له إرجاع مرتبط؛ احذف أو صحح الإرجاع أولاً")
+
+    if obj.document_type == "return":
+        # حذف الإرجاع قد يعيد رصيداً تاريخياً إلى حالة غير صالحة:
+        # استلام 3، توزيع 4، إرجاع 1 صالح كصافي، لكن حذف الإرجاع
+        # يجعل التوزيع 4 أكبر من الاستلام 3.
+        affected_item_ids = {
+            line.received_request_item_id or line.request_item_id
+            for line in obj.items
+        }
+        for item_id in affected_item_ids:
+            item = db.query(SparePartRequestItem).filter(
+                SparePartRequestItem.id == item_id
+            ).first()
+            if item is None:
+                continue
+            balance = _compute_balances(db, item, exclude=obj.id)
+            if balance["status"] == "invalid_distribution_over_received":
+                raise ValueError(
+                    "لا يمكن حذف الإرجاع لأن حذفه سيجعل التوزيع يتجاوز الكمية المستلمة"
+                )
+            if balance["status"] == "invalid_movement_balance":
+                raise ValueError(
+                    "لا يمكن حذف الإرجاع لأن حذفه سيجعل رصيد الحركة غير صالح"
+                )
+
     db.delete(obj)
     db.commit()
 
