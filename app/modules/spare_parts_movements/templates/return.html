@@ -24,7 +24,7 @@
 <div class="table-scroll"><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
 </div></div>
 <script>
-let receipts=[],docs=[],editing=null;
+let receipts=[],docs=[],editing=null,saving=false;
 const today=new Date().toISOString().slice(0,10);
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
@@ -148,6 +148,11 @@ function closeForm(){
 }
 
 async function saveDoc(){
+    if(saving)return;
+    saving=true;
+    const saveButton=document.getElementById('save');
+    saveButton.disabled=true;
+    saveButton.textContent='جارٍ الحفظ...';
     const number=document.getElementById('number').value.trim();
     const date=document.getElementById('date').value;
     const receiptId=Number(document.getElementById('receipt').value||0);
@@ -216,6 +221,10 @@ async function saveDoc(){
         await load();
     }catch(error){
         document.getElementById('notice').textContent='تعذر الاتصال بالخادم: '+error.message;
+    }finally{
+        saving=false;
+        saveButton.disabled=false;
+        saveButton.textContent='حفظ';
     }
 }
 
