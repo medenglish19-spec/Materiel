@@ -74,14 +74,20 @@ def _check_receipt_date(request_date, received_date):
 
 
 def _receipt_conflicts(request, received_date):
-    """يبقى هذا الحارس للتوافق، لكن لا يمنع استلام البنود في تواريخ مختلفة."""
-    return False
+    """هل يخالف التاريخ المُرسل تاريخ استلام الطلب القائم؟"""
+    if received_date is None or request.received_date is None:
+        return False
+    return received_date != request.received_date
 
 
 def _store_receipt_date(request, received_date):
-    """تخزين آخر تاريخ استلام على رأس الطلب دون تغيير تواريخ البنود."""
-    if received_date is not None:
-        request.received_date = received_date
+    """تخزين تاريخ استلام الطلب على الطلب ونقله إلى كل بنوده.
+
+    الطلب يُستلم مرة واحدة، فلا معنى لتاريخ مختلف بين بنوده.
+    """
+    request.received_date = received_date
+    for item in request.items:
+        item.received_date = received_date
 
 
 def _source(db: Session, source_type: str, source_id: int):
@@ -318,6 +324,8 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         values["part_name"] = part_name
     if "received_date" in values:
         _check_receipt_date(item.request.request_date, values["received_date"])
+        if _receipt_conflicts(item.request, values["received_date"]):
+            raise ValueError(RECEIPT_CONFLICT)
     for key, value in values.items():
         setattr(item, key, value)
     if "received_date" in values and values["received_date"] is not None:
