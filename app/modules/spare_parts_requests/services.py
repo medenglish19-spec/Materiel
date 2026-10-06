@@ -431,6 +431,7 @@ def received_register(db: Session):
         req = item.request
         balances = balances_by_item[item.id]
         result.append({
+            "request_item_id": item.id,
             "request_number": req.request_number,
             "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
