@@ -327,6 +327,52 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
 # ------------------------------------------------------ منع تجاوز الكميات
 
 
+def test_a_direct_return_can_settle_a_historical_over_distribution(db):
+    """التوزيع التاريخي الزائد تُسوّيه إرجاعات الاستلام المباشرة."""
+    item = _received_item(db, 3)
+    _COUNTER["n"] += 1
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    distribution = SparePartMovementDocument(
+        document_number=f"D-SETTLE-{_COUNTER['n']}",
+        document_type="distribution",
+        document_date=RECEIVED + timedelta(days=2),
+        issuer="المخزن",
+        recipient="الورشة",
+    )
+    db.add(distribution)
+    db.flush()
+    db.add(SparePartMovementItem(
+        document_id=distribution.id,
+        request_item_id=item.id,
+        received_request_item_id=item.id,
+        quantity=Decimal("4"),
+    ))
+    return_document = SparePartMovementDocument(
+        document_number=f"R-SETTLE-{_COUNTER['n']}",
+        document_type="return",
+        document_date=RECEIVED + timedelta(days=3),
+        issuer="المخزن",
+        recipient=item.supplier_institution,
+        beneficiary=item.supplier_institution,
+    )
+    db.add(return_document)
+    db.flush()
+    db.add(SparePartMovementItem(
+        document_id=return_document.id,
+        request_item_id=item.id,
+        received_request_item_id=item.id,
+        quantity=Decimal("1"),
+    ))
+    db.commit()
+
+    balances = _balances(db, item)
+    assert balances["distributed"] == 4
+    assert balances["returned"] == 1
+    assert balances["available_for_distribution"] == 0
+    assert balances["status"] == "fully_distributed"
+
+
 def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):
     item = _received_item(db, 3)
     _COUNTER['n'] += 1
