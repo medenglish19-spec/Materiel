@@ -299,23 +299,22 @@ def _balance_from_maps(item, maps):
 
     received_qty = Decimal(str(item.received_quantity or 0))
     returned = returned_from_distributed + legacy_returned
-    # المتبقي لدى الجهة هو الموزع ناقص ما رُدّ منه فعلاً، لا ناقص كل إرجاع
+    # الموزعة فعليًا = إجمالي التوزيع ناقص كل الإرجاعات المسجلة.
+    # نحتفظ بالإجمالي التاريخي منفصلًا حتى لا نفقد أثر الحركة.
+    distributed_actual = _at_least_zero(distributed - returned)
     remaining_with_entity = _at_least_zero(distributed - returned_from_distributed)
 
     return {
         "received_quantity": received_qty,
-        "distributed": distributed,
+        "distributed": distributed_actual,
+        "distributed_total": distributed,
         "returned": returned,
         "returned_from_distributed": returned_from_distributed,
         "legacy_returned": legacy_returned,
         "available_for_distribution": _available(received_qty, distributed, legacy_returned),
         "remaining_with_entity": remaining_with_entity,
-        # الحالة تُشتقّ من الإرجاع المرتبط بتوزيع، لا من مجمل الإرجاع: هو
-        # نفسه الذي اشتُقّ منه المتبقي، فلا تخالف الحالةُ الرقمَ المجاور لها
-        # الحالة تعتمد على كل الإرجاعات المسجلة لهذا المصدر، بما فيها
-        # الإرجاع المباشر من بند الاستلام. وإلا كانت حالة 3 مستلمة / 4 موزعة
-        # / 1 معادة تظهر كتجاوز رغم أن صافي التوزيع يساوي المستلم.
-        "status": _status(received_qty, distributed, returned),
+        # حالة الرصيد تعتمد على الموزعة فعليًا، لا على إجمالي الحركات التاريخية.
+        "status": _status(received_qty, distributed_actual, Decimal("0")),
     }
 
 
