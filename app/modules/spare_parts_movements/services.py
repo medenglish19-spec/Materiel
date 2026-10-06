@@ -274,10 +274,10 @@ def _status(received, distributed, returned):
         return "invalid_distribution_over_received"
     if returned >= distributed:
         return "distributed_then_fully_returned"
-    if returned > 0:
-        return "partially_remaining_with_entity"
     if net_distributed >= received:
         return "fully_distributed"
+    if returned > 0:
+        return "partially_remaining_with_entity"
     return "partially_distributed"
 
 
