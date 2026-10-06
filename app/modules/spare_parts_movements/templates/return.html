@@ -39,14 +39,14 @@ async function load(){
     const tableRows=document.getElementById('rows');
     tableRows.innerHTML='<tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr>';
     try{
-        const [receivedData,documentData]=await Promise.all([
-            fetchJson('/api/spare-parts-requests/received-register'),
+        const [returnableData,documentData]=await Promise.all([
+            fetchJson('/api/spare-parts-movements/returnable'),
             fetchJson('/api/spare-parts-movements?document_type=return')
         ]);
-        if(!Array.isArray(receivedData)||!Array.isArray(documentData)){
+        if(!Array.isArray(returnableData)||!Array.isArray(documentData)){
             throw new Error('استجابة غير متوقعة من واجهة الخادم');
         }
-        receipts=receivedData.map(normalizeReceiptBalance);
+        receipts=returnableData.map(normalizeReceiptBalance);
         docs=documentData;
         renderReceipts();
         renderDocs();
@@ -57,15 +57,18 @@ async function load(){
 
 function normalizeReceiptBalance(row){
     const receivedQuantity=Number(row.received_quantity||0);
-    const distributedQuantity=Number(row.distributed_quantity??row.distributed??0);
-    const returnedQuantity=Number(row.returned_quantity??row.returned??0);
+    const distributedQuantity=Number(row.distributed_quantity||0);
+    const returnedQuantity=Number(row.returned_quantity||0);
+    const remainingQuantity=Number(
+        row.remaining_quantity ?? (receivedQuantity-distributedQuantity-returnedQuantity)
+    );
     return {
         ...row,
         received_request_item_id:Number(row.received_request_item_id||row.request_item_id),
         received_quantity:receivedQuantity,
         distributed_quantity:distributedQuantity,
         returned_quantity:returnedQuantity,
-        remaining_quantity:Math.max(0,receivedQuantity-distributedQuantity-returnedQuantity)
+        remaining_quantity:Math.max(0,remainingQuantity)
     };
 }
 
