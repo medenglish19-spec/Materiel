@@ -734,6 +734,7 @@ REQUIRED_STATUSES = {
 COLUMNS = {
     "request_number": "رقم الطلب",
     "part_name": "الغيار",
+    "asset_code": "العتاد",
     "received_quantity": "الكمية المستلمة",
     "distributed": "الكمية الموزعة",
     "returned": "الكمية المرتجعة",
@@ -741,7 +742,6 @@ COLUMNS = {
     "remaining_with_entity": "المتبقي لدى الجهة",
     "status": "الحالة",
     "received_date": "تاريخ الاستلام",
-    "asset_code": "العتاد",
     "registration_number": "رقم التسجيل",
     "recipient": "المستلم",
     "supplier_institution": "المؤسسة الممونة",
