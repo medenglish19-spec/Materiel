@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 STAGE13 = "stage13_remove_orphaned_spec_links"
-STAGE14 = "stage14_null_orphaned_spec_categories"
+STAGE14 = "9cff3cadf131"
 
 # what the live database holds: categories 9 and 10 survive, 3 is gone
 LIVE_CATEGORIES = [9, 10]
