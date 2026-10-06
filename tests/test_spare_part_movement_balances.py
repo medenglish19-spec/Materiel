@@ -727,9 +727,26 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
             quantity=Decimal("4"),
         )
     )
-    db.flush()
 
-    return_document = _return_received(db, item, 1, day=3)
+    return_document = SparePartMovementDocument(
+        document_number=f"R-OVER-{_COUNTER['n']}",
+        document_type="return",
+        document_date=RECEIVED + timedelta(days=3),
+        issuer="المخزن",
+        recipient=item.supplier_institution,
+        beneficiary=item.supplier_institution,
+    )
+    db.add(return_document)
+    db.flush()
+    db.add(
+        SparePartMovementItem(
+            document_id=return_document.id,
+            request_item_id=item.id,
+            received_request_item_id=item.id,
+            quantity=Decimal("1"),
+        )
+    )
+    db.commit()
 
     balances = _balances(db, item)
     assert balances["status"] == "fully_distributed"
