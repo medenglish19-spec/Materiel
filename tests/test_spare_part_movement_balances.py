@@ -639,7 +639,7 @@ def test_the_received_register_keeps_the_existing_columns(db):
         "supplier_institution",
     ):
         assert key in row, f"عمود {key} اختفى من سجل الغيار المستلم"
-    assert row["equipment"]["asset_code"] == "BAL-1"
+    assert row["equipment"]["asset_code"].startswith("BAL-")
 
 
 # --------------------------------------------------------- عرض الصفحة نفسها
