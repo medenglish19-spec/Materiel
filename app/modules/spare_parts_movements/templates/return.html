@@ -59,14 +59,14 @@ function normalizeReceiptBalance(row){
     const receivedQuantity=Number(row.received_quantity||0);
     const distributedQuantity=Number(row.distributed ?? row.distributed_quantity ?? 0);
     const returnedQuantity=Number(row.returned ?? row.returned_quantity ?? 0);
-    const availableQuantity=Number(row.available_for_distribution ?? row.remaining_quantity ?? 0);
+    const returnableQuantity=Number(row.returnable_quantity ?? row.remaining_quantity ?? 0);
     return {
         ...row,
         received_request_item_id:Number(row.request_item_id),
         received_quantity:receivedQuantity,
         distributed_quantity:distributedQuantity,
         returned_quantity:returnedQuantity,
-        remaining_quantity:Math.max(0,availableQuantity),
+        remaining_quantity:Math.max(0,returnableQuantity),
         equipment_code:row.equipment?.asset_code||row.equipment_code||'—',
         supplier_institution:row.supplier_institution||row.return_recipient||row.supplier?.name||row.supplier_name||'—',
         status:row.status||''
