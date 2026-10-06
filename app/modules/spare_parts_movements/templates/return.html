@@ -17,7 +17,7 @@
 <div class="field wide"><label>الملاحظة / سبب الإرجاع</label><textarea id="notes"></textarea></div>
 </div>
 <div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">بيانات الاستلام</div>
-<div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>الغيار</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>الكمية المتبقية</th></tr></thead><tbody id="lines"><tr><td colspan="5" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
+<div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th></tr></thead><tbody id="lines"><tr><td colspan="7" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
 <div class="field" style="max-width:180px;margin-top:9px"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1"></div>
 <div id="notice" class="notice"></div><div style="margin-top:10px"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
 </div>
@@ -40,13 +40,13 @@ async function load(){
     tableRows.innerHTML='<tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr>';
     try{
         const [returnableData,documentData]=await Promise.all([
-            fetchJson('/api/spare-parts-movements/returnable'),
+            fetchJson('/api/spare-parts-requests/received-register'),
             fetchJson('/api/spare-parts-movements?document_type=return')
         ]);
         if(!Array.isArray(returnableData)||!Array.isArray(documentData)){
             throw new Error('استجابة غير متوقعة من واجهة الخادم');
         }
-        receipts=returnableData.map(normalizeReceiptBalance);
+        receipts=returnableData.filter(row=>Number(row.available_for_distribution||0)>0).map(normalizeReceiptBalance);
         docs=documentData;
         renderReceipts();
         renderDocs();
@@ -57,18 +57,18 @@ async function load(){
 
 function normalizeReceiptBalance(row){
     const receivedQuantity=Number(row.received_quantity||0);
-    const distributedQuantity=Number(row.distributed_quantity||0);
-    const returnedQuantity=Number(row.returned_quantity||0);
-    const remainingQuantity=Number(
-        row.remaining_quantity ?? (receivedQuantity-distributedQuantity-returnedQuantity)
-    );
+    const distributedQuantity=Number(row.distributed ?? row.distributed_quantity ?? 0);
+    const returnedQuantity=Number(row.returned ?? row.returned_quantity ?? 0);
+    const availableQuantity=Number(row.available_for_distribution ?? row.remaining_quantity ?? 0);
     return {
         ...row,
-        received_request_item_id:Number(row.received_request_item_id||row.request_item_id),
+        received_request_item_id:Number(row.request_item_id),
         received_quantity:receivedQuantity,
         distributed_quantity:distributedQuantity,
         returned_quantity:returnedQuantity,
-        remaining_quantity:Math.max(0,remainingQuantity)
+        remaining_quantity:Math.max(0,availableQuantity),
+        equipment_code:row.equipment?.asset_code||row.equipment_code||'—',
+        status:row.status||''
     };
 }
 
@@ -86,7 +86,7 @@ function renderLines(){
     const receipt=receipts.find(row=>Number(row.received_request_item_id)===receiptId);
     const quantityInput=document.getElementById('returnQuantity');
     if(!receipt||receipt.remaining_quantity<=0){
-        document.getElementById('lines').innerHTML='<tr><td colspan="5" class="empty">اختر بند استلام له كمية متبقية.</td></tr>';
+        document.getElementById('lines').innerHTML='<tr><td colspan="7" class="empty">اختر بند استلام له كمية متبقية.</td></tr>';
         document.getElementById('supplier').value='';
         quantityInput.value='';
         quantityInput.max='';
@@ -97,10 +97,12 @@ function renderLines(){
     document.getElementById('lines').innerHTML=
         '<tr data-received="'+receipt.received_request_item_id+'">'
         +'<td><a class="link" href="/spare-parts-history/'+receipt.received_request_item_id+'">'+esc(receipt.part_name)+'</a></td>'
+        +'<td>'+esc(receipt.equipment_code)+'</td>'
         +'<td>'+esc(receipt.received_quantity)+'</td>'
         +'<td>'+esc(receipt.distributed_quantity)+'</td>'
         +'<td>'+esc(receipt.returned_quantity)+'</td>'
-        +'<td>'+esc(receipt.remaining_quantity)+'</td></tr>';
+        +'<td>'+esc(receipt.remaining_quantity)+'</td>'
+        +'<td>'+esc(receipt.status||'—')+'</td></tr>';
 }
 
 function renderDocs(){
