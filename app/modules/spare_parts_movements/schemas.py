@@ -8,6 +8,7 @@ class MovementItemCreate(BaseModel):
     request_item_id: int
     quantity: Decimal = Field(gt=0)
     source_item_id: int | None = None
+    received_request_item_id: int | None = None
     notes: str | None = None
 
 class MovementDocumentCreate(BaseModel):
@@ -61,6 +62,7 @@ class MovementItemOut(BaseModel):
     id: int
     request_item_id: int
     source_item_id: int | None = None
+    received_request_item_id: int | None = None
     part_name: str | None = None
     request_number: str | None = None
     quantity: Decimal
