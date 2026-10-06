@@ -10,15 +10,15 @@
 <div class="bar"><button id="newBtn" class="btn">＋ وثيقة إرجاع</button><input id="search" placeholder="بحث في وثائق الإرجاع أو الغيار" style="min-width:260px"></div>
 <div id="form" class="form">
 <div class="grid">
-<div class="field"><label>رقم وثيقة الإرجاع *</label><input id="number"></div>
-<div class="field"><label>تاريخ الإرجاع *</label><input id="date" type="date"></div>
+<div class="field"><label>رقم وثيقة الإرجاع *</label><input id="number" required maxlength="80"></div>
+<div class="field"><label>تاريخ الإرجاع *</label><input id="date" type="date" required></div>
 <div class="field"><label>الاستلام المرجعي *</label><select id="receipt"><option value="">اختر الاستلام</option></select></div>
 <div class="field"><label>الهيئة الموردة</label><input id="supplier" readonly></div>
 <div class="field wide"><label>الملاحظة / سبب الإرجاع</label><textarea id="notes"></textarea></div>
 </div>
 <div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">بيانات الاستلام</div>
 <div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th></tr></thead><tbody id="lines"><tr><td colspan="7" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
-<div class="field" style="max-width:180px;margin-top:9px"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1"></div>
+<div class="field" style="max-width:180px;margin-top:9px"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1" required></div>
 <div id="notice" class="notice"></div><div style="margin-top:10px"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
 </div>
 <div class="table-scroll"><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
@@ -139,13 +139,43 @@ function closeForm(){
 }
 
 async function saveDoc(){
+    const number=document.getElementById('number').value.trim();
+    const date=document.getElementById('date').value;
     const receiptId=Number(document.getElementById('receipt').value||0);
     const quantity=Number(document.getElementById('returnQuantity').value||0);
-    const selectedItems=receiptId&&quantity>0?[{
+    const receipt=receipts.find(row=>Number(row.received_request_item_id)===receiptId);
+    const notice=document.getElementById('notice');
+    notice.textContent='';
+    if(!number){
+        notice.textContent='رقم وثيقة الإرجاع مطلوب.';
+        document.getElementById('number').focus();
+        return;
+    }
+    if(!date){
+        notice.textContent='تاريخ الإرجاع مطلوب.';
+        document.getElementById('date').focus();
+        return;
+    }
+    if(!receiptId||!receipt){
+        notice.textContent='اختر بند استلام صالحًا قبل الحفظ.';
+        document.getElementById('receipt').focus();
+        return;
+    }
+    if(!Number.isInteger(quantity)||quantity<=0){
+        notice.textContent='كمية الإرجاع يجب أن تكون عددًا صحيحًا أكبر من صفر.';
+        document.getElementById('returnQuantity').focus();
+        return;
+    }
+    if(quantity>Number(receipt.remaining_quantity||0)){
+        notice.textContent='كمية الإرجاع تتجاوز الكمية المتاحة للإرجاع.';
+        document.getElementById('returnQuantity').focus();
+        return;
+    }
+    const selectedItems=[{
         request_item_id:receiptId,
         received_request_item_id:receiptId,
         quantity
-    }]:[];
+    }];
     const selectedIds=new Set([receiptId]);
     const existingItems=(editing?.items||[])
         .filter(item=>!selectedIds.has(Number(item.received_request_item_id||item.request_item_id)))
@@ -155,9 +185,9 @@ async function saveDoc(){
             quantity:Number(item.quantity)
         }));
     const body={
-        document_number:document.getElementById('number').value,
+        document_number:number,
         document_type:'return',
-        document_date:document.getElementById('date').value,
+        document_date:date,
         notes:document.getElementById('notes').value,
         items:[...existingItems,...selectedItems]
     };
