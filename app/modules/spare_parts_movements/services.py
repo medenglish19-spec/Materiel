@@ -61,10 +61,17 @@ def _unique_number(db, number, exclude=None):
         raise ValueError(DOCUMENT_NUMBER_TAKEN)
 
 
-def _distribution_total(db, request_item_id, exclude=None):
+def _distribution_total(db, received_request_item_id, exclude=None):
+    """إجمالي التوزيع المنسوب إلى بند الاستلام الحقيقي، مع توافق السجلات القديمة."""
     q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "distribution",
-        SparePartMovementItem.request_item_id == request_item_id,
+        or_(
+            SparePartMovementItem.received_request_item_id == received_request_item_id,
+            (
+                SparePartMovementItem.received_request_item_id.is_(None)
+                & (SparePartMovementItem.request_item_id == received_request_item_id)
+            ),
+        ),
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
@@ -87,11 +94,23 @@ def _distribution_totals(db, request_item_ids, exclude=None):
     if not request_item_ids:
         return {}
     q = (
-        db.query(SparePartMovementItem.request_item_id, func.sum(SparePartMovementItem.quantity))
+        db.query(
+            func.coalesce(
+                SparePartMovementItem.received_request_item_id,
+                SparePartMovementItem.request_item_id,
+            ),
+            func.sum(SparePartMovementItem.quantity),
+        )
         .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
         .filter(
             SparePartMovementDocument.document_type == "distribution",
-            SparePartMovementItem.request_item_id.in_(request_item_ids),
+            or_(
+                SparePartMovementItem.received_request_item_id.in_(request_item_ids),
+                (
+                    SparePartMovementItem.received_request_item_id.is_(None)
+                    & (SparePartMovementItem.request_item_id.in_(request_item_ids))
+                ),
+            ),
         )
     )
     if exclude:
@@ -320,21 +339,26 @@ def _item(db, item_id):
     ).filter(SparePartRequestItem.id == item_id).with_for_update().first()
 
 
-def _distribution_line(db, item_id, quantity, document_date, exclude=None):
+def _distribution_line(db, item_id, quantity, document_date, exclude=None, received_request_item_id=None):
     quantity = _quantity(quantity)
     item = _item(db, item_id)
     if not item:
         raise ValueError("بند الغيار غير موجود")
-    if item.received_quantity <= 0:
+    received_id = received_request_item_id or item_id
+    received_item = _item(db, received_id)
+    if not received_item:
+        raise ValueError("بند الاستلام غير موجود")
+    if received_item.received_quantity <= 0:
         raise ValueError("لا يمكن توزيع غيار لم يُستلم")
-    receipt = _receipt_date(item)
+    receipt = _receipt_date(received_item)
     if not receipt:
         raise ValueError("لا يمكن التوزيع قبل تسجيل تاريخ الاستلام")
     if document_date < receipt:
         raise ValueError("تاريخ التوزيع لا يمكن أن يكون قبل تاريخ الاستلام")
-    if quantity > available_quantity(db, item, exclude):
-        raise ValueError(f"الكمية المتاحة للتوزيع هي {available_quantity(db, item, exclude)} فقط")
-    return item
+    available = available_quantity(db, received_item, exclude)
+    if quantity > available:
+        raise ValueError(f"الكمية المتاحة للتوزيع هي {available} فقط")
+    return item, received_id
 
 
 def _return_line(db, source_item_id, request_item_id, quantity, document_date, exclude=None):
@@ -350,8 +374,6 @@ def _return_line(db, source_item_id, request_item_id, quantity, document_date, e
     received_item = source.received_request_item or item
     if source.request_item_id != request_item_id:
         raise ValueError("مصدر الاستلام لا يطابق بند التوزيع")
-    if source.received_request_item_id is not None and source.received_request_item_id != request_item_id:
-        raise ValueError("بند الاستلام لا يطابق بند التوزيع")
     receipt = _receipt_date(received_item)
     if not receipt:
         raise ValueError("لا يمكن الإرجاع قبل تسجيل تاريخ الاستلام")
@@ -513,7 +535,10 @@ def create_document(db, data: MovementDocumentCreate, user_id=None):
             raise ValueError("الجهة المستلمة مطلوبة")
         _same_ids(data.items)
         for line in data.items:
-            _distribution_line(db, line.request_item_id, line.quantity, data.document_date)
+            _distribution_line(
+                db, line.request_item_id, line.quantity, data.document_date,
+                received_request_item_id=line.received_request_item_id,
+            )
         obj = SparePartMovementDocument(
             document_number=number, document_type="distribution", document_date=data.document_date,
             issuer=WAREHOUSE_LABEL, recipient=data.recipient, beneficiary=data.recipient,
@@ -599,7 +624,10 @@ def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None)
         lines = data.items if data.items is not None else obj.items
         _same_ids(lines)
         for line in lines:
-            _distribution_line(db, line.request_item_id, line.quantity, document_date, obj.id)
+            _distribution_line(
+                db, line.request_item_id, line.quantity, document_date, obj.id,
+                received_request_item_id=line.received_request_item_id,
+            )
         obj.document_number, obj.document_date = number, document_date
         obj.recipient, obj.beneficiary = recipient, recipient
         if data.notes is not None:
@@ -681,7 +709,10 @@ def history(db, request_item_id):
     req = item.request
     source = req.fault if req.source_type == "fault" else (req.repair.fault if req.repair else None)
     docs = db.query(SparePartMovementDocument).join(SparePartMovementItem).filter(
-        SparePartMovementItem.request_item_id == request_item_id
+        or_(
+            SparePartMovementItem.request_item_id == request_item_id,
+            SparePartMovementItem.received_request_item_id == request_item_id,
+        )
     ).order_by(SparePartMovementDocument.document_date.asc(), SparePartMovementDocument.id.asc()).all()
     return {
         "item": {
