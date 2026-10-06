@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}قطع الغيار{% endblock %}
+{% block title %}سجل طلب قطع الغيار{% endblock %}
 {% block content %}
 <style>
 .spm{direction:rtl}.spm .hero{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}.spm h1{margin:0;color:#183955;font-size:24px}.spm .hint{margin-top:5px;color:#718096;font-size:12px}.spm .stats,.spm .modules{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}.spm .stat,.spm .module-card,.spm .panel{background:#fff;border:1px solid #e4eaf0;border-radius:12px;box-shadow:0 3px 14px rgba(20,55,80,.05)}.spm .stat{display:block;padding:16px;text-decoration:none;color:inherit}.spm .label{font-size:11px;color:#718096}.spm .value{font-size:25px;font-weight:800;color:#183955;margin-top:6px}.spm .module-card{padding:18px;min-height:125px;display:flex;flex-direction:column;justify-content:space-between}.spm .module-card h3{margin:0 0 6px;color:#183955;font-size:15px}.spm .module-card p{margin:0;color:#718096;font-size:11px;line-height:1.8}.spm a{color:#0875d1;text-decoration:none}.spm .panel{overflow:hidden}.spm .panel-head{padding:13px 16px;border-bottom:1px solid #edf1f4;display:flex;justify-content:space-between}.spm .panel-head h2{margin:0;color:#183955;font-size:15px}.spm .table-scroll{overflow:auto}.spm table{width:100%;border-collapse:collapse}.spm th,.spm td{padding:10px 12px;text-align:right;border-bottom:1px solid #edf1f4;font-size:10px;white-space:nowrap}.spm th{background:#f8fafc;color:#718096}.spm .empty{text-align:center;padding:26px;color:#8794a2}.spm .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#245d88;font-weight:800}@media(max-width:900px){.spm .stats,.spm .modules{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.spm .stats,.spm .modules{grid-template-columns:1fr}}
 </style>
 <div class="spm">
-<div class="hero"><div><h1>قطع الغيار</h1><div class="hint">إدارة طلبات واستلام وتوزيع وإرجاع قطع الغيار من مكان واحد.</div></div><a class="btn btn-primary" href="/spare-parts-requests">＋ طلب غيار جديد</a></div>
+<div class="hero"><div><h1>سجل طلب قطع الغيار</h1><div class="hint">إدارة طلبات واستلام وتوزيع وإرجاع قطع الغيار من مكان واحد.</div></div><a class="btn btn-primary" href="/spare-parts-requests">＋ طلب غيار جديد</a></div>
 <div class="stats">
 <a class="stat" href="/spare-parts-requests"><div class="label">الطلبات</div><div class="value" id="requestsCount">—</div></a>
 <a class="stat" href="/spare-parts-received"><div class="label">المستلم</div><div class="value" id="receivedCount">—</div></a>
