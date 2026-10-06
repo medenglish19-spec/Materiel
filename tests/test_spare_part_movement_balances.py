@@ -661,7 +661,8 @@ def test_the_balances_can_look_past_the_document_being_edited(db):
     return_doc = _return_received(db, item, 1)
 
     whole = _balances(db, item)
-    assert whole["distributed"] == 4
+    assert whole["distributed"] == 3
+    assert whole["distributed_total"] == 4
     assert whole["returned"] == 1
     assert whole["available_for_distribution"] == 5
     assert whole["remaining_with_entity"] == 4
@@ -681,7 +682,8 @@ def test_the_history_page_reports_the_same_balances(db):
     _return(db, item, 2, _item_id(doc))
 
     balances = movements.history(db, item.id)["balances"]
-    assert balances["distributed"] == 6
+    assert balances["distributed"] == 4
+    assert balances["distributed_total"] == 6
     assert balances["returned"] == 2
     assert balances["available_for_distribution"] == 2
     assert balances["remaining_with_entity"] == 6
