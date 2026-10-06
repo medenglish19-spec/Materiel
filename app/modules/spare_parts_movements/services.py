@@ -264,13 +264,19 @@ def _status(received, distributed, returned):
       4. موزع جزئيًا     → 0 < وُزّع < استُلم
       5. لم يوزع         → لم يُوزّع شيء
     """
+    if received < 0 or distributed < 0 or returned < 0 or returned > distributed:
+        return "invalid_movement_balance"
     if received <= 0 or distributed <= 0:
         return "received_not_distributed"
+
+    net_distributed = distributed - returned
+    if net_distributed > received:
+        return "invalid_distribution_over_received"
     if returned >= distributed:
         return "distributed_then_fully_returned"
     if returned > 0:
         return "partially_remaining_with_entity"
-    if distributed >= received:
+    if net_distributed >= received:
         return "fully_distributed"
     return "partially_distributed"
 
