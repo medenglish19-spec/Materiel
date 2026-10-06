@@ -78,6 +78,11 @@ function renderReceipts(){
     select.innerHTML='<option value="">اختر الاستلام</option>'+rows.map(row=>
         '<option value="'+row.received_request_item_id+'">طلب '+esc(row.request_number)+' — '+esc(row.part_name)+' — متبقي '+esc(row.remaining_quantity)+'</option>'
     ).join('');
+    // عند فتح نموذج جديد، اختر أول بند صالح تلقائيًا حتى تظهر بيانات الاستلام
+    // مباشرة بدل بقاء الجدول فارغًا مع وجود خيار صالح في القائمة.
+    if(!editing && rows.length){
+        select.value=String(rows[0].received_request_item_id);
+    }
     renderLines();
 }
 
