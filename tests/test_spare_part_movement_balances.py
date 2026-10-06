@@ -59,12 +59,12 @@ def _setup_shared(db):
     eq_type = EquipmentType(name=f"شاحنات-أرصدة-{suffix}", measurement_unit="km")
     db.add(eq_type)
     db.flush()
-    model = EquipmentModel(name="طراز أرصدة", equipment_type_id=eq_type.id)
+    model = EquipmentModel(name=f"طراز أرصدة-{suffix}", equipment_type_id=eq_type.id)
     db.add(model)
     db.flush()
     equipment = Equipment(
-        asset_code="BAL-1",
-        registration_number="333-BAL",
+        asset_code=f"BAL-{suffix}",
+        registration_number=f"333-BAL-{suffix}",
         equipment_type_id=eq_type.id,
         equipment_model_id=model.id,
         technical_condition="ready",
