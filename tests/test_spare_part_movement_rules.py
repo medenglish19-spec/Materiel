@@ -6,14 +6,20 @@ from pydantic import ValidationError
 from app.modules.spare_parts_movements.schemas import MovementDocumentCreate
 
 
-def test_return_requires_distribution_reference():
-    with pytest.raises(ValidationError):
-        MovementDocumentCreate(
-            document_number="R-1",
-            document_type="return",
-            document_date=date(2026, 10, 4),
-            items=[{"request_item_id": 1, "quantity": 1, "source_item_id": 1}],
-        )
+def test_return_accepts_received_item_without_distribution_reference():
+    data = MovementDocumentCreate(
+        document_number="R-1",
+        document_type="return",
+        document_date=date(2026, 10, 4),
+        items=[{
+            "request_item_id": 1,
+            "received_request_item_id": 1,
+            "quantity": 1,
+        }],
+    )
+
+    assert data.source_document_id is None
+    assert data.items[0].received_request_item_id == 1
 
 
 def test_distribution_does_not_accept_source_document():

@@ -38,8 +38,6 @@ class MovementDocumentCreate(BaseModel):
     def source_rules(self):
         if self.document_type == 'distribution' and self.source_document_id is not None:
             raise ValueError('سند الإرجاع فقط هو من يحتاج مصدر توز')
-        if self.document_type == 'return' and self.source_document_id is None:
-            raise ValueError('يجب تحديد سند التوزيع المرجعي')
         return self
 
 class MovementDocumentUpdate(BaseModel):

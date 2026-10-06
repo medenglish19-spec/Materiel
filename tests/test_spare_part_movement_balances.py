@@ -210,31 +210,41 @@ def _distribute(db, item, quantity, day=2, exclude=None, bypass_schema=False):
 
 
 def _return(db, item, quantity, source_item_id, day=3, exclude=None, bypass_schema=False):
-    """إرجاع كمية مرتبطة بسند توزيع."""
-    lines = _lines(item.id, quantity, source_item_id, bypass_schema=bypass_schema)
+    """إرجاع من بند الاستلام؛ وسيط التوزيع محفوظ لتقليل تغيير الاستدعاءات."""
+    return _return_received(
+        db, item, quantity, day=day, exclude=exclude, bypass_schema=bypass_schema
+    )
+
+
+def _return_received(db, item, quantity, day=3, exclude=None, bypass_schema=False):
+    """إرجاع مباشر من بند استلام، دون إنشاء وثيقة توزيع."""
+    line_data = {
+        "request_item_id": item.id,
+        "received_request_item_id": item.id,
+        "quantity": Decimal(str(quantity)),
+    }
+    line = (
+        MovementItemCreate.model_construct(**line_data, source_item_id=None)
+        if bypass_schema
+        else MovementItemCreate(**line_data)
+    )
     if exclude:
         return movements.update_document(
             db,
             exclude,
-            MovementDocumentUpdate.model_construct(
-                document_number=None,
+            MovementDocumentUpdate(
                 document_date=RECEIVED + timedelta(days=day),
-                source_document_id=movements.get_document(db, exclude).source_document_id,
-                items=lines,
-                recipient=None,
-                notes=None,
+                items=[line],
             ),
         )
-    source_doc = db.get(SparePartMovementItem, source_item_id).document_id
     _COUNTER["n"] += 1
     return movements.create_document(
         db,
-        MovementDocumentCreate.model_construct(
-            document_number=f"R-{_COUNTER['n']}",
+        MovementDocumentCreate(
+            document_number=f"R-DIRECT-{_COUNTER['n']}",
             document_type="return",
             document_date=RECEIVED + timedelta(days=day),
-            source_document_id=source_doc,
-            items=lines,
+            items=[line],
         ),
     )
 
@@ -281,23 +291,20 @@ def test_fully_distributed(db):
 
 def test_distributed_then_fully_returned(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 10)
-    _return(db, item, 10, _item_id(doc))
+    _return_received(db, item, 10)
     balances = _balances(db, item)
-    assert balances["distributed"] == 10
+    assert balances["distributed"] == 0
     assert balances["returned"] == 10
     assert balances["remaining_with_entity"] == 0
-    assert balances["status"] == "distributed_then_fully_returned"
+    assert movements.return_register(db) == []
 
 
 def test_part_remaining_with_the_entity(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 10)
-    _return(db, item, 4, _item_id(doc))
+    _return_received(db, item, 4)
     balances = _balances(db, item)
     assert balances["returned"] == 4
-    assert balances["remaining_with_entity"] == 6
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert movements.return_register(db)[0]["remaining_quantity"] == 6
 
 
 def test_the_most_specific_state_wins_when_two_overlap(db):
@@ -307,13 +314,12 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
     (0 < 1 < 3). الثانية أدق لأنها تذكر الإرجاع الذي لا تذكره الأولى.
     """
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 3)
-    _return(db, item, 1, _item_id(doc))
+    _distribute(db, item, 3)
+    _return_received(db, item, 1)
     balances = _balances(db, item)
     assert balances["distributed"] == 3
     assert balances["returned"] == 1
-    assert balances["remaining_with_entity"] == 2
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert movements.return_register(db)[0]["remaining_quantity"] == 6
 
 
 # ------------------------------------------------------ منع تجاوز الكميات
@@ -326,12 +332,12 @@ def test_a_distribution_beyond_what_was_received_is_refused(db):
         _distribute(db, item, 7, day=5)
 
 
-def test_a_return_beyond_what_was_distributed_is_refused(db):
+def test_a_return_beyond_received_balance_after_distribution_is_refused(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 6)
-    _return(db, item, 2, _item_id(doc))
+    _distribute(db, item, 6)
+    _return_received(db, item, 2)
     with pytest.raises(ValueError, match="القابلة للإرجاع"):
-        _return(db, item, 5, _item_id(doc), day=6)
+        _return_received(db, item, 3, day=6)
 
 
 def test_distributing_exactly_the_remainder_is_allowed(db):
@@ -342,53 +348,108 @@ def test_distributing_exactly_the_remainder_is_allowed(db):
 
 
 def test_returnable_quantity_is_capped_by_the_received_source(db):
-    """التوزيع لا يصبح مصدرًا مستقلًا للكمية القابلة للإرجاع.
-
-    استلام 10، توزيعين 6 و4، ثم إرجاع 5 من الثاني يترك 5 فقط من الاستلام
-    كحد أقصى للإرجاع من الأول، رغم أن التوزيع الأول ما زال لديه 6.
-    """
+    """الإرجاع يستهلك الرصيد المستلم بعد طرح التوزيع، دون مصدر توزيع."""
     item = _received_item(db, 10)
-    first = _distribute(db, item, 6)
-    second = _distribute(db, item, 4, day=2)
-
-    _return(db, item, 5, _item_id(second), day=4)
-
-    first_line = db.get(SparePartMovementItem, _item_id(first))
-    assert movements.returnable_quantity(db, first_line) == 5
+    _distribute(db, item, 4)
+    _return_received(db, item, 3)
+    assert movements.return_register(db)[0]["remaining_quantity"] == 3
 
     with pytest.raises(ValueError, match="القابلة للإرجاع"):
-        _return(db, item, 6, _item_id(first), day=5)
+        _return_received(db, item, 4, day=5)
 
 
 def test_returnable_register_uses_the_received_source_ceiling(db):
     item = _received_item(db, 10)
-    first = _distribute(db, item, 6)
-    second = _distribute(db, item, 4, day=2)
-    _return(db, item, 5, _item_id(second), day=4)
+    _return_received(db, item, 5)
 
     rows = movements.return_register(db)
-    first_row = next(r for r in rows if r["distribution_item_id"] == _item_id(first))
-    assert first_row["returnable_quantity"] == 5
-    assert first_row["request_item_id"] == item.id
+    assert len(rows) == 1
+    assert rows[0]["received_request_item_id"] == item.id
+    assert rows[0]["returnable_quantity"] == 5
+
+
+def test_received_item_can_be_returned_without_a_distribution(db):
+    item = _received_item(db, 5)
+
+    document = _return_received(db, item, 3)
+
+    assert document.source_document_id is None
+    assert document.items[0].source_item_id is None
+    assert document.items[0].received_request_item_id == item.id
+    assert _balances(db, item)["returned"] == 3
+    assert movements.return_register(db)[0]["returnable_quantity"] == 2
+
+
+def test_direct_return_cannot_exceed_the_remaining_received_quantity(db):
+    item = _received_item(db, 5)
+    _return_received(db, item, 4)
+
+    with pytest.raises(ValueError, match="القابلة للإرجاع"):
+        _return_received(db, item, 2, day=4)
+
+
+def test_remaining_return_balance_subtracts_distribution_and_prior_returns(db):
+    item = _received_item(db, 10)
+    _distribute(db, item, 4)
+    _return_received(db, item, 2)
+
+    row = movements.return_register(db)[0]
+    assert row["received_quantity"] == 10
+    assert row["distributed_quantity"] == 4
+    assert row["returned_quantity"] == 2
+    assert row["remaining_quantity"] == 4
+
+
+def test_updating_direct_return_excludes_its_existing_quantity(db):
+    item = _received_item(db, 5)
+    document = _return_received(db, item, 3)
+
+    updated = _return_received(db, item, 5, day=4, exclude=document.id)
+
+    assert updated.id == document.id
+    assert updated.source_document_id is None
+    assert updated.items[0].received_request_item_id == item.id
+    assert _balances(db, item)["returned"] == 5
+
+
+def test_unreceived_item_cannot_be_returned(db):
+    item = _received_item(db, 5)
+    item.received_quantity = 0
+    db.commit()
+
+    with pytest.raises(ValueError, match="لم يُستلم"):
+        _return_received(db, item, 1)
 
 
 def test_return_rejects_a_mismatched_received_source(db):
     item = _received_item(db, 10)
     other = _received_item(db, 5)
-    distribution = _distribute(db, item, 4)
-
-    with pytest.raises(ValueError, match="مصدر الاستلام"):
-        _return(db, other, 1, _item_id(distribution), day=4)
+    line = MovementItemCreate.model_construct(
+        request_item_id=item.id,
+        received_request_item_id=other.id,
+        quantity=Decimal("1"),
+        source_item_id=None,
+    )
+    with pytest.raises(ValueError, match="بند الاستلام"):
+        movements.create_document(
+            db,
+            MovementDocumentCreate.model_construct(
+                document_number="R-MISMATCH",
+                document_type="return",
+                document_date=RECEIVED + timedelta(days=4),
+                items=[line],
+            ),
+        )
 
 
 def test_returning_exactly_the_remainder_is_allowed(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 6)
-    _return(db, item, 2, _item_id(doc))
-    _return(db, item, 4, _item_id(doc), day=6)
+    _distribute(db, item, 6)
+    _return_received(db, item, 2)
+    _return_received(db, item, 2, day=6)
     balances = _balances(db, item)
-    assert balances["returned"] == 6
-    assert balances["remaining_with_entity"] == 0
+    assert balances["returned"] == 4
+    assert movements.return_register(db) == []
 
 
 @pytest.mark.parametrize("quantity", [0, -1, -5])
@@ -407,9 +468,8 @@ def test_a_zero_or_negative_distribution_is_refused(db, quantity):
 @pytest.mark.parametrize("quantity", [0, -3])
 def test_a_zero_or_negative_return_is_refused(db, quantity):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 6)
     with pytest.raises(ValueError, match="أكبر من صفر"):
-        _return(db, item, quantity, _item_id(doc), bypass_schema=True)
+        _return_received(db, item, quantity, bypass_schema=True)
 
 
 @pytest.mark.parametrize("quantity", [0, -2, "2.5"])
@@ -471,24 +531,23 @@ def test_updating_a_distribution_still_cannot_exceed_the_received(db):
 
 def test_updating_a_return_does_not_count_the_old_line(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 10)
-    ret = _return(db, item, 3, _item_id(doc))
+    _distribute(db, item, 4)
+    ret = _return_received(db, item, 3)
 
-    _return(db, item, 6, _item_id(doc), day=6, exclude=ret.id)
+    _return_received(db, item, 6, day=6, exclude=ret.id)
 
     balances = _balances(db, item)
     assert balances["returned"] == 6
-    assert balances["remaining_with_entity"] == 4
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert movements.return_register(db) == []
 
 
-def test_updating_a_return_still_cannot_exceed_the_distributed(db):
+def test_updating_a_return_still_cannot_exceed_received_balance(db):
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 4)
-    ret = _return(db, item, 1, _item_id(doc))
+    _distribute(db, item, 4)
+    ret = _return_received(db, item, 1)
 
     with pytest.raises(ValueError, match="القابلة للإرجاع"):
-        _return(db, item, 6, _item_id(doc), day=6, exclude=ret.id)
+        _return_received(db, item, 7, day=6, exclude=ret.id)
 
 
 def test_the_balances_can_look_past_the_document_being_edited(db):
@@ -498,19 +557,20 @@ def test_the_balances_can_look_past_the_document_being_edited(db):
     معناها الصحيح ومرة من حساب الوثيقة لنفسها.
     """
     item = _received_item(db, 10)
-    doc = _distribute(db, item, 4)
-    _return(db, item, 1, _item_id(doc))
+    _distribute(db, item, 4)
+    return_doc = _return_received(db, item, 1)
 
     whole = _balances(db, item)
     assert whole["distributed"] == 4
     assert whole["returned"] == 1
-    assert whole["available_for_distribution"] == 6
-    assert whole["remaining_with_entity"] == 3
+    assert whole["available_for_distribution"] == 5
+    assert whole["remaining_with_entity"] == 4
 
-    without = _balances(db, item, exclude=doc.id)
-    assert without["distributed"] == 0, "الوثيقة المُستثنية ما زالت في التوزيع"
-    assert without["available_for_distribution"] == 10
-    assert without["remaining_with_entity"] == 0
+    without = _balances(db, item, exclude=return_doc.id)
+    assert without["distributed"] == 4
+    assert without["returned"] == 0
+    assert without["available_for_distribution"] == 6
+    assert without["remaining_with_entity"] == 4
 
 
 def test_the_history_page_reports_the_same_balances(db):
@@ -523,9 +583,9 @@ def test_the_history_page_reports_the_same_balances(db):
     balances = movements.history(db, item.id)["balances"]
     assert balances["distributed"] == 6
     assert balances["returned"] == 2
-    assert balances["available_for_distribution"] == 4
-    assert balances["remaining_with_entity"] == 4
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert balances["available_for_distribution"] == 2
+    assert balances["remaining_with_entity"] == 6
+    assert balances["status"] == "partially_distributed"
 
 
 def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
@@ -600,10 +660,23 @@ def test_the_received_register_shows_the_balances_and_the_state(db):
         "received_quantity": 10,
         "distributed": 6,
         "returned": 2,
-        "available_for_distribution": 4,
-        "remaining_with_entity": 4,
-        "status": "partially_remaining_with_entity",
+        "available_for_distribution": 2,
+        "remaining_with_entity": 6,
+        "status": "partially_distributed",
     }
+
+
+def test_deleting_direct_return_restores_received_return_balance(db):
+    item = _received_item(db, 10)
+    _distribute(db, item, 4)
+    document = _return_received(db, item, 2)
+
+    assert movements.return_register(db)[0]["remaining_quantity"] == 4
+    movements.delete_document(db, document.id)
+
+    row = movements.return_register(db)[0]
+    assert row["returned_quantity"] == 0
+    assert row["remaining_quantity"] == 6
 
 
 def test_the_received_register_agrees_with_the_distribution_page(db):

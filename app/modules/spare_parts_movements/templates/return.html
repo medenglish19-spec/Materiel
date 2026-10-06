@@ -5,7 +5,7 @@
 .spm{direction:rtl}.head{display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap}.spm h1{margin:0;color:#183955;font-size:22px}.muted{font-size:11px;color:#718096}.panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden;margin-top:12px}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #edf1f4}.spm input,.spm select,.spm textarea{height:32px;border:1px solid #dce4ea;border-radius:6px;padding:0 8px;font:inherit;font-size:10px;background:#fff}.spm textarea{height:58px;padding:7px}.btn{height:32px;border:0;border-radius:6px;padding:0 12px;background:#245d88;color:#fff;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.btn.secondary{background:#eef3f6;color:#35566e}.form{display:none;padding:12px;background:#fbfcfd;border-bottom:1px solid #edf1f4}.form.open{display:block}.grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:9px}.field{display:flex;flex-direction:column;gap:4px}.field label{font-size:10px;font-weight:800;color:#657582}.wide{grid-column:span 2}.table-scroll{overflow:auto}table{width:100%;min-width:900px;border-collapse:collapse}th,td{padding:9px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}th{background:#f8fafc;color:#718096}.link{color:#245d88;font-weight:800;text-decoration:none}.empty{text-align:center;padding:28px;color:#8794a2}.notice{font-size:10px;color:#b54708;margin-top:7px}.row-actions{display:flex;gap:5px}.row-actions button{font-size:9px;padding:4px 7px;border:1px solid #dce4ea;background:#fff;border-radius:5px;cursor:pointer}@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:span 2}}@media(max-width:500px){.grid{grid-template-columns:1fr}.wide{grid-column:span 1}}
 </style>
 <div class="spm">
-<div class="head"><div><h1>إرجاع الغيار</h1><div class="muted">الإرجاع مرتبط بتوزيع سابق، ويعاد فقط إلى الهيئة التي سلّمتنا الغيار.</div></div><div><a class="link" href="/spare-parts-distribution">التوزيع ←</a> &nbsp; <a class="link" href="/spare-parts-received">سجل الاستلام</a></div></div>
+<div class="head"><div><h1>إرجاع الغيار</h1><div class="muted">الإرجاع من الغيار المستلم، ويعاد إلى الهيئة التي سلّمتنا الغيار.</div></div><div><a class="link" href="/spare-parts-received">سجل الاستلام</a></div></div>
 <div class="panel">
 <div class="bar"><button id="newBtn" class="btn">＋ وثيقة إرجاع</button><input id="search" placeholder="بحث في وثائق الإرجاع أو الغيار" style="min-width:260px"></div>
 <div id="form" class="form">
@@ -13,28 +13,198 @@
 <div class="field"><label>رقم وثيقة الإرجاع *</label><input id="number"></div>
 <div class="field"><label>تاريخ الإرجاع *</label><input id="date" type="date"></div>
 <div class="field"><label>الاستلام المرجعي *</label><select id="receipt"><option value="">اختر الاستلام</option></select></div>
-<div class="field"><label>التوزيع المرجعي *</label><select id="source" disabled><option value="">اختر الاستلام أولاً</option></select></div>
-<div class="field"><label>العتاد *</label><input id="recipient" readonly></div>
-<div class="field"><label>الهيئة المستفيدة</label><input id="issuer" readonly></div>
+<div class="field"><label>الهيئة الموردة</label><input id="supplier" readonly></div>
 <div class="field wide"><label>الملاحظة / سبب الإرجاع</label><textarea id="notes"></textarea></div>
 </div>
-<div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">الكميات القابلة للإرجاع</div>
-<div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>رقم الطلب</th><th>تاريخ الاستلام</th><th>الغيار</th><th>العتاد</th><th>الهيئة المستفيدة</th><th>الموزع</th><th>قابل للإرجاع</th><th>الكمية</th></tr></thead><tbody id="lines"><tr><td colspan="8" class="empty">اختر وثيقة توزيع.</td></tr></tbody></table></div>
+<div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">بيانات الاستلام</div>
+<div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>الغيار</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>الكمية المتبقية</th></tr></thead><tbody id="lines"><tr><td colspan="5" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
+<div class="field" style="max-width:180px;margin-top:9px"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1"></div>
 <div id="notice" class="notice"></div><div style="margin-top:10px"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
 </div>
 <div class="table-scroll"><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
 </div></div>
 <script>
-let received=[],returnable=[],docs=[],editing=null;const today=new Date().toISOString().slice(0,10),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function load(){const [r,a,d]=await Promise.all([fetch('/api/spare-parts-requests/received-register'),fetch('/api/spare-parts-movements/returnable'),fetch('/api/spare-parts-movements?document_type=return')]);received=r.ok?await r.json():[];returnable=a.ok?await a.json():[];docs=d.ok?await d.json():[];renderReceipts();renderDocs()}
-function renderReceipts(){const s=document.getElementById('receipt');const ids=new Set(returnable.map(x=>x.received_request_item_id));const rows=received.filter(x=>ids.has(x.request_item_id));s.innerHTML='<option value="">اختر الاستلام</option>'+rows.map(x=>'<option value="'+x.request_item_id+'">طلب '+esc(x.request_number)+' — '+esc(x.part_name)+' — استلم '+esc(x.received_quantity)+' — '+esc(x.received_date||'—')+'</option>').join('');renderDistributionOptions()}\nfunction renderDistributionOptions(){const receiptId=Number(document.getElementById('receipt').value||0);const s=document.getElementById('source');const ids=[...new Set(returnable.filter(x=>x.received_request_item_id===receiptId).map(x=>x.distribution_document_id))];const map=new Map(returnable.map(x=>[x.distribution_document_id,x]));s.disabled=!receiptId;s.innerHTML=(receiptId?'<option value="">اختر التوزيع</option>':'<option value="">اختر الاستلام أولاً</option>')+ids.map(id=>{const x=map.get(id);return '<option value="'+id+'">وثيقة '+esc(x.distribution_document_number)+' — '+esc(x.distribution_date)+' — '+esc(x.distributed_to)+'</option>'}).join('');renderLines()}
-function renderLines(){const id=Number(document.getElementById('source').value||0);const receiptId=Number(document.getElementById('receipt').value||0);const rows=returnable.filter(x=>x.distribution_document_id===id&&x.received_request_item_id===receiptId);if(!rows.length){document.getElementById('lines').innerHTML='<tr><td colspan="8" class="empty">لا توجد كمية قابلة للإرجاع في هذا التوزيع.</td></tr>';document.getElementById('recipient').value='';document.getElementById('issuer').value='';return}document.getElementById('recipient').value=rows[0].return_recipient;document.getElementById('issuer').value=rows[0].distributed_to;document.getElementById('lines').innerHTML=rows.map(x=>'<tr data-source="'+x.distribution_item_id+'" data-request="'+x.request_item_id+'"><td>'+esc(x.request_number)+'</td><td>'+esc(x.received_date||x.distribution_date||'—')+'</td><td><a class="link" href="/spare-parts-history/'+x.request_item_id+'">'+esc(x.part_name)+'</a></td><td>'+esc(x.equipment_code)+'</td><td>'+esc(x.beneficiary||x.distributed_to||'—')+'</td><td>'+esc(x.distributor||'—')+'</td><td>'+x.returnable_quantity+'</td><td><input class="qty" type="number" min="0" max="'+x.returnable_quantity+'" step="1" style="width:85px"></td></tr>').join('')}
-function renderDocs(){const q=document.getElementById('search').value.toLowerCase().trim();const rows=docs.filter(d=>JSON.stringify(d).toLowerCase().includes(q));document.getElementById('rows').innerHTML=rows.length?rows.flatMap(d=>d.items.map(i=>'<tr><td>'+esc(d.document_number)+'</td><td>'+esc(d.document_date)+'</td><td><a class="link" href="/spare-parts-history/'+i.request_item_id+'">'+esc(i.part_name)+'</a></td><td>'+i.quantity+'</td><td>'+esc(d.recipient)+'</td><td><button onclick="editDoc('+d.id+')" style="font-size:9px;padding:4px 7px">تعديل</button> <button onclick="delDoc('+d.id+')" style="font-size:9px;padding:4px 7px">حذف</button></td></tr>')).join(''):'<tr><td colspan="6" class="empty">لا توجد وثائق.</td></tr>'}
-function openForm(d=null){editing=d;document.getElementById('form').classList.add('open');document.getElementById('number').value=d?.document_number||'';document.getElementById('date').value=d?.document_date||today;document.getElementById('notes').value=d?.notes||'';document.getElementById('notice').textContent='';const first=d?.items?.[0];const receivedId=first?Number(first.received_request_item_id||first.request_item_id):0;document.getElementById('receipt').value=receivedId||'';renderDistributionOptions();document.getElementById('source').value=d?.source_document_id||'';renderLines();if(d)setTimeout(()=>{for(const i of d.items){const tr=document.querySelector('tr[data-source="'+i.source_item_id+'"]');if(tr)tr.querySelector('.qty').value=i.quantity}},0)}
-function closeForm(){editing=null;document.getElementById('form').classList.remove('open')}
-async function saveDoc(){const items=[...document.querySelectorAll('#lines tr[data-source]')].map(tr=>({request_item_id:Number(tr.dataset.request),source_item_id:Number(tr.dataset.source),received_request_item_id:Number(tr.dataset.received||tr.dataset.request),quantity:Number(tr.querySelector('.qty').value||0)})).filter(x=>x.quantity>0);const body={document_number:document.getElementById('number').value,document_type:'return',document_date:document.getElementById('date').value,source_document_id:Number(document.getElementById('source').value),notes:document.getElementById('notes').value,items};const r=await fetch('/api/spare-parts-movements'+(editing?'/'+editing.id:''),{method:editing?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok){const e=await r.json().catch(()=>({}));document.getElementById('notice').textContent=e.detail||'تعذر حفظ الإرجاع';return}closeForm();await load()}
-async function editDoc(id){const r=await fetch('/api/spare-parts-movements/'+id);if(!r.ok)return;const d=await r.json();const a=await fetch('/api/spare-parts-movements/returnable?exclude_document_id='+id);returnable=a.ok?await a.json():returnable;renderReceipts();openForm(d)}
-async function delDoc(id){if(!confirm('حذف وثيقة الإرجاع؟'))return;const r=await fetch('/api/spare-parts-movements/'+id,{method:'DELETE'});if(!r.ok){const e=await r.json().catch(()=>({}));alert(e.detail||'تعذر الحذف');return}await load()}
-document.getElementById('newBtn').onclick=()=>openForm();document.getElementById('cancel').onclick=closeForm;document.getElementById('save').onclick=saveDoc;document.getElementById('receipt').onchange=renderDistributionOptions;document.getElementById('source').onchange=renderLines;document.getElementById('search').oninput=renderDocs;load();
+let receipts=[],docs=[],editing=null;
+const today=new Date().toISOString().slice(0,10);
+const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+
+async function fetchJson(url){
+    let response;
+    try{response=await fetch(url)}catch(error){throw new Error('تعذر الاتصال بالخادم: '+error.message)}
+    if(!response.ok)throw new Error('استجابة HTTP '+response.status+' من '+url);
+    try{return await response.json()}catch(error){throw new Error('استجابة JSON غير صالحة من '+url)}
+}
+
+async function load(){
+    const tableRows=document.getElementById('rows');
+    tableRows.innerHTML='<tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr>';
+    try{
+        const [receivedData,documentData]=await Promise.all([
+            fetchJson('/api/spare-parts-requests/received-register'),
+            fetchJson('/api/spare-parts-movements?document_type=return')
+        ]);
+        if(!Array.isArray(receivedData)||!Array.isArray(documentData)){
+            throw new Error('استجابة غير متوقعة من واجهة الخادم');
+        }
+        receipts=receivedData.map(normalizeReceiptBalance);
+        docs=documentData;
+        renderReceipts();
+        renderDocs();
+    }catch(error){
+        tableRows.innerHTML='<tr><td colspan="6" class="empty">تعذر تحميل وثائق الإرجاع: '+esc(error.message||'خطأ غير معروف')+'</td></tr>';
+    }
+}
+
+function normalizeReceiptBalance(row){
+    const receivedQuantity=Number(row.received_quantity||0);
+    const distributedQuantity=Number(row.distributed_quantity??row.distributed??0);
+    const returnedQuantity=Number(row.returned_quantity??row.returned??0);
+    return {
+        ...row,
+        received_request_item_id:Number(row.received_request_item_id||row.request_item_id),
+        received_quantity:receivedQuantity,
+        distributed_quantity:distributedQuantity,
+        returned_quantity:returnedQuantity,
+        remaining_quantity:Math.max(0,receivedQuantity-distributedQuantity-returnedQuantity)
+    };
+}
+
+function renderReceipts(){
+    const select=document.getElementById('receipt');
+    const rows=receipts.filter(row=>row.received_quantity>0&&row.remaining_quantity>0);
+    select.innerHTML='<option value="">اختر الاستلام</option>'+rows.map(row=>
+        '<option value="'+row.received_request_item_id+'">طلب '+esc(row.request_number)+' — '+esc(row.part_name)+' — متبقي '+esc(row.remaining_quantity)+'</option>'
+    ).join('');
+    renderLines();
+}
+
+function renderLines(){
+    const receiptId=Number(document.getElementById('receipt').value||0);
+    const receipt=receipts.find(row=>Number(row.received_request_item_id)===receiptId);
+    const quantityInput=document.getElementById('returnQuantity');
+    if(!receipt||receipt.remaining_quantity<=0){
+        document.getElementById('lines').innerHTML='<tr><td colspan="5" class="empty">اختر بند استلام له كمية متبقية.</td></tr>';
+        document.getElementById('supplier').value='';
+        quantityInput.value='';
+        quantityInput.max='';
+        return;
+    }
+    document.getElementById('supplier').value=receipt.supplier_institution||'';
+    quantityInput.max=receipt.remaining_quantity;
+    document.getElementById('lines').innerHTML=
+        '<tr data-received="'+receipt.received_request_item_id+'">'
+        +'<td><a class="link" href="/spare-parts-history/'+receipt.received_request_item_id+'">'+esc(receipt.part_name)+'</a></td>'
+        +'<td>'+esc(receipt.received_quantity)+'</td>'
+        +'<td>'+esc(receipt.distributed_quantity)+'</td>'
+        +'<td>'+esc(receipt.returned_quantity)+'</td>'
+        +'<td>'+esc(receipt.remaining_quantity)+'</td></tr>';
+}
+
+function renderDocs(){
+    const query=document.getElementById('search').value.toLowerCase().trim();
+    const rows=docs.filter(document=>JSON.stringify(document).toLowerCase().includes(query));
+    document.getElementById('rows').innerHTML=rows.length
+        ?rows.flatMap(document=>(document.items||[]).map(item=>
+            '<tr><td>'+esc(document.document_number)+'</td><td>'+esc(document.document_date)+'</td>'
+            +'<td><a class="link" href="/spare-parts-history/'+Number(item.request_item_id)+'">'+esc(item.part_name)+'</a></td>'
+            +'<td>'+esc(item.quantity)+'</td><td>'+esc(document.recipient)+'</td>'
+            +'<td><button onclick="editDoc('+Number(document.id)+')" style="font-size:9px;padding:4px 7px">تعديل</button> '
+            +'<button onclick="delDoc('+Number(document.id)+')" style="font-size:9px;padding:4px 7px">حذف</button></td></tr>'
+        )).join('')
+        :'<tr><td colspan="6" class="empty">لا توجد وثائق إرجاع.</td></tr>';
+}
+
+function openForm(documentData=null){
+    editing=documentData;
+    document.getElementById('form').classList.add('open');
+    document.getElementById('number').value=documentData?.document_number||'';
+    document.getElementById('date').value=documentData?.document_date||today;
+    document.getElementById('notes').value=documentData?.notes||'';
+    document.getElementById('notice').textContent='';
+    const firstItem=documentData?.items?.[0];
+    const receivedId=firstItem?Number(firstItem.received_request_item_id||firstItem.request_item_id):0;
+    document.getElementById('receipt').value=receivedId||'';
+    renderLines();
+    if(firstItem)document.getElementById('returnQuantity').value=firstItem.quantity;
+}
+
+function closeForm(){
+    editing=null;
+    document.getElementById('form').classList.remove('open');
+}
+
+async function saveDoc(){
+    const receiptId=Number(document.getElementById('receipt').value||0);
+    const quantity=Number(document.getElementById('returnQuantity').value||0);
+    const selectedItems=receiptId&&quantity>0?[{
+        request_item_id:receiptId,
+        received_request_item_id:receiptId,
+        quantity
+    }]:[];
+    const selectedIds=new Set([receiptId]);
+    const existingItems=(editing?.items||[])
+        .filter(item=>!selectedIds.has(Number(item.received_request_item_id||item.request_item_id)))
+        .map(item=>({
+            request_item_id:Number(item.received_request_item_id||item.request_item_id),
+            received_request_item_id:Number(item.received_request_item_id||item.request_item_id),
+            quantity:Number(item.quantity)
+        }));
+    const body={
+        document_number:document.getElementById('number').value,
+        document_type:'return',
+        document_date:document.getElementById('date').value,
+        notes:document.getElementById('notes').value,
+        items:[...existingItems,...selectedItems]
+    };
+    try{
+        const response=await fetch('/api/spare-parts-movements'+(editing?'/'+editing.id:''),{
+            method:editing?'PATCH':'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(body)
+        });
+        if(!response.ok){
+            let detail='تعذر حفظ الإرجاع (HTTP '+response.status+')';
+            try{const error=await response.json();detail=error.detail||detail}catch{}
+            document.getElementById('notice').textContent=detail;
+            return;
+        }
+        closeForm();
+        await load();
+    }catch(error){
+        document.getElementById('notice').textContent='تعذر الاتصال بالخادم: '+error.message;
+    }
+}
+
+async function editDoc(id){
+    try{
+        const [documentData,receiptBalances]=await Promise.all([
+            fetchJson('/api/spare-parts-movements/'+id),
+            fetchJson('/api/spare-parts-movements/returnable?exclude_document_id='+id)
+        ]);
+        if(!Array.isArray(receiptBalances))throw new Error('استجابة غير متوقعة من سجل الإرجاع');
+        receipts=receiptBalances.map(normalizeReceiptBalance);
+        renderReceipts();
+        openForm(documentData);
+    }catch(error){
+        document.getElementById('rows').innerHTML='<tr><td colspan="6" class="empty">تعذر فتح وثيقة الإرجاع: '+esc(error.message||'خطأ غير معروف')+'</td></tr>';
+    }
+}
+
+async function delDoc(id){
+    if(!confirm('حذف وثيقة الإرجاع؟'))return;
+    try{
+        const response=await fetch('/api/spare-parts-movements/'+id,{method:'DELETE'});
+        if(!response.ok){
+            let detail='تعذر حذف الإرجاع (HTTP '+response.status+')';
+            try{const error=await response.json();detail=error.detail||detail}catch{}
+            alert(detail);
+            return;
+        }
+        await load();
+    }catch(error){
+        alert('تعذر الاتصال بالخادم: '+error.message);
+    }
+}
+document.getElementById('newBtn').onclick=()=>openForm();document.getElementById('cancel').onclick=closeForm;document.getElementById('save').onclick=saveDoc;document.getElementById('receipt').onchange=renderLines;document.getElementById('search').oninput=renderDocs;load();
 </script>
 {% endblock %}

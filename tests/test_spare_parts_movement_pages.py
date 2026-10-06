@@ -117,8 +117,8 @@ def test_the_return_page_is_rendered_from_its_own_template(client):
     response = client.get(PAGE)
 
     assert "text/html" in response.headers.get("content-type", "")
-    # return.html ships the source picker; distribution.html does not.
-    assert 'id="source"' in response.text, "this is not the return page template"
+    assert 'id="receipt"' in response.text, "the page must select a received item"
+    assert 'id="source"' not in response.text, "returns must not require a distribution source"
 
 
 @pytest.mark.parametrize("path", [
