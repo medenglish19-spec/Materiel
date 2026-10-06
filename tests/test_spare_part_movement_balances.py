@@ -749,7 +749,10 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
     db.commit()
 
     balances = _balances(db, item)
-    assert balances["status"] == "fully_distributed"
+    # الحالة الحالية غير صالحة تاريخياً: التوزيع 4 يتجاوز المستلم 3،
+    # لكن وجود الإرجاع 1 يجعل صافي التوزيع 3. لذلك يجب أن تظهر الحالة
+    # غير الصالحة الآن، ويُمنع حذف الإرجاع لأنه سيكشف التجاوز فعلياً.
+    assert balances["status"] == "invalid_distribution_over_received"
     assert balances["distributed"] == 4
     assert balances["returned"] == 1
 
