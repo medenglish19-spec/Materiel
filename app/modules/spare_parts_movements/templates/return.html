@@ -68,6 +68,7 @@ function normalizeReceiptBalance(row){
         returned_quantity:returnedQuantity,
         remaining_quantity:Math.max(0,availableQuantity),
         equipment_code:row.equipment?.asset_code||row.equipment_code||'—',
+        supplier_institution:row.supplier_institution||row.supplier?.name||row.supplier_name||'—',
         status:row.status||''
     };
 }
@@ -97,7 +98,8 @@ function renderLines(){
         quantityInput.max='';
         return;
     }
-    document.getElementById('supplier').value=receipt.supplier_institution||'';
+    // الهيئة الموردة تُشتق من بند الاستلام المختار وتظهر فورًا عند تغييره.
+    document.getElementById('supplier').value=receipt.supplier_institution||'—';
     quantityInput.max=receipt.remaining_quantity;
     document.getElementById('lines').innerHTML=
         '<tr data-received="'+receipt.received_request_item_id+'">'
