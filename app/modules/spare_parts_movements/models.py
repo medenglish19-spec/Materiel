@@ -44,7 +44,6 @@ class SparePartMovementItem(Base):
     request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT"), nullable=False, index=True)
     received_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT"), nullable=True, index=True)
     source_item_id = Column(Integer, ForeignKey("spare_part_movement_items.id", ondelete="RESTRICT"), nullable=True, index=True)
-    received_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT"), nullable=True, index=True)
     quantity = Column(Numeric(10, 2), nullable=False)
     notes = Column(Text, nullable=True)
 
