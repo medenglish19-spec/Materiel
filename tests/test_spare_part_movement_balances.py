@@ -175,7 +175,7 @@ def _lines(item_id, quantity, source_item_id=None, bypass_schema=False):
     return [MovementItemCreate(**line)]
 
 
-def _distribute(db, item, quantity, day=2, exclude=None, bypass_schema=False):
+def _distribute(db, item, quantity, day=2, exclude=None, bypass_schema=False, received_item=None):
     """توزيع كمية من بند، إما بوثيقة جديدة أو بتعديل وثيقة قائمة.
 
     ``bypass_schema`` يبني الطلب بلا تحقق pydantic، ليمثّل حمولةٍ تصل إلى
@@ -183,6 +183,8 @@ def _distribute(db, item, quantity, day=2, exclude=None, bypass_schema=False):
     في الخدمة فعلاً، لا تكراراً لقاعدة ``gt=0`` الموجودة في المخطط.
     """
     lines = _lines(item.id, quantity, bypass_schema=bypass_schema)
+    if received_item is not None:
+        lines[0].received_request_item_id = received_item.id
     if exclude:
         return movements.update_document(
             db,
@@ -324,6 +326,42 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
 
 # ------------------------------------------------------ منع تجاوز الكميات
 
+
+def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):
+    item = _received_item(db, 3)
+    _COUNTER['n'] += 1
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    document = SparePartMovementDocument(
+        document_number='D-CORRUPT-' + str(_COUNTER['n']),
+        document_type='distribution',
+        document_date=RECEIVED + timedelta(days=2),
+        issuer='المخزن',
+        recipient='الورشة',
+    )
+    db.add(document)
+    db.flush()
+    db.add(SparePartMovementItem(
+        document_id=document.id, request_item_id=item.id,
+        received_request_item_id=item.id, quantity=Decimal('4'),
+    ))
+    db.commit()
+
+    balances = _balances(db, item)
+    assert balances['received_quantity'] == 3
+    assert balances['distributed'] == 4
+    assert balances['available_for_distribution'] == 0
+    assert balances['status'] == 'invalid_distribution_over_received'
+
+
+def test_distribution_uses_the_explicit_received_item_as_its_balance_source(db):
+    display_item = _received_item(db, 1)
+    received_item = _received_item(db, 3)
+    _distribute(db, display_item, 3, received_item=received_item)
+    balances = _balances(db, received_item)
+    assert balances['distributed'] == 3
+    assert balances['available_for_distribution'] == 0
+    assert balances['status'] == 'fully_distributed'
 
 def test_a_distribution_beyond_what_was_received_is_refused(db):
     item = _received_item(db, 10)
@@ -728,6 +766,8 @@ REQUIRED_STATUSES = {
     "fully_distributed": "موزع بالكامل",
     "distributed_then_fully_returned": "موزع ثم مرتجع بالكامل",
     "partially_remaining_with_entity": "جزء متبقٍ لدى الجهة",
+    "invalid_distribution_over_received": "تجاوز التوزيع الكمية المستلمة",
+    "invalid_movement_balance": "رصيد حركة غير صالح",
 }
 
 # ما يقرأه الصفّ من كائن البند، وعنوان العمود المقابل له في رأس الجدول
