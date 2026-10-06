@@ -99,7 +99,9 @@ function renderLines(){
         return;
     }
     // الهيئة الموردة تُشتق من بند الاستلام المختار وتظهر فورًا عند تغييره.
-    document.getElementById('supplier').value=receipt.supplier_institution||'—';
+    const supplierValue=String(receipt.supplier_institution||'').trim()||'—';
+    document.getElementById('supplier').value=supplierValue;
+    document.getElementById('supplier').setAttribute('value',supplierValue);
     quantityInput.max=receipt.remaining_quantity;
     document.getElementById('lines').innerHTML=
         '<tr data-received="'+receipt.received_request_item_id+'">'
