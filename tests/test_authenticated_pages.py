@@ -58,6 +58,7 @@ def _seed(db):
     from app.modules.equipment.models import Equipment
     from app.modules.equipment_types.models import EquipmentModel, EquipmentType
     from app.modules.faults_repairs.models import Fault, Repair
+    from app.modules.spare_parts_requests.models import SparePartRequest
     from app.modules.missions import services as mission_service
     from app.modules.users.models import User
 
@@ -107,6 +108,20 @@ def _seed(db):
         action_taken="فحص أولي",
     )
     db.add(repair)
+    db.flush()
+
+    # طلب الغيار مرتبط بالتصليح، والتصليح مرتبط بالعطل. يجب أن يظهر الطلب
+    # في سجل الأعطال أيضاً، لا أن يختفي لأن fault_id في الطلب نفسه فارغ.
+    spare_request = SparePartRequest(
+        request_number="SPR-PAGE-1",
+        request_date=date.today(),
+        source_type="repair",
+        repair_id=repair.id,
+        equipment_id=equipment.id,
+        status="pending",
+        requested_by_id=user.id,
+    )
+    db.add(spare_request)
     db.commit()
 
     # المهمة تُنشأ عبر الخدمة لا عبر INSERT: `add_mission` هي المسار الوحيد الذي
@@ -256,6 +271,15 @@ def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     assert "111-TEST" in body, "العتاد المزروع غير ظاهر في القائمة"
     assert "في الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
     assert 'data-status="in_maintenance"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
+
+
+def test_fault_list_shows_spare_request_linked_through_repair(pages):
+    client, _ = pages
+    body = client.get("/faults-repairs/faults").text
+
+    assert "SPR-PAGE-1" in body, "طلب الغيار المرتبط بالتصليح لا يظهر في سجل الأعطال"
+    assert "حالة طلب الغيار" in body, "عمود حالة طلب الغيار غير موجود"
+    assert "معلق" in body, "حالة طلب الغيار غير ظاهرة"
 
 
 def test_fault_pages_show_arabic_status_and_severity(pages):
