@@ -19,7 +19,7 @@
 </div>
 <script>
 let data=[];
-async function load(){try{const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);data=await r.json();render()}catch(e){document.getElementById('rows').innerHTML='<tr><td colspan="12" class="empty">تعذر تحميل السجل. أعد تحديث الصفحة.</td></tr>'}}
+async function load(){try{const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);data=await r.json();render()}catch(e){document.getElementById('rows').innerHTML='<tr><td colspan="13" class="empty">تعذر تحميل السجل. أعد تحديث الصفحة.</td></tr>'}}
 let refreshTimer=null;
 function startAutoRefresh(){if(refreshTimer)clearInterval(refreshTimer);refreshTimer=setInterval(load,5000);}
 const STATUS_LABELS = {
@@ -28,6 +28,8 @@ const STATUS_LABELS = {
   fully_distributed: 'موزع بالكامل',
   distributed_then_fully_returned: 'موزع ثم مرتجع بالكامل',
   partially_remaining_with_entity: 'جزء متبقٍ لدى الجهة',
+  invalid_distribution_over_received: 'تجاوز التوزيع الكمية المستلمة',
+  invalid_movement_balance: 'رصيد حركة غير صالح',
 };
 const MOVEMENT_LABELS = {
   receipt: 'استلام',
@@ -37,7 +39,7 @@ const MOVEMENT_LABELS = {
 function render(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
-  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+x.received_quantity+'</td><td>'+x.distributed+'</td><td>'+x.returned+'</td><td>'+x.available_for_distribution+'</td><td>'+esc(STATUS_LABELS[x.status]||x.status||'—')+'</td><td>'+esc(MOVEMENT_LABELS[x.last_movement_type]||x.last_movement_type||'—')+(x.last_movement_document_number?' — '+esc(x.last_movement_document_number):'')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="12" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+x.received_quantity+'</td><td>'+x.distributed+'</td><td>'+x.returned+'</td><td>'+x.available_for_distribution+'</td><td>'+esc(STATUS_LABELS[x.status]||x.status||'—')+'</td><td>'+esc(MOVEMENT_LABELS[x.last_movement_type]||x.last_movement_type||'—')+(x.last_movement_document_number?' — '+esc(x.last_movement_document_number):'')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="13" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
 }
 document.getElementById('q').addEventListener('input',render);
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
