@@ -46,7 +46,7 @@ async function load(){
         if(!Array.isArray(returnableData)||!Array.isArray(documentData)){
             throw new Error('استجابة غير متوقعة من واجهة الخادم');
         }
-        receipts=returnableData.filter(row=>Number(row.available_for_distribution||0)>0).map(normalizeReceiptBalance);
+        receipts=returnableData.filter(row=>Number(row.returnable_quantity ?? row.remaining_quantity ?? 0)>0).map(normalizeReceiptBalance);
         docs=documentData;
         renderReceipts();
         renderDocs();
