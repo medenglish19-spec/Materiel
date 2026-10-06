@@ -464,6 +464,20 @@ def test_received_item_can_be_returned_without_a_distribution(db):
     assert movements.return_register(db)[0]["returnable_quantity"] == 2
 
 
+def test_return_register_exposes_unallocated_received_items(db):
+    """الغيار المستلم وغير الموزع يبقى قابلاً للإرجاع."""
+    item = _received_item(db, 1)
+
+    rows = movements.return_register(db)
+
+    row = next(r for r in rows if r["request_item_id"] == item.id)
+    assert row["received_quantity"] == 1
+    assert row["distributed_quantity"] == 0
+    assert row["returned_quantity"] == 0
+    assert row["returnable_quantity"] == 1
+    assert row["remaining_quantity"] == 1
+
+
 def test_direct_return_cannot_exceed_the_remaining_received_quantity(db):
     item = _received_item(db, 5)
     _return_received(db, item, 4)
