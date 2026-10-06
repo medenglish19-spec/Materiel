@@ -10,10 +10,10 @@
 
   </div>
   <div class="panel">
-    <div class="bar"><input id="q" placeholder="بحث في رقم الطلب، الغيار، العتاد، رقم التسجيل، المستلم، المؤسسة الممونة أو الحالة"></div>
+    <div class="bar"><input id="q" placeholder="بحث في رقم الطلب، الغيار، العتاد، رقم التسجيل، المستلم، المؤسسة الممونة، الحالة أو آخر حركة"></div>
     <div class="table-scroll"><table>
-      <thead><tr><th>رقم الطلب</th><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th><th>تاريخ الاستلام</th><th>رقم التسجيل</th><th>المستلم</th><th>المؤسسة الممونة</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="12" class="empty">جارٍ التحميل...</td></tr></tbody>
+      <thead><tr><th>رقم الطلب</th><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th><th>آخر الحركة</th><th>تاريخ الاستلام</th><th>رقم التسجيل</th><th>المستلم</th><th>المؤسسة الممونة</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="13" class="empty">جارٍ التحميل...</td></tr></tbody>
     </table></div>
   </div>
 </div>
@@ -29,10 +29,15 @@ const STATUS_LABELS = {
   distributed_then_fully_returned: 'موزع ثم مرتجع بالكامل',
   partially_remaining_with_entity: 'جزء متبقٍ لدى الجهة',
 };
+const MOVEMENT_LABELS = {
+  receipt: 'استلام',
+  distribution: 'توزيع',
+  return: 'إرجاع',
+};
 function render(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
-  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+x.received_quantity+'</td><td>'+x.distributed+'</td><td>'+x.returned+'</td><td>'+x.available_for_distribution+'</td><td>'+esc(STATUS_LABELS[x.status]||x.status||'—')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="12" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+esc(x.request_number)+'</td><td>'+esc(x.part_name)+'</td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+x.received_quantity+'</td><td>'+x.distributed+'</td><td>'+x.returned+'</td><td>'+x.available_for_distribution+'</td><td>'+esc(STATUS_LABELS[x.status]||x.status||'—')+'</td><td>'+esc(MOVEMENT_LABELS[x.last_movement_type]||x.last_movement_type||'—')+(x.last_movement_document_number?' — '+esc(x.last_movement_document_number):'')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="12" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
 }
 document.getElementById('q').addEventListener('input',render);
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
