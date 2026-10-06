@@ -181,16 +181,22 @@ def _return_total(db, source_item_id, exclude=None):
     return _sum([x[0] for x in q.all()])
 
 
-def _receipt_return_total(db, request_item_id, exclude=None):
-    """كل الإرجاعات المرتبطة بمصدر الاستلام نفسه.
-
-    request_item_id هو SparePartRequestItem، أي السجل الذي يحمل
-    received_quantity. لذلك هذا هو سقف الاستلام الحقيقي، بينما source_item_id
-    يبقى فقط لتحديد التوزيع الذي خرجت منه الكمية.
-    """
+def _returned_total_by_received_item(db, received_request_item_id, exclude=None):
+    if not received_request_item_id:
+        return Decimal("0")
     q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "return",
-        SparePartMovementItem.request_item_id == request_item_id,
+        SparePartMovementItem.received_request_item_id == received_request_item_id,
+    )
+    if exclude:
+        q = q.filter(SparePartMovementDocument.id != exclude)
+    return _sum([x[0] for x in q.all()])
+
+
+def _returned_total_by_distribution_item(db, distribution_item_id, exclude=None):
+    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return",
+        SparePartMovementItem.source_item_id == distribution_item_id,
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
@@ -200,29 +206,28 @@ def _receipt_return_total(db, request_item_id, exclude=None):
 def returnable_quantity(db, distribution_item, exclude=None):
     """الكمية القابلة للإرجاع = أصغر رصيد بين الاستلام والتوزيع.
 
-    الاستلام هو مصدر الكمية: received_quantity - كل الإرجاعات من نفس
-    request_item_id. والتوزيع هو السياق: distribution.quantity - الإرجاعات
-    المرتبطة بنفس source_item_id.
+    received_request_item_id يحدد مصدر الاستلام الحقيقي، بينما source_item_id
+    يحدد بند التوزيع الذي خرجت منه الكمية. السجلات القديمة التي لا تحمل
+    received_request_item_id تستعمل request_item_id كمسار توافق.
     """
-    request_item = distribution_item.request_item
-    if request_item is None:
-        request_item = db.query(SparePartRequestItem).filter(
-            SparePartRequestItem.id == distribution_item.request_item_id
-        ).first()
-    if request_item is None:
+    if not distribution_item:
+        return Decimal("0")
+    received_item_id = getattr(distribution_item, "received_request_item_id", None) or distribution_item.request_item_id
+    received_item = db.query(SparePartRequestItem).filter(
+        SparePartRequestItem.id == received_item_id
+    ).first()
+    if received_item is None:
         return Decimal("0")
 
     remaining_received = (
-        Decimal(str(request_item.received_quantity or 0))
-        - _receipt_return_total(db, request_item.id, exclude)
+        Decimal(str(received_item.received_quantity or 0))
+        - _returned_total_by_received_item(db, received_item_id, exclude)
     )
     remaining_distribution = (
         Decimal(str(distribution_item.quantity or 0))
-        - _return_total(db, distribution_item.id, exclude)
+        - _returned_total_by_distribution_item(db, distribution_item.id, exclude)
     )
     return _at_least_zero(min(remaining_received, remaining_distribution))
-
-
 def _status(received, distributed, returned):
     """الحالة مشتقّة من الأرصدة نفسها، لا من حقل حالة يدوي.
 
@@ -334,20 +339,24 @@ def _return_line(db, source_item_id, request_item_id, quantity, document_date, e
     source = db.query(SparePartMovementItem).options(
         joinedload(SparePartMovementItem.document),
         joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.request),
+        joinedload(SparePartMovementItem.received_request_item),
     ).filter(SparePartMovementItem.id == source_item_id).with_for_update().first()
     if not source or source.document.document_type != "distribution":
         raise ValueError("الإرجاع يجب أن يرتبط ببند توزيع صحيح")
     item = source.request_item
+    received_item = source.received_request_item or item
     if source.request_item_id != request_item_id:
         raise ValueError("مصدر الاستلام لا يطابق بند التوزيع")
-    receipt = _receipt_date(item)
+    if source.received_request_item_id is not None and source.received_request_item_id != request_item_id:
+        raise ValueError("بند الاستلام لا يطابق بند التوزيع")
+    receipt = _receipt_date(received_item)
     if not receipt:
         raise ValueError("لا يمكن الإرجاع قبل تسجيل تاريخ الاستلام")
     if document_date < receipt:
         raise ValueError("تاريخ الإرجاع لا يمكن أن يكون قبل تاريخ الاستلام")
     if document_date < source.document.document_date:
         raise ValueError("تاريخ الإرجاع لا يمكن أن يكون قبل تاريخ التوزيع")
-    supplier = (item.supplier_institution or "").strip()
+    supplier = (received_item.supplier_institution or "").strip()
     if not supplier:
         raise ValueError("لا يمكن الإرجاع قبل تحديد الهيئة التي استلم منها الغيار")
     available = returnable_quantity(db, source, exclude)
@@ -375,6 +384,7 @@ def _serialize_item(line):
     return {
         "id": line.id, "request_item_id": line.request_item_id,
         "source_item_id": line.source_item_id,
+        "received_request_item_id": getattr(line, "received_request_item_id", None),
         "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
         "request_number": item.request.request_number if item.request else None,
         "quantity": line.quantity, "notes": line.notes,
@@ -439,19 +449,23 @@ def return_register(db, exclude_document_id=None):
             continue
         item = line.request_item
         result.append({
-            "distribution_item_id": line.id, "distribution_document_id": line.document_id,
-            "distribution_document_number": line.document.document_number,
-            "distribution_date": line.document.document_date,
-            "request_item_id": item.id, "request_number": item.request.request_number,
-            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
-            "distributed_quantity": line.quantity, "returnable_quantity": qty,
-            "distributed_to": line.document.recipient,
-            "beneficiary": line.document.beneficiary or line.document.recipient,
-            "distributor": line.document.issuer or "—",
-            "return_recipient": item.supplier_institution or "—",
-            "received_date": _receipt_date(item),
-            "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",
-        })
+            "distribution_item_id": line.id,
+        "distribution_document_id": line.document_id,
+        "distribution_document_number": line.document.document_number,
+        "distribution_date": line.document.document_date,
+        "request_item_id": item.id,
+        "received_request_item_id": getattr(line, "received_request_item_id", None) or item.id,
+        "request_number": item.request.request_number,
+        "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+        "distributed_quantity": line.quantity,
+        "returnable_quantity": qty,
+        "returnable": "نعم" if qty > 0 else "لا",
+        "distributed_to": line.document.recipient,
+        "beneficiary": line.document.beneficiary or line.document.recipient,
+        "distributor": line.document.issuer or "—",
+        "return_recipient": item.supplier_institution or "—",
+        "received_date": _receipt_date(getattr(line, "received_request_item", None) or item),
+        "equipment_code": item.request.equipment.asset_code if item.request.equipment else "—",        })
     return result
 
 
@@ -504,9 +518,17 @@ def create_document(db, data: MovementDocumentCreate, user_id=None):
     try:
         db.flush()
         for line in data.items:
+            received_request_item_id = line.request_item_id
+            if data.document_type == "return" and line.source_item_id:
+                source = db.query(SparePartMovementItem).filter(
+                    SparePartMovementItem.id == line.source_item_id
+                ).first()
+                if source:
+                    received_request_item_id = source.received_request_item_id or source.request_item_id
             obj.items.append(SparePartMovementItem(
                 request_item_id=line.request_item_id,
                 source_item_id=line.source_item_id if data.document_type == "return" else None,
+                received_request_item_id=received_request_item_id,
                 quantity=line.quantity, notes=line.notes.strip() if line.notes else None,
             ))
         db.commit()
@@ -544,7 +566,12 @@ def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None)
             obj.items.clear()
             db.flush()
             for line in data.items:
-                obj.items.append(SparePartMovementItem(request_item_id=line.request_item_id, quantity=line.quantity, notes=line.notes))
+                obj.items.append(SparePartMovementItem(
+                    request_item_id=line.request_item_id,
+                    received_request_item_id=line.request_item_id,
+                    quantity=line.quantity,
+                    notes=line.notes,
+                ))
     else:
         source_id = data.source_document_id or obj.source_document_id
         source_doc = get_document(db, source_id)
@@ -572,7 +599,20 @@ def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None)
             obj.items.clear()
             db.flush()
             for line in data.items:
-                obj.items.append(SparePartMovementItem(request_item_id=line.request_item_id, source_item_id=line.source_item_id, quantity=line.quantity, notes=line.notes))
+                source = db.query(SparePartMovementItem).filter(
+                    SparePartMovementItem.id == line.source_item_id
+                ).first()
+                received_request_item_id = (
+                    (source.received_request_item_id or source.request_item_id)
+                    if source else line.request_item_id
+                )
+                obj.items.append(SparePartMovementItem(
+                    request_item_id=line.request_item_id,
+                    source_item_id=line.source_item_id,
+                    received_request_item_id=received_request_item_id,
+                    quantity=line.quantity,
+                    notes=line.notes,
+                ))
     try:
         db.commit()
     except IntegrityError as exc:
