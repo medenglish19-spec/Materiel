@@ -40,7 +40,7 @@ async function load(){
     tableRows.innerHTML='<tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr>';
     try{
         const [returnableData,documentData]=await Promise.all([
-            fetchJson('/api/spare-parts-requests/received-register'),
+            fetchJson('/api/spare-parts-movements/returnable'),
             fetchJson('/api/spare-parts-movements?document_type=return')
         ]);
         if(!Array.isArray(returnableData)||!Array.isArray(documentData)){
