@@ -1,14 +1,16 @@
 from contextlib import contextmanager
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.faults_repairs.models import Fault, Repair, SparePart
 from .models import SparePartRequest, SparePartRequestItem
 from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
+from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
 
 RECEIPT_BEFORE_REQUEST = "تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب."
-RECEIPT_CONFLICT = "تاريخ الاستلام خاص بكل بند، ويمكن لبنود الطلب أن تُستلم في تواريخ مختلفة."
+RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد."
 REQUEST_NUMBER_TAKEN = "رقم الطلب مستخدم مسبقًا، يرجى إدخال رقم آخر."
 
 
@@ -136,7 +138,7 @@ def serialize_item(item):
         "part_name": item.part_name or (item.spare_part.name if item.spare_part else None),
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
-        "received_date": item.received_date or item.request.received_date,
+        "received_date": item.request.received_date or item.received_date,
         "recipient": item.recipient,
         "supplier_institution": item.supplier_institution,
         "notes": item.notes,
@@ -180,11 +182,13 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     if data.request_date != source_date:
         raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
 
-    # تاريخ الاستلام خاص بكل بند؛ ويمكن أن تصل بنود الطلب في تواريخ مختلفة.
-    dates = [item.received_date for item in data.items if item.received_date]
+    # تاريخ استلام واحد للطلب: إمّا على الطلب، أو على بنوده فكلها تتطابق.
+    dates = {item.received_date for item in data.items if item.received_date}
     if data.received_date:
-        dates.append(data.received_date)
-    receipt_date = max(dates, default=None)
+        dates.add(data.received_date)
+    if len(dates) > 1:
+        raise ValueError(RECEIPT_CONFLICT)
+    receipt_date = next(iter(dates), None)
     _check_receipt_date(data.request_date, receipt_date)
 
     resolved = [
@@ -212,7 +216,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         db.flush()
     for item, (part_id, part_name) in zip(data.items, resolved):
         values = item.model_dump(exclude={"spare_part_id", "part_name"})
-        values["received_date"] = item.received_date or data.received_date
+        values["received_date"] = receipt_date
         obj.items.append(
             SparePartRequestItem(
                 **values,
@@ -275,10 +279,10 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     if request.status not in {"pending", "approved"}:
         raise ValueError("لا يمكن إضافة بند إلا لطلب قيد الانتظار أو معتمد")
     _check_receipt_date(request.request_date, data.received_date)
-    if data.received_date:
-        _check_receipt_date(request.request_date, data.received_date)
-        if request.received_date is None or data.received_date > request.received_date:
-            request.received_date = data.received_date
+    if _receipt_conflicts(request, data.received_date):
+        raise ValueError(RECEIPT_CONFLICT)
+    if data.received_date and request.received_date is None:
+        _store_receipt_date(request, data.received_date)
     part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name)
     identity = _item_identity(part_id, part_name)
     for existing in request.items:
@@ -287,8 +291,8 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     if data.received_quantity > 0 and (not data.received_date or not data.recipient or not data.supplier_institution):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     values = data.model_dump(exclude={"part_name", "spare_part_id"})
-    # تاريخ الاستلام خاص بهذا البند، ولا يُنسخ إلى البنود الأخرى.
-    values["received_date"] = data.received_date
+    # بند الطلب الجديد يشارك تاريخ استلام الطلب، لا تاريخاً خاصاً به.
+    values["received_date"] = request.received_date
     item = SparePartRequestItem(
         request_id=request_id,
         spare_part_id=part_id,
@@ -328,9 +332,8 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
             raise ValueError(RECEIPT_CONFLICT)
     for key, value in values.items():
         setattr(item, key, value)
-    if "received_date" in values and values["received_date"] is not None:
-        if item.request.received_date is None or values["received_date"] > item.request.received_date:
-            item.request.received_date = values["received_date"]
+    if "received_date" in values and values["received_date"] != item.request.received_date:
+        _store_receipt_date(item.request, values["received_date"])
     if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     db.commit()
@@ -367,13 +370,9 @@ def undo_item_receipt(db: Session, item: SparePartRequestItem):
     item.received_date = None
     item.recipient = None
     item.supplier_institution = None
-    # رأس الطلب يحتفظ بآخر تاريخ استلام فعلي لبند ما زال مستلماً.
-    remaining_dates = [
-        other.received_date
-        for other in item.request.items
-        if other.id != item.id and other.received_quantity > 0 and other.received_date
-    ]
-    item.request.received_date = max(remaining_dates, default=None)
+    # تاريخ الاستلام في الترويسة مشترك بين البنود، فلا يبقى بلا معنى بعد آخر بند
+    if not any(other.received_quantity > 0 for other in item.request.items):
+        item.request.received_date = None
     db.commit()
     db.refresh(item)
     return item
@@ -429,29 +428,41 @@ def received_register(db: Session):
 
     balances_by_item = movement_services._balances_for(db, rows)
 
-    # آخر حركة لكل بند: الاستلام نفسه حركة، ثم يعلوه أي توزيع أو إرجاع أحدث.
-    movement_rows = (
-        db.query(
-            movement_services.SparePartMovementItem.request_item_id,
-            movement_services.SparePartMovementDocument.document_type,
-            movement_services.SparePartMovementDocument.document_date,
-            movement_services.SparePartMovementDocument.document_number,
-            movement_services.SparePartMovementDocument.id,
-        )
-        .join(
-            movement_services.SparePartMovementDocument,
-            movement_services.SparePartMovementItem.document_id == movement_services.SparePartMovementDocument.id,
-        )
-        .filter(movement_services.SparePartMovementItem.request_item_id.in_([item.id for item in rows]))
-        .order_by(
-            movement_services.SparePartMovementDocument.document_date.desc(),
-            movement_services.SparePartMovementDocument.id.desc(),
-        )
-        .all()
-    )
+    # آخر حركة فعلية للبند: توزيع أو إرجاع. الاستلام ليس وثيقة حركة في
+    # وحدة الحركة، لذلك يبقى الاستلام هو الحالة الافتراضية عند عدم وجود حركة.
+    item_ids = [item.id for item in rows]
     latest_by_item = {}
-    for row in movement_rows:
-        latest_by_item.setdefault(row[0], row)
+    if item_ids:
+        movement_rows = (
+            db.query(
+                SparePartMovementItem.request_item_id,
+                SparePartMovementItem.received_request_item_id,
+                SparePartMovementDocument.document_type,
+                SparePartMovementDocument.document_date,
+                SparePartMovementDocument.document_number,
+                SparePartMovementDocument.id,
+            )
+            .join(
+                SparePartMovementDocument,
+                SparePartMovementItem.document_id == SparePartMovementDocument.id,
+            )
+            .filter(
+                or_(
+                    SparePartMovementItem.request_item_id.in_(item_ids),
+                    SparePartMovementItem.received_request_item_id.in_(item_ids),
+                )
+            )
+            .order_by(
+                SparePartMovementDocument.document_date.desc(),
+                SparePartMovementDocument.created_at.desc(),
+                SparePartMovementDocument.id.desc(),
+            )
+            .all()
+        )
+        for row in movement_rows:
+            latest_by_item.setdefault(row[0], row)
+            if row[1] is not None:
+                latest_by_item.setdefault(row[1], row)
 
     result = []
     for item in rows:
@@ -478,17 +489,17 @@ def received_register(db: Session):
             "remaining_with_entity": balances["remaining_with_entity"],
             "status": balances["status"],
             "last_movement_type": (
-                "distribution" if item.id in latest_by_item and latest_by_item[item.id][1] == "distribution"
-                else "return" if item.id in latest_by_item and latest_by_item[item.id][1] == "return"
+                latest_by_item[item.id][2]
+                if item.id in latest_by_item
                 else "receipt"
             ),
             "last_movement_date": (
-                latest_by_item[item.id][2]
+                latest_by_item[item.id][3]
                 if item.id in latest_by_item
                 else item.received_date or req.received_date
             ),
             "last_movement_document_number": (
-                latest_by_item[item.id][3] if item.id in latest_by_item else None
+                latest_by_item[item.id][4] if item.id in latest_by_item else None
             ),
         })
     return result
