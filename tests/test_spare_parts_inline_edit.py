@@ -495,7 +495,7 @@ def test_the_request_row_cells_match_the_table_headers(client):
 
     thead = html[html.index("<thead>") : html.index("</thead>")]
     columns = thead.count("<th>")
-    assert columns == 7
+    assert columns == 8
 
     request_row = row[row.index('<tr class="request-row"') : row.index("</tr>")]
     detail_row = row[row.index('<tr class="detail"') :]
