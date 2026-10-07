@@ -204,9 +204,8 @@ async function load(){
 
 function row(x){
   const status='<select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select>';
-  const actions='<div class="row-actions"><button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
-    +'<details class="action-menu"><summary aria-label="إجراءات الطلب">⋮</summary>'
-    +'<div class="action-menu-items"><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button></div></details></div>';
+  const actions='<button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
+    +'<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>';
   const parts=(x.items||[]).map(i=>i.part_name).filter(Boolean);
   const partLabel=parts.length?parts.join('، '):'—';
   return '<tr class="request-row" data-id="'+x.id+'">'
