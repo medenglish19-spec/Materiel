@@ -241,8 +241,8 @@ async function undoReceipt(tr){
 }
 
 let pendingDeleteId=null;
-const deleteConfirm=document.getElementById('deleteConfirm');
-const deleteConfirmPreview=document.getElementById('deleteConfirmPreview');
+const deleteConfirm=typeof document==='undefined'?null:document.getElementById('deleteConfirm');
+const deleteConfirmPreview=typeof document==='undefined'?null:document.getElementById('deleteConfirmPreview');
 function closeDeleteConfirm(){pendingDeleteId=null;deleteConfirm.classList.remove('open');}
 function requestDeleteConfirmation(id){
   const item=requestsData.find(x=>Number(x.id)===Number(id));
