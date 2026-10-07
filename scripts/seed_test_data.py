@@ -276,6 +276,13 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
     today = date.today()
     for idx, eq in enumerate(equipment):
         model_idx = idx // 3 + 1
+        model_unit = "hours" if model_idx == 2 else "km"
+        base_meter = (
+            Decimal("100") + Decimal(idx * 25)
+            if model_unit == "hours"
+            else Decimal("1000") + Decimal(idx * 250)
+        )
+        later_meter = base_meter + (Decimal("12") if model_unit == "hours" else Decimal("120"))
         for pos_idx in (1, 2):
             tire = Tire(
                 serial_number=f"{MARKER}-TIRE-{idx + 1:02d}-{pos_idx}",
@@ -299,7 +306,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "install",
                     "equipment_id": eq.id,
                     "position_id": positions[(model_idx, pos_idx)].id,
-                    "meter_value": Decimal("1000") + Decimal(idx * 250),
+                    "meter_value": base_meter,
                     "document_number": f"{MARKER}-TIRE-IN-{idx + 1:02d}-{pos_idx}",
                     "reason": None,
                     "notes": f"تركيب أولي — {MARKER}",
@@ -325,7 +332,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                 "movement_date": today - timedelta(days=20),
                 "movement_type": "install",
                 "equipment_id": eq.id,
-                "meter_value": Decimal("1000") + Decimal(idx * 100),
+                "meter_value": base_meter,
                 "document_number": f"{MARKER}-BAT-IN-{idx + 1:02d}",
                 "reason": None,
                 "notes": f"تركيب أولي — {MARKER}",
@@ -360,7 +367,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "remove",
                     "equipment_id": None,
                     "position_id": None,
-                    "meter_value": Decimal("1100") + Decimal(idx * 100),
+                    "meter_value": later_meter,
                     "document_number": f"{MARKER}-TIRE-OUT-{idx + 1:02d}",
                     "reason": "استبدال وقائي",
                     "removal_disposition": "stock",
@@ -376,7 +383,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "install",
                     "equipment_id": eq.id,
                     "position_id": positions[(model_idx, 1)].id,
-                    "meter_value": Decimal("1120") + Decimal(idx * 100),
+                    "meter_value": later_meter + (Decimal("2") if model_unit == "hours" else Decimal("20")),
                     "document_number": f"{MARKER}-TIRE-REP-IN-{idx + 1:02d}",
                     "reason": None,
                     "notes": f"تركيب بديل — {MARKER}",
