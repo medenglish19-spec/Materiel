@@ -334,7 +334,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                 "movement_date": today - timedelta(days=20),
                 "movement_type": "install",
                 "equipment_id": eq.id,
-                "meter_value": base_meter,
+                "meter_value": movement_meter,
                 "document_number": f"{MARKER}-BAT-IN-{idx + 1:02d}",
                 "reason": None,
                 "notes": f"تركيب أولي — {MARKER}",
