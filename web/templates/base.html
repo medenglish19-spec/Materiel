@@ -47,6 +47,28 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,160,71,.12);background:var(--white)}
 .select-box{padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;background:var(--white);cursor:pointer}
 .data-table,.modern-table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid rgba(46,125,50,.08);border-radius:var(--radius-sm);overflow:hidden}
+/* --- global table rules -------------------------------------------------- */
+.app-main table,.mdx table{
+  width:max-content;
+  min-width:100%;
+  table-layout:auto;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  color:#111;
+}
+.app-main table td>a:not(.btn),.mdx table td>a:not(.btn){
+  color:#111;
+}
+.app-main table .numeric-cell,.mdx table .numeric-cell{
+  text-align:center!important;
+  font-variant-numeric:tabular-nums;
+}
+
 .data-table th,.modern-table thead th{background:var(--bg-secondary);color:var(--text-primary);font-weight:700;padding:12px 14px;text-align:right;border-bottom:1px solid rgba(46,125,50,.1)}
 .data-table td,.modern-table td{padding:12px 14px;border-bottom:1px solid rgba(46,125,50,.05);color:var(--text-secondary)}
 .data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:rgba(232,245,233,.4)}
@@ -157,6 +179,25 @@ if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spa
 if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
 if(p==='/equipment/numerical-status'){const table=document.getElementById('numericalStatusTable');if(table){const heads=[...table.querySelectorAll('thead th')];const idx=heads.findIndex(h=>h.textContent.includes('% من الأب'));if(idx>=0){heads[idx].remove();table.querySelectorAll('tbody tr').forEach(r=>{if(r.children.length>idx)r.children[idx].remove()})}}}
 const brandSelect=document.getElementById('statusBrand');if(brandSelect){const current=brandSelect.value;fetch('/api/equipment-brands',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():[]).then(brands=>{const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));brandSelect.innerHTML='<option value="">كل الماركات</option>';names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;brandSelect.appendChild(o)});brandSelect.value=names.includes(current)?current:'';brandSelect.dispatchEvent(new Event('change',{bubbles:true}))}).catch(()=>{})}
+})();
+</script>
+<script>
+(function(){
+  function markNumericCells(root){
+    const cells=(root||document).querySelectorAll('table tbody td');
+    const numeric=/^[+\-−]?\s*(?:\d[\d\s,.]*|[٠-٩][٠-٩\s،.]*)(?:\s*%?)$/;
+    cells.forEach(function(td){
+      const text=(td.textContent||'').trim();
+      if(text && numeric.test(text)) td.classList.add('numeric-cell');
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){markNumericCells();});
+  else markNumericCells();
+  new MutationObserver(function(mutations){
+    mutations.forEach(function(m){m.addedNodes.forEach(function(n){
+      if(n.nodeType===1) markNumericCells(n);
+    });});
+  }).observe(document.body,{childList:true,subtree:true});
 })();
 </script>
 </body>
