@@ -989,6 +989,32 @@ def test_the_received_register_exact_example_is_three_one_one_one(db):
     assert first.items[0].quantity == Decimal("1")
 
 
+def test_the_received_register_keeps_each_item_totals_apart(db):
+    """لكل صف في السجل إجماليه هو، لا إجمالي القاعدة كلها.
+
+    الاستعلام بلا GROUP BY يعود بصفٍ واحد: مفتاح بندٍ عشوائي ومجموع كل
+    التوزيعات. مع بندين — توزيع 1+1 على الأول وتوزيع 2 على الثاني —
+    يُنسب إجمالي 4 إلى الأول فيظهر 3/3/0/1 بدل 3/1/1/1، ويظهر الثاني
+    بموزّع صفر ولو خرجت منه قطعتان.
+    """
+    first = _received_item(db, 3)
+    second = _received_item(db, 5)
+    _distribute(db, first, 1, day=2)
+    _distribute(db, first, 1, day=3)
+    _return_received(db, first, 1, day=4)
+    _distribute(db, second, 2, day=2)
+
+    row_first = _register_row(db, 3)
+    assert row_first["distributed"] == 1
+    assert row_first["remaining"] == 1
+    assert row_first["returned"] == 1
+
+    row_second = _register_row(db, 5)
+    assert row_second["distributed"] == 2
+    assert row_second["remaining"] == 3
+    assert row_second["returned"] == 0
+
+
 def test_the_page_has_no_lifecycle_states_of_its_own():
     """لا تُضاف حالات من خارج منطق الأرصدة، حتى لو كان لها عنوان عربي."""
     html = _page()

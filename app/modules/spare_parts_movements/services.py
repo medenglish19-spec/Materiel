@@ -115,6 +115,15 @@ def _distribution_totals(db, request_item_ids, exclude=None):
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
+    # الـ GROUP BY صريح ضروري: بلاه تُعيد SQLite صفاً واحداً فقط — مفتاحاً
+    # عشوائياً ومجموع كل البنود — فيُنسب إجمالي القاعدة كلها إلى بند واحد
+    # ويظهر بندٌ آخر بموزّع صفر، والسجل يقرأ 3/3/0/1 بدل 3/1/1/1.
+    q = q.group_by(
+        func.coalesce(
+            SparePartMovementItem.received_request_item_id,
+            SparePartMovementItem.request_item_id,
+        )
+    )
     return {row[0]: _sum([row[1]]) for row in q.all()}
 
 
@@ -133,6 +142,9 @@ def _legacy_return_totals(db, request_item_ids, exclude=None):
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
+    # GROUP BY صريح كما في `_distribution_totals`: بلاه يعود مجموع كل
+    # الإرجاعات القديمة على بند واحد بدل أن يُوزّع على أصحابها.
+    q = q.group_by(SparePartMovementItem.request_item_id)
     return {row[0]: _sum([row[1]]) for row in q.all()}
 
 
@@ -160,6 +172,9 @@ def _returned_totals(db, request_item_ids, exclude=None):
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
+    # GROUP BY صريح كما في `_distribution_totals`: بلاه يعود مجموع
+    # الإرجاعات على بندٍ واحد عشوائي بدل إرجاعات كل بند.
+    q = q.group_by(DistItem.request_item_id)
     return {row[0]: _sum([row[1]]) for row in q.all()}
 
 
