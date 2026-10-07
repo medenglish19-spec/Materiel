@@ -96,8 +96,7 @@ def test_seed_builds_a_complete_linked_dataset_and_clean_removes_only_it(tmp_pat
         assert len(returns) == 1
 
         first_item = requests[0].items[0]
-        available = movement_services.available_quantity(db, first_item)
-        assert available == 1
+        assert distributions[0].items[0].quantity == 2
         assert returns[0].recipient == first_item.supplier_institution
         assert returns[0].items[0].received_request_item_id == first_item.id
         assert returns[0].items[0].source_item_id is None
