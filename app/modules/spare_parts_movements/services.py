@@ -304,17 +304,18 @@ def _balance_from_maps(item, maps):
     distributed_actual = _at_least_zero(distributed - returned)
     remaining_with_entity = _at_least_zero(distributed - returned_from_distributed)
 
+    remaining = _at_least_zero(received_qty - distributed_actual - returned)
     return {
         "received_quantity": received_qty,
         "distributed": distributed_actual,
         "distributed_total": distributed,
         "returned": returned,
+        "remaining": remaining,
         "returned_from_distributed": returned_from_distributed,
         "legacy_returned": legacy_returned,
+        # رصيد التشغيل الداخلي: الكمية التي لم تُوزع ولم تُرجع للمورد.
         "available_for_distribution": _available(received_qty, distributed, legacy_returned),
-        "remaining_with_entity": remaining_with_entity,
-        # الحالة تتحقق من الرصيد التاريخي الكامل: التوزيع الإجمالي والإرجاع.
-        # أما "الموزعة" المعروضة للمستخدم فهي صافي الكمية الموزعة فعليًا.
+        # الحالة تُستخدم داخليًا للتحقق من سلامة سجل الحركة عند التعديل/الحذف.
         "status": _status(received_qty, distributed, returned),
     }
 
