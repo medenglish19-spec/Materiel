@@ -1,36 +1,104 @@
-{% extends "base.html" %}
-{% block title %}سجل طلب قطع الغيار{% endblock %}
-{% block content %}
 <style>
-.spr{direction:rtl}.spr .top{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:14px}.spr h1{margin:0;color:#183955;font-size:23px}.spr .muted{font-size:11px;color:#718096;margin-top:5px}.spr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden}.spr .bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:11px;border-bottom:1px solid #edf1f4}.spr button,.spr select,.spr input,.spr textarea{font:inherit;font-size:10px}.spr button{border:0;border-radius:6px;padding:8px 12px;background:#0875d1;color:#fff;font-weight:800;cursor:pointer}.spr .secondary{background:#fff;color:#245d88;border:1px solid #dce4ea}.spr select,.spr input,.spr textarea{border:1px solid #dce4ea;border-radius:6px;padding:7px;background:#fff}.spr .table-scroll{width:100%;max-width:100%;overflow:auto}.spr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}.spr th,.spr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap;color:#111}.spr th{background:#f8fafc;color:#111;font-weight:800}.spr .request-row{cursor:pointer}.spr .request-row:hover{background:#fbfdff}.spr .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#245d88;font-weight:800}.spr .detail{display:none;background:#fafcfe}.spr .detail.open{display:table-row}.spr .items{padding:12px}.spr .items table{min-width:950px}.spr .empty{text-align:center;padding:30px;color:#8794a2}.spr .form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;border-bottom:1px solid #edf1f4}.spr .wide{grid-column:1/-1}.spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px}.spr .rf{border:1px solid #e4eaf0;border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column;gap:2px;min-width:0}.spr .rf-k{font-size:9px;color:#718096}.spr .rf-v{font-size:10px;color:#183955;font-weight:700;word-break:break-word}.spr .items-t{width:max-content;min-width:100%;margin-top:8px;table-layout:auto}.spr .items-t th{background:#f8fafc;color:#111;padding:8px 6px;font-size:10px;text-align:right;border-bottom:1px solid #edf1f4;white-space:nowrap;font-weight:800}.spr .items-t td{padding:6px;font-size:10px;border-bottom:1px solid #edf1f4;white-space:normal;color:#111}.spr .items-t th,.spr .items-t td{vertical-align:middle}.spr .items-t th:first-child,.spr .items-t td:first-child{min-width:150px;max-width:240px}.spr .items-t th:nth-child(2),.spr .items-t td:nth-child(2){min-width:100px}.spr .items-t th:nth-child(3),.spr .items-t td:nth-child(3){min-width:80px}.spr .items-t th:nth-child(4),.spr .items-t td:nth-child(4){min-width:80px}.spr .items-t th:nth-child(5),.spr .items-t td:nth-child(5){min-width:100px}.spr .items-t th:nth-child(6),.spr .items-t td:nth-child(6){min-width:100px}.spr .items-t th:nth-child(7),.spr .items-t td:nth-child(7){min-width:110px}.spr .items-t th:nth-child(8),.spr .items-t td:nth-child(8){min-width:120px;max-width:260px}.spr .items-t th:last-child,.spr .items-t td:last-child{min-width:55px}.spr .items-t input,.spr .items-t select{padding:5px 4px}.spr .items-t .i-note{display:block;width:100%;min-width:110px;min-height:30px;resize:vertical;padding:5px 4px;font:inherit;font-size:10px;box-sizing:border-box}.spr .items-t{max-width:none;}.spr .items-t input{width:100%;box-sizing:border-box}.spr .new-part-box{position:relative}.spr .new-part-suggest{display:none;position:absolute;z-index:30;top:100%;right:0;left:0;background:#fff;border:1px solid #dce4ea;border-radius:6px;box-shadow:0 6px 18px rgba(24,57,85,.12);max-height:190px;overflow:auto}.spr .new-part-suggest.open{display:block}.spr .new-part-opt{display:block;width:100%;text-align:right;background:#fff;color:#183955;border:0;border-bottom:1px solid #eef2f5;border-radius:0;padding:7px;cursor:pointer;font-weight:400}.spr .new-part-opt:hover{background:#f1f7fd}.spr .new-part-opt small{color:#8794a2}.spr .item-edit{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .new-item{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .item-line{border-top:1px solid #edf1f4}.spr .item-line td{padding:6px;vertical-align:middle}.spr .item-line input,.spr .item-line select,.spr .item-line textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}.spr .danger{background:#fff!important;color:#b42318!important;border:1px solid #f0c7c2!important}.spr .msg{padding:8px 10px;border-radius:6px;margin-top:8px;font-size:10px}.spr .msg.err{background:#fff1f0;color:#a61b12}.spr .msg.ok{background:#eef9f1;color:#247a3b}
-.spr .bar input[type="search"]{min-width:260px;flex:1}.spr .bar input[type="search"]:focus{outline:2px solid #bcdcf7;border-color:#0875d1}
-</style>
-<style>
-/* لا شريط أدوات تحرير في أعلى هذه الصفحة: التعديل يتم داخل بيانات الطلب نفسه. */
-.app-workbar{display:none}
-.spr .rf textarea{width:100%;box-sizing:border-box;font:inherit;font-size:10px;border:1px solid #dce4ea;border-radius:6px;padding:6px;background:#fff;resize:vertical}
-.spr .rf input,.spr .rf select,.spr .items-t input,.spr .items-t select{width:100%;box-sizing:border-box;font:inherit;font-size:10px;border:1px solid #dce4ea;border-radius:6px;padding:5px 6px;background:#fff}
-.spr .rf input:focus,.spr .rf select:focus,.spr .items-t input:focus,.spr .items-t select:focus{outline:2px solid #bcdcf7;border-color:#0875d1}
-.spr .rf-ro{background:#f8fafc}
-.spr .rf-wide{grid-column:1/-1;margin-bottom:10px}
-.spr .items-t input,.spr .items-t select{min-width:0;max-width:100%}
-.spr .items-t .i-name{min-width:180px}.spr .items-t .i-note{display:block!important;width:100%!important;min-width:110px!important;box-sizing:border-box;background:#fff!important;border:1px solid #dce4ea!important}
-.spr .items-t input:disabled,.spr .items-t select:disabled{background:#f4f6f8;color:#8794a2}
-.spr .items-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
-.spr .detail-foot{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #edf1f4}
-.spr .detail-foot .msg{margin-top:0}
-.spr tr.item-line.gone{display:none}
-.spr .line-note{font-size:9px;color:#b42318}
-</style>
-<div class="spr">
-  <div class="top"><div><h1>سجل طلب قطع الغيار</h1><div class="muted">إدارة الطلبات المرتبطة بالأعطال والتصليحات وسجل الاستلام.</div></div><div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap"><a href="/spare-parts-received" class="secondary" style="text-decoration:none">سجل قطع الغيار المستلم</a><button id="newBtn">+ طلب غيار جديد</button></div></div>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap');
+.spr{direction:rtl;color:#4B5563;font-family:'Tajawal',sans-serif}
+.spr *{box-sizing:border-box}
+.spr .top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin:0 0 24px;padding:0 2px;flex-wrap:wrap}
+.spr h1{margin:0;color:#111827;font-family:'Cairo',sans-serif;font-size:25px;font-weight:800;line-height:1.5}
+.spr .muted{margin-top:5px;color:#4B5563;font-size:13px;line-height:1.8}
+.spr .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spr .panel{background:#fff;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden}
+.spr .toolbar{display:flex;align-items:center;gap:10px;padding:16px;background:#fff;border-bottom:1px solid #E5E7EB;flex-wrap:wrap}
+.spr .search-wrap{position:relative;flex:1 1 320px;min-width:240px}
+.spr .search-wrap input{width:100%;padding:11px 14px;border:1px solid #E5E7EB;border-radius:8px;background:#FAFAFA;color:#111827;font-family:'Tajawal',sans-serif;font-size:13px;outline:none}
+.spr .search-wrap input:focus{background:#fff;border-color:#9CA3AF;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr select,.spr input,.spr textarea{font-family:'Tajawal',sans-serif}
+.spr .toolbar>select{padding:10px 12px;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:#4B5563;font-size:13px;min-width:145px}
+.spr .toolbar-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spr .badge{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border-radius:7px;background:#F3F4F6;color:#374151;font-size:12px;font-weight:700;white-space:nowrap}
+.spr button,.spr .btn{font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;padding:9px 14px;border:1px solid transparent}
+.spr button{background:#374151;color:#fff}
+.spr button:hover{background:#1F2937}
+.spr .secondary{background:#fff;color:#374151;border-color:#D1D5DB}
+.spr .secondary:hover{background:#F9FAFB}
+.spr .danger{background:#fff!important;color:#B91C1C!important;border-color:#FECACA!important}
+.spr .danger:hover{background:#FEF2F2!important}
+.spr .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.spr .summary-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:16px 18px}
+.spr .summary-label{font-size:12px;color:#6B7280;margin-bottom:5px}
+.spr .summary-value{font-family:'Cairo',sans-serif;font-size:22px;font-weight:800;color:#111827}
+.spr .summary-note{font-size:11px;color:#6B7280;margin-top:2px}
+.spr .table-scroll{width:100%;max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+.spr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}
+.spr th{background:#F9FAFB;color:#111827;font-family:'Cairo',sans-serif;font-size:12px;font-weight:700;padding:13px 12px;text-align:right;border-bottom:1px solid #E5E7EB;white-space:nowrap}
+.spr td{background:#fff;color:#4B5563;font-size:13px;padding:13px 12px;border-bottom:1px solid #E5E7EB;vertical-align:middle}
+.spr tbody tr.request-row{cursor:pointer}
+.spr tbody tr.request-row:hover td{background:#F9FAFB}
+.spr tbody tr:last-child td{border-bottom:0}
+.spr .request-number{font-family:'Tajawal',sans-serif;font-weight:800;color:#111827}
+.spr .status{min-width:110px;padding:7px 9px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px}
+.spr .row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.spr .action-menu{display:inline-block;position:relative}
+.spr .action-menu summary{list-style:none;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;cursor:pointer;font-weight:800}
+.spr .action-menu summary::-webkit-details-marker{display:none}
+.spr .action-menu[open] .action-menu-items{display:block}
+.spr .action-menu-items{display:none;position:absolute;z-index:50;left:0;top:38px;min-width:140px;padding:5px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 8px 24px rgba(17,24,39,.12)}
+.spr .action-menu-items button{width:100%;text-align:right;background:#fff;color:#B91C1C;border:0;border-radius:5px;padding:8px 9px}
+.spr .action-menu-items button:hover{background:#FEF2F2}
+.spr .detail{display:none;background:#F9FAFB}
+.spr .detail.open{display:table-row}
+.spr .detail>td{background:#F9FAFB;padding:18px}
+.spr .items{padding:0}
+.spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.spr .rf{border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:4px;min-width:0}
+.spr .rf-k{font-size:11px;color:#6B7280}
+.spr .rf-v{font-size:13px;color:#111827;font-weight:700;word-break:break-word}
+.spr .rf-ro{background:#F9FAFB}
+.spr .rf-wide{grid-column:1/-1}
+.spr .rf input,.spr .rf select,.spr .rf textarea,.spr .items-t input,.spr .items-t select,.spr .items-t textarea{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px;outline:none}
+.spr .rf input:focus,.spr .rf select:focus,.spr .rf textarea:focus,.spr .items-t input:focus,.spr .items-t select:focus,.spr .items-t textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr .items-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 9px}
+.spr .items-head>b{font-family:'Cairo',sans-serif;color:#111827;font-size:14px}
+.spr .items-t{min-width:950px}
+.spr .items-t th{font-size:11px;padding:10px 8px}
+.spr .items-t td{font-size:12px;padding:8px}
+.spr .item-line.gone{display:none}
+.spr .detail-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #E5E7EB}
+.spr .msg{padding:8px 10px;border-radius:7px;margin-top:0;font-size:12px}
+.spr .msg.err{background:#FEF2F2;color:#991B1B}
+.spr .msg.ok{background:#F0FDF4;color:#166534}
+.spr .line-note{font-size:11px;color:#6B7280}
+.spr .empty{text-align:center;padding:42px;color:#6B7280;font-size:13px}
+.spr .form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px;background:#F9FAFB;border-bottom:1px solid #E5E7EB}
+.spr .form>input,.spr .form>select,.spr .form>textarea{padding:9px 10px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px;outline:none}
+.spr .form>input:focus,.spr .form>select:focus,.spr .form>textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr .wide{grid-column:1/-1}
+.spr .new-item{display:grid;grid-template-columns:1.5fr .9fr .9fr 1.2fr auto;gap:8px;align-items:center;margin-top:8px}
+.spr .new-item input,.spr .new-item select{width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;font-size:12px}
+.spr .new-part-box{position:relative}
+@media(max-width:900px){.spr .summary-grid{grid-template-columns:1fr}.spr .req-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.spr .form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}}
+</style><div class="spr">
+  <div class="top">
+    <div>
+      <h1>طلبات قطع الغيار</h1>
+      <div class="muted">سجل الطلبات المرتبطة بالأعطال والتصليحات مع البحث والإجراءات المباشرة.</div>
+    </div>
+    <div class="top-actions">
+      <a href="/spare-parts-received" class="secondary" style="text-decoration:none">سجل الاستلام</a>
+      <button id="newBtn" type="button">+ طلب غيار جديد</button>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <div class="summary-card"><div class="summary-label">إجمالي الطلبات</div><div id="summaryTotal" class="summary-value">0</div><div class="summary-note">ضمن السجل الحالي</div></div>
+    <div class="summary-card"><div class="summary-label">قيد الانتظار</div><div id="summaryPending" class="summary-value">0</div><div class="summary-note">طلبات تحتاج متابعة إدارية</div></div>
+    <div class="summary-card"><div class="summary-label">نتيجة البحث</div><div id="summaryFiltered" class="summary-value">0</div><div class="summary-note">بعد تطبيق البحث والفلاتر</div></div>
+  </div>
   <div class="panel">
-    <div class="bar">
-      <input id="requestSearch" type="search" placeholder="بحث في رقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار">
-      <select id="filterStatus"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
-      <select id="filterSource"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
-      <span id="resultCount" class="badge">الطلبات: 0</span>
-      <span id="pendingCount" class="badge">قيد الانتظار: 0</span>
+    <div class="toolbar">
+      <div class="search-wrap"><input id="requestSearch" type="search" placeholder="ابحث برقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار"></div>
+      <select id="filterStatus" aria-label="تصفية حسب الحالة"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
+      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+      <div class="toolbar-meta"><span id="resultCount" class="badge">الطلبات: 0</span><span id="pendingCount" class="badge">قيد الانتظار: 0</span></div>
     </div>
     <form id="requestForm" class="form" style="display:none" novalidate>
       <input name="request_number" id="requestNumber" placeholder="رقم وثيقة الطلب *" required>
@@ -39,17 +107,11 @@
       <input name="request_date" id="requestDate" type="date" required>
       <input id="equipmentView" placeholder="رقم التسجيل" readonly>
       <textarea name="notes" id="requestNotes" class="wide" placeholder="ملاحظات"></textarea>
-      <div class="wide">
-        <b>بنود الطلب</b>
-        <div id="newItems"></div>
-        <button type="button" class="secondary" id="addRequestItem">+ إضافة بند</button>
-      </div>
+      <div class="wide"><b style="font-family:'Cairo',sans-serif;color:#111827">بنود الطلب</b><div id="newItems"></div><button type="button" class="secondary" id="addRequestItem" style="margin-top:8px">+ إضافة بند</button></div>
       <div class="wide"><button type="submit" id="saveRequest">حفظ الطلب</button><span id="formMsg"></span></div>
     </form>
-    <div class="table-scroll"><table><thead><tr><th>رقم وثيقة الطلب</th><th>الغيار</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة</th></tr></thead><tbody id="rows"></tbody></table></div>
-  </div>
-
-<script>
+    <div class="table-scroll"><table><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div><script>
 const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
 const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
@@ -128,7 +190,7 @@ function renderRequests(){
   const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||x.source_type===source)&&matchesRequestSearch(x,q));
   document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="8" class="empty">لا توجد طلبات مطابقة.</td></tr>';
   document.getElementById('resultCount').textContent='الطلبات: '+rows.length;
-  document.getElementById('pendingCount').textContent='قيد الانتظار: '+requestsData.filter(x=>x.status==='pending').length;
+  const pending=requestsData.filter(x=>x.status==='pending').length;document.getElementById('pendingCount').textContent='قيد الانتظار: '+pending;document.getElementById('summaryTotal').textContent=requestsData.length;document.getElementById('summaryPending').textContent=pending;document.getElementById('summaryFiltered').textContent=rows.length;
 }
 async function load(){
   const p=new URLSearchParams();
@@ -142,9 +204,9 @@ async function load(){
 
 function row(x){
   const status='<select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select>';
-  const actions='<button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
+  const actions='<div class="row-actions"><button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
     +'<details class="action-menu"><summary aria-label="إجراءات الطلب">⋮</summary>'
-    +'<div class="action-menu-items"><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button></div></details>';
+    +'<div class="action-menu-items"><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button></div></details></div>';
   const parts=(x.items||[]).map(i=>i.part_name).filter(Boolean);
   const partLabel=parts.length?parts.join('، '):'—';
   return '<tr class="request-row" data-id="'+x.id+'">'
