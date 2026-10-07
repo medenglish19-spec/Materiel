@@ -82,6 +82,12 @@ def requests_page():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            if self.path == "/spare-parts-requests":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(html.encode("utf-8"))
+                return
             if self.path.startswith("/api/spare-parts-requests?") or self.path == "/api/spare-parts-requests":
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
