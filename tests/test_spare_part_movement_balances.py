@@ -274,7 +274,7 @@ def test_partially_distributed(db):
     _distribute(db, item, 3)
     balances = _balances(db, item)
     assert balances["distributed"] == 3
-    assert balances["status"] == "partially_distributed"
+    assert balances["status"] == "partially_remaining_with_entity"
     assert balances["available_for_distribution"] == 7
     assert balances["remaining_with_entity"] == 3
 
