@@ -976,7 +976,7 @@ def test_the_received_register_exact_example_is_three_one_one_one(db):
     item = _received_item(db, 3)
     first = _distribute(db, item, 1, day=2)
     _distribute(db, item, 1, day=3)
-    _return(db, item, 1, day=4)
+    _return_received(db, item, 1, day=4)
 
     row = _register_row(db, 3)
     assert row["received_quantity"] == 3
