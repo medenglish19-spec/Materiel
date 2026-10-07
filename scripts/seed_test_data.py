@@ -283,6 +283,8 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
             else Decimal("1000") + Decimal(idx * 250)
         )
         later_meter = base_meter + (Decimal("12") if model_unit == "hours" else Decimal("120"))
+        movement_meter = base_meter if model_unit == "km" else None
+        later_movement_meter = later_meter if model_unit == "km" else None
         for pos_idx in (1, 2):
             tire = Tire(
                 serial_number=f"{MARKER}-TIRE-{idx + 1:02d}-{pos_idx}",
@@ -306,7 +308,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "install",
                     "equipment_id": eq.id,
                     "position_id": positions[(model_idx, pos_idx)].id,
-                    "meter_value": base_meter,
+                    "meter_value": movement_meter,
                     "document_number": f"{MARKER}-TIRE-IN-{idx + 1:02d}-{pos_idx}",
                     "reason": None,
                     "notes": f"تركيب أولي — {MARKER}",
@@ -367,7 +369,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "remove",
                     "equipment_id": None,
                     "position_id": None,
-                    "meter_value": later_meter,
+                    "meter_value": later_movement_meter,
                     "document_number": f"{MARKER}-TIRE-OUT-{idx + 1:02d}",
                     "reason": "استبدال وقائي",
                     "removal_disposition": "stock",
@@ -383,7 +385,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "install",
                     "equipment_id": eq.id,
                     "position_id": positions[(model_idx, 1)].id,
-                    "meter_value": later_meter + (Decimal("2") if model_unit == "hours" else Decimal("20")),
+                    "meter_value": (later_movement_meter + Decimal("20")) if later_movement_meter is not None else None,
                     "document_number": f"{MARKER}-TIRE-REP-IN-{idx + 1:02d}",
                     "reason": None,
                     "notes": f"تركيب بديل — {MARKER}",
