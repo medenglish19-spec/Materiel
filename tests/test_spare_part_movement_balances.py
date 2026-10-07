@@ -905,15 +905,14 @@ COLUMNS = {
     "request_number": "رقم الطلب",
     "part_name": "الغيار",
     "asset_code": "العتاد",
-    "received_quantity": "الكمية المستلمة",
-    "distributed": "الموزعة فعليًا",
-    "returned": "الكمية المعادة",
-    "available_for_distribution": "المتاح للتوزيع",
-    "status": "الحالة",
+    "received_quantity": "المستلم",
+    "distributed": "الموزع",
+    "remaining": "الباقي",
+    "returned": "المرتجع",
     "last_movement_type": "آخر الحركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
-    "recipient": "المستلم",
+    "recipient": "المستلم إليه",
     "supplier_institution": "المؤسسة الممونة",
 }
 
@@ -923,7 +922,7 @@ def _page():
 
 
 def test_every_balance_column_is_shown_under_its_own_header():
-    """رأس السجل وترتيب خلاياه يطابقان الأرصدة والحالة المعروضة."""
+    """رأس السجل وترتيب خلاياه يطابقان الأرصدة المرئية المطلوبة."""
     html = _page()
     headers = re.findall(r"<th>(.*?)</th>", html)
     assert headers == list(COLUMNS.values())
@@ -935,9 +934,8 @@ def test_every_balance_column_is_shown_under_its_own_header():
         "x.equipment?.asset_code",
         "x.received_quantity",
         "x.distributed",
+        "x.remaining",
         "x.returned",
-        "x.available_for_distribution",
-        "STATUS_LABELS[x.status]",
         "MOVEMENT_LABELS[x.last_movement_type]",
         "x.received_date",
         "x.registration_number",
@@ -958,11 +956,37 @@ def test_the_row_spans_the_same_number_of_columns_as_the_header():
         )
 
 
-def test_the_received_page_renders_balance_status_and_availability():
+def test_the_received_page_renders_only_the_four_balance_parts():
     html = _page()
-    assert "STATUS_LABELS" in html
-    assert "available_for_distribution" in html
-    assert "x.status" in html
+    assert "x.received_quantity" in html
+    assert "x.distributed" in html
+    assert "x.remaining" in html
+    assert "x.returned" in html
+    assert "available_for_distribution" not in html
+    assert "STATUS_LABELS" not in html
+    assert "x.status" not in html
+
+
+def test_the_received_register_exact_example_is_three_one_one_one(db):
+    """الحالة الفعلية المطلوبة: 3 مستلمة، توزيعا 1+1، وإرجاع 1.
+
+    الرصيد المرئي يجب أن يبقى أربعة أجزاء متسقة:
+    3 = 1 موزعة فعلياً + 1 باقٍ + 1 مرتجع.
+    """
+    item = _received_item(db, 3)
+    first = _distribute(db, item, 1, day=2)
+    _distribute(db, item, 1, day=3)
+    _return(db, item, 1, day=4)
+
+    row = _register_row(db, 3)
+    assert row["received_quantity"] == 3
+    assert row["distributed"] == 1
+    assert row["remaining"] == 1
+    assert row["returned"] == 1
+    assert row["received_quantity"] == (
+        row["distributed"] + row["remaining"] + row["returned"]
+    )
+    assert first.items[0].quantity == Decimal("1")
 
 
 def test_the_page_has_no_lifecycle_states_of_its_own():
