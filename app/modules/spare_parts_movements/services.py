@@ -309,6 +309,7 @@ def _balance_from_maps(item, maps):
         "distributed_total": distributed,
         "returned": returned,
         "remaining": remaining,
+        "remaining_with_entity": distributed,
         "returned_from_distributed": returned_from_distributed,
         "legacy_returned": legacy_returned,
         # رصيد التشغيل الداخلي: الكمية التي لم تُوزع ولم تُرجع للمورد.
