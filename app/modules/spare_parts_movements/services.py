@@ -313,8 +313,9 @@ def _balance_from_maps(item, maps):
         "legacy_returned": legacy_returned,
         "available_for_distribution": _available(received_qty, distributed, legacy_returned),
         "remaining_with_entity": remaining_with_entity,
-        # حالة الرصيد تعتمد على الموزعة فعليًا، لا على إجمالي الحركات التاريخية.
-        "status": _status(received_qty, distributed_actual, Decimal("0")),
+        # الحالة تتحقق من الرصيد التاريخي الكامل: التوزيع الإجمالي والإرجاع.
+        # أما "الموزعة" المعروضة للمستخدم فهي صافي الكمية الموزعة فعليًا.
+        "status": _status(received_qty, distributed, returned),
     }
 
 
