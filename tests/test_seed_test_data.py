@@ -98,10 +98,10 @@ def test_seed_builds_a_complete_linked_dataset_and_clean_removes_only_it(tmp_pat
         first_item = requests[0].items[0]
         available = movement_services.available_quantity(db, first_item)
         assert available == 1
-        register = movement_services.return_register(db)
-        first_returnable = next(x for x in register if x["request_item_id"] == first_item.id)
-        assert first_returnable["returnable_quantity"] == 1
         assert returns[0].recipient == first_item.supplier_institution
+        assert returns[0].items[0].received_request_item_id == first_item.id
+        assert returns[0].items[0].source_item_id is None
+        assert movement_services.returnable_quantity(db, distributions[0].items[0]) == 1
 
         tires = db.query(Tire).filter(Tire.serial_number.like(f"{MARKER}%")).all()
         installed_tires = [t for t in tires if tire_services.current_state(db, t.id).get("installed")]
