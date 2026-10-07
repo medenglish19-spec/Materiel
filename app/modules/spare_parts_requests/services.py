@@ -484,11 +484,8 @@ def received_register(db: Session):
             # والإرجاع، فلا يختلف رقمان للبند نفسه بين صفحة وصفحة
             "received_quantity": balances["received_quantity"],
             "distributed": balances["distributed"],
-            "distributed_total": balances["distributed_total"],
             "returned": balances["returned"],
-            "available_for_distribution": balances["available_for_distribution"],
-            "remaining_with_entity": balances["remaining_with_entity"],
-            "status": balances["status"],
+            "remaining": balances["remaining"],
             "last_movement_type": (
                 latest_by_item[item.id][2]
                 if item.id in latest_by_item
