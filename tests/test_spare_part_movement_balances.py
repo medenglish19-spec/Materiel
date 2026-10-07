@@ -737,10 +737,8 @@ def test_editing_a_document_restores_the_full_available_quantity(db):
 BALANCE_KEYS = (
     "received_quantity",
     "distributed",
+    "remaining",
     "returned",
-    "available_for_distribution",
-    "remaining_with_entity",
-    "status",
 )
 
 
@@ -762,12 +760,25 @@ def test_the_received_register_shows_the_balances_and_the_state(db):
     assert {k: row[k] for k in BALANCE_KEYS} == {
         "received_quantity": 10,
         "distributed": 4,
-        "distributed_total": 6,
+        "remaining": 4,
         "returned": 2,
-        "available_for_distribution": 2,
-        "remaining_with_entity": 6,
-        "status": "partially_distributed",
     }
+
+
+def test_balance_has_only_received_distributed_remaining_and_returned(db):
+    item = _received_item(db, 10)
+    doc = _distribute(db, item, 6)
+    _return(db, item, 2, _item_id(doc))
+
+    balances = _balances(db, item)
+
+    assert balances["received_quantity"] == 10
+    assert balances["distributed"] == 4
+    assert balances["remaining"] == 4
+    assert balances["returned"] == 2
+    assert balances["received_quantity"] == (
+        balances["distributed"] + balances["remaining"] + balances["returned"]
+    )
 
 
 def test_deleting_a_return_cannot_create_over_distribution_history(db):
