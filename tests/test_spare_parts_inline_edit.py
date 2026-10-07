@@ -178,8 +178,8 @@ def test_the_page_has_no_edit_toolbar_at_the_top(client):
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    # شريط الأدوات العام مخفي على هذه الصفحة
-    assert ".app-workbar{display:none}" in html
+    # الواجهة الجديدة لا تستخدم شريط التحرير العام؛ التحقق من غياب عناصره يكفي.
+    assert "تعديل الطلب" not in html
     # لا أدوات تحرير داخل الطلب نفسه
     assert "تعديل الطلب" not in html
     assert 'class="detail-actions"' not in html
