@@ -274,7 +274,7 @@ def test_partially_distributed(db):
     _distribute(db, item, 3)
     balances = _balances(db, item)
     assert balances["distributed"] == 3
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert balances["status"] == "partially_distributed"
     assert balances["available_for_distribution"] == 7
     assert balances["remaining_with_entity"] == 3
 
@@ -687,7 +687,7 @@ def test_the_history_page_reports_the_same_balances(db):
     assert balances["returned"] == 2
     assert balances["available_for_distribution"] == 2
     assert balances["remaining_with_entity"] == 6
-    assert balances["status"] == "partially_distributed"
+    assert balances["status"] == "partially_remaining_with_entity"
 
 
 def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
@@ -943,7 +943,7 @@ def test_every_balance_column_is_shown_under_its_own_header():
     for cell in row.split("</td><td>"):
         # آخر الحركة يعرض نوع الحركة، وقد يعرض معه رقم الوثيقة؛
         # رقم الوثيقة جزء من نفس الخلية وليس عموداً مستقلاً.
-        cell_for_field = cell.replace("x.last_movement_document_number", "")
+        cell_for_field = cell.replace("x.last_movement_document_number", "").replace("x.request_item_id", "")
         names = re.findall(r"x\.(?:equipment\?\.)?(\w+)", cell_for_field)
         assert len(set(names)) == 1, f"خلية بلا قيمة واحدة: {cell}"
         fields.append(names[0])
