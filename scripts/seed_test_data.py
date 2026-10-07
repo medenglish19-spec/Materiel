@@ -238,8 +238,8 @@ def _create_equipment(db: Session, types, models):
             first_service_date=date.today() - timedelta(days=360 + idx * 10),
             technical_condition="ready",
             operational_status="available",
-            current_odometer=(base if unit == "km" else Decimal("0")),
-            current_hours=(base / Decimal("100") if unit == "hours" else Decimal("0")),
+            current_odometer=(Decimal("5000") + Decimal(idx * 500) if unit == "km" else Decimal("0")),
+            current_hours=(Decimal("300") + Decimal(idx * 25) if unit == "hours" else Decimal("0")),
             notes=f"معدات اختبارية مرتبطة بالكامل بالبيانات {MARKER}",
         )
         db.add(eq)
