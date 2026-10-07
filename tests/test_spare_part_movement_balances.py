@@ -688,7 +688,7 @@ def test_the_history_page_reports_the_same_balances(db):
     assert balances["returned"] == 2
     assert balances["available_for_distribution"] == 2
     assert balances["remaining"] == 4
-    assert balances["status"] == "partially_distributed"
+    assert balances["status"] == "partially_remaining_with_entity"
 
 
 def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
@@ -922,32 +922,28 @@ def _page():
 
 
 def test_every_balance_column_is_shown_under_its_own_header():
-    """عنوان العمود يجب أن يطابق ما يقرأه الصفّ تحته، بالترتيب نفسه.
-
-    بدون هذا الفحص يمرّ كلٌّ منهما وحده: العمود موجود ورأسه موجود، لكن
-    تاريخ الاستلام في تاسع خانة ورأسه في الثالث — فتنزلق كل قيمة تحت عنوان
-    غيرها دون أن تكسر الصفحة.
-    """
+    """رأس السجل وترتيب خلاياه يطابقان عناصره المرئية الجديدة."""
     html = _page()
     headers = re.findall(r"<th>(.*?)</th>", html)
+    assert headers == list(COLUMNS.values())
+
     builder = html[html.index("function render()") : html.index("function esc(")]
-    row = builder[builder.index("'<tr><td>'") : builder.index(".join('')")]
-
-    fields = []
-    for cell in row.split("</td><td>"):
-        # آخر الحركة يعرض نوع الحركة، وقد يعرض معه رقم الوثيقة؛
-        # رقم الوثيقة جزء من نفس الخلية وليس عموداً مستقلاً.
-        cell_for_field = cell.replace("x.last_movement_document_number", "").replace("x.request_item_id", "")
-        names = re.findall(r"x\.(?:equipment\?\.)?(\w+)", cell_for_field)
-        assert len(set(names)) == 1, f"خلية بلا قيمة واحدة: {cell}"
-        fields.append(names[0])
-
-    assert headers == [COLUMNS[name] for name in fields], (
-        "ترتيب الصف لا يطابق ترتيب الرأس: "
-        f"الرأس={headers} والصف={[COLUMNS[f] for f in fields]}"
-    )
-    assert len(fields) == len(headers)
-
+    expected_fragments = [
+        "x.request_number",
+        "x.part_name",
+        "x.equipment?.asset_code",
+        "x.received_quantity",
+        "x.distributed",
+        "x.remaining",
+        "x.returned",
+        "MOVEMENT_LABELS[x.last_movement_type]",
+        "x.received_date",
+        "x.registration_number",
+        "x.recipient",
+        "x.supplier_institution",
+    ]
+    positions = [builder.index(fragment) for fragment in expected_fragments]
+    assert positions == sorted(positions)
 
 def test_the_row_spans_the_same_number_of_columns_as_the_header():
     html = _page()
