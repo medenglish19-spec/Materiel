@@ -479,11 +479,11 @@ def _create_maintenance(db: Session, equipment, models):
     for idx, eq in enumerate(equipment):
         model_idx = idx // 3 + 1
         unit = "hours" if model_idx == 2 else "km"
-        meter = Decimal("1150") + Decimal(idx * 100) if unit == "km" else Decimal("130") + Decimal(idx * 10)
+        meter = (Decimal("1150") + Decimal(idx * 250)) if unit == "km" else (Decimal("190") + Decimal((idx - 3) * 25))
         db.add(MaintenanceRecord(
             equipment_id=eq.id,
-            operation_id=operations[model_idx].id,
-            plan_id=plans[model_idx].id,
+            operation_id=operations[model_idx - 1].id,
+            plan_id=plans[model_idx - 1].id,
             maintenance_date=today - timedelta(days=5),
             reported_date=today - timedelta(days=5),
             meter_value=meter,
