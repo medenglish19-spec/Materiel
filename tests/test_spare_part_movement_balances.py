@@ -905,14 +905,15 @@ COLUMNS = {
     "request_number": "رقم الطلب",
     "part_name": "الغيار",
     "asset_code": "العتاد",
-    "received_quantity": "المستلم",
-    "distributed": "الموزع",
-    "remaining": "الباقي",
-    "returned": "المرتجع",
+    "received_quantity": "الكمية المستلمة",
+    "distributed": "الموزعة فعليًا",
+    "returned": "الكمية المعادة",
+    "available_for_distribution": "المتاح للتوزيع",
+    "status": "الحالة",
     "last_movement_type": "آخر الحركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
-    "recipient": "المستلم إليه",
+    "recipient": "المستلم",
     "supplier_institution": "المؤسسة الممونة",
 }
 
@@ -922,7 +923,7 @@ def _page():
 
 
 def test_every_balance_column_is_shown_under_its_own_header():
-    """رأس السجل وترتيب خلاياه يطابقان عناصره المرئية الجديدة."""
+    """رأس السجل وترتيب خلاياه يطابقان الأرصدة والحالة المعروضة."""
     html = _page()
     headers = re.findall(r"<th>(.*?)</th>", html)
     assert headers == list(COLUMNS.values())
@@ -934,8 +935,9 @@ def test_every_balance_column_is_shown_under_its_own_header():
         "x.equipment?.asset_code",
         "x.received_quantity",
         "x.distributed",
-        "x.remaining",
         "x.returned",
+        "x.available_for_distribution",
+        "STATUS_LABELS[x.status]",
         "MOVEMENT_LABELS[x.last_movement_type]",
         "x.received_date",
         "x.registration_number",
@@ -944,6 +946,7 @@ def test_every_balance_column_is_shown_under_its_own_header():
     ]
     positions = [builder.index(fragment) for fragment in expected_fragments]
     assert positions == sorted(positions)
+
 
 def test_the_row_spans_the_same_number_of_columns_as_the_header():
     html = _page()
@@ -955,11 +958,11 @@ def test_the_row_spans_the_same_number_of_columns_as_the_header():
         )
 
 
-def test_the_received_page_does_not_render_balance_status_or_availability():
+def test_the_received_page_renders_balance_status_and_availability():
     html = _page()
-    assert "STATUS_LABELS" not in html
-    assert "available_for_distribution" not in html
-    assert "x.status" not in html
+    assert "STATUS_LABELS" in html
+    assert "available_for_distribution" in html
+    assert "x.status" in html
 
 
 def test_the_page_has_no_lifecycle_states_of_its_own():
