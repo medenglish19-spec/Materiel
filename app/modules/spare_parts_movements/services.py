@@ -302,8 +302,6 @@ def _balance_from_maps(item, maps):
     # الموزعة فعليًا = إجمالي التوزيع ناقص كل الإرجاعات المسجلة.
     # نحتفظ بالإجمالي التاريخي منفصلًا حتى لا نفقد أثر الحركة.
     distributed_actual = _at_least_zero(distributed - returned)
-    remaining_with_entity = _at_least_zero(distributed - returned_from_distributed)
-
     remaining = _at_least_zero(received_qty - distributed_actual - returned)
     return {
         "received_quantity": received_qty,
