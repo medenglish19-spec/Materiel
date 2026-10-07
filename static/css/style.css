@@ -30,7 +30,7 @@ body:has(.mdx){
 }
 
 /* --- shell ---------------------------------------------------------------- */
-.mdx{max-width:1560px;margin:0 auto;padding:4px 0 48px;min-height:0;color:var(--ink);font-family:inherit}
+.mdx{max-width:1560px;margin:0 auto;padding:4px 0 48px;min-height:0;color:#111;font-family:inherit}
 .mdx *{box-sizing:border-box}
 [hidden]{display:none!important}
 
@@ -117,8 +117,8 @@ body:has(.mdx){
 
 /* --- forms ---------------------------------------------------------------- */
 .mdx .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
-.mdx .field{display:flex;flex-direction:column;gap:7px;font-size:12.5px;font-weight:800;color:#3f5c4c}
-.mdx .field span,.mdx .field>span{font-size:11.5px;font-weight:700;color:var(--muted)}
+.mdx .field{display:flex;flex-direction:column;gap:7px;font-size:12.5px;font-weight:800;color:#111}
+.mdx .field span,.mdx .field>span{font-size:11.5px;font-weight:700;color:#111}
 .mdx .field strong{color:var(--ink);font-size:14px}
 .mdx .field input,.mdx .field select,.mdx .field textarea{width:100%;min-height:42px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:600;outline:0;transition:border-color .15s,box-shadow .15s}
 .mdx .field textarea{min-height:86px;resize:vertical}
@@ -126,12 +126,12 @@ body:has(.mdx){
 .mdx .field input[type="file"]{padding:8px 10px;background:#f7fbf8}
 .mdx .check{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#2e5a3a;cursor:pointer}
 .mdx .check input{width:17px;height:17px;accent-color:var(--accent)}
-.mdx .muted{color:var(--muted);font-size:12px;font-weight:600}
+.mdx .muted{color:#111;font-size:12px;font-weight:600}
 .mdx .save{display:flex;gap:10px;align-items:center;padding-top:6px}
 .mdx .import-help{margin-top:12px}
 .mdx .ref-form{max-width:660px;display:grid;gap:14px;background:#fff;border:1px solid var(--line-soft);border-radius:16px;padding:22px;box-shadow:var(--mdx-shadow)}
-.mdx .ref-form label{display:flex;flex-direction:column;gap:7px;font-size:12.5px;font-weight:800;color:#3f5c4c}
-.mdx .ref-form input,.mdx .ref-form select{min-height:42px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:14px;outline:0}
+.mdx .ref-form label{display:flex;flex-direction:column;gap:7px;font-size:12.5px;font-weight:800;color:#111}
+.mdx .ref-form input,.mdx .ref-form select{min-height:42px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#111;font:inherit;font-size:14px;outline:0}
 .mdx .ref-form input:focus,.mdx .ref-form select:focus{border-color:var(--accent-2);box-shadow:0 0 0 4px rgba(67,160,71,.13)}
 
 /* --- buttons -------------------------------------------------------------- */
