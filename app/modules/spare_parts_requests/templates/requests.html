@@ -4,9 +4,6 @@
 <style>
 .spr{direction:rtl}.spr .top{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:14px}.spr h1{margin:0;color:#183955;font-size:23px}.spr .muted{font-size:11px;color:#718096;margin-top:5px}.spr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden}.spr .bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:11px;border-bottom:1px solid #edf1f4}.spr button,.spr select,.spr input,.spr textarea{font:inherit;font-size:10px}.spr button{border:0;border-radius:6px;padding:8px 12px;background:#0875d1;color:#fff;font-weight:800;cursor:pointer}.spr .secondary{background:#fff;color:#245d88;border:1px solid #dce4ea}.spr select,.spr input,.spr textarea{border:1px solid #dce4ea;border-radius:6px;padding:7px;background:#fff}.spr .table-scroll{width:100%;max-width:100%;overflow:auto}.spr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}.spr th,.spr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap;color:#111}.spr th{background:#f8fafc;color:#111;font-weight:800}.spr .request-row{cursor:pointer}.spr .request-row:hover{background:#fbfdff}.spr .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#245d88;font-weight:800}.spr .detail{display:none;background:#fafcfe}.spr .detail.open{display:table-row}.spr .items{padding:12px}.spr .items table{min-width:950px}.spr .empty{text-align:center;padding:30px;color:#8794a2}.spr .form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;border-bottom:1px solid #edf1f4}.spr .wide{grid-column:1/-1}.spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px}.spr .rf{border:1px solid #e4eaf0;border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column;gap:2px;min-width:0}.spr .rf-k{font-size:9px;color:#718096}.spr .rf-v{font-size:10px;color:#183955;font-weight:700;word-break:break-word}.spr .items-t{width:max-content;min-width:100%;margin-top:8px;table-layout:auto}.spr .items-t th{background:#f8fafc;color:#111;padding:8px 6px;font-size:10px;text-align:right;border-bottom:1px solid #edf1f4;white-space:nowrap;font-weight:800}.spr .items-t td{padding:6px;font-size:10px;border-bottom:1px solid #edf1f4;white-space:normal;color:#111}.spr .items-t th,.spr .items-t td{vertical-align:middle}.spr .items-t th:first-child,.spr .items-t td:first-child{min-width:150px;max-width:240px}.spr .items-t th:nth-child(2),.spr .items-t td:nth-child(2){min-width:100px}.spr .items-t th:nth-child(3),.spr .items-t td:nth-child(3){min-width:80px}.spr .items-t th:nth-child(4),.spr .items-t td:nth-child(4){min-width:80px}.spr .items-t th:nth-child(5),.spr .items-t td:nth-child(5){min-width:100px}.spr .items-t th:nth-child(6),.spr .items-t td:nth-child(6){min-width:100px}.spr .items-t th:nth-child(7),.spr .items-t td:nth-child(7){min-width:110px}.spr .items-t th:nth-child(8),.spr .items-t td:nth-child(8){min-width:120px;max-width:260px}.spr .items-t th:last-child,.spr .items-t td:last-child{min-width:55px}.spr .items-t input,.spr .items-t select{padding:5px 4px}.spr .items-t .i-note{display:block;width:100%;min-width:110px;min-height:30px;resize:vertical;padding:5px 4px;font:inherit;font-size:10px;box-sizing:border-box}.spr .items-t{max-width:none;}.spr .items-t input{width:100%;box-sizing:border-box}.spr .new-part-box{position:relative}.spr .new-part-suggest{display:none;position:absolute;z-index:30;top:100%;right:0;left:0;background:#fff;border:1px solid #dce4ea;border-radius:6px;box-shadow:0 6px 18px rgba(24,57,85,.12);max-height:190px;overflow:auto}.spr .new-part-suggest.open{display:block}.spr .new-part-opt{display:block;width:100%;text-align:right;background:#fff;color:#183955;border:0;border-bottom:1px solid #eef2f5;border-radius:0;padding:7px;cursor:pointer;font-weight:400}.spr .new-part-opt:hover{background:#f1f7fd}.spr .new-part-opt small{color:#8794a2}.spr .item-edit{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .new-item{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .item-line{border-top:1px solid #edf1f4}.spr .item-line td{padding:6px;vertical-align:middle}.spr .item-line input,.spr .item-line select,.spr .item-line textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}.spr .danger{background:#fff!important;color:#b42318!important;border:1px solid #f0c7c2!important}.spr .msg{padding:8px 10px;border-radius:6px;margin-top:8px;font-size:10px}.spr .msg.err{background:#fff1f0;color:#a61b12}.spr .msg.ok{background:#eef9f1;color:#247a3b}
 .spr .bar input[type="search"]{min-width:260px;flex:1}.spr .bar input[type="search"]:focus{outline:2px solid #bcdcf7;border-color:#0875d1}
-.spr .confirm-backdrop{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.35)}
-.spr .confirm-backdrop.open{display:flex}.spr .confirm-dialog{width:min(460px,100%);background:#fff;border:1px solid #e4eaf0;border-radius:10px;box-shadow:0 18px 45px rgba(15,23,42,.18);padding:18px}
-.spr .confirm-dialog h2{margin:0 0 8px;color:#183955;font-size:15px}.spr .confirm-dialog p{margin:0 0 14px;color:#4b5563;font-size:11px;line-height:1.7}.spr .confirm-preview{background:#f8fafc;border:1px solid #e5e7eb;border-radius:7px;padding:10px;margin-bottom:14px;font-size:11px;color:#111}.spr .confirm-actions{display:flex;gap:7px;justify-content:flex-start}.spr .confirm-actions .danger{background:#b42318!important;color:#fff!important;border-color:#b42318!important}@media(max-width:800px){.spr .form{grid-template-columns:1fr 1fr}.spr .req-fields{grid-template-columns:1fr 1fr}.spr .items-t{width:100%;min-width:0}.spr .items-t th,.spr .items-t td{min-width:0!important}.spr .items-t input,.spr .items-t select{min-width:0}.spr .items-t td{white-space:normal}.spr .items-t .i-name{min-width:0}.spr .items-t th:nth-child(1),.spr .items-t td:nth-child(1){width:22%}.spr .items-t th:nth-child(2),.spr .items-t td:nth-child(2){width:16%}.spr .items-t th:nth-child(3),.spr .items-t td:nth-child(3),.spr .items-t th:nth-child(4),.spr .items-t td:nth-child(4){width:9%}.spr .items-t th:nth-child(5),.spr .items-t td:nth-child(5){width:12%}.spr .items-t th:nth-child(6),.spr .items-t td:nth-child(6){width:12%}.spr .items-t th:nth-child(7),.spr .items-t td:nth-child(7),.spr .items-t th:nth-child(8),.spr .items-t td:nth-child(8){width:15%}}@media(max-width:520px){.spr .form{grid-template-columns:1fr}.spr .req-fields{grid-template-columns:1fr}.spr .items-t{font-size:9px}.spr .items-t th,.spr .items-t td{padding:4px}.spr .items-t th:nth-child(1),.spr .items-t td:nth-child(1){width:24%}.spr .items-t th:nth-child(2),.spr .items-t td:nth-child(2){width:16%}.spr .items-t th:nth-child(3),.spr .items-t td:nth-child(3),.spr .items-t th:nth-child(4),.spr .items-t td:nth-child(4){width:10%}.spr .items-t th:nth-child(5),.spr .items-t td:nth-child(5){width:12%}.spr .items-t th:nth-child(6),.spr .items-t td:nth-child(6){width:12%}.spr .items-t th:nth-child(7),.spr .items-t td:nth-child(7),.spr .items-t th:nth-child(8),.spr .items-t td:nth-child(8){width:14%}}
 </style>
 <style>
 /* لا شريط أدوات تحرير في أعلى هذه الصفحة: التعديل يتم داخل بيانات الطلب نفسه. */
@@ -51,18 +48,7 @@
     </form>
     <div class="table-scroll"><table><thead><tr><th>رقم وثيقة الطلب</th><th>الغيار</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة</th></tr></thead><tbody id="rows"></tbody></table></div>
   </div>
-  <div id="deleteConfirm" class="confirm-backdrop" role="dialog" aria-modal="true" aria-labelledby="deleteConfirmTitle">
-    <div class="confirm-dialog">
-      <h2 id="deleteConfirmTitle">تأكيد حذف طلب قطع الغيار</h2>
-      <p>سيتم تنفيذ الحذف من سجل النظام وفق قواعد Materiel. لا يمكن التراجع عن الحذف بعد نجاح العملية.</p>
-      <div id="deleteConfirmPreview" class="confirm-preview"></div>
-      <div class="confirm-actions">
-        <button type="button" id="confirmDeleteBtn" class="danger">تأكيد الحذف</button>
-        <button type="button" id="cancelDeleteBtn" class="secondary">إلغاء</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 <script>
 const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
@@ -240,22 +226,10 @@ async function undoReceipt(tr){
   alert(errText((await r.json()).detail,'تعذر التراجع عن الاستلام'));
 }
 
-let pendingDeleteId=null;
-const deleteConfirm=typeof document==='undefined'?null:document.getElementById('deleteConfirm');
-const deleteConfirmPreview=typeof document==='undefined'?null:document.getElementById('deleteConfirmPreview');
-function closeDeleteConfirm(){pendingDeleteId=null;deleteConfirm.classList.remove('open');}
-function requestDeleteConfirmation(id){
-  const item=requestsData.find(x=>Number(x.id)===Number(id));
-  if(!item)return;
-  pendingDeleteId=Number(id);
-  deleteConfirmPreview.innerHTML='<b>رقم الطلب:</b> '+esc(item.request_number||'—')+'<br><b>الغيار:</b> '+esc((item.items||[]).map(i=>i.part_name).filter(Boolean).join('، ')||'—')+'<br><b>العتاد:</b> '+esc(item.equipment_registration||item.equipment_code||'—');
-  deleteConfirm.classList.add('open');
-  document.getElementById('confirmDeleteBtn').focus();
-}
 async function deleteRequest(id){
+  if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;
   const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});
-  if(r.ok){closeDeleteConfirm();await load();return;}
-  alert(errText((await r.json()).detail,'تعذر حذف الطلب'));
+  if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));
 }
 
 
@@ -396,7 +370,7 @@ document.getElementById('rows').addEventListener('click',async e=>{
   const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
   const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
-  const del=e.target.closest('.delete-request');if(del){e.stopPropagation();requestDeleteConfirmation(Number(del.dataset.id));return;}
+  const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
   const add=e.target.closest('.add-line');if(add){e.stopPropagation();addLineRow(add.closest('.items'));return;}
   const ur=e.target.closest('.undo-receipt');if(ur){e.stopPropagation();await undoReceipt(ur.closest('tr'));return;}
   const rm=e.target.closest('.rm-line');if(rm){e.stopPropagation();rm.closest('tr').classList.add('gone');rm.closest('tr').querySelector('.undo-line').style.display='';return;}
@@ -410,10 +384,6 @@ document.getElementById('rows').addEventListener('change',async e=>{
 document.getElementById('requestSearch').addEventListener('input',renderRequests);
 document.getElementById('filterStatus').addEventListener('change',load);
 document.getElementById('filterSource').addEventListener('change',load);
-document.getElementById('cancelDeleteBtn').addEventListener('click',closeDeleteConfirm);
-document.getElementById('confirmDeleteBtn').addEventListener('click',async()=>{if(pendingDeleteId!==null)await deleteRequest(pendingDeleteId);});
-deleteConfirm.addEventListener('click',e=>{if(e.target===deleteConfirm)closeDeleteConfirm();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&deleteConfirm.classList.contains('open'))closeDeleteConfirm();});
 openRepairRequest();function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}load();
 </script>
 {% endblock %}
