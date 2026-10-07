@@ -266,7 +266,7 @@ def test_received_and_not_yet_distributed(db):
     assert balances["returned"] == 0
     assert balances["status"] == "received_not_distributed"
     assert balances["available_for_distribution"] == 10
-    assert balances["remaining_with_entity"] == 0
+    assert balances["remaining"] == 10
 
 
 def test_partially_distributed(db):
@@ -276,7 +276,7 @@ def test_partially_distributed(db):
     assert balances["distributed"] == 3
     assert balances["status"] == "partially_distributed"
     assert balances["available_for_distribution"] == 7
-    assert balances["remaining_with_entity"] == 3
+    assert balances["remaining"] == 7
 
 
 def test_fully_distributed(db):
@@ -288,7 +288,7 @@ def test_fully_distributed(db):
     assert balances["returned"] == 0
     assert balances["status"] == "fully_distributed"
     assert balances["available_for_distribution"] == 0
-    assert balances["remaining_with_entity"] == 10
+    assert balances["remaining"] == 0
 
 
 def test_distributed_then_fully_returned(db):
@@ -297,7 +297,7 @@ def test_distributed_then_fully_returned(db):
     balances = _balances(db, item)
     assert balances["distributed"] == 0
     assert balances["returned"] == 10
-    assert balances["remaining_with_entity"] == 0
+    assert balances["remaining"] == 0
     assert movements.return_register(db) == []
 
 
@@ -322,6 +322,7 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
     assert balances["distributed"] == 2
     assert balances["distributed_total"] == 3
     assert balances["returned"] == 1
+    assert balances["remaining"] == 7
     assert movements.return_register(db)[0]["remaining_quantity"] == 6
 
 
@@ -665,13 +666,13 @@ def test_the_balances_can_look_past_the_document_being_edited(db):
     assert whole["distributed_total"] == 4
     assert whole["returned"] == 1
     assert whole["available_for_distribution"] == 5
-    assert whole["remaining_with_entity"] == 4
+    assert whole["remaining"] == 6
 
     without = _balances(db, item, exclude=return_doc.id)
     assert without["distributed"] == 4
     assert without["returned"] == 0
     assert without["available_for_distribution"] == 6
-    assert without["remaining_with_entity"] == 4
+    assert without["remaining"] == 6
 
 
 def test_the_history_page_reports_the_same_balances(db):
@@ -686,8 +687,8 @@ def test_the_history_page_reports_the_same_balances(db):
     assert balances["distributed_total"] == 6
     assert balances["returned"] == 2
     assert balances["available_for_distribution"] == 2
-    assert balances["remaining_with_entity"] == 6
-    assert balances["status"] == "partially_remaining_with_entity"
+    assert balances["remaining"] == 4
+    assert balances["status"] == "partially_distributed"
 
 
 def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
@@ -863,10 +864,13 @@ def test_the_received_register_agrees_with_the_distribution_page(db):
         r for r in movements.available_register(db)
         if r["request_item_id"] == item.id
     )
-    # الإرجاع القديم يخفض المتاح في الحسبين معاً؛ حساب من الأولين فقط
-    # كان سيعطي 4 هنا و2 هناك.
-    assert row["available_for_distribution"] == 2
-    assert row["available_for_distribution"] == page["available_quantity"]
+    # سجل الاستلام يعرض الرصيد المرئي الجديد، بينما صفحة التوزيع تحتفظ
+    # برصيد التشغيل الداخلي اللازم لمنع تجاوز الكمية المستلمة.
+    assert row["received_quantity"] == 10
+    assert row["distributed"] == 4
+    assert row["remaining"] == 4
+    assert row["returned"] == 2
+    assert page["available_quantity"] == 2
     assert legacy
 
 
@@ -895,30 +899,20 @@ TEMPLATE = (
     / "app" / "modules" / "spare_parts_requests" / "templates" / "received.html"
 )
 
-REQUIRED_STATUSES = {
-    "received_not_distributed": "مستلم ولم يوزع",
-    "partially_distributed": "موزع جزئيًا",
-    "fully_distributed": "موزع بالكامل",
-    "distributed_then_fully_returned": "موزع ثم مرتجع بالكامل",
-    "partially_remaining_with_entity": "جزء متبقٍ لدى الجهة",
-    "invalid_distribution_over_received": "تجاوز التوزيع الكمية المستلمة",
-    "invalid_movement_balance": "رصيد حركة غير صالح",
-}
-
-# ما يقرأه الصفّ من كائن البند، وعنوان العمود المقابل له في رأس الجدول
+# الأعمدة المرئية في سجل الاستلام: أربعة عناصر للرصد المالي فقط،
+# مع أعمدة التعريف والحركة والتاريخ والجهة.
 COLUMNS = {
     "request_number": "رقم الطلب",
     "part_name": "الغيار",
     "asset_code": "العتاد",
-    "received_quantity": "الكمية المستلمة",
-    "distributed": "الموزعة فعليًا",
-    "returned": "الكمية المعادة",
-    "available_for_distribution": "المتاح للتوزيع",
-    "status": "الحالة",
+    "received_quantity": "المستلم",
+    "distributed": "الموزع",
+    "remaining": "الباقي",
+    "returned": "المرتجع",
     "last_movement_type": "آخر الحركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
-    "recipient": "المستلم",
+    "recipient": "المستلم إليه",
     "supplier_institution": "المؤسسة الممونة",
 }
 
@@ -965,15 +959,11 @@ def test_the_row_spans_the_same_number_of_columns_as_the_header():
         )
 
 
-def test_every_required_state_has_a_readable_label():
+def test_the_received_page_does_not_render_balance_status_or_availability():
     html = _page()
-    block = html[html.index("STATUS_LABELS") : html.index("};", html.index("STATUS_LABELS"))]
-    labels = dict(re.findall(r"(\w+):\s*'([^']+)'", block))
-    assert labels == REQUIRED_STATUSES
-
-    # لا حالات أخرى تُعرض: المطلوب خمس، لا أسماء دورة حياة أخرى
-    for unwanted in ("under_inspection", "accepted", "rejected", "supplier_ref", "cancelled"):
-        assert unwanted not in labels
+    assert "STATUS_LABELS" not in html
+    assert "available_for_distribution" not in html
+    assert "x.status" not in html
 
 
 def test_the_page_has_no_lifecycle_states_of_its_own():
