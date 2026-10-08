@@ -243,6 +243,31 @@ document.addEventListener('click',function(event){
     }
   });
 },true);
+/* Global keyboard rule: Escape exits the active editor/modal using its existing cancel action. */
+document.addEventListener('keydown',function(event){
+  if(event.key!=='Escape'||event.repeat)return;
+  const active=document.activeElement;
+  const modal=active?.closest?.('.modal.open,.maintenance-edit-modal.open,[role="dialog"]');
+  const openMenu=active?.closest?.('details.action-menu[open],.master-context-menu:not([hidden])');
+  if(openMenu){
+    if(openMenu.matches('details.action-menu[open]')) openMenu.removeAttribute('open');
+    else {openMenu.hidden=true;openMenu.replaceChildren()}
+    event.preventDefault();
+    return;
+  }
+  const scope=modal||active?.closest?.('form')||document.querySelector('form:has(button[type="submit"],input[type="submit"])');
+  if(!scope)return;
+  const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
+    if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+    const text=(el.textContent||'').trim();
+    return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+  });
+  if(!cancel)return;
+  event.preventDefault();
+  const dirty=typeof window.EditManager?.isDirty==='function'&&window.EditManager.isDirty();
+  if(dirty&&!window.confirm('لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'))return;
+  cancel.click();
+},true);
 const p=window.location.pathname;
 if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
 if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
