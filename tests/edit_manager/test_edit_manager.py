@@ -30,7 +30,7 @@ def browser_page():
       <select id="equipment" name="equipment" required><option value="">عتاد</option><option value="10">عتاد 10</option></select>
       <select id="operation" name="operation" required><option value="">عملية</option><option value="20">تغيير الزيت</option></select>
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
-      <button type="submit">حفظ الصيانة</button>
+      <button type="submit">حفظ الصيانة</button><a href="/cancel" class="cancel-btn">إلغاء</a>
     </form>
     <input id="search" type="search" placeholder="بحث">
     <script>
@@ -75,6 +75,21 @@ def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_
     page.wait_for_timeout(500)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
+def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(browser_page):
+    page,errors=browser_page
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
+    page.keyboard.press('Escape')
+    expect(page).to_have_url(lambda url: url.endswith('/cancel'))
+    assert dialogs==[]
+    page.locator('#date').fill('2026-10-01')
+    page.wait_for_timeout(500)
+    page.keyboard.press('Escape')
+    assert dialogs==['لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟']
+    assert page.url.endswith('/cancel')
     assert not errors
 
 
