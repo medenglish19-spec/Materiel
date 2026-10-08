@@ -256,19 +256,31 @@ document.addEventListener('keydown',function(event){
     return;
   }
   /* First prefer the editor containing focus; otherwise locate the page editor
-     itself. This makes Escape work even when focus is on the page chrome,
-     a table, or another element outside the form. */
-  let scope=modal||active?.closest?.('form');
-  if(!scope){
-    scope=[...document.querySelectorAll('form')].find(function(form){
-      const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
-      const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
-        if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
-        const text=(el.textContent||'').trim();
-        return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
-      });
-      return hasSubmit&&hasCancel;
+     itself. An editor must contain a real editable field in addition to its
+     save/cancel controls; this prevents Escape from hijacking ordinary list,
+     filter, or display pages that happen to contain a form. */
+  const isEditorForm=function(form){
+    if(!form)return false;
+    const hasEditable=[...form.querySelectorAll('input,select,textarea,[contenteditable="true"]')].some(function(el){
+      return !ignoredEscapeControl(el);
     });
+    const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
+    const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
+      if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+      const text=(el.textContent||'').trim();
+      return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+    });
+    return hasEditable&&hasSubmit&&hasCancel;
+  };
+  const ignoredEscapeControl=function(el){
+    if(!el||el.disabled)return true;
+    if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"]'))return true;
+    const hint=(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'');
+    return /(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint);
+  };
+  let scope=modal||(isEditorForm(active?.closest?.('form'))?active.closest('form'):null);
+  if(!scope){
+    scope=[...document.querySelectorAll('form')].find(isEditorForm);
   }
   if(!scope)return;
   const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
