@@ -506,6 +506,7 @@ def return_register(db, exclude_document_id=None):
         received_quantity = Decimal(str(item.received_quantity or 0))
         distributed_quantity = _distribution_total(db, item.id)
         returned_quantity = _returned_total_by_received_item(db, item.id, exclude_document_id)
+        # يحسب الرصيد من الاستلام والتوزيع والإرجاع المباشر، بما في ذلك البنود التي لم تُوزع بعد.
         qty = _at_least_zero(received_quantity - distributed_quantity - returned_quantity)
         if qty <= 0:
             continue
