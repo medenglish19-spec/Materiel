@@ -46,7 +46,8 @@ def test_master_data_tree_keeps_model_actions_without_copy():
     template = _template()
     assert 'data-copy="{{ m.id }}"' not in template
     assert 'data-delete="{{ m.id }}"' in template
-    assert 'id="viewModelActionBtn"' in template
+    assert 'function viewModel(id):' in template
+    assert 'data-type-model' in template
     assert 'id="editModelBtn"' in template
     assert 'id="freezeModelForm"' in template
     assert 'id="deleteModelForm"' in template
