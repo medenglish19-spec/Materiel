@@ -94,6 +94,23 @@ def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(b
     assert not errors
 
 
+def test_escape_does_not_intercept_non_editor_forms(browser_page):
+    page,errors=browser_page
+    page.locator('#record').evaluate("el => el.remove()")
+    page.evaluate("""() => {
+      const form=document.createElement('form');
+      form.innerHTML='<input id="filter" name="filter" placeholder="بحث"><button type="submit">بحث</button><a href="/cancel" class="cancel-btn">إلغاء</a>';
+      document.querySelector('main').appendChild(form);
+    }""")
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
+    page.locator('#filter').focus()
+    page.keyboard.press('Escape')
+    assert dialogs==[]
+    assert page.url.endswith('/maintenance/records')
+    assert not errors
+
+
 def test_chained_form_undo_redo_and_save(browser_page):
     page,errors=browser_page
     page.locator('#model').select_option('1');page.locator('#equipment').select_option('10');page.locator('#operation').select_option('20');page.wait_for_timeout(500)
