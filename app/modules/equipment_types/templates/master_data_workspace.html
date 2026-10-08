@@ -98,7 +98,7 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .type-table .num{text-align:end;font-variant-numeric:tabular-nums}
 .mdx .type-status{display:inline-flex;padding:2px 9px;border-radius:999px;background:#e1f1e7;color:#1f6b43;font-size:11.5px;font-weight:600;white-space:nowrap}
 .mdx .type-status.frozen{background:#eae4f5;color:var(--mdx-violet)}
-.mdx .type-empty{padding:32px;text-align:center;color:var(--mdx-muted)}
+.mdx .type-empty{padding:32px;text-align:center;color:var(--mdx-muted)}.mdx .model-status-note{margin-top:14px;padding:11px 14px;border:1px solid var(--mdx-line);border-radius:10px;background:#f8fafb;color:#4b5b64;font-size:12px;line-height:1.8}.mdx .model-status-note strong{color:var(--mdx-ink)}
 .mdx .btn.primary{background:var(--mdx-accent);box-shadow:none}.mdx .btn.primary:hover{background:var(--mdx-accent-dark);filter:none;transform:none;box-shadow:none}
 .mdx .btn.soft{color:var(--mdx-accent);border-color:var(--mdx-line-strong)}
 .mdx .tree-library[data-system="1"] .tree-library-title{color:#5b3f91}
@@ -292,6 +292,7 @@ body:has(.mdx) .app-main{margin-right:208px}
 {% endfor %}
 {% endfor %}
 </div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>·</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">الطرازات: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
+<div class="model-status-note" role="note"><strong>ملاحظة:</strong> <b>معتمد</b> يعني أن الطراز متاح للاستخدام وإضافة عتاد جديد عليه. نلجأ إلى <b>التجميد</b> عند التوقف عن استخدام الطراز مستقبلًا مع الحاجة إلى الاحتفاظ به وتاريخه؛ فالتجميد يمنع إضافة عتاد جديد ولا يحذف السجلات السابقة. لتجميد الطراز أو إلغاء تجميده، افتح تعديل الطراز وغيّر حالته ثم احفظ.</div>
 <main class="card editor"><div class="editor-head"><small id="crumb">إدارة العتاد / أنواع العتاد</small><h2 id="title">اختر نوعاً من الشجرة</h2></div><div class="body">
 <div id="empty" class="empty">اختر تصنيفاً أو نوع عتاد من الشجرة لعرض تفاصيله.<br>يمكنك إضافة التصنيفات والأنواع والطرازات من أزرار الشجرة.</div>
 <div id="typePanel" class="panel"><div id="typeContent"></div></div>
