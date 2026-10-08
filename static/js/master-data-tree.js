@@ -100,14 +100,6 @@
     window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
-  const copyModel = (id) => {
-    if (!workspaceReady('editModel')) return;
-    window.editModel(id);
-    selectSection(0, { all: true });
-    if ($('modelName')) $('modelName').value += ' - نسخة';
-    if ($('modelId')) $('modelId').value = '';
-    if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
-  };
   const postDelete = (url, message) => {
     if (!confirm(message)) return;
     const form = document.createElement('form');
@@ -427,8 +419,6 @@
       }
       return;
     }
-    const copy = event.target.closest('[data-copy]');
-    if (copy) { stop(event); copyModel(copy.dataset.copy); return; }
     const del = event.target.closest('[data-delete]');
     if (del) { stop(event); postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`, 'حذف الطراز؟'); return; }
     const toggle = event.target.closest('.tree-toggle');
