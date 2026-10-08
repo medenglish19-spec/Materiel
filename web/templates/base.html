@@ -229,6 +229,20 @@ const params=new URLSearchParams(window.location.search);const notice=params.get
 const mutationKey='materiel:mutation-completed';document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>sessionStorage.setItem(mutationKey,'1'))});if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey)}window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload()});
 document.querySelectorAll('input.search-box,input[id*="search" i],input[id*="Search"]').forEach(input=>{if(input.closest('.global-search-wrap')||input.type==='hidden')return;const parent=input.parentElement;if(!parent)return;const wrap=document.createElement('span');wrap.className='global-search-wrap';parent.insertBefore(wrap,input);wrap.appendChild(input);const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='بحث';const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;wrap.append(search,clear);const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));search.addEventListener('click',fire);clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});input.addEventListener('input',()=>clear.hidden=!input.value)});
 document.querySelectorAll('.table-scroll,.record-table-wrap,.table-wrap,.type-table-wrap').forEach(function(el){if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');if(!el.hasAttribute('role'))el.setAttribute('role','region');if(!el.getAttribute('aria-label'))el.setAttribute('aria-label','جدول البيانات');});
+/* Global UI rule: every action menu closes on any left click outside the open menu.
+   This is intentionally owned by the shared base template so the rule applies to every module,
+   including tree-generated menus that stop propagation inside their own handlers. */
+document.addEventListener('click',function(event){
+  document.querySelectorAll('details.action-menu[open]').forEach(function(menu){
+    if(!menu.contains(event.target)) menu.removeAttribute('open');
+  });
+  document.querySelectorAll('.master-context-menu:not([hidden])').forEach(function(menu){
+    if(!menu.contains(event.target) && !event.target.closest('[data-action-menu]')){
+      menu.hidden=true;
+      menu.replaceChildren();
+    }
+  });
+},true);
 const p=window.location.pathname;
 if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
 if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
