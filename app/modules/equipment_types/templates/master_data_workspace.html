@@ -92,6 +92,8 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .type-models-head span{font-size:12px;color:var(--mdx-muted)}
 .mdx .type-table-wrap{overflow:auto}
 .mdx .spec-table-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 0 6px;border:1px solid var(--mdx-line);border-radius:8px;background:#f5f7f8;scrollbar-width:auto}
+.mdx #specTableWrap{direction:ltr}
+.mdx #specTableWrap .tbl{direction:rtl}
 .mdx .spec-table-scroll-top>div{height:1px;min-width:100%}
 .mdx .spec-table-scroll-top::-webkit-scrollbar{height:10px}
 .mdx .spec-table-scroll-top::-webkit-scrollbar-track{background:#eef2f3;border-radius:8px}
@@ -543,7 +545,7 @@ function renderSpecManager(){
   title('مكتبة الخصائص الفنية','الخصائص الفنية');
   $('refBody').innerHTML=`<div class="box">
     <div class="box-head"><h3>الخصائص الفنية الموجودة</h3><button type="button" class="btn primary" id="addSpecDefinition">＋ إضافة خاصية</button></div>
-    <div class="box-body"><div class="spec-table-scroll-top" id="specTableScrollTop" aria-label="شريط التمرير الأفقي للجدول"><div id="specTableScrollTopInner"></div></div><div class="table-wrap" id="specTableWrap"><table class="tbl"><thead><tr><th>الخاصية</th><th>الرمز</th><th>المجموعة الفنية</th><th>النوع</th><th>الوحدة</th><th>الإجراءات</th></tr></thead><tbody>${rows.map(d=>`<tr><td><strong>${htmlSafe(d.name)}</strong></td><td>${htmlSafe(d.code||'—')}</td><td>${typeLabels[d.data_type]||htmlSafe(d.data_type||'—')}</td><td>${htmlSafe(d.unit||'—')}</td><td><form method="post" action="/equipment-types/specs/${d.id}/delete" onsubmit="return confirm('هل تريد حذف هذه الخاصية من كل الطرازات المستخدمة فيها؟')"><button type="submit" class="btn danger">🗑 حذف</button></form></td></tr>`).join('')||'<tr><td colspan="6">لا توجد خصائص فنية مضافة بعد.</td></tr>'}</tbody></table></div></div>
+    <div class="box-body"><div class="spec-table-scroll-top" id="specTableScrollTop" aria-label="شريط التمرير الأفقي للجدول"><div id="specTableScrollTopInner"></div></div><div class="table-wrap" id="specTableWrap"><table class="tbl"><thead><tr><th>الخاصية</th><th>الرمز</th><th>المجموعة الفنية</th><th>النوع</th><th>الوحدة</th><th>الإجراءات</th></tr></thead><tbody>${rows.map(d=>`<tr><td><strong>${htmlSafe(d.name)}</strong></td><td>${htmlSafe(d.code||'—')}</td><td>${htmlSafe(d.group_name||'—')}</td><td>${typeLabels[d.data_type]||htmlSafe(d.data_type||'—')}</td><td>${htmlSafe(d.unit||'—')}</td><td><form method="post" action="/equipment-types/specs/${d.id}/delete" onsubmit="return confirm('هل تريد حذف هذه الخاصية من كل الطرازات المستخدمة فيها؟')"><button type="submit" class="btn danger">🗑 حذف</button></form></td></tr>`).join('')||'<tr><td colspan="6">لا توجد خصائص فنية مضافة بعد.</td></tr>'}</tbody></table></div></div>
   </div>`;
   const topScroll=$('specTableScrollTop'), tableWrap=$('specTableWrap'), topInner=$('specTableScrollTopInner'), table=tableWrap?.querySelector('table');
   if(topScroll&&tableWrap&&topInner&&table){
