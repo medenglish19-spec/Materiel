@@ -46,7 +46,8 @@ def test_master_data_has_no_excel_import_at_all():
 def test_master_data_keeps_model_actions_without_copy():
     assert 'data-copy="{{ m.id }}"' not in TEMPLATE
     assert 'data-delete="{{ m.id }}"' in TEMPLATE
-    assert 'id="viewModelActionBtn"' in TEMPLATE
+    assert 'function viewModel(id):' in TEMPLATE
+    assert 'data-type-model' in TEMPLATE
     assert 'id="editModelBtn"' in TEMPLATE
     assert 'id="freezeModelForm"' in TEMPLATE
     assert 'id="deleteModelForm"' in TEMPLATE
