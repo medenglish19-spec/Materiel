@@ -9,6 +9,8 @@ without touching unrelated records. It is not a production migration.
 """
 
 import argparse
+
+from sqlalchemy import or_
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -24,7 +26,8 @@ from app.modules.maintenance.models import (
     MaintenanceOperationGroup,
     MaintenanceRecord,
 )
-from app.modules.spare_parts_requests.models import SparePartRequest
+from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
 
 
 DEMO_PREFIX = "DEMO-AN-"
@@ -59,18 +62,72 @@ def remove_demo(db):
         )
         repair_ids = [r.id for r in repairs]
 
+        # Movement items reference request items with ON DELETE RESTRICT.
+        # Remove dependent movement rows first, then their documents, then
+        # the request items/requests, before deleting their source records.
+        source_filters = []
+        if repair_ids:
+            source_filters.append(SparePartRequest.repair_id.in_(repair_ids))
+        if fault_ids:
+            source_filters.append(SparePartRequest.fault_id.in_(fault_ids))
+
+        request_ids = [
+            row.id
+            for row in db.query(SparePartRequest).filter(or_(*source_filters)).all()
+        ] if source_filters else []
+
+        request_item_ids = [
+            row.id
+            for row in db.query(SparePartRequestItem).filter(
+                SparePartRequestItem.request_id.in_(request_ids)
+            ).all()
+        ] if request_ids else []
+
+        if request_item_ids:
+            movement_items = db.query(SparePartMovementItem).filter(
+                (SparePartMovementItem.request_item_id.in_(request_item_ids))
+                | (SparePartMovementItem.received_request_item_id.in_(request_item_ids))
+            ).all()
+
+            # Return items may reference a distribution item through source_item_id.
+            movement_ids = {row.id for row in movement_items}
+            dependent_items = db.query(SparePartMovementItem).filter(
+                SparePartMovementItem.source_item_id.in_(movement_ids)
+            ).all() if movement_ids else []
+            for row in dependent_items:
+                db.delete(row)
+            db.flush()
+
+            for row in movement_items:
+                if row in db:
+                    db.delete(row)
+            db.flush()
+
+            # Documents are deleted after their items. Returns must go before
+            # their source distribution documents because source_document_id
+            # uses ON DELETE RESTRICT.
+            document_ids = {
+                row.document_id
+                for row in movement_items
+            }
+            documents = db.query(SparePartMovementDocument).filter(
+                SparePartMovementDocument.id.in_(document_ids)
+            ).all() if document_ids else []
+            return_documents = [d for d in documents if d.document_type == "return"]
+            distribution_documents = [d for d in documents if d.document_type == "distribution"]
+            for document in return_documents:
+                db.delete(document)
+            db.flush()
+            for document in distribution_documents:
+                db.delete(document)
+            db.flush()
+
         # Spare-part requests point to faults/repairs with ON DELETE SET NULL,
         # but the source-match CHECK constraint requires the source FK to remain
         # populated. Remove demo-linked requests before deleting their sources.
-        if repair_ids:
-            for request in db.query(SparePartRequest).filter(
-                SparePartRequest.repair_id.in_(repair_ids)
-            ).all():
-                db.delete(request)
-        if fault_ids:
-            for request in db.query(SparePartRequest).filter(
-                SparePartRequest.fault_id.in_(fault_ids)
-            ).all():
+        for request_id in request_ids:
+            request = db.query(SparePartRequest).filter(SparePartRequest.id == request_id).first()
+            if request is not None:
                 db.delete(request)
         db.flush()
 
