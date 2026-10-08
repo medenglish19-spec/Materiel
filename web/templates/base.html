@@ -243,7 +243,7 @@ document.addEventListener('click',function(event){
     }
   });
 },true);
-/* Global keyboard rule: Escape exits the active editor/modal using its existing cancel action. */
+/* Global keyboard rule: Escape always exits an active editor from anywhere on its page. */
 document.addEventListener('keydown',function(event){
   if(event.key!=='Escape'||event.repeat)return;
   const active=document.activeElement;
@@ -255,7 +255,21 @@ document.addEventListener('keydown',function(event){
     event.preventDefault();
     return;
   }
-  const scope=modal||active?.closest?.('form')||document.querySelector('form:has(button[type="submit"],input[type="submit"])');
+  /* First prefer the editor containing focus; otherwise locate the page editor
+     itself. This makes Escape work even when focus is on the page chrome,
+     a table, or another element outside the form. */
+  let scope=modal||active?.closest?.('form');
+  if(!scope){
+    scope=[...document.querySelectorAll('form')].find(function(form){
+      const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
+      const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
+        if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+        const text=(el.textContent||'').trim();
+        return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+      });
+      return hasSubmit&&hasCancel;
+    });
+  }
   if(!scope)return;
   const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
     if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
