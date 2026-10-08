@@ -120,7 +120,6 @@
       actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
       if (model.dataset.privateLibrary !== '0') {
         actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
-        actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
         actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
       }
     } else if (ref) {
