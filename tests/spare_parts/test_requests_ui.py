@@ -153,7 +153,7 @@ def test_requests_page_search_filters_real_rendered_rows(requests_page):
 def test_request_delete_keeps_existing_direct_action(requests_page):
     page, calls, errors = requests_page
 
-    delete_button = page.locator(".delete-request[data-id='101']")
+    delete_button = page.locator(".request-row[data-id='101'] .delete-request")
     expect(delete_button).to_have_count(1)
     expect(delete_button).to_be_visible()
     expect(page.locator("#deleteConfirm")).to_have_count(0)
