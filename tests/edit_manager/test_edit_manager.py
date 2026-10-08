@@ -83,7 +83,7 @@ def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(b
     dialogs=[]
     page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
     page.keyboard.press('Escape')
-    expect(page).to_have_url(lambda url: url.endswith('/cancel'))
+    assert page.url.endswith('/cancel')
     assert dialogs==[]
     page.locator('#date').fill('2026-10-01')
     page.wait_for_timeout(500)
