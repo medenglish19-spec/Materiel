@@ -91,10 +91,10 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .type-models-head h3{margin:0;font-size:15px;font-weight:700;color:var(--mdx-ink)}
 .mdx .type-models-head span{font-size:12px;color:var(--mdx-muted)}
 .mdx .type-table-wrap{overflow:auto}
-.mdx .spec-table-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 0 6px;border:1px solid var(--mdx-line);border-radius:8px;background:#f5f7f8;scrollbar-width:auto}
-.mdx #specTableWrap{direction:ltr}
-.mdx #specTableWrap .tbl{direction:rtl}
-.mdx .spec-table-scroll-top>div{height:1px;min-width:100%}
+.mdx .spec-table-scroll-top{height:14px;overflow-x:auto;overflow-y:hidden;margin:0 0 6px;border:1px solid var(--mdx-line);border-radius:8px;background:#f5f7f8;scrollbar-width:auto;direction:ltr}
+.mdx #specTableWrap{direction:ltr;overflow-x:auto}
+.mdx #specTableWrap .tbl{direction:rtl;min-width:max-content}
+.mdx .spec-table-scroll-top>div{height:1px;width:100%;min-width:max-content}
 .mdx .spec-table-scroll-top::-webkit-scrollbar{height:10px}
 .mdx .spec-table-scroll-top::-webkit-scrollbar-track{background:#eef2f3;border-radius:8px}
 .mdx .spec-table-scroll-top::-webkit-scrollbar-thumb{background:#aebbc0;border-radius:8px}
@@ -549,11 +549,40 @@ function renderSpecManager(){
   </div>`;
   const topScroll=$('specTableScrollTop'), tableWrap=$('specTableWrap'), topInner=$('specTableScrollTopInner'), table=tableWrap?.querySelector('table');
   if(topScroll&&tableWrap&&topInner&&table){
-    topInner.style.width=table.scrollWidth+'px';
+    const syncWidth=()=>{
+      const width=Math.max(table.scrollWidth,tableWrap.clientWidth);
+      topInner.style.width=width+'px';
+      return Math.max(0,tableWrap.scrollWidth-tableWrap.clientWidth);
+    };
     let syncing=false;
-    topScroll.onscroll=()=>{if(syncing)return;syncing=true;tableWrap.scrollLeft=topScroll.scrollLeft;syncing=false};
-    tableWrap.onscroll=()=>{if(syncing)return;syncing=true;topScroll.scrollLeft=tableWrap.scrollLeft;syncing=false};
-    requestAnimationFrame(()=>{topInner.style.width=table.scrollWidth+'px';topScroll.scrollLeft=tableWrap.scrollLeft});
+    const syncFromTop=()=>{
+      if(syncing)return;
+      syncing=true;
+      tableWrap.scrollLeft=topScroll.scrollLeft;
+      syncing=false;
+    };
+    const syncFromTable=()=>{
+      if(syncing)return;
+      syncing=true;
+      topScroll.scrollLeft=tableWrap.scrollLeft;
+      syncing=false;
+    };
+    topScroll.onscroll=syncFromTop;
+    tableWrap.onscroll=syncFromTable;
+    const setInitialPosition=()=>{
+      const maxScroll=syncWidth();
+      const initialScroll=Math.max(0,maxScroll);
+      tableWrap.scrollLeft=initialScroll;
+      topScroll.scrollLeft=initialScroll;
+    };
+    requestAnimationFrame(setInitialPosition);
+    if(window.ResizeObserver){
+      const observer=new ResizeObserver(setInitialPosition);
+      observer.observe(table);
+      observer.observe(tableWrap);
+    }else{
+      window.addEventListener('resize',setInitialPosition);
+    }
   }
   $('addSpecDefinition').onclick=renderSpecCreateForm;
 }
