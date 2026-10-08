@@ -28,7 +28,7 @@ def test_tree_click_handler_prioritizes_inline_actions_and_toggles():
     handler = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
     assert "event.target.closest('[data-add],[data-new-ref]')" in handler
     assert "[data-tree-add]" in handler
-    assert "[data-copy]" in handler
+    assert "[data-copy]" not in handler
     assert "[data-delete]" in handler
     assert "[data-model-row]" in handler
     assert "[data-model]" in handler
