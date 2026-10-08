@@ -82,6 +82,7 @@ def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(b
     page,errors=browser_page
     dialogs=[]
     page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
+    page.locator('.app-topbar-title').focus()
     page.keyboard.press('Escape')
     assert page.url.endswith('/cancel')
     assert dialogs==[]
