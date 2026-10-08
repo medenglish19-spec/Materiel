@@ -120,7 +120,6 @@
       actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
       if (model.dataset.privateLibrary !== '0') {
         actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
-        actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
         actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
       }
     } else if (ref) {
@@ -419,8 +418,6 @@
       }
       return;
     }
-    const copy = event.target.closest('[data-copy]');
-    if (copy) { stop(event); copyModel(copy.dataset.copy); return; }
     const del = event.target.closest('[data-delete]');
     if (del) { stop(event); postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`, 'حذف الطراز؟'); return; }
     const toggle = event.target.closest('.tree-toggle');
