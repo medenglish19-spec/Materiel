@@ -559,7 +559,7 @@ function renderSpecCreateForm(){
   $('backToSpecLibrary').onclick=renderSpecManager;
 }
  if(kind==='spec'){renderSpecManager();return;}
- if(kind==='spec'){renderSpecManager();return;}
+}
 
 function addSize(v=''){const tr=document.createElement('tr');tr.innerHTML=`<td><input class="s-size" value="${String(v||'').replaceAll('"','&quot;')}"></td><td><button type="button" class="btn danger del">حذف</button></td>`;tr.querySelector('.del').onclick=()=>{tr.remove();sync()};$('sizesBody').appendChild(tr);tr.querySelector('.s-size').addEventListener('input',sync)}
 function renderSizes(rows){$('sizesBody').innerHTML='';(rows||[]).forEach(x=>addSize(typeof x==='string'?x:x.size));sync()}
