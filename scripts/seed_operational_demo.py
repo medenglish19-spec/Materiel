@@ -24,6 +24,7 @@ from app.modules.maintenance.models import (
     MaintenanceOperationGroup,
     MaintenanceRecord,
 )
+from app.modules.spare_parts_requests.models import SparePartRequest
 
 
 DEMO_PREFIX = "DEMO-AN-"
@@ -51,9 +52,30 @@ def remove_demo(db):
     if equipment_ids:
         faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all()
         fault_ids = [f.id for f in faults]
+        repairs = (
+            db.query(Repair).filter(Repair.fault_id.in_(fault_ids)).all()
+            if fault_ids
+            else []
+        )
+        repair_ids = [r.id for r in repairs]
+
+        # Spare-part requests point to faults/repairs with ON DELETE SET NULL,
+        # but the source-match CHECK constraint requires the source FK to remain
+        # populated. Remove demo-linked requests before deleting their sources.
+        if repair_ids:
+            for request in db.query(SparePartRequest).filter(
+                SparePartRequest.repair_id.in_(repair_ids)
+            ).all():
+                db.delete(request)
         if fault_ids:
-            for repair in db.query(Repair).filter(Repair.fault_id.in_(fault_ids)).all():
-                db.delete(repair)
+            for request in db.query(SparePartRequest).filter(
+                SparePartRequest.fault_id.in_(fault_ids)
+            ).all():
+                db.delete(request)
+        db.flush()
+
+        for repair in repairs:
+            db.delete(repair)
         for fault in faults:
             db.delete(fault)
         for cls in (MeterReading, Mission, FuelRecord, MaintenanceRecord):
