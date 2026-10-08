@@ -120,6 +120,13 @@
       actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
       if (model.dataset.privateLibrary !== '0') {
         actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
+        actions.push([
+          model.dataset.frozen === '1' ? '↻ إعادة اعتماد الطراز' : '✳ تجميد الطراز',
+          () => postDelete(
+            `/equipment-types/models/${encodeURIComponent(id)}/${model.dataset.frozen === '1' ? 'unfreeze' : 'freeze'}`,
+            model.dataset.frozen === '1' ? 'إعادة اعتماد الطراز؟' : 'تجميد الطراز؟'
+          )
+        ]);
         actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
       }
     } else if (ref) {
