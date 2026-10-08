@@ -98,7 +98,7 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .type-table .num{text-align:end;font-variant-numeric:tabular-nums}
 .mdx .type-status{display:inline-flex;padding:2px 9px;border-radius:999px;background:#e1f1e7;color:#1f6b43;font-size:11.5px;font-weight:600;white-space:nowrap}
 .mdx .type-status.frozen{background:#eae4f5;color:var(--mdx-violet)}
-.mdx .type-empty{padding:32px;text-align:center;color:var(--mdx-muted)}
+.mdx .type-empty{padding:32px;text-align:center;color:var(--mdx-muted)}.mdx .model-status-note{margin-top:14px;padding:11px 14px;border:1px solid var(--mdx-line);border-radius:10px;background:#f8fafb;color:#4b5b64;font-size:12px;line-height:1.8}.mdx .model-status-note strong{color:var(--mdx-ink)}
 .mdx .btn.primary{background:var(--mdx-accent);box-shadow:none}.mdx .btn.primary:hover{background:var(--mdx-accent-dark);filter:none;transform:none;box-shadow:none}
 .mdx .btn.soft{color:var(--mdx-accent);border-color:var(--mdx-line-strong)}
 .mdx .tree-library[data-system="1"] .tree-library-title{color:#5b3f91}
@@ -291,7 +291,7 @@ body:has(.mdx) .app-main{margin-right:208px}
 </div></div></section>
 {% endfor %}
 {% endfor %}
-</div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>·</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">الطرازات: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside>
+</div><div class="tree-toolbar"><button type="button" id="btn-tree-expand-all">توسيع الكل</button><span>·</span><button type="button" id="btn-tree-collapse-all">طي الكل</button><span class="tree-count">الطرازات: <strong id="tree-total-count">{{ models|length }}</strong></span></div></aside><div class="model-status-note" role="note"><strong>ملاحظة:</strong> <b>معتمد</b> يعني أن الطراز متاح للاستخدام وإضافة عتاد جديد عليه. نلجأ إلى <b>التجميد</b> عند التوقف عن استخدام الطراز مستقبلًا مع الحاجة إلى الاحتفاظ به وتاريخه؛ فالتجميد يمنع إضافة عتاد جديد ولا يحذف السجلات السابقة. لتجميد الطراز أو إلغاء تجميده، افتح قائمة إجراءات الطراز واختر «تجميد» أو «إعادة اعتماد».</div>
 <main class="card editor"><div class="editor-head"><small id="crumb">إدارة العتاد / أنواع العتاد</small><h2 id="title">اختر نوعاً من الشجرة</h2></div><div class="body">
 <div id="empty" class="empty">اختر تصنيفاً أو نوع عتاد من الشجرة لعرض تفاصيله.<br>يمكنك إضافة التصنيفات والأنواع والطرازات من أزرار الشجرة.</div>
 <div id="typePanel" class="panel"><div id="typeContent"></div></div>
@@ -531,7 +531,21 @@ function refPanel(kind,id=null,name='',extra={}){
  if(kind==='category')body.innerHTML=`<form class="ref-form" method="post" action="${id?'/equipment-types/categories/'+id+'/update':'/equipment-types/categories/create'}"><label>الاسم<input name="name" required value="${String(name).replaceAll('"','&quot;')}"></label><label>الرمز<input name="code" value="${String(extra.code||'').replaceAll('"','&quot;')}"></label><button class="btn primary">حفظ</button></form>`;
  if(kind==='type'){const template=$('typeRefFormTemplate');if(!template)return;const form=template.content.cloneNode(true).firstElementChild;form.action=id?'/equipment-types/'+id+'/update':'/equipment-types/create';form.querySelector('[name="name"]').value=name||'';if(extra.categoryId!==undefined)form.querySelector('[name="category_id"]').value=extra.categoryId||'';if(id){if(extra.measurementUnit)form.querySelector('[name="measurement_unit"]').value=extra.measurementUnit;form.querySelector('[name="theoretical_quantity"]').value=extra.theoreticalQuantity||''}body.replaceChildren(form)}
  if(kind==='brand'){if(!id){renderBrandManager();$('refTitle').textContent='إدارة العلامات التجارية';title('إدارة العلامات التجارية','العلامات التجارية');return;}body.innerHTML=`<form class="ref-form" method="post" action="/equipment-types/brands/${id}/update"><label>الاسم<input name="name" required value="${String(name).replaceAll('"','&quot;')}"></label><span></span><span></span><button class="btn primary">حفظ</button></form>`;}
- if(kind==='spec')body.innerHTML=`<form class="ref-form" method="post" action="/equipment-types/specs/create">
+function renderSpecManager(){
+  const rows=[...DEFS].sort((a,b)=>(Number(a.group_sort_order||0)-Number(b.group_sort_order||0))||String(a.group_name||'').localeCompare(String(b.group_name||''),'ar')||String(a.name||'').localeCompare(String(b.name||''),'ar'));
+  const typeLabels={text:'نص',number:'رقم',select:'اختيار'};
+  $('refTitle').textContent='مكتبة الخصائص الفنية';
+  title('مكتبة الخصائص الفنية','الخصائص الفنية');
+  $('refBody').innerHTML=`<div class="box">
+    <div class="box-head"><h3>الخصائص الفنية الموجودة</h3><button type="button" class="btn primary" id="addSpecDefinition">＋ إضافة خاصية</button></div>
+    <div class="box-body"><div class="table-wrap"><table class="tbl"><thead><tr><th>الخاصية</th><th>الرمز</th><th>المجموعة الفنية</th><th>النوع</th><th>الوحدة</th><th>الإجراءات</th></tr></thead><tbody>${rows.map(d=>`<tr><td><strong>${htmlSafe(d.name)}</strong></td><td>${htmlSafe(d.code||'—')}</td><td>${htmlSafe(d.group_name||'—')}</td><td>${typeLabels[d.data_type]||htmlSafe(d.data_type||'—')}</td><td>${htmlSafe(d.unit||'—')}</td><td><form method="post" action="/equipment-types/specs/${d.id}/delete" onsubmit="return confirm('هل تريد حذف هذه الخاصية من كل الطرازات المستخدمة فيها؟')"><button type="submit" class="btn danger">🗑 حذف</button></form></td></tr>`).join('')||'<tr><td colspan="6">لا توجد خصائص فنية مضافة بعد.</td></tr>'}</tbody></table></div></div>
+  </div>`;
+  $('addSpecDefinition').onclick=renderSpecCreateForm;
+}
+function renderSpecCreateForm(){
+  $('refTitle').textContent='إضافة خاصية فنية';
+  title('إضافة خاصية فنية','مكتبة الخصائص الفنية');
+  $('refBody').innerHTML=`<div class="box"><div class="box-head"><h3>إضافة خاصية فنية</h3><button type="button" class="btn soft" id="backToSpecLibrary">← العودة إلى المكتبة</button></div><div class="box-body"><form class="ref-form" method="post" action="/equipment-types/specs/create">
 <label>اسم الخاصية<input name="name" required></label>
 <label>الرمز<input name="code" placeholder="engine_power"></label>
 <label>المجموعة الفنية<input name="group_name" required placeholder="المحرك / مصدر الطاقة"></label>
@@ -541,8 +555,12 @@ function refPanel(kind,id=null,name='',extra={}){
 <label>الخيارات<input name="options" placeholder="أ،ب،ج — للنوع اختيار"></label>
 <label>الفئة المقترحة <span class="muted">(اختياري للتصفية والاقتراح فقط)</span><select name="category_id"><option value="">كل الفئات</option>${Object.entries(CATEGORIES).map(([id,n])=>'<option value="'+id+'">'+n+'</option>').join('')}</select></label>
 <label>نوع العتاد المقترح <span class="muted">(اختياري للتصفية والاقتراح فقط)</span><select name="equipment_type_id"><option value="">كل الأنواع</option>${Object.entries(TYPES).map(([id,n])=>'<option value="'+id+'">'+n+'</option>').join('')}</select></label>
-<button class="btn primary">حفظ الخاصية</button></form>`;
+<button class="btn primary">حفظ الخاصية</button></form></div></div>`;
+  $('backToSpecLibrary').onclick=renderSpecManager;
 }
+ if(kind==='spec'){renderSpecManager();return;}
+ if(kind==='spec'){renderSpecManager();return;}
+
 function addSize(v=''){const tr=document.createElement('tr');tr.innerHTML=`<td><input class="s-size" value="${String(v||'').replaceAll('"','&quot;')}"></td><td><button type="button" class="btn danger del">حذف</button></td>`;tr.querySelector('.del').onclick=()=>{tr.remove();sync()};$('sizesBody').appendChild(tr);tr.querySelector('.s-size').addEventListener('input',sync)}
 function renderSizes(rows){$('sizesBody').innerHTML='';(rows||[]).forEach(x=>addSize(typeof x==='string'?x:x.size));sync()}
 /* قاعدة توليد المواضع من عدد المحاور ونوع عجلات كل محور (قرار المستخدم 2026-09-30):
