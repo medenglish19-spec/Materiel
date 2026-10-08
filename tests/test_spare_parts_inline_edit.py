@@ -409,7 +409,7 @@ def test_the_new_request_form_is_a_real_form_element(client):
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    opened = re.search(r\'<(form|div)\\b[^>]*\\bid="requestForm"[^>]*>\', html)
+    opened = re.search(r'<(form|div)\b[^>]*\bid="requestForm"[^>]*>', html)
     assert opened, "no opening tag for #requestForm"
     assert opened.group(1) == "form", (
         "#requestForm must be a <form> so that its submit event can fire, "
