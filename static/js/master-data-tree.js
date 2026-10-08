@@ -100,14 +100,6 @@
     window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
-  const copyModel = (id) => {
-    if (!workspaceReady('editModel')) return;
-    window.editModel(id);
-    selectSection(0, { all: true });
-    if ($('modelName')) $('modelName').value += ' - نسخة';
-    if ($('modelId')) $('modelId').value = '';
-    if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
-  };
   const postDelete = (url, message) => {
     if (!confirm(message)) return;
     const form = document.createElement('form');
