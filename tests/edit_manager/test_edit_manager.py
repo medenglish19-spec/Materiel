@@ -61,6 +61,23 @@ def test_toolbar_and_search_are_clean(browser_page):
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     page.locator('#search').fill('زيت');expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
 
+def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => { model.value='1'; model.dispatchEvent(new Event('input',{bubbles:true})); model.dispatchEvent(new Event('change',{bubbles:true})); }""")
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    page.locator('#date').fill('2026-10-01')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate("EditManager.isDirty()")
+    page.locator('#date').fill('')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
 def test_chained_form_undo_redo_and_save(browser_page):
     page,errors=browser_page
     page.locator('#model').select_option('1');page.locator('#equipment').select_option('10');page.locator('#operation').select_option('20');page.wait_for_timeout(500)
