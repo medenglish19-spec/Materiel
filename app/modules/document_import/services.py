@@ -1,1 +1,1 @@
-# services placeholder
+# local offline service scaffold
