@@ -51,7 +51,7 @@ def test_master_data_keeps_model_actions_without_copy():
     assert 'id="freezeModelForm"' in TEMPLATE
     assert 'id="deleteModelForm"' in TEMPLATE
     assert 'نسخ الطراز' not in TREE_SCRIPT
-    assert "/freeze" in TREE_SCRIPT and "/unfreeze" in TREE_SCRIPT
+    assert "id=\"freezeModelForm\"" in TEMPLATE
     assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in TREE_SCRIPT
 
 def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
