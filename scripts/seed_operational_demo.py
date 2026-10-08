@@ -94,22 +94,18 @@ def remove_demo(db):
             dependent_items = db.query(SparePartMovementItem).filter(
                 SparePartMovementItem.source_item_id.in_(movement_ids)
             ).all() if movement_ids else []
-            for row in dependent_items:
-                db.delete(row)
-            db.flush()
 
-            for row in movement_items:
-                if row in db:
-                    db.delete(row)
+            # Capture every affected document before deleting any movement item.
+            all_movement_items = movement_items + dependent_items
+            document_ids = {row.document_id for row in all_movement_items}
+
+            for row in all_movement_items:
+                db.delete(row)
             db.flush()
 
             # Documents are deleted after their items. Returns must go before
             # their source distribution documents because source_document_id
             # uses ON DELETE RESTRICT.
-            document_ids = {
-                row.document_id
-                for row in movement_items
-            }
             documents = db.query(SparePartMovementDocument).filter(
                 SparePartMovementDocument.id.in_(document_ids)
             ).all() if document_ids else []
