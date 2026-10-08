@@ -158,6 +158,7 @@ def test_request_delete_keeps_existing_direct_action(requests_page):
     expect(delete_button).to_be_visible()
     expect(page.locator("#deleteConfirm")).to_have_count(0)
 
+    page.once("dialog", lambda dialog: dialog.accept())
     delete_button.click()
     page.wait_for_timeout(100)
 
