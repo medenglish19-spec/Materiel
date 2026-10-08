@@ -523,6 +523,7 @@ def return_register(db, exclude_document_id=None):
         returned_quantity = _returned_total_by_received_item(db, item.id, exclude_document_id)
         # الإرجاع المباشر يُستهلك من الكمية المستلمة غير الموزعة،
         # لذلك يبقى البند قابلاً للإرجاع ما دام: المستلم − الموزع − المعاد > 0.
+        # الرصيد يشمل البنود المستلمة التي لم تُوزع بعد.
         qty = _at_least_zero(received_quantity - distributed_quantity - returned_quantity)
         if qty <= 0:
             continue
