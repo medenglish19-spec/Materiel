@@ -52,7 +52,7 @@ def test_master_data_tree_keeps_model_actions_without_copy():
     assert 'id="deleteModelForm"' in template
     script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
     assert 'نسخ الطراز' not in script
-    assert "/freeze" in script and "/unfreeze" in script
+    assert "id=\"freezeModelForm\"" in template
     assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in script
 
 def test_tree_click_handles_toggles_before_model_selection():
