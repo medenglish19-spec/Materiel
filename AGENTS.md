@@ -7,6 +7,76 @@
 
 ---
 
+## 🚨 MANDATORY WORKFLOW RULE — GitHub IS THE SOURCE OF TRUTH
+
+> **This rule is mandatory for every model, agent, assistant, and automated coding process working on this repository. It must not be bypassed, weakened, or reinterpreted in a way that conflicts with these rules.**
+
+### GitHub-only execution
+
+All inspection, analysis, implementation, correction, testing, re-testing, review, and repository changes must be performed **exclusively in GitHub**.
+
+**Do not use the local repository to develop, modify, fix, or test the task.**
+
+### Local repository is verification-only
+
+The local repository may be used only **after GitHub work is complete and required CI checks have passed**, for:
+
+1. pulling the final verified state from GitHub;
+2. performing final local verification when needed.
+
+Do not create local fixes or local commits as part of the task.
+
+### GitHub is the Single Source of Truth
+
+The target GitHub branch is the **Single Source of Truth**.
+
+If local and GitHub histories differ:
+
+- do not merge them automatically;
+- do not push the local history;
+- do not create a merge commit merely to reconcile them;
+- do not rewrite or delete GitHub commits to accommodate a stale local clone;
+- stop and report the divergence.
+
+If the local repository contains commits that are not present on GitHub, do not use or merge them automatically.
+
+### Required final synchronization
+
+Before using the local repository, verify that:
+
+- the intended changes exist on GitHub;
+- the final GitHub commit is the intended commit;
+- required CI checks have passed;
+- there are no unintended changes.
+
+When the local repository contains no work that must be preserved, synchronize it to GitHub with:
+
+```bash
+git fetch origin
+git reset --hard origin/<branch>
+git status
+git log --oneline --decorate -3
+```
+
+Expected final state:
+
+```text
+local HEAD == origin/<branch>
+working tree clean
+```
+
+Do not blindly use `git pull` when the local history may have diverged from GitHub.
+
+### Stop on uncertainty
+
+If there is any uncertainty about the source of a change, correct commit, correct branch, local/GitHub divergence, or possible loss of work, **stop and ask the user before performing any operation that may rewrite history or delete data.**
+
+### Priority
+
+This workflow rule has high operational priority within the project. A model must not choose local execution merely because it is easier or faster.
+
+---
+
 ## Project
 
 Materiel is an Arabic-first fleet/equipment management system.
