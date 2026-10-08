@@ -520,6 +520,11 @@ function viewModel(id){
  $('deleteModelForm').action='/equipment-types/models/'+encodeURIComponent(id)+'/delete';$('deleteModelBtn').disabled=Number(d.actual_count||0)>0;$('deleteModelBtn').title=Number(d.actual_count||0)>0?'لا يمكن حذف طراز مرتبط بعتاد فعلي':'حذف الطراز';
  setModelViewTab('overview');show($('modelViewPanel'));
 }
+const btnViewImport=$('btn-import-specs-doc-view');
+const specDocumentInputView=$('specDocumentInputView');
+if(btnViewImport&&specDocumentInputView){
+  btnViewImport.addEventListener('click',()=>specDocumentInputView.click());
+}
 window.MATERIEL_MASTER_DATA_READY=true;
 document.querySelectorAll('[data-model-row]').forEach(row=>{const id=String(row.dataset.modelRow||'');const d=DATA[id]||DATA[Number(id)];if(d&&row.dataset.equipmentTypeId)d.equipment_type_id=Number(row.dataset.equipmentTypeId)});
 function show(el){document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));$('empty').style.display='none';el.classList.add('active')}
