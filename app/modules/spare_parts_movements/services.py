@@ -521,8 +521,9 @@ def return_register(db, exclude_document_id=None):
         received_quantity = Decimal(str(item.received_quantity or 0))
         distributed_quantity = _distribution_total(db, item.id)
         returned_quantity = _returned_total_by_received_item(db, item.id, exclude_document_id)
-        # الإرجاع يكون من الكمية التي خرجت بالتوزيع، لا من الكمية المتبقية في المخزن.
-        qty = _at_least_zero(distributed_quantity - returned_quantity)
+        # الإرجاع المباشر يُستهلك من الكمية المستلمة غير الموزعة،
+        # لذلك يبقى البند قابلاً للإرجاع ما دام: المستلم − الموزع − المعاد > 0.
+        qty = _at_least_zero(received_quantity - distributed_quantity - returned_quantity)
         if qty <= 0:
             continue
         request = item.request
