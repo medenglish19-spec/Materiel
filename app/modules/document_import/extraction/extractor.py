@@ -1,8 +1,42 @@
+from dataclasses import dataclass,field
 from pathlib import Path
-from typing import Any,Dict,List,Optional,Union
+import io
+@dataclass
 class ExtractedTable:
-    def __init__(self,rows=None,name=None,page=None):
-        self.rows=rows or []; self.name=name; self.page=page
+ rows:list[list[str]]=field(default_factory=list); name:str|None=None; page:int|None=None
+@dataclass
 class ExtractedDocument:
-    def __init__(self,text='',tables=None,metadata=None,ocr_used=False,ocr_engine=None):
-        self.text=text or ''; self.tables=tables or []; self.metadata=metadata or {}; self.ocr_used=ocr_used; self.ocr_engine=ocr_engine
+ text:str=""; tables:list[ExtractedTable]=field(default_factory=list); metadata:dict=field(default_factory=dict); ocr_used:bool=False; ocr_engine:str|None=None
+MAX_FILE_BYTES=15*1024*1024
+def extract_document(filename,content):
+ ext=Path(filename or "").suffix.lower()
+ if ext not in {".pdf",".docx",".xlsx"}: raise ValueError("الصيغ المسموحة هي PDF وDOCX وXLSX")
+ if not content: raise ValueError("الملف فارغ")
+ if len(content)>MAX_FILE_BYTES: raise ValueError("حجم الملف يتجاوز 15 ميغابايت")
+ if ext==".pdf":
+  try:
+   from pypdf import PdfReader
+   reader=PdfReader(io.BytesIO(content),strict=False); pages=[f"[صفحة {i}]\n{p.extract_text() or ''}" for i,p in enumerate(reader.pages,1)]
+   text="\n".join(p for p in pages if p.strip())
+   if not text.strip(): raise ValueError("لم يُستخرج نص من PDF؛ يبدو ممسوحًا ضوئيًا. ثبّت OCR محليًا مسبقًا. لم يتم تنزيل أي شيء.")
+   return ExtractedDocument(text=text,metadata={"pages":len(reader.pages)})
+  except ValueError: raise
+  except Exception as e: raise ValueError("تعذر قراءة ملف PDF") from e
+ if ext==".docx":
+  try:
+   from docx import Document
+   d=Document(io.BytesIO(content))
+   tables=[ExtractedTable([[c.text.strip() for c in row.cells] for row in t.rows],f"table:{i}") for i,t in enumerate(d.tables,1)]
+   return ExtractedDocument("\n".join(p.text.strip() for p in d.paragraphs if p.text.strip()),tables,{"tables":len(tables)})
+  except Exception as e: raise ValueError("تعذر قراءة ملف DOCX") from e
+ try:
+  from openpyxl import load_workbook
+  w=load_workbook(io.BytesIO(content),read_only=True,data_only=True);tables=[];parts=[]
+  for s in w.worksheets:
+   rows=[]
+   for row in s.iter_rows(values_only=True):
+    vals=[str(v).strip() if v is not None else "" for v in row]
+    if any(vals):rows.append(vals);parts.append("\t".join(vals))
+   tables.append(ExtractedTable(rows,s.title))
+  w.close();return ExtractedDocument("\n".join(parts),tables,{"sheets":len(tables)})
+ except Exception as e: raise ValueError("تعذر قراءة ملف XLSX") from e
