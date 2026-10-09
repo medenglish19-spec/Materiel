@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}استيراد من مستند{% endblock %}
+{% block content %}
+<div dir="rtl" style="padding:20px">
+  <h1>استيراد خصائص الطراز من مستند</h1>
+  <form action="/document-import/preview" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="model_id" value="{{ model_id }}">
+    <div><label>ملف: <input type="file" name="file" accept=".pdf,.docx,.xlsx,.xls"></label></div>
+    <div><label>الوضع: <select name="mode"><option value="extract">استخراج</option><option value="specific">محدد</option></select></label></div>
+    <div><label>المطلوب: <input name="requested" placeholder="قدرة المحرك, الوزن"></label></div>
+    <button type="submit">معاينة</button>
+  </form>
+</div>
+{% endblock %}
