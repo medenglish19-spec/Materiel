@@ -327,6 +327,21 @@ def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), cur
 @router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
+    model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
+    approved_model_ids = {
+        model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
+            MaintenancePlan.equipment_model_id.in_(model_ids or {-1}),
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
+        ).distinct().all()
+    }
+    unapproved_models = sorted({
+        eq.equipment_model.name
+        for eq in equipment
+        if eq.equipment_model_id is not None
+        and eq.equipment_model is not None
+        and eq.equipment_model_id not in approved_model_ids
+    })
     readings = latest_readings(db)
     records = latest_records(db)
     due_rows = []
@@ -393,6 +408,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             "rows": due_rows,
             "plan_groups": plan_groups,
             "standalone_rows": standalone_rows,
+            "unapproved_models": unapproved_models,
         },
     )
 
