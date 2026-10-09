@@ -30,7 +30,7 @@ def browser_page():
       <select id="equipment" name="equipment" required><option value="">عتاد</option><option value="10">عتاد 10</option></select>
       <select id="operation" name="operation" required><option value="">عملية</option><option value="20">تغيير الزيت</option></select>
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
-      <button type="submit">حفظ الصيانة</button>
+      <button type="submit">حفظ الصيانة</button><a href="/cancel" class="cancel-btn">إلغاء</a>
     </form>
     <input id="search" type="search" placeholder="بحث">
     <script>
@@ -60,6 +60,56 @@ def test_toolbar_and_search_are_clean(browser_page):
     expect(page.locator('[data-em-action="undo"]')).to_be_disabled()
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     page.locator('#search').fill('زيت');expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
+
+def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => { model.value='1'; model.dispatchEvent(new Event('input',{bubbles:true})); model.dispatchEvent(new Event('change',{bubbles:true})); }""")
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    page.locator('#date').fill('2026-10-01')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate("EditManager.isDirty()")
+    page.locator('#date').fill('')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
+def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(browser_page):
+    page,errors=browser_page
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
+    page.locator('.app-topbar-title').focus()
+    page.keyboard.press('Escape')
+    assert page.url.endswith('/cancel')
+    assert dialogs==[]
+    page.locator('#date').fill('2026-10-01')
+    page.wait_for_timeout(500)
+    page.keyboard.press('Escape')
+    assert dialogs==['لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟']
+    assert page.url.endswith('/cancel')
+    assert not errors
+
+
+def test_escape_does_not_intercept_non_editor_forms(browser_page):
+    page,errors=browser_page
+    page.locator('#record').evaluate("el => el.remove()")
+    page.evaluate("""() => {
+      const form=document.createElement('form');
+      form.innerHTML='<input id="filter" name="filter" placeholder="بحث"><button type="submit">بحث</button><a href="/cancel" class="cancel-btn">إلغاء</a>';
+      document.querySelector('main').appendChild(form);
+    }""")
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
+    page.locator('#filter').focus()
+    page.keyboard.press('Escape')
+    assert dialogs==[]
+    assert page.url.endswith('/maintenance/records')
+    assert not errors
+
 
 def test_chained_form_undo_redo_and_save(browser_page):
     page,errors=browser_page

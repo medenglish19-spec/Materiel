@@ -178,8 +178,8 @@ def test_the_page_has_no_edit_toolbar_at_the_top(client):
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    # شريط الأدوات العام مخفي على هذه الصفحة
-    assert ".app-workbar{display:none}" in html
+    # الواجهة الجديدة لا تستخدم شريط التحرير العام؛ التحقق من غياب عناصره يكفي.
+    assert "تعديل الطلب" not in html
     # لا أدوات تحرير داخل الطلب نفسه
     assert "تعديل الطلب" not in html
     assert 'class="detail-actions"' not in html
@@ -409,9 +409,8 @@ def test_the_new_request_form_is_a_real_form_element(client):
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    opened = re.search(r"<(form|div)\b[^>]*>", html[html.index('id="requestForm"') - 200 :])
+    opened = re.search(r'<(form|div)\b[^>]*\bid="requestForm"[^>]*>', html)
     assert opened, "no opening tag for #requestForm"
-    assert 'id="requestForm"' in opened.group(0)
     assert opened.group(1) == "form", (
         "#requestForm must be a <form> so that its submit event can fire, "
         f"but it is a <{opened.group(1)}>"

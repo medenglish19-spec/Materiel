@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><script src="/static/js/edit-manager.js"></script>{% block extra_head %}{% endblock %}
+<meta charset="UTF-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><script src="/static/js/edit-manager.js"></script>{% block extra_head %}{% endblock %}
 <style>
 :root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:208px}
 body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tahoma,sans-serif}
@@ -44,7 +44,9 @@ body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tah
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:800;color:var(--text-primary);margin:0}
 .page-hint{font-size:13px;color:var(--text-secondary);margin-top:4px}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .2s ease;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:6px;font-size:13px;font-weight:700;border:1px solid transparent;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;text-decoration:none;line-height:1.35}.btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
+/* Shared visual standard for ordinary module action buttons. This changes appearance only; behavior, position and handlers remain untouched. */
+.app-main button{border-radius:6px;line-height:1.35;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}.app-main button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--success));color:#fff;box-shadow:0 4px 14px rgba(67,160,71,.25)}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(67,160,71,.35)}
 .btn-outline{background:var(--white);color:var(--primary);border:1px solid var(--primary-light)}
@@ -178,6 +180,49 @@ body{overflow-x:clip;}
   .card,.stat-card{padding:12px;}
   .page-header h2{font-size:17px;}
 }
+
+/* --- global visual standard: neutral management UI (visual only) --- */
+:root{--bg-primary:#FAFAFA;--bg-secondary:#F3F4F6;--sidebar-start:#374151;--sidebar-end:#374151;--primary:#374151;--primary-light:#9CA3AF;--success:#374151;--warning:#B45309;--error:#B91C1C;--text-primary:#111827;--text-secondary:#4B5563;--white:#FFFFFF;--shadow:0 2px 10px rgba(17,24,39,.05);--shadow-hover:0 6px 18px rgba(17,24,39,.08);--radius:10px;--radius-sm:6px}
+html,body{background:#FAFAFA;color:#4B5563;font-family:'Tajawal',sans-serif}
+body{font-size:14px}
+.app-sidebar{background:#374151;color:#fff}
+.app-brand{font-family:'Cairo',sans-serif;color:#fff}
+.app-brand-icon{color:#374151}
+.app-menu a{color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.app-menu a:hover{background:#4B5563;color:#fff}
+.app-menu a.active{background:#fff;color:#374151}
+.sidebar-user{color:#D1D5DB}
+.sidebar-logout{color:#E5E7EB}
+.sidebar-logout:hover{background:rgba(185,28,28,.12)}
+.app-topbar{background:#fff;border:1px solid #E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.app-topbar-title,.page-header h2,.card h3{font-family:'Cairo',sans-serif;color:#111827}
+.app-topbar-title{font-weight:800}
+.app-topbar-date,.app-work-status,.page-hint{font-family:'Tajawal',sans-serif;color:#4B5563}
+.app-workbtn{font-family:'Tajawal',sans-serif;color:#374151;border-color:#E5E7EB;background:#fff}
+.app-workbtn:hover:not(:disabled){background:#F3F4F6;border-color:#D1D5DB}
+.app-work-save{background:#374151;color:#fff}
+.page-header h2{font-weight:800}
+.btn,.app-main button{font-family:'Tajawal',sans-serif}
+.btn-primary,.app-main .btn-primary{background:#374151;color:#fff;border-color:#374151;box-shadow:none}
+.btn-primary:hover,.app-main .btn-primary:hover{background:#1F2937;border-color:#1F2937;transform:none;box-shadow:none}
+.btn-outline{background:#fff;color:#374151;border-color:#D1D5DB}
+.btn-outline:hover{background:#F3F4F6}
+.btn-danger{background:#B91C1C;color:#fff;border-color:#B91C1C}
+.card,.stat-card,.toolbar,.equipment-card,.module-nav,.materiel-notice{background:#fff;border-color:#E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.toolbar{border-color:#E5E7EB}
+.search-box,.select-box,.field input,.field select,.field textarea{font-family:'Tajawal',sans-serif;color:#4B5563;border-color:#D1D5DB;background:#fff}
+.search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.10)}
+.field label{font-family:'Cairo',sans-serif;color:#374151}
+.form-value,.empty{font-family:'Tajawal',sans-serif;color:#4B5563}
+.data-table,.modern-table{border-color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.data-table th,.modern-table thead th{font-family:'Cairo',sans-serif;background:#F3F4F6;color:#111827;border-bottom-color:#E5E7EB}
+.data-table td,.modern-table td{font-family:'Tajawal',sans-serif;color:#4B5563;border-bottom-color:#E5E7EB}
+.data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:#FAFAFA}
+.data-table tbody tr:hover,.modern-table tbody tr:hover{background:#F3F4F6}
+.module-nav a{font-family:'Tajawal',sans-serif;color:#4B5563}
+.module-nav a:hover,.module-nav a.active{background:#F3F4F6;color:#374151}
+.materiel-notice-text,.materiel-notice-close,.equipment-card-info{font-family:'Tajawal',sans-serif;color:#4B5563}
+.badge{font-family:'Tajawal',sans-serif}
 </style>
 </head>
 <body>
@@ -252,6 +297,71 @@ document.querySelectorAll(searchSelector).forEach(input=>{
   });
 })();
 document.querySelectorAll('.table-scroll,.record-table-wrap,.table-wrap,.type-table-wrap').forEach(function(el){if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');if(!el.hasAttribute('role'))el.setAttribute('role','region');if(!el.getAttribute('aria-label'))el.setAttribute('aria-label','جدول البيانات');});
+/* Global UI rule: every action menu closes on any left click outside the open menu.
+   This is intentionally owned by the shared base template so the rule applies to every module,
+   including tree-generated menus that stop propagation inside their own handlers. */
+document.addEventListener('click',function(event){
+  document.querySelectorAll('details.action-menu[open]').forEach(function(menu){
+    if(!menu.contains(event.target)) menu.removeAttribute('open');
+  });
+  document.querySelectorAll('.master-context-menu:not([hidden])').forEach(function(menu){
+    if(!menu.contains(event.target) && !event.target.closest('[data-action-menu]')){
+      menu.hidden=true;
+      menu.replaceChildren();
+    }
+  });
+},true);
+/* Global keyboard rule: Escape always exits an active editor from anywhere on its page. */
+document.addEventListener('keydown',function(event){
+  if(event.key!=='Escape'||event.repeat)return;
+  const active=document.activeElement;
+  const modal=active?.closest?.('.modal.open,.maintenance-edit-modal.open,[role="dialog"]');
+  const openMenu=active?.closest?.('details.action-menu[open],.master-context-menu:not([hidden])');
+  if(openMenu){
+    if(openMenu.matches('details.action-menu[open]')) openMenu.removeAttribute('open');
+    else {openMenu.hidden=true;openMenu.replaceChildren()}
+    event.preventDefault();
+    return;
+  }
+  /* First prefer the editor containing focus; otherwise locate the page editor
+     itself. An editor must contain a real editable field in addition to its
+     save/cancel controls; this prevents Escape from hijacking ordinary list,
+     filter, or display pages that happen to contain a form. */
+  const isEditorForm=function(form){
+    if(!form)return false;
+    const hasEditable=[...form.querySelectorAll('input,select,textarea,[contenteditable="true"]')].some(function(el){
+      return !ignoredEscapeControl(el);
+    });
+    const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
+    const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
+      if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+      const text=(el.textContent||'').trim();
+      return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+    });
+    return hasEditable&&hasSubmit&&hasCancel;
+  };
+  const ignoredEscapeControl=function(el){
+    if(!el||el.disabled)return true;
+    if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"]'))return true;
+    const hint=(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'');
+    return /(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint);
+  };
+  let scope=modal||(isEditorForm(active?.closest?.('form'))?active.closest('form'):null);
+  if(!scope){
+    scope=[...document.querySelectorAll('form')].find(isEditorForm);
+  }
+  if(!scope)return;
+  const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
+    if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+    const text=(el.textContent||'').trim();
+    return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+  });
+  if(!cancel)return;
+  event.preventDefault();
+  const dirty=typeof window.EditManager?.isDirty==='function'&&window.EditManager.isDirty();
+  if(dirty&&!window.confirm('لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'))return;
+  cancel.click();
+},true);
 const p=window.location.pathname;
 if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
 if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
