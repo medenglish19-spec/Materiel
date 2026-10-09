@@ -25,7 +25,7 @@ def extract_document(filename,content):
       from pdf2image import convert_from_bytes
       import pytesseract
       images=convert_from_bytes(content,dpi=160,fmt="png")
-      text="\\n".join(f"[صفحة {i}]\\n{pytesseract.image_to_string(image)}" for i,image in enumerate(images,1))
+      text="\n".join(f"[صفحة {i}]\n{pytesseract.image_to_string(image)}" for i,image in enumerate(images,1))
       if text.strip():return ExtractedDocument(text=text,metadata={"pages":len(reader.pages)},ocr_used=True,ocr_engine="tesseract")
      except ImportError: pass
     raise ValueError("لم يُستخرج نص من PDF؛ يبدو ممسوحًا ضوئيًا. يلزم تثبيت Tesseract وPoppler محليًا مع pytesseract وpdf2image؛ لم يتم تنزيل أي شيء.")
