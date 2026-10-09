@@ -71,6 +71,7 @@ def test_plan_execution_creates_one_record_per_active_operation():
             name="الصيانة السداسية",
             interval_days=180,
             is_active=True,
+            is_approved=True,
         )
         db.add_all([oil, brakes, disabled, plan])
         db.flush()
@@ -158,12 +159,14 @@ def test_plan_execution_rejects_plan_for_another_model_without_records():
             name="عملية حدود الطراز",
             interval_km=Decimal("10000"),
             is_active=True,
+            is_approved=True,
         )
         plan = MaintenancePlan(
             equipment_model_id=model_b.id,
             name="خطة طراز B",
             interval_km=Decimal("10000"),
             is_active=True,
+            is_approved=True,
         )
         db.add_all([equipment, operation, plan])
         db.flush()
