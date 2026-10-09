@@ -32,8 +32,39 @@ def upload_page(
     return templates.TemplateResponse(request=request, name="upload.html", context={"request": request, "model_id": model_id, "user": current_user})
 
 
-@router.post("/document-import/preview", response_model=ImportPreviewResponse)
-async def preview(
+@router.post("/document-import/preview", response_class=HTMLResponse)
+async def preview_html(
+    request: Request,
+    model_id: int = Form(...),
+    mode: str = Form("extract"),
+    requested: List[str] = Form([]),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER)),
+):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED:
+        raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    try:
+        data = await file.read()
+        tmp.write(data)
+        tmp.close()
+        cands = preview_from_document(model_id=model_id, file_path=tmp.name, mode=mode, requested=requested or [], db=db)
+        return templates.TemplateResponse(
+            request=request,
+            name="upload.html",
+            context={"request": request, "model_id": model_id, "user": current_user, "candidates": cands},
+        )
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+@router.post("/document-import/preview/json", response_model=ImportPreviewResponse)
+async def preview_json(
     model_id: int = Form(...),
     mode: str = Form("extract"),
     requested: List[str] = Form([]),
