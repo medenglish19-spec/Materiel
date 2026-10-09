@@ -16,10 +16,10 @@
 <div class="field wide"><label>الملاحظة</label><textarea id="notes"></textarea></div>
 </div>
 <div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">الغيار المتاح للتوزيع</div>
-<div class="table-scroll" style="margin-top:6px"><table><thead><tr><th>الغيار</th><th>رقم الطلب</th><th>العتاد</th><th>تاريخ الاستلام</th><th>المؤسسة الممونة</th><th>المتاح</th><th>الكمية</th></tr></thead><tbody id="lines"></tbody></table></div>
+<div class="table-scroll" style="margin-top:6px" data-mt-region><table><thead><tr><th>الغيار</th><th>رقم الطلب</th><th>العتاد</th><th>تاريخ الاستلام</th><th>المؤسسة الممونة</th><th>المتاح</th><th>الكمية</th></tr></thead><tbody id="lines"></tbody></table></div>
 <div id="notice" class="notice"></div><div style="margin-top:10px"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
 </div>
-<div class="table-scroll"><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
+<div class="table-scroll" data-mt-region><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
 </div></div>
 <script>
 let available=[],docs=[],editing=null;const today=new Date().toISOString().slice(0,10),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

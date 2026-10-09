@@ -12,7 +12,7 @@
   </div>
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
-    <a href="/maintenance/rules">2. شروط الصيانة</a>
+    <a href="/maintenance/rules">2. عمليات الصيانة</a>
     <a class="active" href="/maintenance/plans">3. خطط الصيانة</a>
     <a href="/maintenance/records">4. سجل الصيانة</a>
     <a href="/maintenance/due">5. الصيانة المستحقة</a>
@@ -26,7 +26,7 @@
       <select id="modelFilter" class="m-select"><option value="">كل الطرازات</option></select>
       <button id="refresh" class="m-btn" type="button">↻ تحديث</button>
     </div></div>
-    <div class="table-wrap"><table class="m-table"><thead><tr><th>#</th><th>الخطة</th><th>الطراز</th><th>شرط الخطة</th><th>الحالة</th><th>الاعتماد</th><th>العمليات</th><th>الإجراء</th></tr></thead>
+    <div class="table-wrap" data-mt-region><table class="m-table"><thead><tr><th>#</th><th>الخطة</th><th>الطراز</th><th>شرط الخطة</th><th>الحالة</th><th>الاعتماد</th><th>العمليات</th><th>الإجراء</th></tr></thead>
     <tbody id="body"><tr><td colspan="8" class="muted">جارٍ التحميل...</td></tr></tbody></table></div>
   </section>
 
@@ -52,7 +52,7 @@
       <button id="addOperation" class="m-btn primary" type="button">＋ إضافة العملية للخطة</button>
       <button id="openOperationLibrary" class="m-btn" type="button">📚 إضافة من مكتبة العمليات الفنية</button>
     </div>
-    <div class="table-wrap"><table class="m-table"><thead><tr><th>العملية</th><th>شرط العملية</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
+    <div class="table-wrap" data-mt-region><table class="m-table"><thead><tr><th>العملية</th><th>شرط العملية</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
   </section>
 
   <section class="panel" id="executionPanel" style="display:none;margin-top:16px">

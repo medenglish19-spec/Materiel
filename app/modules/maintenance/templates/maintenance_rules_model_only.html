@@ -16,7 +16,7 @@
 
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
-    <a class="active" href="/maintenance/rules">2. شروط الصيانة</a>
+    <a class="active" href="/maintenance/rules">2. عمليات الصيانة</a>
     <a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a>
     <a href="/maintenance/due">5. الصيانة المستحقة</a>
   </nav>
@@ -47,7 +47,7 @@
       </div>
       <span class="badge info" id="operationCount">0 عملية</span>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap" data-mt-region>
       <table class="m-table" id="operationsTable">
         <thead><tr>
   <th>#</th>
@@ -101,6 +101,8 @@
   .excel-filter-values{max-height:260px;overflow:auto;border-top:1px solid #eee;padding-top:6px}
   .excel-filter-values label{display:flex;align-items:center;gap:7px;padding:5px 3px;cursor:pointer}
   .excel-filter-values label:hover{background:#f5f6f8}
+  /* Row-action column, ⋮ trigger and context menu come from the shared
+     /static/css/mt-tables.css component (classes: mt-actions-*, mt-row-*). */
 </style>
 <script>
 (function(){
@@ -226,20 +228,33 @@
     $('operationCount').textContent=rows.length+' عملية';
     $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
       const selected=isPlanMode() && state.planOps.has(op.id);
-      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}">
-      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
+      <td>${i+1}</td>
+      <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
       <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
       <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
-      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">✏️ تعديل</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'⏸ تعطيل':'▶ تفعيل'}</button><button class="m-btn" type="button" data-delete="${op.id}">🗑 حذف</button></td>
+      <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
     </tr>`;
     }).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
-    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
-    document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
-    document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
     if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' محددة';
     updateFilterButtons();
   }
+  function rowMenuItems(op){
+    return [
+      {label:'✏️ تعديل', onSelect:()=>editOperation(op.id)},
+      {label:op.is_active?'⏸ تعطيل':'▶ تفعيل', onSelect:()=>toggleOperation(op.id)},
+      {label:'🗑 حذف', danger:true, onSelect:()=>deleteOperation(op.id)}
+    ];
+  }
   $('operationsBody').addEventListener('click',e=>{
+    const menuBtn=e.target.closest('.mt-row-btn[data-menu]');
+    if(menuBtn){
+      e.stopPropagation();
+      const id=Number(menuBtn.dataset.menu);
+      const op=state.operations.find(x=>x.id===id);
+      if(op) MaterielTables.openRowMenu({trigger:menuBtn,items:rowMenuItems(op)});
+      return;
+    }
     if(!isPlanMode())return;
     if(e.target.closest('button,a,input,select'))return;
     const row=e.target.closest('tr[data-plan-select]');
@@ -251,8 +266,18 @@
   document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
     btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};
   });
+  $('operationsBody').addEventListener('contextmenu',e=>{
+    const row=e.target.closest('tr[data-operation-id]');
+    if(!row)return;
+    e.preventDefault();
+    const op=state.operations.find(x=>x.id===Number(row.dataset.operationId));
+    if(op) MaterielTables.openRowMenu({x:e.clientX,y:e.clientY,items:rowMenuItems(op)});
+  });
   document.addEventListener('click',e=>{
     if(openFilterMenu && !openFilterMenu.contains(e.target) && !e.target.closest('.col-filter')) closeFilterMenu();
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape' && openFilterMenu) closeFilterMenu();
   });
   function syncMeterFields(){
     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});

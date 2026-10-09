@@ -41,8 +41,10 @@ def browser_page():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/static/js/edit-manager.js":
-                p=STATIC/"js"/"edit-manager.js";data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/javascript");self.end_headers();self.wfile.write(data);return
+            if self.path in ("/static/js/edit-manager.js", "/static/js/mt-tables.js"):
+                p=STATIC/"js"/Path(self.path).name;data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/javascript");self.end_headers();self.wfile.write(data);return
+            if self.path == "/static/css/mt-tables.css":
+                p=STATIC/"css"/"mt-tables.css";data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/css");self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.end_headers();self.wfile.write(html.encode())
         def do_POST(self):
             self.send_response(200);self.send_header("Content-Type","application/json");self.end_headers();self.wfile.write(b'{"ok":true}')

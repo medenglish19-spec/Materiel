@@ -7,7 +7,7 @@
     <div class="page-heading"><h2>سجل الصيانة</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div></div>
     <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="#newRecord">＋ &nbsp;تسجيل صيانة جديدة</a></div>
   </div>
-  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. شروط الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
+  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
 
   {% set error = request.query_params.get('error') %}{% set changed = request.query_params.get('changed') %}{% set saved = request.query_params.get('saved') %}
   {% if error %}
@@ -33,7 +33,7 @@
   <section class="panel">
     <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>كل تنفيذ محفوظ كسجل فعلي مرتبط بالمركبة والعملية، ويمكن ربطه بخطة عند التنفيذ ضمن خطة.</p></div><span class="badge success">{{ records|length }} سجل</span></div>
     <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
-    <div class="table-wrap"><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
+    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
       {% for r in records %}
       <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}">
         <td>{{ loop.index }}</td>

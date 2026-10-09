@@ -114,7 +114,7 @@
       <div class="wide"><b style="font-family:'Cairo',sans-serif;color:#111827">بنود الطلب</b><div id="newItems"></div><button type="button" class="secondary" id="addRequestItem" style="margin-top:8px">+ إضافة بند</button></div>
       <div class="wide"><button type="submit" id="saveRequest">حفظ الطلب</button><span id="formMsg"></span></div>
     </form>
-    <div class="table-scroll"><table><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="table-scroll" data-mt-region><table><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
   </div><script>
 const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
@@ -193,6 +193,7 @@ function renderRequests(){
   const source=document.getElementById('filterSource').value;
   const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||x.source_type===source)&&matchesRequestSearch(x,q));
   document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="8" class="empty">لا توجد طلبات مطابقة.</td></tr>';
+  if(window.MaterielTables)MaterielTables.refresh();
   document.getElementById('resultCount').textContent='الطلبات: '+rows.length;
   const pending=requestsData.filter(x=>x.status==='pending').length;document.getElementById('pendingCount').textContent='قيد الانتظار: '+pending;document.getElementById('summaryTotal').textContent=requestsData.length;document.getElementById('summaryPending').textContent=pending;document.getElementById('summaryFiltered').textContent=rows.length;
 }
@@ -255,8 +256,8 @@ function detailHtml(x){
 
 function itemsHtml(x){
   const head='<thead><tr><th>اسم قطعة الغيار</th><th>من المخزون (اختياري)</th><th>الكمية المطلوبة</th><th>الكمية المستلمة</th><th>تاريخ الاستلام</th><th>المستلم</th><th>المؤسسة الممونة</th><th>ملاحظات</th><th></th></tr></thead>';
-  if(!x.items.length)return '<div class="table-scroll"><table class="items-t">'+head+'<tbody></tbody></table></div>';
-  return '<div class="table-scroll"><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x)).join('')+'</tbody></table></div>';
+  if(!x.items.length)return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
+  return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x)).join('')+'</tbody></table></div>';
 }
 
 function itemRow(i,x){
