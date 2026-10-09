@@ -1,13 +1,13 @@
 """Require explicit approval before a model's plan drives follow-ups.
 
 Revision ID: 20261009_maintenance_plan_approval
-Revises: add_received_date_spare_part_items
+Revises: 9cff3cadf131, merge_spare_parts_heads_0034_receipt
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "20261009_maintenance_plan_approval"
-down_revision = "9cff3cadf131"
+down_revision = ("9cff3cadf131", "merge_spare_parts_heads_0034_receipt")
 branch_labels = None
 depends_on = None
 
