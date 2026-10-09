@@ -55,6 +55,12 @@ body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tah
 .toolbar{display:flex;align-items:center;gap:10px;background:var(--white);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;flex-wrap:wrap;border:1px solid rgba(46,125,50,.06)}
 .search-box{flex:1;min-width:200px;padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s ease;background:var(--bg-secondary)}
 .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,160,71,.12);background:var(--white)}
+.global-search-wrap{display:inline-flex;align-items:stretch;gap:6px;flex:1 1 220px;min-width:0;max-width:100%}
+.global-search-wrap>input{flex:1 1 auto;min-width:0}
+.global-search-btn,.global-clear-btn{border:1px solid rgba(46,125,50,.18);border-radius:var(--radius-sm);padding:8px 12px;font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.global-search-btn{background:var(--primary);color:#fff}
+.global-clear-btn{background:var(--white);color:var(--text-primary)}
+.global-clear-btn[hidden]{display:none}
 .select-box{padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;background:var(--white);cursor:pointer}
 .data-table,.modern-table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid rgba(46,125,50,.08);border-radius:var(--radius-sm);overflow:hidden}
 /* --- global table rules -------------------------------------------------- */
@@ -182,7 +188,68 @@ body{overflow-x:clip;}
 const el=document.getElementById('systemDate');if(el){el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}
 const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){const box=document.createElement('div');box.className='materiel-notice materiel-notice-'+noticeType;const icon=noticeType==='danger'?'⛔':noticeType==='success'?'✓':noticeType==='info'?'ℹ️':'⚠️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,textEl,close);const main=document.querySelector('.container');if(main)main.prepend(box);close.addEventListener('click',()=>box.remove());window.setTimeout(()=>box.classList.add('materiel-notice-visible'),20);const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
 const mutationKey='materiel:mutation-completed';document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>sessionStorage.setItem(mutationKey,'1'))});if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey)}window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload()});
-document.querySelectorAll('input.search-box,input[id*="search" i],input[id*="Search"]').forEach(input=>{if(input.closest('.global-search-wrap')||input.type==='hidden')return;const parent=input.parentElement;if(!parent)return;const wrap=document.createElement('span');wrap.className='global-search-wrap';parent.insertBefore(wrap,input);wrap.appendChild(input);const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='بحث';const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;wrap.append(search,clear);const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));search.addEventListener('click',fire);clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});input.addEventListener('input',()=>clear.hidden=!input.value)});
+const searchSelector='input[type="search"],input.search-box,input[id*="search" i],input[id*="Search"]';
+document.querySelectorAll(searchSelector).forEach(input=>{
+  if(input.closest('.global-search-wrap')||input.type==='hidden')return;
+  const parent=input.parentElement;if(!parent)return;
+  const wrap=document.createElement('span');wrap.className='global-search-wrap';
+  parent.insertBefore(wrap,input);wrap.appendChild(input);
+  const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='ابحث';search.setAttribute('aria-label','تنفيذ البحث');
+  const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;
+  wrap.append(search,clear);
+  const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));
+  const runSearch=()=>{
+    fire();
+    const form=input.closest('form');
+    const name=(input.name+' '+input.id+' '+input.getAttribute('aria-label')+' '+input.placeholder).toLowerCase();
+    const serverSearch=form&&form.method.toLowerCase()==='get'&&(/search|query|بحث|filter|تصفية/.test(name)||input.type==='search');
+    if(serverSearch){
+      if(typeof form.requestSubmit==='function')form.requestSubmit();
+      else form.submit();
+    }
+  };
+  search.addEventListener('click',runSearch);
+  input.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.isComposing)return;
+    event.preventDefault();
+    search.click();
+  });
+  clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});
+  input.addEventListener('input',()=>clear.hidden=!input.value);
+});
+(function installEnterNavigation(){
+  const excludedTypes=new Set(['hidden','button','submit','reset','image','file','checkbox','radio','range','color']);
+  const isEditable=el=>el instanceof HTMLElement&&(el.isContentEditable||el.matches('textarea'));
+  const isInput=el=>el instanceof HTMLInputElement&&!excludedTypes.has(el.type)&&!el.readOnly;
+  const isUsable=el=>el instanceof HTMLElement&&!el.matches(':disabled,[hidden],[aria-hidden="true"]')&&!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length);
+  const isNextControl=el=>isInput(el)||el instanceof HTMLSelectElement||isEditable(el)||(el instanceof HTMLButtonElement&&(el.type==='submit'||el.hasAttribute('data-enter-next')));
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.defaultPrevented||event.isComposing||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+    const current=event.target;
+    if(!(current instanceof HTMLElement)||!(isInput(current)||current instanceof HTMLSelectElement)||(current instanceof HTMLInputElement&&current.type==='search')||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
+    if(current.closest('[contenteditable="true"],textarea'))return;
+    const form=current.closest('form');
+    const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel,.container,main')||document;
+    const controls=[...scope.querySelectorAll('input,select,textarea,button,[contenteditable="true"]')].filter(el=>isUsable(el)&&isNextControl(el));
+    const index=controls.indexOf(current);
+    if(index<0)return;
+    event.preventDefault();
+    const next=controls[index+1];
+    if(next){
+      if(next instanceof HTMLButtonElement&&next.hasAttribute('data-enter-next')){next.click();return}
+      if(next instanceof HTMLButtonElement&&next.type==='submit'){if(form&&form.checkValidity())form.requestSubmit(next);else if(form)form.reportValidity();else next.click();return}
+      next.focus();return;
+    }
+    if(form){
+      if(form.checkValidity())form.requestSubmit();
+      else form.reportValidity();
+      return;
+    }
+    const operation=current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    const action=operation?.querySelector('[data-enter-next]');
+    if(action instanceof HTMLElement&&isUsable(action))action.click();
+  });
+})();
 document.querySelectorAll('.table-scroll,.record-table-wrap,.table-wrap,.type-table-wrap').forEach(function(el){if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');if(!el.hasAttribute('role'))el.setAttribute('role','region');if(!el.getAttribute('aria-label'))el.setAttribute('aria-label','جدول البيانات');});
 const p=window.location.pathname;
 if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
