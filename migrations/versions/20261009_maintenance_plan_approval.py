@@ -7,7 +7,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "20261009_maintenance_plan_approval"
-down_revision = "add_received_date_spare_part_items"
+down_revision = "9cff3cadf131"
 branch_labels = None
 depends_on = None
 
