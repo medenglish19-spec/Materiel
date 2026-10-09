@@ -245,3 +245,89 @@ def test_distribution_save_failure_refreshes_balances_without_losing_quantities(
     assert posts[1]["items"]==[{"request_item_id":42,"quantity":3}]
     assert page.url.endswith('/maintenance/records')
     assert not errors
+
+
+def test_search_button_and_enter_run_the_same_search(browser_page):
+    page, errors = browser_page
+    page.evaluate("""() => {
+      window.searchRuns = 0;
+      document.querySelector('#search').addEventListener('input', () => window.searchRuns++);
+    }""")
+    page.locator('#search').fill('فلتر')
+    page.evaluate("window.searchRuns = 0")
+    page.locator('#search').locator("xpath=..").locator('.global-search-btn').click()
+    expect(page.locator('#search')).to_have_value('فلتر')
+    assert page.evaluate("window.searchRuns") == 1
+
+    page.evaluate("window.searchRuns = 0")
+    page.locator('#search').press('Enter')
+    assert page.evaluate("window.searchRuns") == 1
+    assert not errors
+
+
+def test_server_search_button_and_enter_submit_get_form(browser_page):
+    page, errors = browser_page
+    page.evaluate("""() => {
+      const form = document.createElement('form');
+      form.id = 'serverSearchForm';
+      form.method = 'get';
+      form.action = '/maintenance/records';
+      form.innerHTML = '<input id="serverSearch" type="search" name="query" placeholder="بحث خادمي">';
+      document.body.appendChild(form);
+      const input = form.querySelector('input');
+      const wrap = document.createElement('span');
+      wrap.className = 'global-search-wrap';
+      input.before(wrap);
+      wrap.append(input);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'global-search-btn';
+      button.textContent = 'ابحث';
+      wrap.append(button);
+      window.submittedQueries = [];
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        window.submittedQueries.push(new FormData(form).get('query'));
+      });
+      button.addEventListener('click', () => {
+        const event = new Event('input', {bubbles:true});
+        input.dispatchEvent(event);
+        form.requestSubmit();
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          button.click();
+        }
+      });
+    }""")
+    page.locator('#serverSearch').fill('زيت')
+    page.locator('#serverSearch').locator("xpath=..").locator('.global-search-btn').click()
+    assert page.evaluate("window.submittedQueries") == ['زيت']
+    page.locator('#serverSearch').fill('فلتر')
+    page.locator('#serverSearch').press('Enter')
+    assert page.evaluate("window.submittedQueries") == ['زيت', 'فلتر']
+    assert not errors
+
+
+def test_enter_moves_through_select_fields_and_executes_next_action(browser_page):
+    page, errors = browser_page
+    page.locator('#model').select_option('1')
+    page.locator('#model').press('Enter')
+    expect(page.locator('#equipment')).to_be_focused()
+    page.locator('#equipment').press('Enter')
+    expect(page.locator('#operation')).to_be_focused()
+    page.locator('#operation').press('Enter')
+    expect(page.locator('#date')).to_be_focused()
+
+    page.evaluate("""() => {
+      const scope = document.createElement('div');
+      scope.className = 'card';
+      scope.innerHTML = '<input id="enterActionInput"><button id="enterActionButton" type="button" data-enter-next>تنفيذ</button>';
+      document.body.appendChild(scope);
+      window.enterActionRuns = 0;
+      document.querySelector('#enterActionButton').addEventListener('click', () => window.enterActionRuns++);
+    }""")
+    page.locator('#enterActionInput').press('Enter')
+    assert page.evaluate("window.enterActionRuns") == 1
+    assert not errors
