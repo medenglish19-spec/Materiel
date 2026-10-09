@@ -71,6 +71,7 @@ def test_plan_execution_creates_one_record_per_active_operation():
             name="الصيانة السداسية",
             interval_days=180,
             is_active=True,
+            is_approved=True,
         )
         db.add_all([oil, brakes, disabled, plan])
         db.flush()
@@ -164,6 +165,7 @@ def test_plan_execution_rejects_plan_for_another_model_without_records():
             name="خطة طراز B",
             interval_km=Decimal("10000"),
             is_active=True,
+            is_approved=True,
         )
         db.add_all([equipment, operation, plan])
         db.flush()
@@ -205,7 +207,7 @@ def test_removing_plan_operation_preserves_library_and_history_and_blocks_future
         db.flush()
         equipment = Equipment(asset_code="PLAN-FUTURE-1", equipment_type_id=equipment_type.id, equipment_model_id=model.id)
         operation = MaintenanceOperation(name="عملية تبقى في المكتبة", interval_km=Decimal("10000"), is_active=True)
-        plan = MaintenancePlan(equipment_model_id=model.id, name="خطة مستقبلية", interval_km=Decimal("10000"), is_active=True)
+        plan = MaintenancePlan(equipment_model_id=model.id, name="خطة مستقبلية", interval_km=Decimal("10000"), is_active=True, is_approved=True)
         db.add_all([equipment, operation, plan])
         db.flush()
         link = MaintenancePlanOperation(plan_id=plan.id, operation_id=operation.id)

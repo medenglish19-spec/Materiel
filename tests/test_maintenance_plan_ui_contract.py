@@ -18,6 +18,7 @@ def test_maintenance_plan_routes_cover_page_management_and_execution():
     assert ("/api/maintenance/plans", ("GET",)) in paths
     assert ("/api/maintenance/plans", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}", ("PUT",)) in paths
+    assert ("/api/maintenance/plans/{plan_id}/approve", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("GET",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations/{operation_id}", ("DELETE",)) in paths
@@ -28,6 +29,8 @@ def test_maintenance_plan_ui_exposes_complete_controls():
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
     assert 'id="btnNewPlan"' in html
     assert 'data-edit="' in html
+    assert 'data-approve="' in html
+    assert "is_approved" in html
     assert 'data-ops="' in html
     assert 'data-execute="' in html
     assert 'data-remove-op="' in html

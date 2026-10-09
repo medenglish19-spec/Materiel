@@ -48,8 +48,21 @@ def test_maintenance_operations_are_model_effective_through_active_plans():
         rows_a = effective_operations_for_equipment(db, eq_a, include_standalone=False)
         rows_b = effective_operations_for_equipment(db, eq_b, include_standalone=False)
 
+        # A configured but unapproved plan must not drive periodic follow-ups.
+        assert rows_a == []
+        assert rows_b == []
+
+        plan.is_approved = True
+        db.commit()
+        rows_a = effective_operations_for_equipment(db, eq_a, include_standalone=False)
+        rows_b = effective_operations_for_equipment(db, eq_b, include_standalone=False)
         assert [row.id for row in rows_a] == [operation_a.id]
         assert rows_b == []
+
+        # Library-only operations remain available for ad-hoc records but are
+        # never included in periodic follow-ups.
+        assert operation_b in effective_operations_for_equipment(db, eq_a)
+        assert operation_b not in effective_operations_for_equipment(db, eq_a, include_standalone=False)
     finally:
         db.close()
 
