@@ -100,7 +100,7 @@ def test_maintenance_provider_reports_overdue_operations(monkeypatch):
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
     monkeypatch.setattr(
-        providers, "effective_operations_for_equipment", lambda db, eq: [_operation()]
+        providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation()]
     )
 
     notes = providers.maintenance_due_provider(
@@ -124,7 +124,7 @@ def test_maintenance_provider_reports_upcoming_inside_warning_window(monkeypatch
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq: [_operation(interval_km=20000, warning_km=1000)],
+        lambda db, eq, **kwargs: [_operation(interval_km=20000, warning_km=1000)],
     )
 
     notes = providers.maintenance_due_provider(
@@ -153,7 +153,7 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     calls: list = []
 
-    def _operations(db, eq):
+    def _operations(db, eq, **kwargs):
         calls.append(eq.equipment_model_id)
         return [_operation()]
 
