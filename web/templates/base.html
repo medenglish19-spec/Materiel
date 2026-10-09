@@ -220,7 +220,7 @@ document.querySelectorAll(searchSelector).forEach(input=>{
   document.addEventListener('keydown',event=>{
     if(event.key!=='Enter'||event.defaultPrevented||event.isComposing||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
     const current=event.target;
-    if(!(current instanceof HTMLElement)||!isInput(current)||current.type==='search'||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
+    if(!(current instanceof HTMLElement)||!(isInput(current)||current instanceof HTMLSelectElement)||(current instanceof HTMLInputElement&&current.type==='search')||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
     if(current.closest('[contenteditable="true"],textarea'))return;
     const form=current.closest('form');
     const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel,.container,main')||document;
