@@ -229,7 +229,8 @@ document.querySelectorAll(searchSelector).forEach(input=>{
     if(!(current instanceof HTMLElement)||!(isInput(current)||current instanceof HTMLSelectElement)||(current instanceof HTMLInputElement&&current.type==='search')||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
     if(current.closest('[contenteditable="true"],textarea'))return;
     const form=current.closest('form');
-    const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel,.container,main')||document;
+    const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    if(!scope)return;
     const controls=[...scope.querySelectorAll('input,select,textarea,button,[contenteditable="true"]')].filter(el=>isUsable(el)&&isNextControl(el));
     const index=controls.indexOf(current);
     if(index<0)return;
