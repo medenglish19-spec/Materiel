@@ -179,6 +179,7 @@ def maintenance_record_create(
         plan = db.query(MaintenancePlan).filter(
             MaintenancePlan.id == plan_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
             MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
         ).first()
         if plan is None:
@@ -266,6 +267,7 @@ def maintenance_record_update(
         plan = db.query(MaintenancePlan).filter(
             MaintenancePlan.id == plan_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
             MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
         ).first()
         if plan is None:
