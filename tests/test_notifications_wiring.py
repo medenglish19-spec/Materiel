@@ -142,7 +142,7 @@ def test_maintenance_provider_stays_silent_within_schedule(monkeypatch):
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq: [_operation(interval_km=20000, warning_km=100)],
+        lambda db, eq, **kwargs: [_operation(interval_km=20000, warning_km=100)],
     )
 
     assert providers.maintenance_due_provider(_DB([_equipment()])) == []
@@ -177,7 +177,7 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
 def test_maintenance_provider_skips_equipment_without_type(monkeypatch):
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {})
-    monkeypatch.setattr(providers, "effective_operations_for_equipment", lambda db, eq: [])
+    monkeypatch.setattr(providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [])
 
     assert providers.maintenance_due_provider(
         _DB([_equipment(equipment_type=None)])
