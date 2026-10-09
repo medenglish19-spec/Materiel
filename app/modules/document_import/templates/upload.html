@@ -55,8 +55,8 @@
           <td><input type="checkbox" name="candidates-{{ loop.index0 }}-approved" value="true"></td>
           <td><input type="checkbox" name="candidates-{{ loop.index0 }}-ignored" value="true"></td>
           <td><input type="checkbox" name="candidates-{{ loop.index0 }}-edited" value="true"></td>
-          <input type="hidden" name="candidates-{{ loop.index0 }}-value_edited" value="{{ c.value or '' }}">
-          <input type="hidden" name="candidates-{{ loop.index0 }}-unit_edited" value="{{ c.unit or '' }}">
+          <input type="hidden" name="candidates-{{ loop.index0 }}-value_original" value="{{ c.value or '' }}">
+          <input type="hidden" name="candidates-{{ loop.index0 }}-unit_original" value="{{ c.unit or '' }}">
         </tr>
         {% endfor %}
       </tbody>
