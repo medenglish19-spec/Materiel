@@ -7,6 +7,7 @@ from logging.handlers import QueueHandler
 from pathlib import Path
 from queue import Full, Queue
 
+import app.core.logging as logging_module
 from app.core.logging import (
     _SafeQueueHandler,
     configure_logging,
@@ -64,6 +65,20 @@ def test_queue_handler_never_raises_on_full_queue():
     handler.enqueue(
         logging.LogRecord("x", logging.INFO, __file__, 1, "m", None, None)
     )  # يجب ألا ترمي
+
+
+def test_read_only_log_directory_falls_back_to_stderr(monkeypatch):
+    """فشل الكتابة إلى القرص لا يجوز أن يمنع إقلاع التطبيق."""
+    monkeypatch.delenv("VERCEL", raising=False)
+
+    def read_only(*args, **kwargs):
+        raise OSError(30, "Read-only file system")
+
+    monkeypatch.setattr(Path, "mkdir", read_only)
+    handlers = logging_module._build_output_handlers()
+
+    assert len(handlers) == 1
+    assert isinstance(handlers[0], logging.StreamHandler)
 
 
 def test_app_modules_do_not_use_print():
