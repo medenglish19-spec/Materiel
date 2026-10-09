@@ -3,12 +3,64 @@
 {% block content %}
 <div dir="rtl" style="padding:20px">
   <h1>استيراد خصائص الطراز من مستند</h1>
-  <form action="/document-import/preview" method="post" enctype="multipart/form-data">
+  <form id="previewForm" action="/document-import/preview" method="post" enctype="multipart/form-data">
     <input type="hidden" name="model_id" value="{{ model_id }}">
-    <div><label>ملف: <input type="file" name="file" accept=".pdf,.docx,.xlsx,.xls"></label></div>
-    <div><label>الوضع: <select name="mode"><option value="extract">استخراج</option><option value="specific">محدد</option></select></label></div>
-    <div><label>المطلوب: <input name="requested" placeholder="قدرة المحرك, الوزن"></label></div>
-    <button type="submit">معاينة</button>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <label class="field">ملف (PDF/DOCX/XLSX)
+        <input type="file" name="file" accept=".pdf,.docx,.xlsx,.xls" required>
+      </label>
+      <label class="field">الوضع
+        <select name="mode">
+          <option value="extract">استخراج</option>
+          <option value="specific">محدد</option>
+        </select>
+      </label>
+      <label class="field">المطلوب (فاصلة)
+        <input name="requested" placeholder="قدرة المحرك, الوزن">
+      </label>
+      <button type="submit" class="btn primary">معاينة</button>
+    </div>
   </form>
+
+  {% if candidates %}
+  <form id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px">
+    <input type="hidden" name="model_id" value="{{ model_id }}">
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>تعريف موجود</th>
+          <th>الاسم في المستند</th>
+          <th>القيمة</th>
+          <th>الوحدة</th>
+          <th>المصدر</th>
+          <th>الثقة</th>
+          <th>اعتماد</th>
+          <th>تجاهل</th>
+          <th>تعديل</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in candidates %}
+        <tr>
+          <td>
+            {% if c.definition_id %}#{{ c.definition_id }}{% else %}جديدة{% endif %}
+            <input type="hidden" name="candidates-{{ loop.index0 }}-definition_id" value="{{ c.definition_id or '' }}">
+            <input type="hidden" name="candidates-{{ loop.index0 }}-is_new" value="{{ 'true' if c.is_new else 'false' }}">
+          </td>
+          <td><input name="candidates-{{ loop.index0 }}-name_found" value="{{ c.name_found or '' }}"></td>
+          <td><input name="candidates-{{ loop.index0 }}-value" value="{{ c.value or '' }}"></td>
+          <td><input name="candidates-{{ loop.index0 }}-unit" value="{{ c.unit or '' }}"></td>
+          <td>{{ c.source_ref or '' }}</td>
+          <td>{{ '%.0f'|format(c.confidence*100) if c.confidence else '' }}%</td>
+          <td><input type="checkbox" name="candidates-{{ loop.index0 }}-approved" value="true"></td>
+          <td><input type="checkbox" name="candidates-{{ loop.index0 }}-ignored" value="true"></td>
+          <td><input type="checkbox" name="candidates-{{ loop.index0 }}-edited" value="true"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn primary">تطبيق المعتمد فقط</button>
+  </form>
+  {% endif %}
 </div>
 {% endblock %}

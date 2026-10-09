@@ -1,13 +1,7 @@
-fastapi==0.142.2
-uvicorn[standard]==0.54.0
-sqlalchemy==2.1.1
-alembic==1.20.0
-pydantic==2.13.5
-jinja2==3.1.6
-python-multipart==0.0.32
-passlib[bcrypt]==1.7.4
-# مثبّت عمدًا: passlib 1.7.4 ينكسر مع bcrypt >= 4.1 (حذف __about__)
-bcrypt==4.0.1
-python-jose[cryptography]==3.5.0
+python-docx==1.1.2
+pypdf==5.1.0
+rapidfuzz==3.10.1
 openpyxl==3.1.5
-httpx==0.28.1
+docling==2.28.4
+paddleocr==2.10.0
+paddlepaddle==3.0.0
