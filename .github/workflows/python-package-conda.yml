@@ -129,4 +129,21 @@ jobs:
           path: test-results.xml
           if-no-files-found: warn
 
-# Automated verification trigger for the meter-history fix.
+# Automated verification trigger for the meter-history fix.\n
+  browser-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install application and browser-test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest playwright
+          python -m playwright install --with-deps chromium
+      - name: Run real Chromium tests for search and Enter behavior
+        run: python -m pytest -q tests/edit_manager/test_edit_manager.py
