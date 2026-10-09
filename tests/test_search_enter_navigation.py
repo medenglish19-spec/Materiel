@@ -35,3 +35,10 @@ def test_enter_navigation_preserves_native_editing_and_modifier_keys() -> None:
     assert "current.closest('[contenteditable=\"true\"],textarea')" in source
     assert "current.hasAttribute('data-enter-native')" in source
     assert "current.type==='search'" in source
+
+def test_enter_navigation_never_falls_back_to_page_wide_scope() -> None:
+    source = BASE_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');" in source
+    assert "if(!scope)return;" in source
+    assert ".container,main')||document" not in source
