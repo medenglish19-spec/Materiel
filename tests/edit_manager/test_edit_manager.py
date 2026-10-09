@@ -32,7 +32,7 @@ def browser_page():
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
       <button type="submit">حفظ الصيانة</button>
     </form>
-    <input id="search" type="search" placeholder="بحث">
+    <input id="search" type="search" placeholder="بحث">\n    <form id="serverSearchForm" method="get" action="/maintenance/records"><input id="serverSearch" name="query" type="search" placeholder="بحث خادمي"></form>
     <script>
       model.onchange=()=>{equipment.value='';operation.value=''};
       equipment.onchange=()=>{operation.value='20'};
@@ -268,37 +268,11 @@ def test_search_button_and_enter_run_the_same_search(browser_page):
 def test_server_search_button_and_enter_submit_get_form(browser_page):
     page, errors = browser_page
     page.evaluate("""() => {
-      const form = document.createElement('form');
-      form.id = 'serverSearchForm';
-      form.method = 'get';
-      form.action = '/maintenance/records';
-      form.innerHTML = '<input id="serverSearch" type="search" name="query" placeholder="بحث خادمي">';
-      document.body.appendChild(form);
-      const input = form.querySelector('input');
-      const wrap = document.createElement('span');
-      wrap.className = 'global-search-wrap';
-      input.before(wrap);
-      wrap.append(input);
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'global-search-btn';
-      button.textContent = 'ابحث';
-      wrap.append(button);
+      const form = document.querySelector('#serverSearchForm');
       window.submittedQueries = [];
       form.addEventListener('submit', event => {
         event.preventDefault();
         window.submittedQueries.push(new FormData(form).get('query'));
-      });
-      button.addEventListener('click', () => {
-        const event = new Event('input', {bubbles:true});
-        input.dispatchEvent(event);
-        form.requestSubmit();
-      });
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          button.click();
-        }
       });
     }""")
     page.locator('#serverSearch').fill('زيت')
