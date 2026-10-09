@@ -1,6 +1,7 @@
 from dataclasses import dataclass,field
 from pathlib import Path
 import io
+import shutil
 @dataclass
 class ExtractedTable:
  rows:list[list[str]]=field(default_factory=list); name:str|None=None; page:int|None=None
@@ -18,7 +19,16 @@ def extract_document(filename,content):
    from pypdf import PdfReader
    reader=PdfReader(io.BytesIO(content),strict=False); pages=[f"[صفحة {i}]\n{p.extract_text() or ''}" for i,p in enumerate(reader.pages,1)]
    text="\n".join(p for p in pages if p.strip())
-   if not text.strip(): raise ValueError("لم يُستخرج نص من PDF؛ يبدو ممسوحًا ضوئيًا. ثبّت OCR محليًا مسبقًا. لم يتم تنزيل أي شيء.")
+   if not text.strip():
+    if shutil.which("tesseract") and shutil.which("pdftoppm"):
+     try:
+      from pdf2image import convert_from_bytes
+      import pytesseract
+      images=convert_from_bytes(content,dpi=160,fmt="png")
+      text="\\n".join(f"[صفحة {i}]\\n{pytesseract.image_to_string(image)}" for i,image in enumerate(images,1))
+      if text.strip():return ExtractedDocument(text=text,metadata={"pages":len(reader.pages)},ocr_used=True,ocr_engine="tesseract")
+     except ImportError: pass
+    raise ValueError("لم يُستخرج نص من PDF؛ يبدو ممسوحًا ضوئيًا. يلزم تثبيت Tesseract وPoppler محليًا مع pytesseract وpdf2image؛ لم يتم تنزيل أي شيء.")
    return ExtractedDocument(text=text,metadata={"pages":len(reader.pages)})
   except ValueError: raise
   except Exception as e: raise ValueError("تعذر قراءة ملف PDF") from e
