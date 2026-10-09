@@ -106,7 +106,8 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         MaintenanceOperation.is_active.is_(True)
     ).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
     plans = db.query(MaintenancePlan).filter(
-        MaintenancePlan.is_active.is_(True)
+        MaintenancePlan.is_active.is_(True),
+        MaintenancePlan.is_approved.is_(True),
     ).order_by(MaintenancePlan.name, MaintenancePlan.id).all()
 
     edit_record = None
@@ -601,6 +602,8 @@ def api_execution_create(
     if plan is not None:
         if not plan.is_active:
             raise HTTPException(status_code=409, detail="خطة الصيانة غير مفعلة.")
+        if not plan.is_approved:
+            raise HTTPException(status_code=409, detail="لا يمكن ربط سجل تنفيذ بخطة غير معتمدة.")
         if plan.equipment_model_id != equipment.equipment_model_id:
             raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
 
@@ -612,6 +615,7 @@ def api_execution_create(
                 MaintenancePlanOperation.operation_id == operation.id,
                 MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
                 MaintenancePlan.is_active.is_(True),
+                MaintenancePlan.is_approved.is_(True),
             )
             .first()
         )
