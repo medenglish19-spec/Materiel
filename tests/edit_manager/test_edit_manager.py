@@ -30,7 +30,7 @@ def browser_page():
       <select id="equipment" name="equipment" required><option value="">عتاد</option><option value="10">عتاد 10</option></select>
       <select id="operation" name="operation" required><option value="">عملية</option><option value="20">تغيير الزيت</option></select>
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
-      <button type="submit">حفظ الصيانة</button>
+      <button type="submit">حفظ الصيانة</button><a href="/cancel" class="cancel-btn">إلغاء</a>
     </form>
     <input id="search" type="search" placeholder="بحث">
     <script>
@@ -61,9 +61,72 @@ def test_toolbar_and_search_are_clean(browser_page):
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     page.locator('#search').fill('زيت');expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
 
+def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => { model.value='1'; model.dispatchEvent(new Event('input',{bubbles:true})); model.dispatchEvent(new Event('change',{bubbles:true})); }""")
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate("EditManager.isDirty()")
+    # Revert the programmatic init too, so the DOM matches the baseline captured
+    # at load; only then does returning the user's field to its original value
+    # bring the editor back to clean.
+    page.evaluate("() => { model.value=''; }")
+    page.locator('#meter').fill('')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
+def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(browser_page):
+    page,errors=browser_page
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
+    page.locator('.app-topbar-title').focus()
+    page.keyboard.press('Escape')
+    page.wait_for_url('**/cancel')
+    assert page.url.endswith('/cancel')
+    assert dialogs==[]
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(500)
+    page.keyboard.press('Escape')
+    page.wait_for_url('**/cancel')
+    # Dirty escape shows the custom confirm prompt; then navigating away also
+    # trips EditManager's beforeunload guard (still dirty), so two dialogs fire.
+    assert dialogs[0]=='لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'
+    assert len(dialogs)==2
+    assert page.url.endswith('/cancel')
+    assert not errors
+
+
+def test_escape_does_not_intercept_non_editor_forms(browser_page):
+    page,errors=browser_page
+    page.locator('#record').evaluate("el => el.remove()")
+    page.evaluate("""() => {
+      const form=document.createElement('form');
+      form.innerHTML='<input id="filter" name="filter" placeholder="بحث"><button type="submit">بحث</button><a href="/cancel" class="cancel-btn">إلغاء</a>';
+      document.querySelector('main').appendChild(form);
+    }""")
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
+    page.locator('#filter').focus()
+    page.keyboard.press('Escape')
+    assert dialogs==[]
+    assert page.url.endswith('/maintenance/records')
+    assert not errors
+
+
 def test_chained_form_undo_redo_and_save(browser_page):
     page,errors=browser_page
-    page.locator('#model').select_option('1');page.locator('#equipment').select_option('10');page.locator('#operation').select_option('20');page.wait_for_timeout(500)
+    # Playwright select_option() fires untrusted events; simulate a real user
+    # with keyboard-driven selection so EditManager sees isTrusted=true.
+    for selector in ('#model','#equipment','#operation'):
+        page.locator(selector).focus();page.keyboard.press('ArrowDown');page.keyboard.press('Enter')
+    page.wait_for_timeout(500)
     expect(page.locator('[data-em-action="undo"]')).to_be_enabled();page.keyboard.press('Control+z');page.wait_for_timeout(100);page.keyboard.press('Control+y');page.wait_for_timeout(100)
     page.locator('[data-em-action="save"]').click();page.wait_for_timeout(100);expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
 
@@ -92,7 +155,7 @@ def test_form_without_method_is_tracked_and_fetch_save_is_awaited(browser_page):
 
 def test_save_failure_keeps_page_dirty(browser_page):
     page,errors=browser_page
-    page.locator('#date').fill('2026-09-29')
+    page.locator('#meter').fill('250')
     page.wait_for_timeout(500)
     page.evaluate("EditManager.setSaveHandler(async()=>false)")
     page.locator('[data-em-action="save"]').click()
@@ -164,9 +227,8 @@ def test_concurrent_writes_are_all_awaited_and_repeated_save_is_guarded(browser_
         ]);
         return responses.every(response=>response.ok);
       });
-      document.querySelector('#date').value='2026-10-01';
-      document.querySelector('#date').dispatchEvent(new Event('input',{bubbles:true}));
     }""")
+    page.locator('#meter').fill('250')
     page.wait_for_timeout(450)
     results=page.evaluate("Promise.all([EditManager.save(),EditManager.save()])")
     assert results==[False,False]

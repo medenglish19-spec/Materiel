@@ -157,16 +157,22 @@ def _normalize_equipment_classification_defaults() -> None:
     from app.modules.equipment_types.models import EquipmentCategory, EquipmentType
     from app.database.session import SessionLocal
 
-    default_codes = {"LIGHT", "HEAVY", "CONSTRUCTION", "SUPPORT"}
     db = SessionLocal()
     try:
-        categories = db.query(EquipmentCategory).filter(EquipmentCategory.code.in_(default_codes)).all()
+        # The system classification library is no longer part of the product
+        # model. Remove unused system categories; preserve any category that
+        # already contains types by converting it to a user-owned category.
+        categories = db.query(EquipmentCategory).filter(
+            EquipmentCategory.is_system.is_(True)
+        ).all()
         changed = False
         for category in categories:
-            linked = db.query(EquipmentType).filter(EquipmentType.category_id == category.id).first()
+            linked = db.query(EquipmentType).filter(
+                EquipmentType.category_id == category.id
+            ).first()
             if linked is None:
                 db.delete(category)
-            elif category.is_system:
+            else:
                 category.is_system = False
             changed = True
         if changed:

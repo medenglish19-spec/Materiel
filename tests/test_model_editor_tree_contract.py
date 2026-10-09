@@ -46,15 +46,15 @@ def test_master_data_tree_keeps_model_actions_without_copy():
     template = _template()
     assert 'data-copy="{{ m.id }}"' not in template
     assert 'data-delete="{{ m.id }}"' in template
-    assert 'id="viewModelActionBtn"' in template
+    assert 'viewModel(id)' in template
+    assert 'data-type-model' in template
     assert 'id="editModelBtn"' in template
     assert 'id="freezeModelForm"' in template
     assert 'id="deleteModelForm"' in template
     script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")
-    assert 'نسخ الطراز' not in script
-    assert "id=\"freezeModelForm\"" in template
+    assert "نسخ الطراز" not in script
+    assert "'unfreeze' : 'freeze'" in script
     assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in script
-
 def test_tree_click_handles_toggles_before_model_selection():
     template = _template()
     script = Path("static/js/master-data-tree.js").read_text(encoding="utf-8")

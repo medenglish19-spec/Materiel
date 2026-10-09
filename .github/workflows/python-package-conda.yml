@@ -118,6 +118,11 @@ jobs:
         # exits non-zero on a real problem, so a failure below is a real fault.
         run: python scripts/check_db_health.py ci_health_check.db
 
+      - name: Install Playwright browser for UI tests
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
       - name: Run tests
         run: python -m pytest -q --junitxml=test-results.xml
 

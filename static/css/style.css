@@ -259,3 +259,47 @@ body:has(.mdx){
 
 /* --- login page contract -------------------------------------------------- */
 .login-body{display:flex;align-items:center;justify-content:center;height:100vh}
+
+
+/* --- global visual standard: neutral management UI (visual only) --- */
+:root{--bg-primary:#FAFAFA;--bg-secondary:#F3F4F6;--sidebar-start:#374151;--sidebar-end:#374151;--primary:#374151;--primary-light:#9CA3AF;--success:#374151;--warning:#B45309;--error:#B91C1C;--text-primary:#111827;--text-secondary:#4B5563;--white:#FFFFFF;--shadow:0 2px 10px rgba(17,24,39,.05);--shadow-hover:0 6px 18px rgba(17,24,39,.08);--radius:10px;--radius-sm:6px}
+html,body{background:#FAFAFA;color:#4B5563;font-family:'Tajawal',sans-serif}
+body{font-size:14px}
+.app-sidebar{background:#374151;color:#fff}
+.app-brand{font-family:'Cairo',sans-serif;color:#fff}
+.app-brand-icon{color:#374151}
+.app-menu a{color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.app-menu a:hover{background:#4B5563;color:#fff}
+.app-menu a.active{background:#fff;color:#374151}
+.sidebar-user{color:#D1D5DB}
+.sidebar-logout{color:#E5E7EB}
+.sidebar-logout:hover{background:rgba(185,28,28,.12)}
+.app-topbar{background:#fff;border:1px solid #E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.app-topbar-title,.page-header h2,.card h3{font-family:'Cairo',sans-serif;color:#111827}
+.app-topbar-title{font-weight:800}
+.app-topbar-date,.app-work-status,.page-hint{font-family:'Tajawal',sans-serif;color:#4B5563}
+.app-workbtn{font-family:'Tajawal',sans-serif;color:#374151;border-color:#E5E7EB;background:#fff}
+.app-workbtn:hover:not(:disabled){background:#F3F4F6;border-color:#D1D5DB}
+.app-work-save{background:#374151;color:#fff}
+.page-header h2{font-weight:800}
+.btn,.app-main button{font-family:'Tajawal',sans-serif}
+.btn-primary,.app-main .btn-primary{background:#374151;color:#fff;border-color:#374151;box-shadow:none}
+.btn-primary:hover,.app-main .btn-primary:hover{background:#1F2937;border-color:#1F2937;transform:none;box-shadow:none}
+.btn-outline{background:#fff;color:#374151;border-color:#D1D5DB}
+.btn-outline:hover{background:#F3F4F6}
+.btn-danger{background:#B91C1C;color:#fff;border-color:#B91C1C}
+.card,.stat-card,.toolbar,.equipment-card,.module-nav,.materiel-notice{background:#fff;border-color:#E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.toolbar{border-color:#E5E7EB}
+.search-box,.select-box,.field input,.field select,.field textarea{font-family:'Tajawal',sans-serif;color:#4B5563;border-color:#D1D5DB;background:#fff}
+.search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.10)}
+.field label{font-family:'Cairo',sans-serif;color:#374151}
+.form-value,.empty{font-family:'Tajawal',sans-serif;color:#4B5563}
+.data-table,.modern-table{border-color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.data-table th,.modern-table thead th{font-family:'Cairo',sans-serif;background:#F3F4F6;color:#111827;border-bottom-color:#E5E7EB}
+.data-table td,.modern-table td{font-family:'Tajawal',sans-serif;color:#4B5563;border-bottom-color:#E5E7EB}
+.data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:#FAFAFA}
+.data-table tbody tr:hover,.modern-table tbody tr:hover{background:#F3F4F6}
+.module-nav a{font-family:'Tajawal',sans-serif;color:#4B5563}
+.module-nav a:hover,.module-nav a.active{background:#F3F4F6;color:#374151}
+.materiel-notice-text,.materiel-notice-close,.equipment-card-info{font-family:'Tajawal',sans-serif;color:#4B5563}
+.badge{font-family:'Tajawal',sans-serif}
