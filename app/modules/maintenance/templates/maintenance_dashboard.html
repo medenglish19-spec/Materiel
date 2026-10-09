@@ -12,6 +12,13 @@
     <div class="kpi success"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-label">ضمن الموعد</div><div class="kpi-value">{{ counts.success }}</div><div class="kpi-meta">لا يوجد استحقاق قريب</div></div></div>
     <div class="kpi neutral"><div class="kpi-icon">□</div><div class="kpi-body"><div class="kpi-label">بلا سجل</div><div class="kpi-value">{{ counts.neutral }}</div><div class="kpi-meta">بلا سجل - أدخل صيانة أولية</div></div></div>
   </div>
+  {% if unapproved_models %}
+  <div class="alert warning" role="status" style="display:block;margin:0 0 16px">
+    <strong>لا توجد خطة صيانة معتمدة لهذا الطراز</strong>
+    <div>الطرازات التي تحتاج إلى إعداد الخطة ومراجعتها واعتمادها: {{ unapproved_models|join('، ') }}.</div>
+    <a class="m-btn" href="/maintenance/plans" style="margin-top:10px">إعداد خطة الصيانة</a>
+  </div>
+  {% endif %}
   <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="periodicSearch" class="m-input" placeholder="بحث برقم السيارة..." aria-label="بحث برقم السيارة"></div><select id="periodicStatus" class="m-select"><option value="">كل الحالات</option><option value="مستحقة الآن">مستحقة الآن</option><option value="تقترب">تقترب</option><option value="ضمن الموعد">ضمن الموعد</option><option value="بلا سجل">بلا سجل</option></select><button class="m-btn soft" id="clearPeriodicFilters" type="button">⌁ &nbsp;مسح</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
   <section class="panel"><div class="panel-head"><div><h3>الصيانة الدورية</h3><p>تُبنى تلقائيًا من السيارات وعمليات الصيانة حسب الطراز. السجل هو مرجع آخر صيانة، والعداد الحالي للمقارنة فقط.</p></div><span class="badge info">بيانات فعلية</span></div>
     <div class="table-wrap"><table class="m-table" id="periodicTable"><thead><tr><th>#</th><th>رقم السيارة</th><th>النوع / الطراز</th><th>عملية الصيانة</th><th>تاريخ آخر صيانة</th><th>قراءة العداد عند آخر صيانة</th><th>العداد الحالي</th><th>الموعد القادم (تاريخ)</th><th>القراءة القادمة</th><th>الأيام المتبقية</th><th>المتبقي بالعداد</th><th>الحالة</th><th>ملاحظة</th><th>الإجراءات</th></tr></thead><tbody>
