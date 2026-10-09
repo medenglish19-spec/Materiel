@@ -230,6 +230,7 @@ document.querySelectorAll(searchSelector).forEach(input=>{
     event.preventDefault();
     const next=controls[index+1];
     if(next){
+      if(next instanceof HTMLButtonElement&&next.hasAttribute('data-enter-next')){next.click();return}
       if(next instanceof HTMLButtonElement&&next.type==='submit'){if(form&&form.checkValidity())form.requestSubmit(next);else if(form)form.reportValidity();else next.click();return}
       next.focus();return;
     }
