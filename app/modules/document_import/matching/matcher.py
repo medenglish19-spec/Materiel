@@ -12,7 +12,7 @@ def match_against_definitions(db:Session,candidates:list[Candidate],model_id:int
   src=normalize_text(c.source_name or c.canonical_name_ar or c.canonical_name_fr or c.canonical_name_en);best=None;score=0
   for d in defs:
    labels={normalize_text(d.name),normalize_text(d.code or "")}
-   code=normalize_text(d.code or "")
+   code=(d.code or "").strip().casefold()
    labels.update(normalize_text(x) for x in SYNONYMS.get(code,[]))
    cur=max((1 if src==x else SequenceMatcher(None,src,x).ratio() for x in labels if x),default=0)
    if cur>score:best,score=d,cur
