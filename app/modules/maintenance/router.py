@@ -468,6 +468,13 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
     if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
         raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
     for key, value in data.items(): setattr(operation, key, value)
+    # Changing a library operation can change the meaning of every plan that
+    # uses it, so each affected plan must be reviewed and approved again.
+    affected_plans = db.query(MaintenancePlan).join(
+        MaintenancePlanOperation, MaintenancePlanOperation.plan_id == MaintenancePlan.id
+    ).filter(MaintenancePlanOperation.operation_id == operation.id).all()
+    for plan in affected_plans:
+        plan.is_approved = False
     try: db.commit(); db.refresh(operation)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل عملية الصيانة.") from exc
     return operation
