@@ -19,6 +19,7 @@ core/logging.py
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from pathlib import Path
@@ -85,6 +86,11 @@ def _build_output_handlers() -> list:
     stream = logging.StreamHandler(stream=sys.stderr)
     stream.setFormatter(logging.Formatter(_LOG_FORMAT))
     stream.setLevel(level)
+
+    # Vercel functions run on a read-only filesystem. Emit to stderr so the
+    # platform can collect runtime logs; keep the rotating file locally.
+    if os.getenv("VERCEL"):
+        return [stream]
 
     log_dir = Path(settings.LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
