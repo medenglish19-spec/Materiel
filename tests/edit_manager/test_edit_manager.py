@@ -32,7 +32,8 @@ def browser_page():
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
       <button type="submit">حفظ الصيانة</button>
     </form>
-    <input id="search" type="search" placeholder="بحث">\n    <form id="serverSearchForm" method="get" action="/maintenance/records"><input id="serverSearch" name="query" type="search" placeholder="بحث خادمي"></form>
+    <input id="search" type="search" placeholder="بحث">
+    <form id="serverSearchForm" method="get" action="/maintenance/records"><input id="serverSearch" name="query" type="search" placeholder="بحث خادمي"></form>
     <script>
       model.onchange=()=>{equipment.value='';operation.value=''};
       equipment.onchange=()=>{operation.value='20'};
