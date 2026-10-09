@@ -50,13 +50,13 @@
     <div class="table-wrap" data-mt-region>
       <table class="m-table" id="operationsTable">
         <thead><tr>
-  <th>#</th>
+  <th class="mt-actions-th" aria-label="إجراءات"></th>
   <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th>الوحدة</th>
   <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="status">الحالة <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th>الإجراءات</th>
 </tr></thead>
         <tbody id="operationsBody"><tr><td colspan="7" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
       </table>
@@ -132,6 +132,13 @@
     if(op.interval_hours!=null)a.push(Number(op.interval_hours).toLocaleString('ar-DZ')+' ساعة');
     if(op.interval_days!=null)a.push(op.interval_days+' يوم');
     return a.length?a.join(' أو '):'—';
+  }
+  function unitText(op){
+    const a=[];
+    if(op.interval_km!=null)a.push('كم');
+    if(op.interval_hours!=null)a.push('ساعة');
+    if(op.interval_days!=null)a.push('يوم');
+    return a.length?a.join(' / '):'—';
   }
   function warningText(op){
     const a=[];
@@ -229,11 +236,10 @@
     $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
       const selected=isPlanMode() && state.planOps.has(op.id);
       return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
-      <td>${i+1}</td>
-      <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
-      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
-      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
+      <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
     </tr>`;
     }).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
     if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' محددة';
