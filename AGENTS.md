@@ -96,7 +96,20 @@ git log --oneline --decorate -10
 
 before significant Git operations.
 
-Keep local and GitHub history synchronized.
+### Mandatory rule: isolated task execution during concurrent work
+
+This rule is mandatory for every AI agent and coding assistant working on this repository.
+
+1. **Commit only the assigned task.** Include only changes that belong to the explicitly assigned task in its commit. Never mix unrelated work into that commit.
+2. **Respect concurrent work.** Assume other agents or developers may be working simultaneously. Treat their changes as independent work.
+3. **Do not interfere with unrelated changes.** Do not modify, revert, overwrite, discard, stage, or commit changes belonging to another task or agent.
+4. **Ignore unrelated work unless it affects your task.** Do not investigate or attempt to resolve concurrent work unless it directly affects the correctness, safety, dependencies, or successful completion of your assigned task.
+5. **Handle dependencies narrowly.** If concurrent work directly affects your task, inspect only the relevant parts and coordinate or report the conflict when necessary. Do not independently resolve another agent's work.
+6. **Stage narrowly.** Before committing, inspect the diff and stage only the files or specific hunks required for your task. If a file contains changes from multiple tasks, include only your own changes and preserve the others.
+7. **Protect concurrent progress.** Never use broad resets, destructive synchronization, forced operations, or other actions that could erase another person's work.
+8. **Keep the scope focused.** Make the smallest correct change, run relevant tests, and report the outcome. Do not absorb unrelated improvements into the task.
+
+This rule takes precedence over any general preference for synchronizing local work with GitHub. GitHub state must not be used as a reason to overwrite, discard, or incorporate another task's in-progress changes.
 
 Do not:
 
