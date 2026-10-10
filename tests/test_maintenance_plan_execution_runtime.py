@@ -13,10 +13,22 @@ from app.modules.equipment.models import Equipment
 from app.modules.faults_repairs.models import Fault
 from app.modules.users.models import User
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord
+from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models
 from app.modules.maintenance.router import api_plan_execution_create
-from app.modules.maintenance.services import latest_records
+from app.modules.maintenance.services import CONDITION_MODEL, latest_records
 from app.modules.maintenance.schemas import MaintenancePlanExecutionCreate
+
+
+def link_model_condition(db, operation, model, **condition):
+    """علاقة العملية بالطراز، وهي التي تحمل شرط استحقاق ذلك الطراز."""
+    db.execute(
+        maintenance_operation_models.insert().values(
+            operation_id=operation.id,
+            equipment_model_id=model.id,
+            condition_source=CONDITION_MODEL,
+            **condition,
+        )
+    )
 
 
 engine = create_engine(
@@ -81,6 +93,9 @@ def test_plan_execution_creates_one_record_per_active_operation():
             MaintenancePlanOperation(plan_id=plan.id, operation_id=brakes.id, sort_order=2),
             MaintenancePlanOperation(plan_id=plan.id, operation_id=disabled.id, sort_order=3),
         ])
+        # العلاقة بالطراز تحمل شرط الطراز؛ لا تُستنتج من القيمة القديمة على العملية.
+        link_model_condition(db, oil, model, interval_km=Decimal("10000"), warning_km=Decimal("500"))
+        link_model_condition(db, brakes, model, interval_days=180, warning_days=7)
         db.commit()
 
         payload = MaintenancePlanExecutionCreate(
@@ -170,6 +185,8 @@ def test_plan_execution_rejects_plan_for_another_model_without_records():
         db.add_all([equipment, operation, plan])
         db.flush()
         db.add(MaintenancePlanOperation(plan_id=plan.id, operation_id=operation.id))
+        # ربط العملية بطراز الخطة مع شرط خاص بذلك الطراز.
+        link_model_condition(db, operation, model_b, interval_km=Decimal("10000"))
         db.commit()
 
         payload = MaintenancePlanExecutionCreate(
@@ -212,6 +229,8 @@ def test_removing_plan_operation_preserves_library_and_history_and_blocks_future
         db.flush()
         link = MaintenancePlanOperation(plan_id=plan.id, operation_id=operation.id)
         db.add(link)
+        # ربط العملية بالطراز مع شرط طراز مستقل عن الخطة.
+        link_model_condition(db, operation, model, interval_km=Decimal("10000"))
         db.commit()
 
         first = api_plan_execution_create(

@@ -60,7 +60,7 @@
       <div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>التعديل يظل خاضعًا لشروط العملية والطراز وتسلسل العداد.</p></div></div>
       <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
         <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
         <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
         <input class="m-input" name="maintenance_date" id="maintenanceEditDate" type="date" required value="{{ edit_record.maintenance_date }}">
         <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="العداد عند التنفيذ">
@@ -78,7 +78,7 @@
     <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية بعد تحديد العتاد</option>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}">{{ o.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية بعد تحديد العتاد</option>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}">{{ o.name }}</option>{% endfor %}</select>
       <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
       <div id="currentMeterHint" class="muted" style="min-width:210px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
       <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="العداد عند التنفيذ"><input class="m-input" name="work_order" placeholder="أمر العمل"><input class="m-input" name="workshop" placeholder="الورشة / الجهة"><input class="m-input" name="description" placeholder="الوصف / الأعمال المنجزة"><button class="m-btn primary" type="submit">حفظ الصيانة</button>
@@ -119,12 +119,22 @@
   function filterPlanByOperation(){
     refreshOperationAndPlans();
   }
+  function requiresMeterFor(option,modelId){
+    if(!option||!modelId)return false;
+    const models=(option.dataset.meterModels||'').split(',').filter(Boolean).map(pair=>pair.split(':'));
+    const hit=models.find(pair=>pair[0]===String(modelId));
+    return hit?hit[1]==='1':false;
+  }
+  function selectedModelId(form){
+    const select=form?.querySelector('[name="equipment_id"]')||document.getElementById('equipmentSelect');
+    return select?.selectedOptions[0]?.dataset.modelId||'';
+  }
   function validate(form,isEdit){
     const date=form.querySelector('[name="maintenance_date"]'), meterInput=form.querySelector('[name="meter_value"]'), op=form.querySelector('[name="operation_id"]');
     if(date?.value&&date.value>today){alert('لا يمكن تسجيل صيانة بتاريخ مستقبلي.');date.focus();return false}
     if(!op?.value){alert('يجب اختيار عملية صيانة.');op?.focus();return false}
     if(meterInput?.value!==''&&(!Number.isFinite(Number(meterInput.value))||Number(meterInput.value)<0)){alert('قيمة العداد غير صحيحة.');meterInput.focus();return false}
-    if(!isEdit&&op.selectedOptions[0]?.dataset.requiresMeter==='1'&&meterInput&&!meterInput.value){alert('هذه العملية تعتمد على العداد، ويجب إدخال القراءة عند التنفيذ.');meterInput.focus();return false}
+    if(requiresMeterFor(op.selectedOptions[0],selectedModelId(form))&&meterInput&&!meterInput.value){alert('هذه العملية تعتمد على العداد وفق شرط هذا الطراز، ويجب إدخال القراءة عند التنفيذ.');meterInput.focus();return false}
     return true
   }
   if(model)model.addEventListener('change',refreshNew);if(equipment)equipment.addEventListener('change',refreshOperationAndPlans);if(operation)operation.addEventListener('change',refreshPlans);

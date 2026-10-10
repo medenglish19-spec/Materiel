@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, event, select, desc
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, Table, event, select, desc
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -10,6 +10,42 @@ from app.database.base import Base
 
 def utc_now():
     return datetime.now(timezone.utc)
+
+
+# Relation MaintenanceOperation <-> EquipmentModel.
+#
+# This relation — not the operation row — carries the technical eligibility
+# condition and the warning settings of one model. The same operation can be
+# linked to several models with different conditions, and editing one model's
+# condition never touches another model's row.
+#
+# `condition_source` distinguishes two states that would otherwise both look
+# like NULL columns:
+#   * "unset"  → no condition has been configured for this model yet.
+#                Nothing may be inferred from the operation or from another
+#                model in this case; the UI reports «الشرط غير محدد».
+#   * "model"  → the model's condition is configured (columns may still be
+#                empty on purpose, e.g. the model has no active warning).
+maintenance_operation_models = Table(
+    "maintenance_operation_models",
+    Base.metadata,
+    Column("operation_id", Integer, ForeignKey("maintenance_operations.id", name="fk_maintenance_operation_models_operation", ondelete="CASCADE"), primary_key=True),
+    Column("equipment_model_id", Integer, ForeignKey("equipment_models.id", name="fk_maintenance_operation_models_equipment_model", ondelete="CASCADE"), primary_key=True),
+    Column("condition_source", String(20), nullable=False, default="unset", server_default="unset"),
+    Column("interval_km", Numeric(10, 1), nullable=True),
+    Column("interval_hours", Numeric(10, 1), nullable=True),
+    Column("interval_days", Integer, nullable=True),
+    Column("warning_km", Numeric(10, 1), nullable=True),
+    Column("warning_days", Integer, nullable=True),
+    Column("is_active", Boolean, nullable=False, default=True, server_default="1"),
+    UniqueConstraint("operation_id", "equipment_model_id", name="pk_maintenance_operation_models"),
+    Index("ix_maintenance_operation_models_equipment_model_id", "equipment_model_id"),
+)
+
+# Deliberately no CheckConstraint forcing a non-null interval here: a model row
+# may exist with its condition still unset, and the application must report
+# that state instead of inventing a value. Positive-value validation lives in
+# `app/modules/maintenance/schemas.py`.
 
 
 class MaintenanceOperationGroup(Base):
@@ -27,8 +63,10 @@ class MaintenanceOperationGroup(Base):
 
 class MaintenanceOperation(Base):
     __tablename__ = "maintenance_operations"
+    # لا قيد يفرض فاصلًا على مستوى العملية: شرط الاستحقاق يخص علاقة الطراز،
+    # والعملية العامة في المكتبة قد تكون بلا أي شرط. الأعمدة القديمة تبقى في
+    # المخطط بلا استخدام في الحساب، وتبقى قيود القيم الموجبة عليها.
     __table_args__ = (
-        CheckConstraint("interval_km IS NOT NULL OR interval_hours IS NOT NULL OR interval_days IS NOT NULL", name="ck_maintenance_operation_has_interval"),
         CheckConstraint("interval_km IS NULL OR interval_km > 0", name="ck_maintenance_operation_interval_km_positive"),
         CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_operation_interval_hours_positive"),
         CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_operation_interval_days_positive"),
@@ -50,6 +88,16 @@ class MaintenanceOperation(Base):
     group = relationship("MaintenanceOperationGroup", back_populates="operations")
     plan_operations = relationship("MaintenancePlanOperation", back_populates="operation")
     records = relationship("MaintenanceRecord", back_populates="operation")
+    equipment_models = relationship(
+        "EquipmentModel",
+        secondary="maintenance_operation_models",
+        back_populates="maintenance_operations",
+    )
+
+    @property
+    def equipment_model_ids(self) -> list[int]:
+        """Return list of equipment model IDs this operation applies to."""
+        return [m.id for m in self.equipment_models]
 
 
 class MaintenancePlan(Base):

@@ -1,6 +1,6 @@
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -35,8 +35,77 @@ class MaintenanceOperationGroupOut(MaintenanceOperationGroupBase):
     id: int
 
 
+class MaintenanceOperationModelConditionIn(BaseModel):
+    """Condition and warning settings of one operation for one equipment model.
+
+    Both `condition_source` states are meaningful:
+      * "unset" → nothing stored for this model yet;
+      * "model" → stored for this model (empty columns are then deliberate).
+    """
+
+    model_id: int
+    condition_source: Literal["unset", "model"] = "model"
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    warning_km: Optional[Decimal] = None
+    warning_days: Optional[int] = None
+
+    @field_validator("interval_km")
+    @classmethod
+    def model_interval_km_valid(cls, value):
+        return _positive(value, "فترة كيلومترات الطراز")
+
+    @field_validator("interval_hours")
+    @classmethod
+    def model_interval_hours_valid(cls, value):
+        return _positive(value, "فترة ساعات الطراز")
+
+    @field_validator("interval_days")
+    @classmethod
+    def model_interval_days_valid(cls, value):
+        return _positive(value, "فترة أيام الطراز")
+
+    @field_validator("warning_km")
+    @classmethod
+    def model_warning_km_valid(cls, value):
+        return _nonnegative(value, "تنبيه كيلومترات الطراز")
+
+    @field_validator("warning_days")
+    @classmethod
+    def model_warning_days_valid(cls, value):
+        return _nonnegative(value, "تنبيه أيام الطراز")
+
+
+class MaintenanceOperationModelConditionOut(MaintenanceOperationModelConditionIn):
+    model_name: Optional[str] = None
+    # هل حُفظ شرط لهذا الطراز أصلًا؟ يفرّق بين «غير محدد» و«محدد بلا إنذار».
+    is_defined: bool = False
+    condition_text: str = "—"
+    unit_text: str = "—"
+    warning_text: str = "—"
+    condition_units: list[str] = Field(default_factory=list)
+
+
+class MaintenanceOperationConditionSummaryOut(BaseModel):
+    """Display-ready summary of the models' conditions for the library table."""
+
+    models_count: int = 0
+    defined_count: int = 0
+    unset_count: int = 0
+    condition: Optional[str] = None
+    condition_state: str = "no_models"
+    warning: Optional[str] = None
+    warning_state: str = "no_models"
+    unit: Optional[str] = None
+    has_multiple_conditions: bool = False
+    has_multiple_warnings: bool = False
+
+
 class MaintenanceOperationBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
+    # أعمدة قديمة مشتركة على العملية: تبقى في المخطط ولا تُستخدم في أي حساب،
+    # ولذلك لا يُشترط وجود قيمة فيها. شرط الاستحقاق الفعلي يخص كل طراز.
     interval_km: Optional[Decimal] = None
     interval_hours: Optional[Decimal] = None
     interval_days: Optional[int] = None
@@ -45,6 +114,8 @@ class MaintenanceOperationBase(BaseModel):
     is_active: bool = True
     description: Optional[str] = None
     group_id: Optional[int] = None
+    # Per-model conditions: the authoritative eligibility data.
+    equipment_model_conditions: list[MaintenanceOperationModelConditionIn] = Field(default_factory=list)
 
     @field_validator("interval_km")
     @classmethod
@@ -71,12 +142,6 @@ class MaintenanceOperationBase(BaseModel):
     def warning_days_valid(cls, value):
         return _nonnegative(value, "تنبيه الأيام")
 
-    @model_validator(mode="after")
-    def validate_interval_presence(self):
-        if self.interval_km is None and self.interval_hours is None and self.interval_days is None:
-            raise ValueError("يجب تحديد شرط زمني واحد على الأقل للعملية")
-        return self
-
 
 class MaintenanceOperationCreate(MaintenanceOperationBase):
     pass
@@ -89,6 +154,20 @@ class MaintenanceOperationUpdate(MaintenanceOperationBase):
 class MaintenanceOperationOut(MaintenanceOperationBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    # الأعمدة القديمة المشتركة على العملية مُهملة في كل عرض تشغيلي، فهي لا
+    # تُرسل في استجابة الـAPI إطلاقًا (تبقى في قاعدة البيانات كما هي).
+    interval_km: Optional[Decimal] = Field(default=None, exclude=True)
+    interval_hours: Optional[Decimal] = Field(default=None, exclude=True)
+    interval_days: Optional[int] = Field(default=None, exclude=True)
+    warning_km: Optional[Decimal] = Field(default=None, exclude=True)
+    warning_days: Optional[int] = Field(default=None, exclude=True)
+    # شروط الطرازات: تُبنى في الـ router/الخدمة، لا من خصائص ORM مباشرة.
+    model_conditions: list[MaintenanceOperationModelConditionOut] = Field(default_factory=list)
+    condition_summary: MaintenanceOperationConditionSummaryOut = Field(
+        default_factory=MaintenanceOperationConditionSummaryOut
+    )
+    # مصدر الشرط: شروط محفوظة على علاقات الطرازات، أو لا شرط محفوظ لأي طراز.
+    condition_source: Literal["model_conditions", "none"] = "none"
 
 
 class MaintenancePlanBase(BaseModel):

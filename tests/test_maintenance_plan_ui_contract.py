@@ -46,4 +46,5 @@ def test_maintenance_plan_ui_exposes_complete_controls():
 
 def test_plan_operation_add_rejects_inactive_operation():
     source = ROUTER_SOURCE.read_text(encoding="utf-8")
-    assert 'if not operation.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة.")' in source
+    assert 'if not operation.is_active:' in source
+    assert 'لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة' in source

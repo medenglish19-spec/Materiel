@@ -77,11 +77,18 @@
 (function(){
   const api='/api/maintenance';
   const models={{ models|tojson }};
-  const state={plans:[],operations:[],planOps:[],currentPlanId:null,equipment:[]};
+  const state={plans:[],operations:[],planOps:[],currentPlanId:null,currentPlanModelId:null,equipment:[]};
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const modelName=id=>models.find(m=>m.id===id)?.name||'—';
-  const condition=o=>[o.interval_km!=null?Number(o.interval_km).toLocaleString('ar-DZ')+' كم':null,o.interval_hours!=null?o.interval_hours+' ساعة':null,o.interval_days!=null?o.interval_days+' يوم':null].filter(Boolean).join(' أو ')||'—';
+  // شرط الاستحقاق يخص الطراز: تُقرأ قيمته لطراز الخطة من بيانات الخدمة.
+  const operationConditions={{ operation_conditions | tojson }};
+  const condition=(o,modelId)=>{
+    if(!o||!modelId)return '—';
+    const entry=operationConditions[o.id+':'+modelId];
+    if(!entry)return '—';
+    return entry.is_defined?entry.condition_text:'الشرط غير محدد لهذا الطراز';
+  };
   function alert(msg,bad=false){$('alert').textContent=msg;$('alert').className='alert '+(bad?'danger':'success');$('alert').style.display='';setTimeout(()=>$('alert').style.display='none',3500)}
   function fillModels(){
     $('modelFilter').innerHTML='<option value="">كل الطرازات</option>';
@@ -108,9 +115,10 @@
   async function approve(id){const p=state.plans.find(x=>x.id===id);if(!p)return;if(!confirm('اعتماد الخطة سيُظهر عملياتها ضمن متابعات هذا الطراز. هل راجعت العمليات وفواصلها؟'))return;try{await req(api+'/plans/'+id+'/approve',{method:'POST'});alert('تم اعتماد الخطة، وستظهر عملياتها ضمن المتابعات.');await load()}catch(e){alert(e.message,true)}}
   function edit(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('planId').value=p.id;$('name').value=p.name;$('model').value=p.equipment_model_id;$('km').value=p.interval_km??'';$('hours').value=p.interval_hours??'';$('days').value=p.interval_days??'';$('description').value=p.description??'';$('active').checked=!!p.is_active;$('editorTitle').textContent='تعديل خطة صيانة';$('editor').style.display='';window.scrollTo({top:$('editor').offsetTop-20,behavior:'smooth'})}
   function newPlan(){$('planId').value='';$('name').value='';$('model').value='';$('km').value='';$('hours').value='';$('days').value='';$('description').value='';$('active').checked=true;$('editorTitle').textContent='إضافة خطة صيانة';$('editor').style.display='';$('operationsPanel').style.display='none';$('executionPanel').style.display='none';$('editor').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('name').focus(),350)}
-  async function manage(id){state.currentPlanId=id;const p=state.plans.find(x=>x.id===id);if(!p)return;$('operationsTitle').textContent='عمليات الخطة: '+p.name;$('operationsPanel').style.display='';$('operationSelect').innerHTML='<option value="">اختر عملية</option>'+state.operations.filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');try{state.planOps=await req(api+'/plans/'+id+'/operations');renderOps(id);$('operationsPanel').scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message,true)}}
+  async function manage(id){state.currentPlanId=id;const p=state.plans.find(x=>x.id===id);if(!p)return;state.currentPlanModelId=p.equipment_model_id;$('operationsTitle').textContent='عمليات الخطة: '+p.name;$('operationsPanel').style.display='';$('operationSelect').innerHTML='<option value="">اختر عملية</option>'+state.operations.filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');try{state.planOps=await req(api+'/plans/'+id+'/operations');renderOps(id);$('operationsPanel').scrollIntoView({behavior:'smooth'})}catch(e){alert(e.message,true)}}
   function renderOps(planId){
-    $('planOps').innerHTML=state.planOps.length?state.planOps.map(x=>{const o=state.operations.find(v=>v.id===x.operation_id);return '<tr><td>'+esc(o?.name||'—')+'</td><td>'+esc(condition(o||{}))+'</td><td>'+x.sort_order+'</td><td><button class="m-btn" type="button" data-remove-op="'+x.operation_id+'">🗑 إزالة</button></td></tr>'}).join(''):'<tr><td colspan="4" class="muted">لا توجد عمليات مرتبطة بهذه الخطة.</td></tr>';
+    const modelId=state.currentPlanModelId;
+    $('planOps').innerHTML=state.planOps.length?state.planOps.map(x=>{const o=state.operations.find(v=>v.id===x.operation_id);return '<tr><td>'+esc(o?.name||'—')+'</td><td>'+esc(condition(o||{},modelId))+'</td><td>'+x.sort_order+'</td><td><button class="m-btn" type="button" data-remove-op="'+x.operation_id+'">🗑 إزالة</button></td></tr>'}).join(''):'<tr><td colspan="4" class="muted">لا توجد عمليات مرتبطة بهذه الخطة.</td></tr>';
     document.querySelectorAll('[data-remove-op]').forEach(b=>b.onclick=()=>removeOperation(planId,Number(b.dataset.removeOp)));
   }
   async function removeOperation(planId,operationId){
@@ -129,7 +137,7 @@
   }
   function renderExecutionOps(){
     if(!state.planOps.length){$('executionOperations').innerHTML='<div class="muted">لا توجد عمليات مفعلة في هذه الخطة.</div>';return}
-    $('executionOperations').innerHTML=state.planOps.map(link=>{const o=state.operations.find(v=>v.id===link.operation_id);if(!o)return '';return '<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #ddd;border-radius:8px"><input class="execution-op" type="checkbox" value="'+o.id+'"><span><strong>'+esc(o.name)+'</strong><small style="display:block">'+esc(condition(o))+'</small></span></label>'}).join('');
+    $('executionOperations').innerHTML=state.planOps.map(link=>{const o=state.operations.find(v=>v.id===link.operation_id);if(!o)return '';return '<label style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #ddd;border-radius:8px"><input class="execution-op" type="checkbox" value="'+o.id+'"><span><strong>'+esc(o.name)+'</strong><small style="display:block">'+esc(condition(o,state.currentPlanModelId))+'</small></span></label>'}).join('');
     document.querySelectorAll('.execution-op').forEach(b=>b.onchange=updateExecutionProgress);
   }
   function updateExecutionProgress(){const total=document.querySelectorAll('.execution-op').length,selected=document.querySelectorAll('.execution-op:checked').length,pct=total?Math.round(selected*100/total):0;$('executionProgress').textContent=total?'تم تحديد '+selected+' من '+total+' عمليات — نسبة الإنجاز عند التسجيل: '+pct+'%.':'لا توجد عمليات.'}

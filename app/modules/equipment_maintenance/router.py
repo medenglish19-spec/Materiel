@@ -11,7 +11,14 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
-from app.modules.maintenance.services import chronology_error, effective_operations_for_equipment, measurement_unit
+from app.modules.maintenance.services import (
+    chronology_error,
+    condition_for_equipment,
+    effective_operations_for_equipment,
+    measurement_unit,
+    meter_required_for_condition,
+    validate_operation_applicable_to_equipment,
+)
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -23,7 +30,7 @@ def get_equipment(db: Session, equipment_id: int):
     ).filter(Equipment.id == equipment_id).first()
 
 def get_operations(db: Session, equipment):
-    return effective_operations_for_equipment(db, equipment, include_standalone=True)
+    return effective_operations_for_equipment(db, equipment, include_standalone=False)
 
 def parse_meter(value: str):
     if not value or not value.strip():
@@ -43,6 +50,12 @@ def validate_operation(db: Session, equipment, operation_id: int):
     ).first()
     if operation is None:
         raise HTTPException(status_code=400, detail="عملية الصيانة المحددة غير موجودة أو غير مفعلة.")
+    
+    # Use shared validation function
+    validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+    if validation_error:
+        raise HTTPException(status_code=400, detail=validation_error)
+    
     if operation.id not in {item.id for item in get_operations(db, equipment)}:
         raise HTTPException(status_code=400, detail="عملية الصيانة المختارة لا تنطبق على طراز هذا العتاد.")
     return operation
@@ -52,8 +65,9 @@ def validate_meter_and_date(db, equipment, operation, maintenance_date, meter_va
         raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
     meter = parse_meter(meter_value)
     unit = measurement_unit(equipment)
-    interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
-    if interval is not None and meter is None:
+    # شرط طراز العتاد هو المرجع، لا القيمة القديمة المشتركة على العملية.
+    condition = condition_for_equipment(db, operation, equipment)
+    if meter_required_for_condition(condition, unit) and meter is None:
         raise HTTPException(status_code=400, detail="يجب إدخال العداد عند الصيانة لأن هذه العملية تعتمد على العداد.")
     chronology = chronology_error(db, equipment.id, maintenance_date, meter, exclude_id=exclude_id)
     if chronology:

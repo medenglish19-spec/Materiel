@@ -34,4 +34,5 @@ def test_maintenance_conditions_library_uses_operation_conditions():
     assert "كل كم يوم" in rules
     assert "إنذار قبل كم" in rules
     assert "إنذار قبل أيام" in rules
-    assert "مكتبة شروط الصيانة الدورية" in rules
+    # Updated page title
+    assert "مكتبة عمليات الصيانة" in rules

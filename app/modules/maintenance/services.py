@@ -1,11 +1,29 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import desc
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.modules.maintenance.models import MaintenanceRecord, MaintenanceOperation, MaintenancePlanOperation, MaintenancePlan
+from app.modules.maintenance.models import (
+    MaintenanceRecord,
+    MaintenanceOperation,
+    MaintenancePlanOperation,
+    MaintenancePlan,
+    maintenance_operation_models,
+)
 from app.modules.meter_readings.models import MeterReading
+
+CONDITION_UNSET = "unset"
+CONDITION_MODEL = "model"
+
+CONDITION_UNSET_LABEL = "الشرط غير محدد"
+MULTIPLE_CONDITIONS_LABEL = "شروط متعددة"
+MULTIPLE_WARNINGS_LABEL = "إعدادات متعددة"
+NO_WARNING_LABEL = "بدون إنذار مفعّل"
+NO_MODELS_LABEL = "لا توجد طرازات مرتبطة"
 
 
 def latest_readings(db: Session):
@@ -158,26 +176,26 @@ def latest_plan_records(db: Session):
             result[key] = row
     return result
 
-def effective_operations_for_equipment(db: Session, equipment, include_standalone=True):
+def effective_operations_for_equipment(db: Session, equipment, include_standalone=False):
     """Return active operations applicable to the equipment model.
 
-    Planned operations come from active plans for the model. Standalone
-    operations are included when requested. Plan membership does not alter
-    the operation's own technical condition.
+    Operations are included only if they have an explicit relationship
+    to the equipment model via maintenance_operation_models.
+    Plan membership and approval status are separate administrative concepts.
     """
     model_id = getattr(equipment, "equipment_model_id", None)
     if model_id is None:
         return []
 
+    # Get operations explicitly linked to this model
     rows = (
         db.query(MaintenanceOperation)
-        .join(MaintenancePlanOperation, MaintenancePlanOperation.operation_id == MaintenanceOperation.id)
-        .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+        .join(
+            MaintenanceOperation.equipment_models
+        )
         .filter(
             MaintenanceOperation.is_active.is_(True),
-            MaintenancePlan.equipment_model_id == model_id,
-            MaintenancePlan.is_active.is_(True),
-            MaintenancePlan.is_approved.is_(True),
+            MaintenanceOperation.equipment_models.any(id=model_id),
         )
         .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
         .all()
@@ -190,12 +208,14 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
             seen.add(operation.id)
             result.append(operation)
 
+    # Standalone operations (not linked to any model) are NOT included by default.
+    # They must be explicitly linked to a model to be applicable.
     if include_standalone:
         standalone = (
             db.query(MaintenanceOperation)
             .filter(
                 MaintenanceOperation.is_active.is_(True),
-                ~MaintenanceOperation.plan_operations.any(),
+                ~MaintenanceOperation.equipment_models.any(),
             )
             .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
             .all()
@@ -207,6 +227,417 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
 
     return sorted(result, key=lambda operation: (operation.name, operation.id))
 
+
+# ---------------------------------------------------------------------------
+# Per-model eligibility conditions
+#
+# A condition belongs to the operation↔model relation, not to the shared
+# operation. Resolution below never reads the operation's own
+# `interval_*` / `warning_*` columns and never reads another model's row: those
+# legacy shared columns are ignored by every calculation, alert and operational
+# view, and are kept in the database untouched. An operation with no model
+# relation is a general library entry: it produces no due state and no alert,
+# and a relation without a stored condition reports «الشرط غير محدد».
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ModelCondition:
+    """Eligibility condition of one operation for one equipment model."""
+
+    operation_id: int | None = None
+    equipment_model_id: int | None = None
+    condition_source: str = CONDITION_UNSET
+    interval_km: Decimal | None = None
+    interval_hours: Decimal | None = None
+    interval_days: int | None = None
+    warning_km: Decimal | None = None
+    warning_days: int | None = None
+    is_active: bool = True
+
+    @property
+    def is_defined(self) -> bool:
+        return self.condition_source == CONDITION_MODEL
+
+    @property
+    def has_interval(self) -> bool:
+        return (
+            self.interval_km is not None
+            or self.interval_hours is not None
+            or self.interval_days is not None
+        )
+
+    @property
+    def has_warning(self) -> bool:
+        return self.warning_km is not None or self.warning_days is not None
+
+    def without_condition(self) -> "ModelCondition":
+        """The same relation with its stored condition cleared."""
+        return replace(
+            self,
+            condition_source=CONDITION_UNSET,
+            interval_km=None,
+            interval_hours=None,
+            interval_days=None,
+            warning_km=None,
+            warning_days=None,
+        )
+
+
+def _condition_from_row(row) -> ModelCondition:
+    return ModelCondition(
+        operation_id=row.operation_id,
+        equipment_model_id=row.equipment_model_id,
+        condition_source=(row.condition_source or CONDITION_UNSET),
+        interval_km=row.interval_km,
+        interval_hours=row.interval_hours,
+        interval_days=row.interval_days,
+        warning_km=row.warning_km,
+        warning_days=row.warning_days,
+        is_active=bool(row.is_active),
+    )
+
+
+def _condition_rows(db: Session, operation_id: int, equipment_model_id: int | None = None):
+    query = select(maintenance_operation_models).where(
+        maintenance_operation_models.c.operation_id == operation_id,
+    )
+    if equipment_model_id is not None:
+        query = query.where(
+            maintenance_operation_models.c.equipment_model_id == equipment_model_id
+        )
+    return db.execute(query).all()
+
+
+def operation_condition_for_model(db: Session, operation_id: int, equipment_model_id: int | None) -> ModelCondition:
+    """Condition stored for one operation on one model.
+
+    Returns an unset condition (never a copied default) when the model is
+    unknown or has no condition configured yet.
+    """
+    if operation_id is None or equipment_model_id is None:
+        return ModelCondition(operation_id=operation_id, equipment_model_id=equipment_model_id)
+    rows = _condition_rows(db, operation_id, equipment_model_id)
+    if not rows:
+        return ModelCondition(operation_id=operation_id, equipment_model_id=equipment_model_id)
+    return _condition_from_row(rows[0])
+
+
+def operation_conditions_by_model(db: Session, operation_ids) -> dict:
+    """Every stored condition of the given operations, keyed by (operation_id, model_id).
+
+    One query for the whole page — the rules table and the due engine must not
+    issue a query per operation and per model.
+    """
+    ids = [int(operation_id) for operation_id in operation_ids if operation_id is not None]
+    if not ids:
+        return {}
+    rows = db.execute(
+        select(maintenance_operation_models).where(
+            maintenance_operation_models.c.operation_id.in_(ids)
+        )
+    ).all()
+    return {(row.operation_id, row.equipment_model_id): _condition_from_row(row) for row in rows}
+
+
+def condition_for_equipment(db: Session, operation, equipment) -> ModelCondition:
+    """The condition the due engine must use: the equipment's own model row."""
+    model_id = getattr(equipment, "equipment_model_id", None)
+    return operation_condition_for_model(db, getattr(operation, "id", None), model_id)
+
+
+def meter_required_for_condition(condition, unit: str) -> bool:
+    """Does one model's condition make an odometer/hour reading mandatory?
+
+    The equipment's own model condition decides, per axis: a model whose stored
+    condition has no interval on this equipment's unit axis does not require a
+    reading. This keeps one policy across the app — the same rule that makes an
+    unset model report «الشرط غير محدد» instead of being measured against a value
+    nobody stored for it.
+    """
+    if unit == "km":
+        return getattr(condition, "interval_km", None) is not None
+    if unit == "hours":
+        return getattr(condition, "interval_hours", None) is not None
+    return False
+
+
+def condition_without_interval(condition: ModelCondition | None) -> bool:
+    """True when the condition is configured but defines no interval axis."""
+    if condition is None:
+        return True
+    return condition.is_defined and not condition.has_interval
+
+
+def check_plan_operation_condition_compatibility(plan, model_condition: ModelCondition | None) -> str | None:
+    """Compare a plan's own cadence with one model's operation condition.
+
+    A plan is bound to a single equipment model, so it must be checked against
+    that model's condition only — never against a single operation-wide value.
+    """
+    if model_condition is None or not model_condition.is_defined:
+        return f"{CONDITION_UNSET_LABEL} لهذا الطراز؛ لا يمكن مقارنته بشرط الخطة"
+    if not model_condition.has_interval:
+        return "شرط الطراز لا يحدد أي فاصل صيانة؛ لا يمكن مقارنته بشرط الخطة"
+    return check_plan_operation_compatibility(plan, model_condition)
+
+
+def _number(value) -> str:
+    number = Decimal(str(value))
+    if number == number.to_integral_value():
+        return str(int(number))
+    return format(number.normalize(), "f")
+
+
+def condition_axis_text(condition: ModelCondition | None) -> str:
+    """Human summary of the stored interval axes of one model condition.
+
+    Only a condition stored on the operation↔model relation is rendered. The
+    operation's own `interval_*` columns are not a model condition and are not
+    shown here at all.
+    """
+    if condition is None or not condition.is_defined:
+        return "—"
+    parts = []
+    if condition.interval_km is not None:
+        parts.append(f"{_number(condition.interval_km)} كم")
+    if condition.interval_hours is not None:
+        parts.append(f"{_number(condition.interval_hours)} ساعة")
+    if condition.interval_days is not None:
+        parts.append(f"{condition.interval_days} يوم")
+    if not parts:
+        return "بدون فاصل محدد"
+    return " أو ".join(parts)
+
+
+def condition_axis_units(condition: ModelCondition | None) -> list:
+    """Unit keys of the stored interval axes, in display order."""
+    if condition is None or not condition.is_defined:
+        return []
+    units = []
+    if condition.interval_km is not None:
+        units.append("km")
+    if condition.interval_hours is not None:
+        units.append("hours")
+    if condition.interval_days is not None:
+        units.append("days")
+    return units
+
+
+_UNIT_LABELS = {"km": "كم", "hours": "ساعة", "days": "يوم"}
+
+
+def condition_unit_text(condition: ModelCondition | None) -> str:
+    units = condition_axis_units(condition)
+    if not units:
+        return "—"
+    return " / ".join(_UNIT_LABELS[unit] for unit in units)
+
+
+def warning_setting_text(condition: ModelCondition | None, reference: bool = False) -> str:
+    """Warning setting of one model condition.
+
+    Distinguishes "no setting stored" from "configured with no active warning".
+
+    ``reference`` is accepted and ignored: it belonged to the removed design that
+    rendered the operation's legacy shared value as a reference. The legacy value
+    is now ignored everywhere, and keeping the keyword tolerant means a caller
+    left on the old signature can no longer turn the whole operations list into a
+    500.
+    """
+    if condition is None or not condition.is_defined:
+        return "—"
+    if not condition.has_warning:
+        return NO_WARNING_LABEL
+    parts = []
+    if condition.warning_km is not None:
+        parts.append(f"{_number(condition.warning_km)} كم")
+    if condition.warning_days is not None:
+        parts.append(f"{condition.warning_days} يوم")
+    if not parts:
+        return NO_WARNING_LABEL
+    return " / ".join(parts)
+
+
+def _distinct(values) -> list:
+    distinct = []
+    for value in values:
+        if value not in distinct:
+            distinct.append(value)
+    return distinct
+
+
+def summarize_operation_conditions(condition_rows: list) -> dict:
+    """Summary of the models' conditions for the operations table.
+
+    Each entry describes one operation and carries already-computed display
+    strings, so the table never has to reinterpret a condition on its own:
+
+    * no linked model      → no condition and no warning is shown at all;
+    * one or more models, all with the same stored condition → that condition;
+    * models with different conditions → «شروط متعددة» + per-model details;
+    * at least one model without a stored condition → «الشرط غير محدد», and no
+      value is inferred from the other models.
+    """
+    summary = {
+        "models_count": len(condition_rows),
+        "defined_count": 0,
+        "unset_count": 0,
+        "condition": None,
+        "condition_state": "no_models",
+        "warning": None,
+        "warning_state": "no_models",
+        "unit": None,
+        "has_multiple_conditions": False,
+        "has_multiple_warnings": False,
+    }
+    if not condition_rows:
+        return summary
+
+    defined = [row for row in condition_rows if row["is_defined"]]
+    summary["defined_count"] = len(defined)
+    summary["unset_count"] = len(condition_rows) - len(defined)
+
+    units = _distinct(
+        unit
+        for row in defined
+        for unit in row.get("condition_units", [])
+    )
+    summary["unit"] = " / ".join(_UNIT_LABELS[unit] for unit in units) if units else "—"
+
+    if summary["unset_count"]:
+        summary["condition"] = CONDITION_UNSET_LABEL
+        summary["condition_state"] = "unset" if not defined else "partially_unset"
+    else:
+        texts = _distinct(row["condition_text"] for row in defined)
+        if len(texts) == 1:
+            summary["condition"] = texts[0]
+            summary["condition_state"] = "shared"
+        else:
+            summary["condition"] = MULTIPLE_CONDITIONS_LABEL
+            summary["condition_state"] = "multiple"
+            summary["has_multiple_conditions"] = True
+
+    warning_texts = _distinct(row["warning_text"] for row in defined)
+    if len(warning_texts) == 1:
+        summary["warning"] = warning_texts[0]
+        summary["warning_state"] = "shared"
+    else:
+        summary["warning"] = MULTIPLE_WARNINGS_LABEL
+        summary["warning_state"] = "multiple"
+        summary["has_multiple_warnings"] = True
+
+    return summary
+
+
+def operation_condition_details(db: Session, operation) -> list:
+    """Per-model condition rows behind the rules table's condition column."""
+    models = sorted(operation.equipment_models, key=lambda model: (model.name or "", model.id))
+    conditions = operation_conditions_by_model(db, [operation.id])
+    rows = []
+    for model in models:
+        condition = conditions.get((operation.id, model.id), ModelCondition(operation_id=operation.id, equipment_model_id=model.id))
+        rows.append(
+            {
+                "model_id": model.id,
+                "model_name": model.name,
+                "is_defined": condition.is_defined,
+                "condition_source": condition.condition_source,
+                "interval_km": condition.interval_km,
+                "interval_hours": condition.interval_hours,
+                "interval_days": condition.interval_days,
+                "warning_km": condition.warning_km,
+                "warning_days": condition.warning_days,
+                "condition_text": condition_axis_text(condition),
+                "condition_units": condition_axis_units(condition),
+                "unit_text": condition_unit_text(condition),
+                "warning_text": warning_setting_text(condition),
+            }
+        )
+    return rows
+
+
+def operation_condition_entries(db: Session, operation) -> list:
+    """Details of every model relation of one operation."""
+    return operation_condition_details(db, operation)
+
+
+def operation_condition_summary(db: Session, operation) -> dict:
+    return summarize_operation_conditions(operation_condition_details(db, operation))
+
+
+def operations_payload(db: Session, operations: list) -> list:
+    """Serialize operations with their per-model conditions for the JSON API.
+
+    Only conditions stored on the operation↔model relation are exposed. The
+    operation's own `interval_*` / `warning_*` columns are legacy shared values
+    that no calculation uses, so they are not sent as a model condition nor as a
+    reference the UI is expected to copy.
+    """
+    operations = list(operations)
+    conditions = operation_conditions_by_model(db, [operation.id for operation in operations])
+    payload = []
+    for operation in operations:
+        details = []
+        for model in sorted(operation.equipment_models, key=lambda model: (model.name or "", model.id)):
+            condition = conditions.get(
+                (operation.id, model.id),
+                ModelCondition(operation_id=operation.id, equipment_model_id=model.id),
+            )
+            details.append(
+                {
+                    "model_id": model.id,
+                    "model_name": model.name,
+                    "is_defined": condition.is_defined,
+                    "condition_source": condition.condition_source,
+                    "interval_km": condition.interval_km,
+                    "interval_hours": condition.interval_hours,
+                    "interval_days": condition.interval_days,
+                    "warning_km": condition.warning_km,
+                    "warning_days": condition.warning_days,
+                    "condition_text": condition_axis_text(condition),
+                    "condition_units": condition_axis_units(condition),
+                    "unit_text": condition_unit_text(condition),
+                    "warning_text": warning_setting_text(condition),
+                }
+            )
+        payload.append(
+            {
+                "id": operation.id,
+                "name": operation.name,
+                "group_id": operation.group_id,
+                "description": operation.description,
+                "is_active": bool(operation.is_active),
+                "model_conditions": details,
+                "condition_summary": summarize_operation_conditions(details),
+            }
+        )
+    return payload
+
+
+def operation_condition_meta(condition, equipment, record, current_value, today=None):
+    """Due state of one operation under one model's condition.
+
+    The engine refuses to invent a condition: an unset or interval-less model
+    condition yields an explicit "not computed" state. The operation's legacy
+    shared columns are never consulted, so they cannot produce a due state.
+    """
+    if condition is None or not condition.is_defined or not condition.has_interval:
+        return (
+            CONDITION_UNSET_LABEL,
+            "neutral",
+            None,
+            {
+                "remaining_days": None,
+                "next_meter": None,
+                "next_date": None,
+                "remaining_km": None,
+                "remaining_hours": None,
+                "condition_unset": True,
+            },
+        )
+    return status_for(condition, equipment, record, current_value, today=today)
+
 def priority_for(state, remaining_meter, meta):
     if state == "مستحقة الآن":
         return 1
@@ -216,3 +647,79 @@ def priority_for(state, remaining_meter, meta):
         return 3
     candidates = [x for x in (remaining_meter, meta.get("remaining_days")) if x is not None]
     return 4 if candidates else 5
+
+
+def check_plan_operation_compatibility(plan, operation):
+    """Check if operation's conditions are compatible with plan's conditions.
+    Returns error message if incompatible, None if compatible.
+
+    This is the single source of truth for plan-operation compatibility validation.
+    """
+    # Check if both have interval_km
+    if plan.interval_km is not None and operation.interval_km is not None:
+        if plan.interval_km != operation.interval_km:
+            return f"شرط العملية ({operation.interval_km} كم) لا يطابق شرط الخطة ({plan.interval_km} كم)"
+    elif plan.interval_km is not None and operation.interval_km is None:
+        return f"الخطة تشترط كيلومترات ({plan.interval_km} كم) لكن العملية لا تحدد شرط كيلومترات"
+    elif plan.interval_km is None and operation.interval_km is not None:
+        return f"العملية تشترط كيلومترات ({operation.interval_km} كم) لكن الخطة لا تحدد شرط كيلومترات"
+
+    # Check if both have interval_hours
+    if plan.interval_hours is not None and operation.interval_hours is not None:
+        if plan.interval_hours != operation.interval_hours:
+            return f"شرط العملية ({operation.interval_hours} ساعة) لا يطابق شرط الخطة ({plan.interval_hours} ساعة)"
+    elif plan.interval_hours is not None and operation.interval_hours is None:
+        return f"الخطة تشترط ساعات تشغيل ({plan.interval_hours} ساعة) لكن العملية لا تحدد شرط ساعات"
+    elif plan.interval_hours is None and operation.interval_hours is not None:
+        return f"العملية تشترط ساعات تشغيل ({operation.interval_hours} ساعة) لكن الخطة لا تحدد شرط ساعات"
+
+    # Check if both have interval_days
+    if plan.interval_days is not None and operation.interval_days is not None:
+        if plan.interval_days != operation.interval_days:
+            return f"شرط العملية ({operation.interval_days} يوم) لا يطابق شرط الخطة ({plan.interval_days} يوم)"
+    elif plan.interval_days is not None and operation.interval_days is None:
+        return f"الخطة تشترط أيام ({plan.interval_days} يوم) لكن العملية لا تحدد شرط أيام"
+    elif plan.interval_days is None and operation.interval_days is not None:
+        return f"العملية تشترط أيام ({operation.interval_days} يوم) لكن الخطة لا تحدد شرط أيام"
+
+    # Check that they have the same type of condition (at least one matching non-null)
+    plan_conditions = [c for c in [plan.interval_km, plan.interval_hours, plan.interval_days] if c is not None]
+    op_conditions = [c for c in [operation.interval_km, operation.interval_hours, operation.interval_days] if c is not None]
+
+    if not plan_conditions:
+        return "الخطة لا تحدد أي شرط صيانة"
+
+    # At least one condition type must match
+    matching_types = 0
+    if plan.interval_km is not None and operation.interval_km is not None:
+        matching_types += 1
+    if plan.interval_hours is not None and operation.interval_hours is not None:
+        matching_types += 1
+    if plan.interval_days is not None and operation.interval_days is not None:
+        matching_types += 1
+
+    if matching_types == 0:
+        return "نوع شرط العملية لا يتطابق مع نوع شرط الخطة"
+
+    return None
+
+
+def validate_operation_applicable_to_equipment(db: Session, operation: MaintenanceOperation, equipment) -> str | None:
+    """Validate that an operation is applicable to the given equipment.
+    
+    Returns error message if not applicable, None if applicable.
+    """
+    if operation is None:
+        return "يجب تحديد عملية الصيانة."
+    if not operation.is_active:
+        return "عملية الصيانة غير مفعلة."
+    
+    equipment_model_id = getattr(equipment, "equipment_model_id", None)
+    if equipment_model_id is None:
+        return "طراز العتاد غير محدد."
+    
+    model_linked = any(m.id == equipment_model_id for m in operation.equipment_models)
+    if not model_linked:
+        return "عملية الصيانة لا تنطبق على طراز هذا العتاد."
+    
+    return None

@@ -190,13 +190,11 @@ def test_effective_operations_includes_standalone_and_deduplicates_planned():
             return list(self.rows)
 
     class FakeDB:
-        def __init__(self, planned, standalone):
-            self.planned = planned
-            self.standalone = standalone
-            self.calls = 0
+        def __init__(self, operations):
+            self.operations = operations
         def query(self, model):
-            self.calls += 1
-            return FakeQuery(self.planned if self.calls == 1 else self.standalone)
+            # Return operations pre-filtered for the model (fake does the filtering)
+            return FakeQuery(self.operations)
 
     class Op:
         def __init__(self, id, name):
@@ -205,8 +203,15 @@ def test_effective_operations_includes_standalone_and_deduplicates_planned():
     equipment_model = SimpleNamespace(equipment_model_id=7)
     first = Op(1, "زيت المحرك")
     duplicate = Op(1, "زيت المحرك")
-    standalone = Op(2, "فحص الفرامل")
-    db = FakeDB([first, duplicate], [standalone])
+    # Second operation (different ID)
+    other = Op(2, "فحص الفرامل")
+
+    # Test with only the two operations that would be returned for this model
+    db = FakeDB([first, duplicate, other])
 
     rows = effective_operations_for_equipment(db, equipment_model)
+    # Should deduplicate by ID
+    assert [row.id for row in rows] == [1, 2]
+
+    rows = effective_operations_for_equipment(db, equipment_model, include_standalone=True)
     assert [row.id for row in rows] == [1, 2]

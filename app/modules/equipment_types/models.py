@@ -2,6 +2,7 @@ from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String, Tabl
 from sqlalchemy.orm import relationship
 from app.database.base import Base
 from app.shared.mixins import TimestampMixin
+from app.modules.maintenance.models import MaintenanceOperation
 
 
 class EquipmentCategory(Base, TimestampMixin):
@@ -57,6 +58,11 @@ class EquipmentModel(Base, TimestampMixin):
     equipment_type = relationship("EquipmentType", back_populates="models")
     brand = relationship("EquipmentBrand", back_populates="models")
     spec_values = relationship("EquipmentModelSpecValue", back_populates="model", cascade="all, delete-orphan")
+    maintenance_operations = relationship(
+        "MaintenanceOperation",
+        secondary="maintenance_operation_models",
+        back_populates="equipment_models",
+    )
 
 equipment_type_spec_definitions = Table(
     "equipment_type_spec_definitions",

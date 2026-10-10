@@ -18,12 +18,13 @@ from sqlalchemy.orm import joinedload
 from app.modules.batteries import services as battery_services
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.services import (
+    condition_for_equipment,
     current_meter_value,
     effective_operations_for_equipment,
     latest_readings,
     latest_records,
     measurement_unit,
-    status_for,
+    operation_condition_meta,
 )
 from app.modules.notifications.services import register_provider
 from app.modules.tires import batch_state as tire_batch_state
@@ -83,8 +84,10 @@ def maintenance_due_provider(db) -> list[dict]:
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in operations_by_model[model_id]:
             record = records.get((eq.id, operation.id))
-            state, css, remaining, meta = status_for(
-                operation, eq, record, current_value
+            # شرط الطراز الفعلي هو المرجع؛ شرط غير محدد لا يولّد إنذارًا ولا يُخترع له بديل.
+            condition = condition_for_equipment(db, operation, eq)
+            state, css, remaining, meta = operation_condition_meta(
+                condition, eq, record, current_value
             )
             if css not in {"danger", "warning"}:
                 continue
