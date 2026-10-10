@@ -134,6 +134,7 @@ def effective_plans_for_equipment(db: Session, equipment):
         .filter(
             MaintenancePlan.equipment_model_id == model_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
         )
         .order_by(MaintenancePlan.name, MaintenancePlan.id)
         .all()
@@ -176,6 +177,7 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
             MaintenanceOperation.is_active.is_(True),
             MaintenancePlan.equipment_model_id == model_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
         )
         .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
         .all()

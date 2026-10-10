@@ -79,14 +79,14 @@ def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db,name): raise ValueError("نوع العتاد موجود مسبقًا")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id);db.add(obj);db.commit();db.refresh(obj);return obj
 def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->EquipmentType:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
     name=data.name.strip()
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     if db.query(EquipmentType).filter(EquipmentType.id!=obj.id,EquipmentType.name==name).first(): raise ValueError("نوع العتاد موجود مسبقًا")
     if data.measurement_unit != obj.measurement_unit:
         from app.modules.equipment.models import Equipment

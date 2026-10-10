@@ -19,11 +19,11 @@
       </h1>
       <div class="ed-hero-ids">
         <div class="ed-id-box">
-          <span class="ed-id-label">رقم التسجيل</span>
+          <span class="ed-id-label">رقم التسجيل:</span>
           <span class="ed-plate">{{ item.registration_number or "غير مسجل" }}</span>
         </div>
         <div class="ed-id-box">
-          <span class="ed-id-label">رقم الهيكل</span>
+          <span class="ed-id-label">رقم الهيكل (VIN):</span>
           <b class="ed-id-value">{{ item.vin or "غير مسجل" }}</b>
         </div>
       </div>
@@ -68,7 +68,7 @@
             <div><span>رقم التسجيل</span><b>{{ item.registration_number or '-' }}</b></div>
             <div><span>النوع</span><b>{{ item.equipment_type.name if item.equipment_type else '-' }}</b></div>
             <div><span>الطراز</span><b>{{ item.equipment_model.name if item.equipment_model else '-' }}</b></div>
-            <div><span>رقم الهيكل</span><b style="direction:ltr;display:inline-block">{{ item.vin or '-' }}</b></div>
+            <div><span>رقم الهيكل</span><b style="direction:ltr;display:inline-block">{{ item.vin or "غير مسجل" }}</b></div>
             <div><span>الوثيقة</span><b>{{ item.acquisition_document or '-' }}</b></div>
             <div><span>تاريخ الاقتناء</span><b>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else '-' }}</b></div>
             <div><span>أول سير / بدء الاستغلال</span><b>{{ item.first_service_date.strftime('%d/%m/%Y') if item.first_service_date else '-' }}</b></div>

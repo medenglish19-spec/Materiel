@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import subprocess
 from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,13 +17,16 @@ from app.modules.equipment_maintenance.router import router as equipment_mainten
 from app.modules.equipment_types.router import router as equipment_types_router
 from app.modules.faults_repairs.router import router as faults_repairs_router
 from app.modules.spare_parts_requests.router import router as spare_parts_requests_router
-from app.modules.spare_parts_requests.routes import received_page, requests_page
+from app.modules.spare_parts_requests.routes import received_page, requests_page, spare_parts_page
+from app.modules.spare_parts_movements.router import router as spare_parts_movements_router
+from app.modules.spare_parts_movements.routes import router as spare_parts_movements_pages_router
 from app.modules.faults_repairs.routes import router as faults_repairs_pages_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
 from app.modules.meter_readings.router import router as meter_readings_router
 from app.modules.tires.router import router as tires_router
 from app.modules.batteries.router import router as batteries_router
+from app.modules.document_import.router import router as document_import_router
 from app.modules.fuel.router import router as fuel_router
 from app.modules.missions.router import router as missions_router
 from app.modules.users.router import router as users_router
@@ -44,19 +48,63 @@ def _database_file() -> str | None:
     return tail
 
 
+def _git_commit() -> str:
+    """The commit this process is running, or a marker when git cannot say."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return done.stdout.strip() or "unknown"
+
+
+def _route_count(app: FastAPI) -> int:
+    """Every endpoint, including the ones inside included routers.
+
+    This FastAPI keeps include_router() results as _IncludedRouter wrappers
+    that carry no .path, so counting app.routes on its own reports only the
+    handful registered directly and hides everything else -- which is how a
+    server that never picked up a new route can look complete.
+    """
+    total = 0
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        total += 1
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            pending.extend(original.routes)
+    return total
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         configure_logging()
         logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
-        init_db()
-        create_default_admin()
-        # تحذيرات ما قبل النشر: تُسجَّل ولا توقف الإقلاع (انظر core/config.py).
-        for warning in security_warnings(_database_file()):
-            logger.warning("[security] %s", warning)
-        yield
-        logger.info("Shutting down %s", settings.APP_NAME)
-        shutdown_logging()
+        # shutdown_logging() drains the log queue, so it has to run even when
+        # startup fails -- otherwise the traceback of a failed migration is
+        # still queued when the process dies and never reaches stderr or app.log.
+        try:
+            init_db()
+            create_default_admin()
+            # What this process actually is. A server left running across
+            # commits serves old routes while the working tree has moved on,
+            # and the resulting 404 looks like a missing route in the code
+            # rather than a stale process. One line settles it.
+            logger.info(
+                "Startup facts: commit=%s routes=%d database=%s",
+                _git_commit(), _route_count(_app), settings.DATABASE_URL,
+            )
+            # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
+            for warning in security_warnings(_database_file()):
+                logger.warning("[security] %s", warning)
+            yield
+            logger.info("Shutting down %s", settings.APP_NAME)
+        finally:
+            shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -102,8 +150,14 @@ def create_app() -> FastAPI:
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
     app.include_router(spare_parts_requests_router, tags=["spare_parts_requests"])
+    app.include_router(spare_parts_movements_router, tags=["spare_parts_movements"])
+    app.include_router(spare_parts_movements_pages_router, tags=["spare_parts_movements_pages"])
+    app.add_api_route("/spare-parts", spare_parts_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_page", tags=["spare_parts_pages"])
     app.add_api_route("/spare-parts-requests", requests_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_requests_page", tags=["spare_parts_requests_pages"])
     app.add_api_route("/spare-parts-received", received_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_received_page", tags=["spare_parts_requests_pages"])
+    # /spare-parts-distribution, /spare-parts-return and /spare-parts-history are
+    # served by spare_parts_movements_pages_router above; registering them a
+    # second time here only gave every page two routes to one URL.
     app.include_router(tires_router, tags=["tires"])
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])

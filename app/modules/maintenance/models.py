@@ -72,6 +72,7 @@ class MaintenancePlan(Base):
     interval_hours = Column(Numeric(10, 1), nullable=True)
     interval_days = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
+    is_approved = Column(Boolean, nullable=False, default=False, server_default="0", index=True)
     description = Column(Text, nullable=True)
 
     equipment_model = relationship("EquipmentModel")

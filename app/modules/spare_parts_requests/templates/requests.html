@@ -1,52 +1,137 @@
 {% extends "base.html" %}
-{% block title %}طلبات الغيار{% endblock %}
+{% block title %}سجل طلب قطع الغيار{% endblock %}
 {% block content %}
 <style>
-.spr{direction:rtl}.spr .top{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-bottom:14px}.spr h1{margin:0;color:#183955;font-size:23px}.spr .muted{font-size:11px;color:#718096;margin-top:5px}.spr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:auto}.spr .bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:11px;border-bottom:1px solid #edf1f4}.spr button,.spr select,.spr input,.spr textarea{font:inherit;font-size:10px}.spr button{border:0;border-radius:6px;padding:8px 12px;background:#0875d1;color:#fff;font-weight:800;cursor:pointer}.spr .secondary{background:#fff;color:#245d88;border:1px solid #dce4ea}.spr select,.spr input,.spr textarea{border:1px solid #dce4ea;border-radius:6px;padding:7px;background:#fff}.spr table{width:100%;min-width:1050px;border-collapse:collapse}.spr th,.spr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}.spr th{background:#f8fafc;color:#718096}.spr .request-row{cursor:pointer}.spr .request-row:hover{background:#fbfdff}.spr .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#245d88;font-weight:800}.spr .detail{display:none;background:#fafcfe}.spr .detail.open{display:table-row}.spr .items{padding:12px}.spr .items table{min-width:950px}.spr .empty{text-align:center;padding:30px;color:#8794a2}.spr .form{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px;border-bottom:1px solid #edf1f4}.spr .wide{grid-column:1/-1}.spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:12px}.spr .rf{border:1px solid #e4eaf0;border-radius:6px;padding:6px 8px;background:#fff;display:flex;flex-direction:column;gap:2px;min-width:0}.spr .rf-k{font-size:9px;color:#718096}.spr .rf-v{font-size:10px;color:#183955;font-weight:700;word-break:break-word}.spr .items-t{width:100%;min-width:950px;margin-top:8px}.spr .items-t th{background:#f8fafc;color:#718096;padding:8px;font-size:10px;text-align:right;border-bottom:1px solid #edf1f4;white-space:nowrap}.spr .items-t td{padding:6px;font-size:10px;border-bottom:1px solid #edf1f4;white-space:nowrap}.spr .items-t input{width:100%;box-sizing:border-box}.spr .new-part-box{position:relative}.spr .new-part-suggest{display:none;position:absolute;z-index:30;top:100%;right:0;left:0;background:#fff;border:1px solid #dce4ea;border-radius:6px;box-shadow:0 6px 18px rgba(24,57,85,.12);max-height:190px;overflow:auto}.spr .new-part-suggest.open{display:block}.spr .new-part-opt{display:block;width:100%;text-align:right;background:#fff;color:#183955;border:0;border-bottom:1px solid #eef2f5;border-radius:0;padding:7px;cursor:pointer;font-weight:400}.spr .new-part-opt:hover{background:#f1f7fd}.spr .new-part-opt small{color:#8794a2}.spr .item-edit{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .new-item{display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px}.spr .item-line{display:grid;grid-template-columns:1.2fr .7fr .9fr 1fr 1.2fr auto;gap:6px;align-items:center;border-top:1px solid #edf1f4;padding:8px 0}.spr .item-line input{width:100%;box-sizing:border-box}.spr .detail-actions{display:flex;gap:6px;margin:0 0 10px}.spr .danger{background:#fff;color:#a04444;border:1px solid #e5caca}.spr .msg{font-size:10px}.spr .err{color:#a04444}.spr .ok{color:#26734d}@media(max-width:700px){.spr .top{align-items:flex-start;flex-direction:column}.spr .form{grid-template-columns:1fr 1fr}.spr .item-line,.spr .item-edit,.spr .new-item{grid-template-columns:1fr 1fr}.spr .wide{grid-column:1/-1}}
-</style>
-<div class="spr">
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap');
+.spr{direction:rtl;color:#4B5563;font-family:'Tajawal',sans-serif}
+.spr *{box-sizing:border-box}
+.spr .top{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin:0 0 24px;padding:0 2px;flex-wrap:wrap}
+.spr h1{margin:0;color:#111827;font-family:'Cairo',sans-serif;font-size:25px;font-weight:800;line-height:1.5}
+.spr .muted{margin-top:5px;color:#4B5563;font-size:13px;line-height:1.8}
+.spr .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spr .panel{background:#fff;border:1px solid #E5E7EB;border-radius:10px;overflow:hidden}
+.spr .toolbar{display:flex;align-items:center;gap:10px;padding:16px;background:#fff;border-bottom:1px solid #E5E7EB;flex-wrap:wrap}
+.spr .search-wrap{position:relative;flex:1 1 320px;min-width:240px}
+.spr .search-wrap input{width:100%;padding:11px 14px;border:1px solid #E5E7EB;border-radius:8px;background:#FAFAFA;color:#111827;font-family:'Tajawal',sans-serif;font-size:13px;outline:none}
+.spr .search-wrap input:focus{background:#fff;border-color:#9CA3AF;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr select,.spr input,.spr textarea{font-family:'Tajawal',sans-serif}
+.spr .toolbar>select{padding:10px 12px;border:1px solid #E5E7EB;border-radius:8px;background:#fff;color:#4B5563;font-size:13px;min-width:145px}
+.spr .toolbar-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.spr .badge{display:inline-flex;align-items:center;justify-content:center;padding:7px 11px;border-radius:7px;background:#F3F4F6;color:#374151;font-size:12px;font-weight:700;white-space:nowrap}
+.spr button,.spr .btn{font-family:'Tajawal',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-radius:6px;padding:9px 15px;border:1px solid #374151;line-height:1.35;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.spr button{background:#374151;color:#fff}
+.spr button:hover{background:#1F2937;border-color:#1F2937}
+.spr button:focus-visible,.spr .btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
+.spr .secondary{background:#fff;color:#374151;border-color:#D1D5DB}
+.spr .secondary:hover{background:#F3F4F6;border-color:#9CA3AF}
+.spr .danger{background:#fff!important;color:#B91C1C!important;border-color:#FECACA!important}
+.spr .danger:hover{background:#FEF2F2!important;border-color:#FCA5A5!important}
+.spr .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.spr .summary-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:16px 18px}
+.spr .summary-label{font-size:12px;color:#6B7280;margin-bottom:5px}
+.spr .summary-value{font-family:'Cairo',sans-serif;font-size:22px;font-weight:800;color:#111827}
+.spr .summary-note{font-size:11px;color:#6B7280;margin-top:2px}
+.spr .table-scroll{width:100%;max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch}
+.spr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}
+.spr th{background:#F9FAFB;color:#111827;font-family:'Cairo',sans-serif;font-size:12px;font-weight:700;padding:13px 12px;text-align:right;border-bottom:1px solid #E5E7EB;white-space:nowrap}
+.spr td{background:#fff;color:#4B5563;font-size:13px;padding:13px 12px;border-bottom:1px solid #E5E7EB;vertical-align:middle}
+.spr tbody tr.request-row{cursor:pointer}
+.spr tbody tr.request-row:hover td{background:#F9FAFB}
+.spr tbody tr:last-child td{border-bottom:0}
+.spr .request-number{font-family:'Tajawal',sans-serif;font-weight:800;color:#111827}
+.spr .status{min-width:110px;padding:7px 9px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px}
+.spr .row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.spr .action-menu{display:inline-block;position:relative}
+.spr .action-menu summary{list-style:none;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;cursor:pointer;font-weight:800}
+.spr .action-menu summary::-webkit-details-marker{display:none}
+.spr .action-menu[open] .action-menu-items{display:block}
+.spr .action-menu-items{display:none;position:absolute;z-index:50;left:0;top:38px;min-width:140px;padding:5px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 8px 24px rgba(17,24,39,.12)}
+.spr .action-menu-items button{width:100%;text-align:right;background:#fff;color:#B91C1C;border:0;border-radius:5px;padding:8px 9px}
+.spr .action-menu-items button:hover{background:#FEF2F2}
+.spr .detail{display:none;background:#F9FAFB}
+.spr .detail.open{display:table-row}
+.spr .detail>td{background:#F9FAFB;padding:18px}
+.spr .items{padding:0}
+.spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.spr .rf{border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:4px;min-width:0}
+.spr .rf-k{font-size:11px;color:#6B7280}
+.spr .rf-v{font-size:13px;color:#111827;font-weight:700;word-break:break-word}
+.spr .rf-ro{background:#F9FAFB}
+.spr .rf-wide{grid-column:1/-1}
+.spr .rf input,.spr .rf select,.spr .rf textarea,.spr .items-t input,.spr .items-t select,.spr .items-t textarea{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px;outline:none}
+.spr .rf input:focus,.spr .rf select:focus,.spr .rf textarea:focus,.spr .items-t input:focus,.spr .items-t select:focus,.spr .items-t textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr .items-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 9px}
+.spr .items-head>b{font-family:'Cairo',sans-serif;color:#111827;font-size:14px}
+.spr .items-t{min-width:950px}
+.spr .items-t th{font-size:11px;padding:10px 8px}
+.spr .items-t td{font-size:12px;padding:8px}
+.spr .item-line.gone{display:none}
+.spr .detail-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #E5E7EB}
+.spr .msg{padding:8px 10px;border-radius:7px;margin-top:0;font-size:12px}
+.spr .msg.err{background:#FEF2F2;color:#991B1B}
+.spr .msg.ok{background:#F0FDF4;color:#166534}
+.spr .line-note{font-size:11px;color:#6B7280}
+.spr .empty{text-align:center;padding:42px;color:#6B7280;font-size:13px}
+.spr .form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px;background:#F9FAFB;border-bottom:1px solid #E5E7EB}
+.spr .form>input,.spr .form>select,.spr .form>textarea{padding:9px 10px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px;outline:none}
+.spr .form>input:focus,.spr .form>select:focus,.spr .form>textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
+.spr .wide{grid-column:1/-1}
+.spr .new-item{display:grid;grid-template-columns:1.5fr .9fr .9fr 1.2fr auto;gap:8px;align-items:center;margin-top:8px}
+.spr .new-item input,.spr .new-item select{width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;font-size:12px}
+.spr .new-part-box{position:relative}
+@media(max-width:900px){.spr .summary-grid{grid-template-columns:1fr}.spr .req-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.spr .form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}}
+</style><div class="spr">
   <div class="top">
-    <div><h1>طلبات الغيار</h1><div class="muted">طلبات الغيار المرتبطة بالأعطال أو التصليحات. اضغط على الطلب لفتح بنوده في نفس الصفحة.</div></div>
-    <a href="/spare-parts-received" style="color:#245d88;font-size:11px;font-weight:800">سجل قطع الغيار المستلم ←</a>
+    <div>
+      <h1>طلبات قطع الغيار</h1>
+      <div class="muted">سجل الطلبات المرتبطة بالأعطال والتصليحات مع البحث والإجراءات المباشرة.</div>
+    </div>
+    <div class="top-actions">
+      <a href="/spare-parts-received" class="secondary" style="text-decoration:none">سجل الاستلام</a>
+      <button id="newBtn" type="button">+ طلب غيار جديد</button>
+    </div>
+  </div>
+  <div class="summary-grid">
+    <div class="summary-card"><div class="summary-label">إجمالي الطلبات</div><div id="summaryTotal" class="summary-value">0</div><div class="summary-note">ضمن السجل الحالي</div></div>
+    <div class="summary-card"><div class="summary-label">قيد الانتظار</div><div id="summaryPending" class="summary-value">0</div><div class="summary-note">طلبات تحتاج متابعة إدارية</div></div>
+    <div class="summary-card"><div class="summary-label">نتيجة البحث</div><div id="summaryFiltered" class="summary-value">0</div><div class="summary-note">بعد تطبيق البحث والفلاتر</div></div>
   </div>
   <div class="panel">
-    <div class="bar">
-      <button type="button" id="newBtn">+ طلب غيار</button>
-      <select id="filterStatus"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
-      <select id="filterSource"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
-      <span id="pendingCount" style="font-size:10px;color:#718096"></span>
+    <div class="toolbar">
+      <div class="search-wrap"><input id="requestSearch" type="search" placeholder="ابحث برقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار"></div>
+      <select id="filterStatus" aria-label="تصفية حسب الحالة"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
+      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+      <div class="toolbar-meta"><span id="resultCount" class="badge">الطلبات: 0</span><span id="pendingCount" class="badge">قيد الانتظار: 0</span></div>
     </div>
-
-    <form id="requestForm" class="form" style="display:none">
-      <input name="request_number" placeholder="رقم وثيقة الطلب *" required>
-      <select name="source_type" id="sourceType" required><option value="">المصدر *</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+    <form id="requestForm" class="form" style="display:none" novalidate>
+      <input name="request_number" id="requestNumber" placeholder="رقم وثيقة الطلب *" required>
+      <select name="source_type" id="sourceType"><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="repair">تصليح</option></select>
       <select name="source_id" id="sourceId" required><option value="">اختر المصدر *</option></select>
       <input name="request_date" id="requestDate" type="date" required>
-      <input id="equipmentView" class="wide" placeholder="العتاد / رقم التسجيل" readonly>
-      <textarea name="notes" class="wide" placeholder="ملاحظات"></textarea>
-
-      <div class="wide" style="border-top:1px solid #edf1f4;padding-top:10px">
-        <b>بنود الطلب</b>
-        <div id="newItems"></div>
-        <button type="button" class="secondary" id="addRequestItem" style="margin-top:8px">+ إضافة بند</button>
-      </div>
-
-      <div class="wide"><button type="submit">حفظ الطلب</button> <span id="formMsg" class="msg"></span></div>
+      <input id="equipmentView" placeholder="رقم التسجيل" readonly>
+      <textarea name="notes" id="requestNotes" class="wide" placeholder="ملاحظات"></textarea>
+      <div class="wide"><b style="font-family:'Cairo',sans-serif;color:#111827">بنود الطلب</b><div id="newItems"></div><button type="button" class="secondary" id="addRequestItem" style="margin-top:8px">+ إضافة بند</button></div>
+      <div class="wide"><button type="submit" id="saveRequest">حفظ الطلب</button><span id="formMsg"></span></div>
     </form>
-
-    <table>
-      <thead><tr><th>رقم وثيقة الطلب</th><th>التاريخ</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="7" class="empty">جارٍ التحميل...</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
-<script>
+    <div class="table-scroll" data-mt-region><table><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </div><script>
 const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
 const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
 const SOURCE={fault:'الأعطال',repair:'التصليحات'};
+const RECEIPT_BEFORE_REQUEST='تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب.';
+const DUPLICATE_PART='قطعة الغيار موجودة بالفعل في الطلب.';
+const RECEIPT_CONFLICT='طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد.';
+/* التحقق قد يعود مصفوفة حقول، فنصهرها نصاً يُقرأ بدل «[object Object]». */
+function errText(d,fallback){
+  /* الخادم يأتي بمحمول {detail:'…'} ولا مع msg: فاصل العيان العربية أبدًا مع الرسالة العامة. */
+  if(d&&typeof d==='object'&&!Array.isArray(d)&&typeof d.detail!=='undefined') return errText(d.detail,fallback);
+  if(Array.isArray(d)) return d.map(function(x){return x&&x.msg?x.msg:String(x);}).join(' — ');
+  if(d&&typeof d==='object') return d.msg||fallback;
+  return d||fallback;
+}
 const sourceType=document.getElementById('sourceType'),sourceId=document.getElementById('sourceId'),requestDate=document.getElementById('requestDate'),equipmentView=document.getElementById('equipmentView');
 const repairId=new URLSearchParams(location.search).get('repair_id');
 
@@ -64,276 +149,307 @@ document.getElementById('newBtn').addEventListener('click',()=>{const f=document
 
 async function openRepairRequest(){
   if(!repairId)return;
-  const f=document.getElementById('requestForm');
-  f.style.display='grid';
-  sourceType.value='repair';
-  await loadSources();
-  sourceId.value=repairId;
-  sourceId.dispatchEvent(new Event('change'));
-}
-
-// يربط حقل البحث بقائمة الاقتراحات: كتابة تُرشِّح، ونقر يُثبّت الاسم والمعرّف.
-function setupPartPicker(row){
-  const text=row.querySelector('.new-part-text');
-  const hidden=row.querySelector('.new-part-id');
-  const list=row.querySelector('.new-part-suggest');
-  const close=()=>{list.innerHTML='';list.classList.remove('open');};
-  const matches=q=>{
-    const needle=q.trim().toLowerCase();
-    if(!needle)return[];
-    const out=[];
-    PARTS.forEach((id,i)=>{
-      const name=String(PART_NAMES[i]??'');
-      const num=String(PART_NUMBERS[i]??'');
-      const hay=(name+' '+num).toLowerCase();
-      if(hay.includes(needle))out.push({id:id,name:name,num:num});
-    });
-    return out.slice(0,12);
-  };
-  const choose=p=>{
-    hidden.value=p.id;
-    text.value=p.name+(p.num?' — '+p.num:'');
-    text.dataset.partId=String(p.id);
-    close();
-  };
-  text.addEventListener('input',()=>{
-    // أي تحرير جديد للاسم يُبطل الاختيار السابق، فلا يُحفظ معرّف لا يطابق المكتوب.
-    hidden.value='';
-    delete text.dataset.partId;
-    const found=matches(text.value);
-    if(!found.length){close();return;}
-    list.innerHTML=found.map((p,i)=>'<button type="button" class="new-part-opt" data-i="'+i+'">'+esc(p.name)+(p.num?' <small>'+esc(p.num)+'</small>':'')+'</button>').join('');
-    list._found=found;
-    list.classList.add('open');
-  });
-  list.addEventListener('click',e=>{
-    const btn=e.target.closest('.new-part-opt');
-    if(!btn)return;
-    choose(list._found[Number(btn.dataset.i)]);
-  });
-  text.addEventListener('focus',()=>{if(text.value.trim())text.dispatchEvent(new Event('input'));});
-  text.addEventListener('blur',()=>setTimeout(close,120));
-  text.addEventListener('keydown',e=>{
-    if(e.key==='Enter'&&list.classList.contains('open')){
-      const first=list.querySelector('.new-part-opt');
-      if(first){e.preventDefault();choose(list._found[Number(first.dataset.i)]);}
-    }
-    if(e.key==='Escape')close();
-  });
+  const f=document.getElementById('requestForm');f.style.display='grid';sourceType.value='repair';await loadSources();sourceId.value=repairId;sourceId.dispatchEvent(new Event('change'));
 }
 
 function addRequestItemRow(){
-  const wrap=document.createElement('div');
-  wrap.className='new-item';
-  wrap.innerHTML='<div class="new-part-box"><input class="new-part-text" type="text" autocomplete="off" placeholder="اكتب اسم قطعة الغيار *" required><div class="new-part-suggest"></div></div><input type="hidden" class="new-part-id"><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
+  const wrap=document.createElement('div');wrap.className='new-item';
+  wrap.innerHTML='<input class="new-name" placeholder="اسم قطعة الغيار *"><select class="new-part"><option value="">— بدون ربط بالمخزون —</option>'+PARTS.map((id,i)=>'<option value="'+id+'">'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('')+'</select><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
   document.getElementById('newItems').appendChild(wrap);
-  setupPartPicker(wrap);
 }
 document.getElementById('addRequestItem').addEventListener('click',addRequestItemRow);
 
 document.getElementById('requestForm').addEventListener('submit',async e=>{
   e.preventDefault();
-  const fd=new FormData(e.target);
-  const rows=[...document.querySelectorAll('#newItems .new-item')];
-  // البند بلا قطعة مختارة أو بكمية غير صالحة يُستبعد ولا يُرسل معرّفاً مفبركاً.
-  const items=rows.map(row=>({
-    spare_part_id:Number(row.querySelector('.new-part-id').value||0),
-    requested_quantity:Number(row.querySelector('.new-qty').value||0),
-    notes:row.querySelector('.new-note').value||null
-  })).filter(x=>x.spare_part_id&&x.requested_quantity>0);
-  const msg=document.getElementById('formMsg');
-  if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
-  if(!items.length){msg.textContent='أكمل كل بند: انقر على قطعة الغيار من القائمة وأدخل الكمية';msg.className='msg err';return;}
-  // الاستبعاد الصامت يضيع البند بلا تنبيه، فلا يُحفظ الطلب ما لم يكتمل كل بنده.
-  if(items.length<rows.length){msg.textContent='يوجد بند غير مكتمل: انقر على قطعة الغيار من القائمة وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
-  const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
-  const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
-  const data=await r.json().catch(()=>({}));
-  if(!r.ok){msg.textContent=data.detail||'تعذر حفظ الطلب';msg.className='msg err';return;}
-  e.target.reset();document.getElementById('newItems').innerHTML='';msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
+  try{
+    const fd=new FormData(e.target);
+    const rows=[...document.querySelectorAll('#newItems .new-item')];
+    const items=rows.map(row=>{const partRaw=row.querySelector('.new-part').value;const name=row.querySelector('.new-name').value.trim();return {spare_part_id:partRaw?Number(partRaw):null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
+    const msg=document.getElementById('formMsg');
+    if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
+    if(items.length<rows.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
+    const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
+    const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){msg.textContent=errText(data.detail,'تعذر حفظ الطلب');msg.className='msg err';return;}
+    e.target.reset();document.getElementById('newItems').innerHTML='';msg.textContent='تم حفظ الطلب';msg.className='msg ok';document.getElementById('requestForm').style.display='none';load();
+  }catch(err){console.error('create request error:',err);const msg=document.getElementById('formMsg');msg.textContent='خطأ غير متوقع: '+err.message;msg.className='msg err';}
 });
-document.getElementById('newItems').addEventListener('click',e=>{
-  if(e.target.classList.contains('remove-request-item'))e.target.parentElement.remove();
-});
+document.getElementById('newItems').addEventListener('click',e=>{if(e.target.classList.contains('remove-request-item'))e.target.parentElement.remove();});
 
+let requestsData=[];
+function matchesRequestSearch(item,q){
+  if(!q)return true;
+  const haystack=[
+    item.request_number,item.request_date,item.source_type,SOURCE[item.source_type],
+    item.equipment_code,item.equipment_registration,item.report_number,
+    ...(item.items||[]).flatMap(i=>[i.part_name,i.spare_part_id,i.requested_quantity,i.received_quantity,i.recipient,i.supplier_institution])
+  ].filter(v=>v!==null&&v!==undefined).join(' ').toLowerCase();
+  return haystack.includes(q);
+}
+function renderRequests(){
+  const q=(document.getElementById('requestSearch').value||'').trim().toLowerCase();
+  const status=document.getElementById('filterStatus').value;
+  const source=document.getElementById('filterSource').value;
+  const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||x.source_type===source)&&matchesRequestSearch(x,q));
+  document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="8" class="empty">لا توجد طلبات مطابقة.</td></tr>';
+  if(window.MaterielTables)MaterielTables.refresh();
+  document.getElementById('resultCount').textContent='الطلبات: '+rows.length;
+  const pending=requestsData.filter(x=>x.status==='pending').length;document.getElementById('pendingCount').textContent='قيد الانتظار: '+pending;document.getElementById('summaryTotal').textContent=requestsData.length;document.getElementById('summaryPending').textContent=pending;document.getElementById('summaryFiltered').textContent=rows.length;
+}
 async function load(){
   const p=new URLSearchParams();
   if(document.getElementById('filterStatus').value)p.set('status',document.getElementById('filterStatus').value);
   if(document.getElementById('filterSource').value)p.set('source_type',document.getElementById('filterSource').value);
   const r=await fetch('/api/spare-parts-requests?'+p,{credentials:'same-origin'});
   const data=await r.json();
-  document.getElementById('rows').innerHTML=data.length?data.map(row).join(''):'<tr><td colspan="7" class="empty">لا توجد طلبات.</td></tr>';
-  document.getElementById('pendingCount').textContent='قيد الانتظار: '+data.filter(x=>x.status==='pending').length;
+  requestsData=Array.isArray(data)?data:[];
+  renderRequests();
 }
 
 function row(x){
-  return '<tr class="request-row" data-id="'+x.id+'"><td><b>'+esc(x.request_number)+'</b></td><td>'+x.request_date+'</td><td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td><td>'+esc(x.equipment_code||'—')+'</td><td>'+esc(x.equipment_registration||'—')+'</td><td>'+esc(x.report_number||'—')+'</td><td><select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select></td></tr><tr class="detail" id="d'+x.id+'"><td colspan="7"><div class="items" id="i'+x.id+'">'+detailHtml(x)+'</div></td></tr>';
+  const status='<select class="status" data-id="'+x.id+'">'+Object.entries(STATUS).map(([v,n])=>'<option value="'+v+'" '+(x.status===v?'selected':'')+'>'+n+'</option>').join('')+'</select>';
+  const actions='<button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
+    +'<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>';
+  const parts=(x.items||[]).map(i=>i.part_name).filter(Boolean);
+  const partLabel=parts.length?parts.join('، '):'—';
+  return '<tr class="request-row" data-id="'+x.id+'">'
+    +'<td><b>'+esc(x.request_number)+'</b></td>'
+    +'<td>'+esc(partLabel)+'</td>'
+    +'<td>'+x.request_date+'</td>'
+    +'<td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td>'
+    +'<td>'+esc(x.equipment_code||'—')+'</td>'
+    +'<td>'+esc(x.equipment_registration||'—')+'</td>'
+    +'<td>'+esc(x.report_number||'—')+'</td>'
+    +'<td>'+status+actions+'</td>'
+    +'</tr>'
+    +'<tr class="detail" id="d'+x.id+'"><td colspan="8"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
 }
 
-// حقول الطلب كما في أعمدة الجدول، كل رقم في إطار مستقل بعنوانه.
-// «العتاد» هو الرمز الداخلي للعتاد، و«رقم التسجيل» رقمه لدى الإدارة.
 function detailHtml(x){
-  const fields=[
-    ['رقم وثيقة الطلب',x.request_number],
-    ['التاريخ',x.request_date],
-    ['المصدر',SOURCE[x.source_type]||x.source_type],
-    ['العتاد',x.equipment_code],
-    ['رقم التسجيل',x.equipment_registration],
-    ['رقم التقرير',x.report_number],
-    ['الحالة',STATUS[x.status]||x.status]
-  ];
-  if(x.notes)fields.push(['ملاحظات',x.notes]);
-  const canAddItem=x.status==='pending'||x.status==='approved';
-  return '<div class="detail-actions"><button type="button" class="secondary edit-request" data-id="'+x.id+'">تعديل الطلب</button><button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>'+(canAddItem?'<button type="button" class="secondary" onclick="showAddItem('+x.id+',this)">+ إضافة بند</button>':'')+'</div><div class="req-fields">'+fields
-    .map(([k,v])=>'<div class="rf"><span class="rf-k">'+esc(k)+'</span><span class="rf-v">'+esc(v??'—')+'</span></div>').join('')
-    +'</div><b>بنود الطلب</b>'+itemsHtml(x);
+  const ro=(k,v)=>'<div class="rf rf-ro"><span class="rf-k">'+esc(k)+'</span><span class="rf-v">'+esc(v??'—')+'</span></div>';
+  const edi=(k,input)=>'<div class="rf"><span class="rf-k">'+esc(k)+'</span>'+input+'</div>';
+  const canEditItems=x.status==='pending'||x.status==='approved';
+  return '<div class="req-fields">'
+    +edi('رقم وثيقة الطلب','<input class="f-number" value="'+esc(x.request_number)+'" placeholder="رقم وثيقة الطلب">')
+    +edi('تاريخ الطلب','<input class="f-date" type="date" value="'+esc(x.request_date)+'">')
+    +edi('تاريخ الاستلام','<input class="f-rdate" type="date" value="'+esc(x.received_date||'')+'">')
+    +ro('المصدر',SOURCE[x.source_type]||x.source_type)
+    +ro('العتاد',x.equipment_code)
+    +ro('رقم التسجيل',x.equipment_registration)
+    +ro('رقم التقرير',x.report_number)
+    +ro('الحالة',STATUS[x.status]||x.status)
+    +'</div>'
+    +'<div class="rf rf-wide"><span class="rf-k">ملاحظات</span><textarea class="f-notes" rows="2" placeholder="ملاحظات الطلب">'+esc(x.notes||'')+'</textarea></div>'
+    +'<div class="items-head"><b>بنود الطلب</b>'
+    +(canEditItems?'<button type="button" class="secondary add-line">+ إضافة بند</button>':'')
+    +(canEditItems?'':'<span class="line-note">لا يمكن تعديل البنود إلا لطلب قيد الانتظار أو معتمد</span>')
+    +'</div>'
+    +itemsHtml(x)
+    +'<div class="detail-foot">'
+    +'<button type="button" class="save-request" data-id="'+x.id+'">حفظ التعديلات</button>'
+    +'<button type="button" class="secondary reload-detail">إلغاء التعديلات</button>'
+    +'<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>'
+    +'<span class="msg"></span>'
+    +'</div>';
 }
 
 function itemsHtml(x){
-  if(!x.items.length)return '<div class="empty">لم تضاف بنود بعد.</div>';
-  return '<table class="items-t"><thead><tr><th>قطعة الغيار</th><th>الكمية المطلوبة</th><th>الكمية المستلمة</th><th>تاريخ الاستلام</th><th>المستلم</th><th>المؤسسة الممونة</th><th></th></tr></thead><tbody>'
-    +x.items.map(i=>'<tr>'
-      +'<td>'+esc(i.part_name||'—')+'</td>'
-      +'<td>'+esc(i.requested_quantity)+'</td>'
-      +'<td>'+esc(i.received_quantity||0)+'</td>'
-      +'<td>'+esc(i.received_date||'—')+'</td>'
-      +'<td>'+esc(i.recipient||'—')+'</td>'
-      +'<td>'+esc(i.supplier_institution||'—')+'</td>'
-      +'<td><button type="button" class="secondary" onclick="editItem('+i.id+',this)">تعديل</button> <button type="button" class="danger" onclick="deleteItem('+i.id+')">حذف</button></td>'
-      +'</tr>').join('')
-    +'</tbody></table>';
+  const head='<thead><tr><th>اسم قطعة الغيار</th><th>من المخزون (اختياري)</th><th>الكمية المطلوبة</th><th>الكمية المستلمة</th><th>تاريخ الاستلام</th><th>المستلم</th><th>المؤسسة الممونة</th><th>ملاحظات</th><th></th></tr></thead>';
+  if(!x.items.length)return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
+  return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x)).join('')+'</tbody></table></div>';
 }
 
-async function showAddItem(requestId,btn){
-  const host=btn.closest('.items');
-  if(!host)return;
-  if(host.querySelector('.add-item-line'))return;
-  const options=PARTS.map((partId,i)=>'<option value="'+partId+'">'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('');
-  const box=document.createElement('div');
-  box.className='add-item-line';
-  box.style.cssText='display:grid;grid-template-columns:1.5fr .8fr 1.5fr auto;gap:6px;align-items:center;margin-top:8px';
-  box.innerHTML='<select class="add-part"><option value="">اختر قطعة الغيار *</option>'+options+'</select><input class="add-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *"><input class="add-note" placeholder="ملاحظات"><span><button type="button" class="secondary" onclick="saveNewItem('+requestId+',this)">حفظ</button> <button type="button" class="secondary" onclick="this.closest(\'.add-item-line\').remove()">إلغاء</button></span>';
-  host.appendChild(box);
+function itemRow(i,x){
+  const received=Number(i.received_quantity||0);
+  const locked=received>0||x.status!=='pending';
+  /* استلام خاطئ على طلب ما زال قيد الانتظار: يُفتح التراجع عنه صراحةً؛
+     أما بعد القبول أو الإلغاء فالسجل نهائي ولا تراجع. */
+  const canUndo=received>0&&x.status==='pending';
+  const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
+  return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
+    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
+    +'<td><select class="i-part"'+(locked?' disabled':'')+'>'+options+'</select></td>'
+    +'<td><input class="i-qty" type="number" min="1" step="1" value="'+esc(i.requested_quantity)+'"'+(locked?' disabled':'')+'></td>'
+    +'<td><input class="received" type="number" min="1" step="1" value="'+(received>0?received:'')+'" placeholder="لم يُستلم بعد"></td>'
+    +'<td><input class="i-rdate" type="date" value="'+esc(i.received_date||'')+'"></td>'
+    +'<td><input class="i-recipient" value="'+esc(i.recipient||'')+'" placeholder="المستلم"></td>'
+    +'<td><input class="i-supplier" value="'+esc(i.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
+    +'<td><textarea class="i-note" rows="1" placeholder="ملاحظات">'+esc(i.notes||'')+'</textarea></td>'
+    +'<td>'+(canUndo?'<button type="button" class="secondary undo-receipt" title="تراجع عن الاستلام">تراجع عن الاستلام</button> ':'')+'<button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
+    +'</tr>';
 }
 
-async function saveNewItem(requestId,btn){
-  const box=btn.closest('.add-item-line');
-  if(!box)return;
-  const partId=Number(box.querySelector('.add-part').value||0);
-  const qty=Number(box.querySelector('.add-qty').value||0);
-  if(!partId){alert('اختر قطعة الغيار');return;}
-  if(!Number.isInteger(qty)||qty<=0){alert('الكمية المطلوبة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
-  const body={spare_part_id:partId,requested_quantity:qty,received_quantity:0,received_date:null,recipient:null,supplier_institution:null,notes:box.querySelector('.add-note').value.trim()||null};
-  const r=await fetch('/api/spare-parts-requests/'+requestId+'/items',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
-  const data=await r.json().catch(()=>({}));
-  if(!r.ok){alert(data.detail||'تعذر إضافة البند');return;}
-  load();
-}
-
-async function editRequest(id){
-  const r=await fetch('/api/spare-parts-requests/'+id,{credentials:'same-origin'});
-  if(!r.ok){alert((await r.json()).detail||'تعذر تحميل الطلب');return;}
-  const x=await r.json();
-  const number=prompt('رقم وثيقة الطلب',x.request_number);
-  if(number===null)return;
-  const date=prompt('تاريخ الطلب (YYYY-MM-DD)',x.request_date);
-  if(date===null)return;
-  const notes=prompt('ملاحظات',x.notes||'');
-  if(notes===null)return;
-  const u=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number.trim(),request_date:date,notes:notes||null})});
-  if(u.ok)load();else alert((await u.json()).detail||'تعذر تعديل الطلب');
+async function undoReceipt(tr){
+  const id=tr&&tr.dataset.itemId;
+  if(!id)return;
+  const name=(tr.querySelector('.i-name')||{}).value||'هذا البند';
+  if(!confirm('إلغاء الاستلام المسجّل عن البند: '+name
+    +'\n\nسيحذف البند من سجل الاستلام ويصبح قابلاً للحذف أو التعديل. متابعة؟'))return;
+  const r=await fetch('/api/spare-parts-requests/items/'+id+'/receipt',
+    {method:'DELETE',credentials:'same-origin'});
+  if(r.ok){load();return;}
+  alert(errText((await r.json()).detail,'تعذر التراجع عن الاستلام'));
 }
 
 async function deleteRequest(id){
   if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;
   const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});
-  if(r.ok)load();else alert((await r.json()).detail||'تعذر حذف الطلب');
+  if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));
 }
 
-async function editItem(id,btn){
-  const row=btn.closest('tr');
-  if(!row)return;
-  const r=await fetch('/api/spare-parts-requests/items/'+id,{credentials:'same-origin'});
-  if(!r.ok){alert((await r.json()).detail||'تعذر تحميل البند');return;}
-  const item=await r.json();
-  const received=Number(item.received_quantity||0);
-  const options=PARTS.map((partId,i)=>'<option value="'+partId+'" '+(Number(partId)===Number(item.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('');
-  row.innerHTML='<td><select class="edit-part" style="min-width:180px">'+options+'</select></td>'
-    +'<td><input class="edit-requested" type="number" min="1" step="1" value="'+esc(item.requested_quantity)+'"></td>'
-    +'<td><input class="edit-received" type="number" min="0" step="1" value="'+esc(received)+'"></td>'
-    +'<td><input class="edit-received-date" type="date" value="'+esc(item.received_date||'')+'"></td>'
-    +'<td><input class="edit-recipient" value="'+esc(item.recipient||'')+'" placeholder="المستلم"></td>'
-    +'<td><input class="edit-supplier" value="'+esc(item.supplier_institution||'')+'" placeholder="المؤسسة الممونة"></td>'
-    +'<td><input class="edit-notes" value="'+esc(item.notes||'')+'" placeholder="ملاحظات"><button type="button" class="secondary" onclick="saveEditedItem('+id+',this)">حفظ</button> <button type="button" class="secondary" onclick="load()">إلغاء</button></td>';
-  if(received>0){
-    row.querySelector('.edit-part').disabled=true;
-    row.querySelector('.edit-requested').disabled=true;
+
+
+/* بند جديد داخل منطقة البنود: يُحفظ مع بقية التعديلات بزر الحفظ. */
+function addLineRow(host){
+  const body=host.querySelector('.items-t tbody');
+  if(!body)return;
+  const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'">'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
+  const tr=document.createElement('tr');
+  tr.className='item-line';tr.dataset.itemId='';
+  tr.innerHTML='<td><input class="i-name" placeholder="اسم قطعة الغيار *"></td>'
+    +'<td><select class="i-part">'+options+'</select></td>'
+    +'<td><input class="i-qty" type="number" min="1" step="1" value="1"></td>'
+    +'<td><input class="received" type="number" min="1" step="1" placeholder="لم يُستلم بعد"></td>'
+    +'<td><input class="i-rdate" type="date"></td>'
+    +'<td><input class="i-recipient" placeholder="المستلم"></td>'
+    +'<td><input class="i-supplier" placeholder="المؤسسة الممونة"></td>'
+    +'<td><textarea class="i-note" rows="1" placeholder="ملاحظات"></textarea></td>'
+    +'<td><button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>';
+  body.appendChild(tr);
+  tr.querySelector('.i-name').focus();
+}
+
+function itemBody(tr){
+  const name=tr.querySelector('.i-name').value.trim();
+  const partRaw=tr.querySelector('.i-part').value;
+  const qtyRaw=tr.querySelector('.i-qty').value;
+  const receivedRaw=tr.querySelector('.received').value.trim();
+  const recipient=tr.querySelector('.i-recipient').value.trim();
+  const supplier=tr.querySelector('.i-supplier').value.trim();
+  const rdate=tr.querySelector('.i-rdate').value;
+  const note=tr.querySelector('.i-note').value.trim();
+  if(!name&&!partRaw)return {error:'اسم قطعة الغيار مطلوب للبند'};
+  const qty=Number(qtyRaw||0);
+  if(!(Number.isInteger(qty)&&qty>0))return {error:'الكمية المطلوبة يجب أن تكون عدداً صحيحاً 1 فأكثر'};
+  const received=receivedRaw?Number(receivedRaw):0;
+  if(receivedRaw&&!(Number.isInteger(received)&&received>0))return {error:'الكمية المستلمة يجب أن تكون عدداً صحيحاً 1 فأكثر'};
+  if(received>0&&(!rdate||!recipient||!supplier))return {error:'عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة'};
+  const body={notes:note||null};
+  body.spare_part_id=partRaw?Number(partRaw):null;
+  body.part_name=name||null;
+  body.requested_quantity=qty;
+  if(received>0){body.received_quantity=received;body.received_date=rdate;body.recipient=recipient;body.supplier_institution=supplier;}
+  return {body:body,received:received};
+}
+
+async function saveRequest(id,btn){
+  const host=btn.closest('.items');
+  if(!host){console.error('saveRequest: .items ancestor not found for button',btn);alert('خطأ: زر الحفظ خارج منطقة الطلب');return;}
+  const msg=host.querySelector('.msg');
+  const setMsg=(t,k)=>{msg.className='msg'+(k?' '+k:'');msg.textContent=t;};
+  setMsg('جارٍ الحفظ...','');
+  const number=host.querySelector('.f-number').value.trim();
+  const date=host.querySelector('.f-date').value;
+  const notes=host.querySelector('.f-notes').value.trim()||null;
+  if(!number){setMsg('رقم وثيقة الطلب مطلوب','err');return;}
+  if(!date){setMsg('تاريخ الطلب مطلوب','err');return;}
+
+  const rows=[...host.querySelectorAll('tr.item-line')];
+  const live=[],dropped=[];
+  rows.forEach(tr=>{ (tr.classList.contains('gone')?dropped:live).push(tr); });
+
+  /* الطلب يُستلم مرة واحدة: تاريخ واحد للطلب كله، يُكتب في رأسه أو في أي
+     بند، ولا يصحّ أن تختلف التواريخ بين البنود. */
+  const head=host.querySelector('.f-rdate');
+  const headerDate=head?head.value.trim():'';
+  const dates=[...new Set(live.map(tr=>{const i=tr.querySelector('.i-rdate');return i?i.value:'';}).filter(Boolean))];
+  if(dates.length>1||(dates.length===1&&headerDate&&dates[0]!==headerDate)){setMsg(RECEIPT_CONFLICT,'err');return;}
+  const receipt=headerDate||dates[0];
+  if(receipt&&date&&receipt<date){setMsg(RECEIPT_BEFORE_REQUEST,'err');return;}
+
+  const payloads=[];
+  for(const tr of live){
+    const parsed=itemBody(tr);
+    if(parsed.error){setMsg(parsed.error,'err');return;}
+    payloads.push({tr:tr,body:parsed.body,received:parsed.received});
   }
-}
 
-async function saveEditedItem(id,btn){
-  const row=btn.closest('tr');
-  if(!row)return;
-  const qty=Number(row.querySelector('.edit-requested').value);
-  const received=Number(row.querySelector('.edit-received').value||0);
-  if(!Number.isInteger(qty)||qty<=0){alert('الكمية المطلوبة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
-  if(!Number.isInteger(received)||received<0){alert('الكمية المستلمة يجب أن تكون عدداً صحيحاً 0 فأكثر');return;}
-  const body={
-    spare_part_id:Number(row.querySelector('.edit-part').value),
-    requested_quantity:qty,
-    received_quantity:received,
-    received_date:row.querySelector('.edit-received-date').value||null,
-    recipient:row.querySelector('.edit-recipient').value.trim()||null,
-    supplier_institution:row.querySelector('.edit-supplier').value.trim()||null,
-    notes:row.querySelector('.edit-notes').value.trim()||null
+  /* منع التكرار قبل الإرسال: القاعدة نفسها في الخادم — المعرّف المرجعي إن وجد، وإلا الاسم الحرّ بصيغة الأحرف. */
+  const identityOf=tr=>{
+    const sel=tr.querySelector('.i-part'),inp=tr.querySelector('.i-name');
+    const pid=Number(sel&&sel.value||0);
+    const nm=String(inp?inp.value:'').trim().toLowerCase();
+    return pid?'id:'+pid:'name:'+nm;
   };
-  if(received===0){
-    body.received_date=null;
-    body.recipient=null;
-    body.supplier_institution=null;
+  for(const p of payloads){
+    if(p.tr.dataset.itemId)continue;
+    const key=identityOf(p.tr);
+    if([...host.querySelectorAll('tr.item-line')].some(o=>o!==p.tr&&!o.classList.contains('gone')&&identityOf(o)===key)){
+      setMsg(DUPLICATE_PART,'err');
+      return;
+    }
   }
-  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
-  if(r.ok)load();else alert((await r.json()).detail||'تعذر تعديل البند');
-}
 
-async function deleteItem(id){
-  if(!confirm('حذف بند قطع الغيار؟'))return;
-  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'DELETE',credentials:'same-origin'});
-  if(r.ok)load();else alert((await r.json()).detail||'تعذر حذف البند');
-}
+  try{
+    const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,received_date:receipt||null,notes:notes})});
+    if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ بيانات الطلب'),'err');return;}
 
-async function saveItem(id,btn){
-  // الزر داخل خلية، فالحقول ليست في والده المباشر؛ نقرأ من الصف كلّه.
-  const root=btn.closest('tr');
-  if(!root)return;
-  const raw=root.querySelector('.received').value.trim();
-  const qty=Number(raw||0);
-  // تسجيل الاستلام بعدد صحيح 1 فأكثر؛ الصفر حالة داخلية تعني «لم يُستلم بعد».
-  if(raw&&!(Number.isInteger(qty)&&qty>0)){alert('الكمية المستلمة يجب أن تكون عدداً صحيحاً 1 فأكثر');return;}
-  const body={received_date:root.querySelector('.received-date').value||null,recipient:root.querySelector('.recipient').value||null,supplier_institution:root.querySelector('.supplier').value||null};
-  // لا نرسل الصفر أبداً: نرسل العدد فقط إن سُجّل استلام فعلاً.
-  if(qty>0)body.received_quantity=qty;
-  const r=await fetch('/api/spare-parts-requests/items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
-  if(r.ok)load();else alert((await r.json()).detail||'تعذر حفظ البند');
-}
+    for(const p of payloads){
+      const itemId=p.tr.dataset.itemId;
+      const body=Object.assign({},p.body);
+      /* بند استُلم فعلاً: لا يُصفَّر سجل الاستلام، ولا تُعدَّل بيانات الاستلام إلا إن أدخلها المستخدم. */
+      if(itemId&&p.received===0){
+        delete body.received_quantity;delete body.received_date;delete body.recipient;delete body.supplier_institution;
+      }
+      /* البند المُقفل (مسجل استلاماً أو الطلب غير قيد الانتظار): تعيينه وكمية طلبه مقفلان، وإعادةها يرفضها الخادم، لأن الإحلال معنوع والحقلان أعيداً. */
+      if(itemId&&p.tr.dataset.locked){
+        delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;
+      }
+      let r;
+      if(itemId){
+        r=await fetch('/api/spare-parts-requests/items/'+itemId,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+      }else{
+        r=await fetch('/api/spare-parts-requests/'+id+'/items',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
+      }
+      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ أحد البنود'),'err');return;}
+    }
 
-document.getElementById('rows').addEventListener('click',e=>{
-  const edit=e.target.closest('.edit-request');
-  if(edit){e.stopPropagation();editRequest(Number(edit.dataset.id));return;}
-  const del=e.target.closest('.delete-request');
-  if(del){e.stopPropagation();deleteRequest(Number(del.dataset.id));return;}
-  const tr=e.target.closest('.request-row');
-  if(tr&&!e.target.classList.contains('status'))document.getElementById('d'+tr.dataset.id).classList.toggle('open');
+    for(const tr of dropped){
+      const itemId=tr.dataset.itemId;
+      if(!itemId)continue;
+      const r=await fetch('/api/spare-parts-requests/items/'+itemId,{method:'DELETE',credentials:'same-origin'});
+      if(!r.ok){const d=await r.json().catch(()=>({}));setMsg(errText(d,'تعذر حذف أحد البنود'),'err');return;}
+    }
+  }catch(err){
+    setMsg('تعذر الاتصال بالخادم. أعد المحاولة.','err');
+    return;
+  }
+  await load();
+  const again=document.getElementById('i'+id);
+  if(again){
+    again.querySelector('.msg').className='msg ok';
+    again.querySelector('.msg').textContent='تم حفظ التعديلات بنجاح';
+  }
+}
+document.getElementById('rows').addEventListener('click',async e=>{
+  const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
+  const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
+  const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
+  const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
+  const add=e.target.closest('.add-line');if(add){e.stopPropagation();addLineRow(add.closest('.items'));return;}
+  const ur=e.target.closest('.undo-receipt');if(ur){e.stopPropagation();await undoReceipt(ur.closest('tr'));return;}
+  const rm=e.target.closest('.rm-line');if(rm){e.stopPropagation();rm.closest('tr').classList.add('gone');rm.closest('tr').querySelector('.undo-line').style.display='';return;}
+  const undo=e.target.closest('.undo-line');if(undo){e.stopPropagation();undo.closest('tr').classList.remove('gone');undo.style.display='none';return;}
+  const tr=e.target.closest('.request-row');if(tr&&!e.target.classList.contains('status'))document.getElementById('d'+tr.dataset.id).classList.toggle('open');
 });
 document.getElementById('rows').addEventListener('change',async e=>{
   if(!e.target.classList.contains('status'))return;
-  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});
-  if(!r.ok)alert((await r.json()).detail||'تعذر تغيير الحالة');else load();
+  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok)alert(errText((await r.json()).detail,'تعذر تغيير الحالة'));else load();
 });
+document.getElementById('requestSearch').addEventListener('input',renderRequests);
 document.getElementById('filterStatus').addEventListener('change',load);
 document.getElementById('filterSource').addEventListener('change',load);
-openRepairRequest();
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-load();
+openRepairRequest();function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}load();
 </script>
 {% endblock %}

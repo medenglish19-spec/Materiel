@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><script src="/static/js/edit-manager.js"></script>{% block extra_head %}{% endblock %}
+<meta charset="UTF-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><link rel="stylesheet" href="/static/css/mt-tables.css"><script src="/static/js/edit-manager.js"></script><script src="/static/js/mt-tables.js"></script>{% block extra_head %}{% endblock %}
 <style>
 :root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:208px}
-body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family:"Segoe UI",Tahoma,sans-serif}
+body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tahoma,sans-serif}
 .app-sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidebar-w);background:#0b3f3c;color:#fff;z-index:100;display:flex;flex-direction:column;box-shadow:none;overflow:hidden}
 .app-brand{padding:20px 16px;border-bottom:0;display:flex;align-items:center;gap:12px;font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:15px;font-weight:800}
 .app-brand-icon{width:34px;height:34px;border:0;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:#fff;color:#0e6b66}
@@ -29,12 +29,24 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .app-work-save{background:linear-gradient(135deg,var(--primary),var(--success));color:#fff;border:none}
 .app-work-status{font-size:12px;color:var(--text-secondary);padding:0 8px}
 .app-worksep{width:1px;height:24px;background:rgba(46,125,50,.15)}
-.app-topbar-date{font-size:13px;color:var(--text-secondary)}
+.app-topbar-date{font-size:13px;color:#111}
+.page-hint{color:#111}
+.app-work-status{color:var(--text-secondary)}
+.materiel-notice-text{color:#111}
+.materiel-notice-close{color:#111}
+.field label{color:#111}
+.form-value{color:#111}
+.empty{color:#111}
+.module-nav a{color:#111}
+.equipment-card-info{color:#111}
+.master-preview,.master-specs{color:#111}
 .container{max-width:100%;min-width:0}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:800;color:var(--text-primary);margin:0}
 .page-hint{font-size:13px;color:var(--text-secondary);margin-top:4px}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .2s ease;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:6px;font-size:13px;font-weight:700;border:1px solid transparent;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;text-decoration:none;line-height:1.35}.btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
+/* Shared visual standard for ordinary module action buttons. This changes appearance only; behavior, position and handlers remain untouched. */
+.app-main button{border-radius:6px;line-height:1.35;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}.app-main button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--success));color:#fff;box-shadow:0 4px 14px rgba(67,160,71,.25)}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(67,160,71,.35)}
 .btn-outline{background:var(--white);color:var(--primary);border:1px solid var(--primary-light)}
@@ -45,8 +57,36 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .toolbar{display:flex;align-items:center;gap:10px;background:var(--white);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;flex-wrap:wrap;border:1px solid rgba(46,125,50,.06)}
 .search-box{flex:1;min-width:200px;padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s ease;background:var(--bg-secondary)}
 .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,160,71,.12);background:var(--white)}
+.global-search-wrap{display:inline-flex;align-items:stretch;gap:6px;flex:1 1 220px;min-width:0;max-width:100%}
+.global-search-wrap>input{flex:1 1 auto;min-width:0}
+.global-search-btn,.global-clear-btn{border:1px solid rgba(46,125,50,.18);border-radius:var(--radius-sm);padding:8px 12px;font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.global-search-btn{background:var(--primary);color:#fff}
+.global-clear-btn{background:var(--white);color:var(--text-primary)}
+.global-clear-btn[hidden]{display:none}
 .select-box{padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;background:var(--white);cursor:pointer}
 .data-table,.modern-table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid rgba(46,125,50,.08);border-radius:var(--radius-sm);overflow:hidden}
+/* --- global table rules -------------------------------------------------- */
+.app-main table,.mdx table{
+  width:max-content;
+  min-width:100%;
+  table-layout:auto;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  color:#111;
+}
+.app-main table td>a:not(.btn),.mdx table td>a:not(.btn){
+  color:#111;
+}
+.app-main table .numeric-cell,.mdx table .numeric-cell{
+  text-align:center!important;
+  font-variant-numeric:tabular-nums;
+}
+
 .data-table th,.modern-table thead th{background:var(--bg-secondary);color:var(--text-primary);font-weight:700;padding:12px 14px;text-align:right;border-bottom:1px solid rgba(46,125,50,.1)}
 .data-table td,.modern-table td{padding:12px 14px;border-bottom:1px solid rgba(46,125,50,.05);color:var(--text-secondary)}
 .data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:rgba(232,245,233,.4)}
@@ -85,21 +125,267 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .equipment-card-info{font-size:12px;color:var(--text-secondary);line-height:1.8}
 .equipment-card-actions{display:flex;gap:8px;margin-top:12px}
 .equipment-card-actions .btn{padding:6px 12px;font-size:11px}
+
+/* Materiel responsive UI standard: the page reflows; only genuinely wide tables scroll. */
+html,body{max-width:100%;}
+body{overflow-x:clip;}
+.app-main,.container,main.container{min-width:0;max-width:100%;box-sizing:border-box;}
+.app-main > *, .container > *{min-width:0;max-width:100%;box-sizing:border-box;}
+.app-topbar{min-width:0;flex-wrap:wrap;}
+.app-topbar-title{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.table-scroll{width:100%;max-width:100%;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+.table-scroll:focus{outline:2px solid var(--primary-light);outline-offset:2px;}
+.record-table-wrap{width:100%;max-width:100%;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}.record-table-wrap:focus{outline:2px solid var(--primary-light);outline-offset:2px}
+.table-scroll > table{max-width:none;}
+.table-scroll th,.table-scroll td{overflow-wrap:anywhere;}
+.table-scroll .nowrap{white-space:nowrap;overflow-wrap:normal;}
+@media(max-width:700px){
+  .app-topbar{margin-bottom:12px;border-radius:0;padding:8px 12px;}
+  .app-topbar-title{font-size:11px;flex:1 1 120px;}
+  .app-workbar{flex:0 1 auto;min-width:0;}
+}
+
+
+/* Small-screen refinement: keep controls usable without page-level horizontal scrolling. */
+@media(max-width:480px){
+  .app-menu{gap:3px;padding:5px;}
+  .app-menu a{min-height:32px;height:32px;padding:6px 7px;font-size:10px;}
+  .app-menu a .menu-icon{width:16px;font-size:14px;}
+  .container{padding:0 8px;}
+  .page-header{margin-bottom:12px;gap:8px;}
+  .page-header h2{font-size:18px;}
+  .page-hint{font-size:11px;}
+  .card,.stat-card{padding:14px;margin-bottom:12px;}
+  .toolbar{padding:10px;gap:7px;margin-bottom:12px;}
+  .search-box{min-width:0;flex:1 1 100%;width:100%;box-sizing:border-box;}
+  .select-box{min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
+  .grid-form{grid-template-columns:minmax(0,1fr);gap:10px;}
+  .field input,.field select,.field textarea{box-sizing:border-box;width:100%;max-width:100%;}
+  .module-nav{gap:4px;padding:7px;margin-bottom:12px;}
+  .module-nav a{padding:6px 8px;font-size:10px;}
+  .btn{max-width:100%;box-sizing:border-box;padding:9px 12px;font-size:12px;}
+  .equipment-card-actions{flex-wrap:wrap;}
+  .equipment-card-actions .btn{flex:1 1 auto;min-width:0;}
+  .data-table,.modern-table{font-size:12px;}
+  .data-table th,.modern-table thead th,
+  .data-table td,.modern-table td{padding:9px 10px;}
+}
+@media(max-width:375px){
+  .app-menu a{padding:5px 6px;font-size:9px;}
+  .app-menu a .menu-icon{width:14px;font-size:13px;}
+  .app-topbar{padding:7px 9px;}
+  .app-topbar-title{font-size:10px;}
+  .app-workbtn{padding:0 6px;font-size:9px;}
+  .container{padding:0 6px;}
+  .card,.stat-card{padding:12px;}
+  .page-header h2{font-size:17px;}
+}
+
+/* --- global visual standard: neutral management UI (visual only) --- */
+:root{--bg-primary:#FAFAFA;--bg-secondary:#F3F4F6;--sidebar-start:#374151;--sidebar-end:#374151;--primary:#374151;--primary-light:#9CA3AF;--success:#374151;--warning:#B45309;--error:#B91C1C;--text-primary:#111827;--text-secondary:#4B5563;--white:#FFFFFF;--shadow:0 2px 10px rgba(17,24,39,.05);--shadow-hover:0 6px 18px rgba(17,24,39,.08);--radius:10px;--radius-sm:6px}
+html,body{background:#FAFAFA;color:#4B5563;font-family:'Tajawal',sans-serif}
+body{font-size:14px}
+.app-sidebar{background:#374151;color:#fff}
+.app-brand{font-family:'Cairo',sans-serif;color:#fff}
+.app-brand-icon{color:#374151}
+.app-menu a{color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.app-menu a:hover{background:#4B5563;color:#fff}
+.app-menu a.active{background:#fff;color:#374151}
+.sidebar-user{color:#D1D5DB}
+.sidebar-logout{color:#E5E7EB}
+.sidebar-logout:hover{background:rgba(185,28,28,.12)}
+.app-topbar{background:#fff;border:1px solid #E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.app-topbar-title,.page-header h2,.card h3{font-family:'Cairo',sans-serif;color:#111827}
+.app-topbar-title{font-weight:800}
+.app-topbar-date,.app-work-status,.page-hint{font-family:'Tajawal',sans-serif;color:#4B5563}
+.app-workbtn{font-family:'Tajawal',sans-serif;color:#374151;border-color:#E5E7EB;background:#fff}
+.app-workbtn:hover:not(:disabled){background:#F3F4F6;border-color:#D1D5DB}
+.app-work-save{background:#374151;color:#fff}
+.page-header h2{font-weight:800}
+.btn,.app-main button{font-family:'Tajawal',sans-serif}
+.btn-primary,.app-main .btn-primary{background:#374151;color:#fff;border-color:#374151;box-shadow:none}
+.btn-primary:hover,.app-main .btn-primary:hover{background:#1F2937;border-color:#1F2937;transform:none;box-shadow:none}
+.btn-outline{background:#fff;color:#374151;border-color:#D1D5DB}
+.btn-outline:hover{background:#F3F4F6}
+.btn-danger{background:#B91C1C;color:#fff;border-color:#B91C1C}
+.card,.stat-card,.toolbar,.equipment-card,.module-nav,.materiel-notice{background:#fff;border-color:#E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.toolbar{border-color:#E5E7EB}
+.search-box,.select-box,.field input,.field select,.field textarea{font-family:'Tajawal',sans-serif;color:#4B5563;border-color:#D1D5DB;background:#fff}
+.search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.10)}
+.field label{font-family:'Cairo',sans-serif;color:#374151}
+.form-value,.empty{font-family:'Tajawal',sans-serif;color:#4B5563}
+.data-table,.modern-table{border-color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.data-table th,.modern-table thead th{font-family:'Cairo',sans-serif;background:#F3F4F6;color:#111827;border-bottom-color:#E5E7EB}
+.data-table td,.modern-table td{font-family:'Tajawal',sans-serif;color:#4B5563;border-bottom-color:#E5E7EB}
+.data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:#FAFAFA}
+.data-table tbody tr:hover,.modern-table tbody tr:hover{background:#F3F4F6}
+.module-nav a{font-family:'Tajawal',sans-serif;color:#4B5563}
+.module-nav a:hover,.module-nav a.active{background:#F3F4F6;color:#374151}
+.materiel-notice-text,.materiel-notice-close,.equipment-card-info{font-family:'Tajawal',sans-serif;color:#4B5563}
+.badge{font-family:'Tajawal',sans-serif}
 </style>
 </head>
 <body>
-<aside class="app-sidebar"><div class="app-brand"><span class="app-brand-icon">⚙</span><span>نظام إدارة العتاد</span></div><nav class="app-menu"><a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a><a href="/equipment" class="{% if request.url.path.startswith('/equipment') %}active{% endif %}"><span class="menu-icon">▦</span><span>العتاد</span></a><a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a><a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>العدادات</span></a><a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a><a href="/spare-parts-requests" class="{% if request.url.path.startswith('/spare-parts-requests') %}active{% endif %}"><span class="menu-icon">▤</span><span>طلبات قطع الغيار</span></a><a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a><a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a><a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a><a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a><a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a></nav><div class="sidebar-spacer"></div><div class="sidebar-user">النظام المحلي<br>إدارة الأسطول والعتاد</div><a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a></aside>
-<div class="app-main"><header class="app-topbar"><span class="app-topbar-title">إدارة الأسطول والعتاد</span><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></header><main class="container">{% block content %}{% endblock %}</main></div>
+<aside class="app-sidebar"><div class="app-brand"><span class="app-brand-icon">⚙</span><span>نظام إدارة العتاد</span></div><nav class="app-menu"><a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a><a href="/equipment" class="{% if request.url.path.startswith('/equipment') %}active{% endif %}"><span class="menu-icon">▦</span><span>العتاد</span></a><a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a><a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>العدادات</span></a><a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a><a href="/spare-parts" class="{% if request.url.path == '/spare-parts' %}active{% endif %}"><span class="menu-icon">▤</span><span>قطع الغيار</span></a><a href="/spare-parts-return" class="{% if request.url.path.startswith('/spare-parts-return') %}active{% endif %}"><span class="menu-icon">↩</span><span>إرجاع الغيار</span></a><a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a><a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a><a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a><a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a><a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a></nav><div class="sidebar-spacer"></div><div class="sidebar-user">النظام المحلي<br>إدارة الأسطول والعتاد</div><a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a></aside>
+<div class="app-main"><header class="app-topbar"><span class="app-topbar-title">إدارة الأسطول والعتاد</span><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span id="emStatus" class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></header><main class="container">{% block content %}{% endblock %}</main></div>
 <script>
 (function(){
 const el=document.getElementById('systemDate');if(el){el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}
 const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){const box=document.createElement('div');box.className='materiel-notice materiel-notice-'+noticeType;const icon=noticeType==='danger'?'⛔':noticeType==='success'?'✓':noticeType==='info'?'ℹ️':'⚠️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,textEl,close);const main=document.querySelector('.container');if(main)main.prepend(box);close.addEventListener('click',()=>box.remove());window.setTimeout(()=>box.classList.add('materiel-notice-visible'),20);const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
 const mutationKey='materiel:mutation-completed';document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>sessionStorage.setItem(mutationKey,'1'))});if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey)}window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload()});
-document.querySelectorAll('input.search-box,input[id*="search" i],input[id*="Search"]').forEach(input=>{if(input.closest('.global-search-wrap')||input.type==='hidden')return;const parent=input.parentElement;if(!parent)return;const wrap=document.createElement('span');wrap.className='global-search-wrap';parent.insertBefore(wrap,input);wrap.appendChild(input);const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='بحث';const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;wrap.append(search,clear);const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));search.addEventListener('click',fire);clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});input.addEventListener('input',()=>clear.hidden=!input.value)});
+const searchSelector='input[type="search"],input.search-box,input[id*="search" i],input[id*="Search"]';
+document.querySelectorAll(searchSelector).forEach(input=>{
+  if(input.closest('.global-search-wrap')||input.type==='hidden')return;
+  const parent=input.parentElement;if(!parent)return;
+  const wrap=document.createElement('span');wrap.className='global-search-wrap';
+  parent.insertBefore(wrap,input);wrap.appendChild(input);
+  const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='ابحث';search.setAttribute('aria-label','تنفيذ البحث');
+  const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;
+  wrap.append(search,clear);
+  const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));
+  const runSearch=()=>{
+    fire();
+    const form=input.closest('form');
+    const name=(input.name+' '+input.id+' '+input.getAttribute('aria-label')+' '+input.placeholder).toLowerCase();
+    const serverSearch=form&&form.method.toLowerCase()==='get'&&(/search|query|بحث|filter|تصفية/.test(name)||input.type==='search');
+    if(serverSearch){
+      if(typeof form.requestSubmit==='function')form.requestSubmit();
+      else form.submit();
+    }
+  };
+  search.addEventListener('click',runSearch);
+  input.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.isComposing)return;
+    event.preventDefault();
+    search.click();
+  });
+  clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});
+  input.addEventListener('input',()=>clear.hidden=!input.value);
+});
+(function installEnterNavigation(){
+  const excludedTypes=new Set(['hidden','button','submit','reset','image','file','checkbox','radio','range','color']);
+  const isEditable=el=>el instanceof HTMLElement&&(el.isContentEditable||el.matches('textarea'));
+  const isInput=el=>el instanceof HTMLInputElement&&!excludedTypes.has(el.type)&&!el.readOnly;
+  const isUsable=el=>el instanceof HTMLElement&&!el.matches(':disabled,[hidden],[aria-hidden="true"]')&&!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length);
+  const isNextControl=el=>isInput(el)||el instanceof HTMLSelectElement||isEditable(el)||(el instanceof HTMLButtonElement&&(el.type==='submit'||el.hasAttribute('data-enter-next')));
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.defaultPrevented||event.isComposing||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+    const current=event.target;
+    if(!(current instanceof HTMLElement)||!(isInput(current)||current instanceof HTMLSelectElement)||(current instanceof HTMLInputElement&&current.type==='search')||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
+    if(current.closest('[contenteditable="true"],textarea'))return;
+    const form=current.closest('form');
+    const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    if(!scope)return;
+    const controls=[...scope.querySelectorAll('input,select,textarea,button,[contenteditable="true"]')].filter(el=>isUsable(el)&&isNextControl(el));
+    const index=controls.indexOf(current);
+    if(index<0)return;
+    event.preventDefault();
+    const next=controls[index+1];
+    if(next){
+      if(next instanceof HTMLButtonElement&&next.hasAttribute('data-enter-next')){next.click();return}
+      if(next instanceof HTMLButtonElement&&next.type==='submit'){if(form&&form.checkValidity())form.requestSubmit(next);else if(form)form.reportValidity();else next.click();return}
+      next.focus();return;
+    }
+    if(form){
+      if(form.checkValidity())form.requestSubmit();
+      else form.reportValidity();
+      return;
+    }
+    const operation=current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    const action=operation?.querySelector('[data-enter-next]');
+    if(action instanceof HTMLElement&&isUsable(action))action.click();
+  });
+})();
+document.querySelectorAll('.table-scroll,.record-table-wrap,.table-wrap,.type-table-wrap').forEach(function(el){if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');if(!el.hasAttribute('role'))el.setAttribute('role','region');if(!el.getAttribute('aria-label'))el.setAttribute('aria-label','جدول البيانات');});
+/* Global UI rule: every action menu closes on any left click outside the open menu.
+   This is intentionally owned by the shared base template so the rule applies to every module,
+   including tree-generated menus that stop propagation inside their own handlers. */
+document.addEventListener('click',function(event){
+  document.querySelectorAll('details.action-menu[open]').forEach(function(menu){
+    if(!menu.contains(event.target)) menu.removeAttribute('open');
+  });
+  document.querySelectorAll('.master-context-menu:not([hidden])').forEach(function(menu){
+    if(!menu.contains(event.target) && !event.target.closest('[data-action-menu]')){
+      menu.hidden=true;
+      menu.replaceChildren();
+    }
+  });
+},true);
+/* Global keyboard rule: Escape always exits an active editor from anywhere on its page. */
+document.addEventListener('keydown',function(event){
+  if(event.key!=='Escape'||event.repeat)return;
+  const active=document.activeElement;
+  const modal=active?.closest?.('.modal.open,.maintenance-edit-modal.open,[role="dialog"]');
+  const openMenu=active?.closest?.('details.action-menu[open],.master-context-menu:not([hidden])');
+  if(openMenu){
+    if(openMenu.matches('details.action-menu[open]')) openMenu.removeAttribute('open');
+    else {openMenu.hidden=true;openMenu.replaceChildren()}
+    event.preventDefault();
+    return;
+  }
+  /* First prefer the editor containing focus; otherwise locate the page editor
+     itself. An editor must contain a real editable field in addition to its
+     save/cancel controls; this prevents Escape from hijacking ordinary list,
+     filter, or display pages that happen to contain a form. */
+  const isEditorForm=function(form){
+    if(!form)return false;
+    const hasEditable=[...form.querySelectorAll('input,select,textarea,[contenteditable="true"]')].some(function(el){
+      return !ignoredEscapeControl(el);
+    });
+    const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
+    const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
+      if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+      const text=(el.textContent||'').trim();
+      return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+    });
+    return hasEditable&&hasSubmit&&hasCancel;
+  };
+  const ignoredEscapeControl=function(el){
+    if(!el||el.disabled)return true;
+    if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"]'))return true;
+    const hint=(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'');
+    return /(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint);
+  };
+  let scope=modal||(isEditorForm(active?.closest?.('form'))?active.closest('form'):null);
+  if(!scope){
+    scope=[...document.querySelectorAll('form')].find(isEditorForm);
+  }
+  if(!scope)return;
+  const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
+    if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+    const text=(el.textContent||'').trim();
+    return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+  });
+  if(!cancel)return;
+  event.preventDefault();
+  const dirty=typeof window.EditManager?.isDirty==='function'&&window.EditManager.isDirty();
+  if(dirty&&!window.confirm('لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'))return;
+  cancel.click();
+},true);
 const p=window.location.pathname;
-if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل العتاد'],['/equipment-types','أنواع العتاد'],['/equipment-types/structure','هيكلة الأنواع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
+if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
+if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
 if(p==='/equipment/numerical-status'){const table=document.getElementById('numericalStatusTable');if(table){const heads=[...table.querySelectorAll('thead th')];const idx=heads.findIndex(h=>h.textContent.includes('% من الأب'));if(idx>=0){heads[idx].remove();table.querySelectorAll('tbody tr').forEach(r=>{if(r.children.length>idx)r.children[idx].remove()})}}}
 const brandSelect=document.getElementById('statusBrand');if(brandSelect){const current=brandSelect.value;fetch('/api/equipment-brands',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():[]).then(brands=>{const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));brandSelect.innerHTML='<option value="">كل الماركات</option>';names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;brandSelect.appendChild(o)});brandSelect.value=names.includes(current)?current:'';brandSelect.dispatchEvent(new Event('change',{bubbles:true}))}).catch(()=>{})}
+})();
+</script>
+<script>
+(function(){
+  function markNumericCells(root){
+    const cells=(root||document).querySelectorAll('table tbody td');
+    const numeric=/^[+\-−]?\s*(?:\d[\d\s,.]*|[٠-٩][٠-٩\s،.]*)(?:\s*%?)$/;
+    cells.forEach(function(td){
+      const text=(td.textContent||'').trim();
+      if(text && numeric.test(text)) td.classList.add('numeric-cell');
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){markNumericCells();});
+  else markNumericCells();
+  new MutationObserver(function(mutations){
+    mutations.forEach(function(m){m.addedNodes.forEach(function(n){
+      if(n.nodeType===1) markNumericCells(n);
+    });});
+  }).observe(document.body,{childList:true,subtree:true});
 })();
 </script>
 </body>

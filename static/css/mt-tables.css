@@ -1,0 +1,119 @@
+/* ============================================================================
+   Materiel — unified data-table region.
+   Opt in by adding `data-mt-region` to the element that WRAPS a <table>.
+   It gives every list table the same, maintainable presentation:
+     · a bounded height that uses the available screen space;
+     · a header that stays visible while the rows scroll (sticky);
+     · vertical + horizontal scrollbars that are always painted, so the
+       horizontal bar never hides at the bottom of a long page;
+     · RTL-safe behaviour on small screens.
+   Toolbars, filters and page buttons are intentionally left OUT of the region
+   by each page, so they never scroll away with the rows.
+   The companion script is /static/js/mt-tables.js.
+   ========================================================================== */
+
+[data-mt-region]{
+  position:relative;
+  display:block;
+  max-width:100%;
+  min-width:0;
+  overflow:auto;                                   /* both axes scroll here */
+  max-height:var(--mt-region-max-height, calc(100vh - 172px));
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  scrollbar-width:thin;
+  scrollbar-color:#b9c3cf #eef1f4;
+  border-radius:8px;
+}
+
+[data-mt-region]:focus{outline:none}
+[data-mt-region]:focus-visible{outline:2px solid var(--primary,#374151);outline-offset:2px}
+
+/* Sticky header: works for <thead> tables and for legacy header rows.
+   Legacy markup (`<table><tr><th>`) gets an implicit <tbody> inserted by the
+   HTML parser, so the first header row lives at `tbody:first-of-type > tr`.
+   The opaque fallback background sits in a zero-specificity `:where()` rule so
+   it never paints over a table's own header colour (navy, grey, …); pages that
+   set their own `th` background keep it. */
+[data-mt-region] thead>tr>th,
+[data-mt-region] table>tbody:first-of-type>tr:first-child>th{
+  position:sticky;
+  top:0;
+  z-index:3;
+  background-clip:padding-box;
+  box-shadow:inset 0 -1px 0 rgba(17,24,39,.14);
+}
+[data-mt-region] :where(thead>tr>th, table>tbody:first-of-type>tr:first-child>th){
+  background:var(--bg-secondary,#F3F4F6);
+}
+
+/* Always-visible scrollbars (Blink/WebKit). */
+[data-mt-region]::-webkit-scrollbar{width:11px;height:12px}
+[data-mt-region]::-webkit-scrollbar-track{background:#eef1f4;border-radius:8px}
+[data-mt-region]::-webkit-scrollbar-thumb{
+  background:#b9c3cf;
+  border:2px solid #eef1f4;
+  border-radius:8px;
+}
+[data-mt-region]::-webkit-scrollbar-thumb:hover{background:#94a1b0}
+[data-mt-region]::-webkit-scrollbar-corner{background:#eef1f4}
+
+/* Small screens: use more of the viewport but stay below the app chrome. */
+@media(max-width:700px){
+  [data-mt-region]{max-height:var(--mt-region-max-height, calc(100vh - 140px))}
+}
+
+/* ---------------------------------------------------------------------------
+   Shared row-actions menu (opened by ⋮ or right-click, positioned `fixed` so
+   the region's overflow can never clip it).
+   -------------------------------------------------------------------------- */
+.mt-row-menu{
+  position:fixed;
+  z-index:9999;
+  min-width:184px;
+  max-width:280px;
+  background:#fff;
+  border:1px solid #d8dee8;
+  border-radius:8px;
+  box-shadow:0 10px 28px rgba(15,23,42,.18);
+  padding:6px;
+  color:#1f2937;
+}
+.mt-row-menu .mt-row-menu-item{
+  display:block;
+  width:100%;
+  box-sizing:border-box;
+  text-align:right;
+  border:0;
+  background:transparent;
+  padding:8px 12px;
+  border-radius:6px;
+  cursor:pointer;
+  font:inherit;
+  font-size:13px;
+  font-weight:600;
+  color:#1f2937;
+  white-space:nowrap;
+}
+.mt-row-menu .mt-row-menu-item:hover,
+.mt-row-menu .mt-row-menu-item:focus-visible{background:#f0f4f8;outline:none}
+.mt-row-menu .mt-row-menu-item.danger{color:#b91c1c}
+.mt-row-menu .mt-row-menu-item:disabled{opacity:.45;cursor:not-allowed}
+
+/* ⋮ trigger, reusable inside any table cell. */
+.mt-row-btn{
+  border:0;
+  background:transparent;
+  cursor:pointer;
+  font-size:18px;
+  line-height:1;
+  padding:2px 10px;
+  border-radius:6px;
+  color:#334155;
+}
+.mt-row-btn:hover,.mt-row-btn:focus-visible{background:rgba(55,65,81,.12);outline:none}
+
+/* The action column should line up and never wrap. */
+.mt-actions-th{width:44px}
+.mt-actions-td{width:44px;text-align:center;white-space:nowrap}

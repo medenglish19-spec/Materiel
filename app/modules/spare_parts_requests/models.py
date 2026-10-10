@@ -16,6 +16,8 @@ class SparePartRequest(Base):
     id = Column(Integer, primary_key=True, index=True)
     request_number = Column(String(80), nullable=False, unique=True, index=True)
     request_date = Column(Date, nullable=False, default=date.today, index=True)
+    # الطلب يُستلم مرة واحدة: تاريخ واحد على مستوى الطلب تتشاركه كل بنوده.
+    received_date = Column(Date, nullable=True, index=True)
     source_type = Column(String(20), nullable=False, index=True)
     fault_id = Column(Integer, ForeignKey("faults.id", ondelete="SET NULL"), nullable=True, index=True)
     repair_id = Column(Integer, ForeignKey("repairs.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -47,7 +49,9 @@ class SparePartRequestItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(Integer, ForeignKey("spare_part_requests.id", ondelete="CASCADE"), nullable=False, index=True)
-    spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=False, index=True)
+    # الربط بالمخزون اختياري: البند قد يحمل اسماً حراً فقط دون قطعة مرجعية.
+    spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=True, index=True)
+    part_name = Column(String(200), nullable=True)
     requested_quantity = Column(Numeric(10, 2), nullable=False)
     received_quantity = Column(Numeric(10, 2), nullable=False, default=0, server_default="0")
     received_date = Column(Date, nullable=True, index=True)
@@ -56,7 +60,7 @@ class SparePartRequestItem(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("request_id", "spare_part_id", name="uq_spare_part_request_item_part"),
+        # spare_part_id nullable: لا نمنع التكرار على المعرّف الفارغ؛ المنع يتم في الخدمة بالاسم الحر.
         CheckConstraint("requested_quantity > 0", name="ck_spare_part_request_item_requested_positive"),
         CheckConstraint("received_quantity >= 0", name="ck_spare_part_request_item_received_nonnegative"),
     )

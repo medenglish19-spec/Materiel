@@ -43,14 +43,29 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.asset_code).all()
     readings = latest_readings(db); records = latest_records(db)
     rows = []; counts = {"total": 0, "danger": 0, "warning": 0, "success": 0, "neutral": 0}
+    model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
+    approved_model_ids = {
+        model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
+            MaintenancePlan.equipment_model_id.in_(model_ids or {-1}),
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
+        ).distinct().all()
+    }
+    unapproved_models = sorted({
+        eq.equipment_model.name
+        for eq in equipment
+        if eq.equipment_model_id is not None
+        and eq.equipment_model is not None
+        and eq.equipment_model_id not in approved_model_ids
+    })
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for operation in effective_operations_for_equipment(db, eq):
+        for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
             rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             counts["total"] += 1; counts[css] += 1
             rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
-    return templates.TemplateResponse(request=request, name="maintenance_dashboard.html", context={"request": request, "user": current_user, "rows": rows, "counts": counts})
+    return templates.TemplateResponse(request=request, name="maintenance_dashboard.html", context={"request": request, "user": current_user, "rows": rows, "counts": counts, "unapproved_models": unapproved_models})
 
 
 @router.get("/maintenance/plans", response_class=HTMLResponse)
@@ -91,7 +106,8 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         MaintenanceOperation.is_active.is_(True)
     ).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
     plans = db.query(MaintenancePlan).filter(
-        MaintenancePlan.is_active.is_(True)
+        MaintenancePlan.is_active.is_(True),
+        MaintenancePlan.is_approved.is_(True),
     ).order_by(MaintenancePlan.name, MaintenancePlan.id).all()
 
     edit_record = None
@@ -163,6 +179,7 @@ def maintenance_record_create(
         plan = db.query(MaintenancePlan).filter(
             MaintenancePlan.id == plan_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
             MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
         ).first()
         if plan is None:
@@ -250,6 +267,7 @@ def maintenance_record_update(
         plan = db.query(MaintenancePlan).filter(
             MaintenancePlan.id == plan_id,
             MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
             MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
         ).first()
         if plan is None:
@@ -309,6 +327,21 @@ def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), cur
 @router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
+    model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
+    approved_model_ids = {
+        model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
+            MaintenancePlan.equipment_model_id.in_(model_ids or {-1}),
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
+        ).distinct().all()
+    }
+    unapproved_models = sorted({
+        eq.equipment_model.name
+        for eq in equipment
+        if eq.equipment_model_id is not None
+        and eq.equipment_model is not None
+        and eq.equipment_model_id not in approved_model_ids
+    })
     readings = latest_readings(db)
     records = latest_records(db)
     due_rows = []
@@ -316,7 +349,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
     plan_links = (
         db.query(MaintenancePlanOperation)
         .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
-        .filter(MaintenancePlan.is_active.is_(True))
+        .filter(MaintenancePlan.is_active.is_(True), MaintenancePlan.is_approved.is_(True))
         .order_by(MaintenancePlan.name, MaintenancePlan.id, MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
         .all()
     )
@@ -326,7 +359,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
 
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for operation in effective_operations_for_equipment(db, eq):
+        for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
             rec = records.get((eq.id, operation.id))
             state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
@@ -375,6 +408,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             "rows": due_rows,
             "plan_groups": plan_groups,
             "standalone_rows": standalone_rows,
+            "unapproved_models": unapproved_models,
         },
     )
 
@@ -452,6 +486,13 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
     if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
         raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
     for key, value in data.items(): setattr(operation, key, value)
+    # Changing a library operation can change the meaning of every plan that
+    # uses it, so each affected plan must be reviewed and approved again.
+    affected_plans = db.query(MaintenancePlan).join(
+        MaintenancePlanOperation, MaintenancePlanOperation.plan_id == MaintenancePlan.id
+    ).filter(MaintenancePlanOperation.operation_id == operation.id).all()
+    for plan in affected_plans:
+        plan.is_approved = False
     try: db.commit(); db.refresh(operation)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل عملية الصيانة.") from exc
     return operation
@@ -476,9 +517,36 @@ def api_plan_update(plan_id: int, payload: MaintenancePlanUpdate, db: Session = 
     if plan is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
     if db.get(EquipmentModel, payload.equipment_model_id) is None: raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
     for key, value in payload.model_dump().items(): setattr(plan, key, value)
+    # Any plan edit requires explicit re-approval before it drives follow-ups.
+    plan.is_approved = False
     try: db.commit(); db.refresh(plan)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل خطة الصيانة.") from exc
     return plan
+
+@router.post("/api/maintenance/plans/{plan_id}/approve", response_model=MaintenancePlanOut)
+def api_plan_approve(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if not plan.is_active:
+        raise HTTPException(status_code=409, detail="لا يمكن اعتماد خطة صيانة متوقفة.")
+    operation_count = db.query(MaintenancePlanOperation.id).join(
+        MaintenanceOperation, MaintenanceOperation.id == MaintenancePlanOperation.operation_id
+    ).filter(
+        MaintenancePlanOperation.plan_id == plan.id,
+        MaintenanceOperation.is_active.is_(True),
+    ).count()
+    if operation_count == 0:
+        raise HTTPException(status_code=409, detail="أضف عملية صيانة مفعلة واحدة على الأقل قبل اعتماد الخطة.")
+    plan.is_approved = True
+    try:
+        db.commit()
+        db.refresh(plan)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر اعتماد خطة الصيانة.") from exc
+    return plan
+
 
 @router.get("/api/maintenance/plans/{plan_id}/operations", response_model=list[MaintenancePlanOperationOut])
 def api_plan_operations(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -495,6 +563,7 @@ def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate
     if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
     if not operation.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة.")
     link = MaintenancePlanOperation(**payload.model_dump()); db.add(link)
+    plan.is_approved = False
     try: db.commit(); db.refresh(link)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
     return link
@@ -516,6 +585,7 @@ def api_plan_operation_remove(
     if link is None:
         raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذه الخطة.")
     db.delete(link)
+    plan.is_approved = False
     db.commit()
     return None
 
@@ -557,6 +627,8 @@ def api_execution_create(
     if plan is not None:
         if not plan.is_active:
             raise HTTPException(status_code=409, detail="خطة الصيانة غير مفعلة.")
+        if not plan.is_approved:
+            raise HTTPException(status_code=409, detail="لا يمكن ربط سجل تنفيذ بخطة غير معتمدة.")
         if plan.equipment_model_id != equipment.equipment_model_id:
             raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
 
@@ -568,6 +640,7 @@ def api_execution_create(
                 MaintenancePlanOperation.operation_id == operation.id,
                 MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
                 MaintenancePlan.is_active.is_(True),
+                MaintenancePlan.is_approved.is_(True),
             )
             .first()
         )
@@ -668,6 +741,8 @@ def api_plan_execution_create(
         raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
     if not plan.is_active:
         raise HTTPException(status_code=409, detail="خطة الصيانة غير مفعلة.")
+    if not plan.is_approved:
+        raise HTTPException(status_code=409, detail="لا يمكن تنفيذ خطة غير معتمدة.")
     if plan.equipment_model_id != equipment.equipment_model_id:
         raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
     if payload.maintenance_date > date.today():

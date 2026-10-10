@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.users.models import User
+from app.modules.spare_parts_requests.models import SparePartRequest
 from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
 from app.modules.equipment.models import Equipment
 from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, equipment_fault_stats, list_repairs
@@ -22,8 +24,44 @@ def faults_repairs_home(request: Request, db: Session = Depends(get_db), user: U
 @router.get("/faults-repairs/faults", response_class=HTMLResponse)
 def faults_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     faults = db.query(Fault).options(joinedload(Fault.equipment), joinedload(Fault.repairs)).order_by(Fault.reported_date.desc(), Fault.id.desc()).all()
+    fault_ids = [f.id for f in faults]
+    repair_to_fault = {
+        repair.id: fault.id
+        for fault in faults
+        for repair in fault.repairs
+    }
+    repair_ids = list(repair_to_fault)
+    spare_requests = (
+        db.query(SparePartRequest)
+        .options(
+            joinedload(SparePartRequest.items),
+            joinedload(SparePartRequest.repair).joinedload(Repair.fault),
+        )
+        .filter(
+            or_(
+                (SparePartRequest.source_type == "fault") & SparePartRequest.fault_id.in_(fault_ids),
+                (SparePartRequest.source_type == "repair") & SparePartRequest.repair_id.in_(repair_ids),
+            )
+        )
+        .order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc())
+        .all()
+        if fault_ids else []
+    )
+    spare_requests_by_fault = {}
+    for request_item in spare_requests:
+        fault_id = request_item.fault_id
+        if request_item.source_type == "repair" and request_item.repair:
+            fault_id = request_item.repair.fault_id
+        if fault_id in fault_ids:
+            spare_requests_by_fault.setdefault(fault_id, []).append(request_item)
     equipment = db.query(Equipment).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    return templates.TemplateResponse(request=request, name="faults.html", context={"request": request, "user": user, "faults": faults, "equipment": equipment})
+    return templates.TemplateResponse(request=request, name="faults.html", context={
+        "request": request,
+        "user": user,
+        "faults": faults,
+        "equipment": equipment,
+        "spare_requests_by_fault": spare_requests_by_fault,
+    })
 
 @router.get("/faults-repairs/faults/{fault_id}", response_class=HTMLResponse)
 def fault_detail_page(fault_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

@@ -127,6 +127,7 @@ class MaintenancePlanUpdate(MaintenancePlanBase):
 class MaintenancePlanOut(MaintenancePlanBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    is_approved: bool = False
 
 
 class MaintenancePlanOperationBase(BaseModel):

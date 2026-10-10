@@ -79,7 +79,7 @@ def maintenance_due_provider(db) -> list[dict]:
             continue
         model_id = eq.equipment_model_id
         if model_id not in operations_by_model:
-            operations_by_model[model_id] = effective_operations_for_equipment(db, eq)
+            operations_by_model[model_id] = effective_operations_for_equipment(db, eq, include_standalone=False)
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in operations_by_model[model_id]:
             record = records.get((eq.id, operation.id))

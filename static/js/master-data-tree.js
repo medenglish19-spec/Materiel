@@ -44,6 +44,8 @@
   const sectionMap = { basic: 0, tires: 1, sizes: 1, batteries: 2, specs: 3 };
   const $ = (id) => document.getElementById(id);
   const masterData = () => (window.MATERIEL_MASTER_DATA && window.MATERIEL_MASTER_DATA.DATA) || {};
+  let actionPopup = null;
+  const closeActionPopup = () => { if (actionPopup) { actionPopup.remove(); actionPopup = null; } };
   /* The inline workspace script owns refPanel/editModel/viewModel/... and publishes them on window.
      If it failed to run, say so instead of leaving the buttons silently dead. */
   const workspaceReady = (...names) => {
@@ -98,14 +100,6 @@
     window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
-  const copyModel = (id) => {
-    if (!workspaceReady('editModel')) return;
-    window.editModel(id);
-    selectSection(0, { all: true });
-    if ($('modelName')) $('modelName').value += ' - نسخة';
-    if ($('modelId')) $('modelId').value = '';
-    if ($('modelForm')) $('modelForm').action = '/equipment-types/models/create';
-  };
   const postDelete = (url, message) => {
     if (!confirm(message)) return;
     const form = document.createElement('form');
@@ -126,7 +120,13 @@
       actions.push(['👁 عرض الطراز', () => window.viewModel?.(id)]);
       if (model.dataset.privateLibrary !== '0') {
         actions.push(['✏️ تعديل الطراز', () => window.editModel?.(id)]);
-        actions.push(['⧉ نسخ الطراز', () => copyModel(id)]);
+        actions.push([
+          model.dataset.frozen === '1' ? '↻ إعادة اعتماد الطراز' : '✳ تجميد الطراز',
+          () => postDelete(
+            `/equipment-types/models/${encodeURIComponent(id)}/${model.dataset.frozen === '1' ? 'unfreeze' : 'freeze'}`,
+            model.dataset.frozen === '1' ? 'إعادة اعتماد الطراز؟' : 'تجميد الطراز؟'
+          )
+        ]);
         actions.push(['🗑 حذف الطراز', () => postDelete(`/equipment-types/models/${encodeURIComponent(id)}/delete`, 'حذف الطراز؟')]);
       }
     } else if (ref) {
@@ -415,12 +415,28 @@
       }
       return;
     }
-    const copy = event.target.closest('[data-copy]');
-    if (copy) { stop(event); copyModel(copy.dataset.copy); return; }
+    const actionMenu = event.target.closest('[data-action-menu]');
+    if (actionMenu) {
+      stop(event);
+      const row = actionMenu.closest('[data-model-row],[data-ref-item]');
+      if (row) {
+        const rect = actionMenu.getBoundingClientRect();
+        showMenu(row, rect.left, rect.bottom + 4);
+      }
+      return;
+    }
     const del = event.target.closest('[data-delete]');
     if (del) { stop(event); postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`, 'حذف الطراز؟'); return; }
     const toggle = event.target.closest('.tree-toggle');
-    if (toggle) { stop(event); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return; }
+    if (toggle) {
+      const modelRow = toggle.closest('[data-model-row]');
+      if (modelRow) {
+        stop(event); selectNode(modelRow);
+        if (workspaceReady('viewModel')) { window.viewModel(modelRow.dataset.modelRow); selectSection(0, { all: true }); }
+        return;
+      }
+      stop(event); toggle.closest('.tree-group')?.classList.toggle('open'); syncArrows(); return;
+    }
     const row = event.target.closest('[data-model-row]');
     if (row) {
       selectNode(row); row.closest('.tree-group')?.classList.add('open'); syncArrows();

@@ -99,6 +99,14 @@ def add_item(request_id: int, data: SparePartRequestItemCreate, db: Session = De
         raise HTTPException(400, str(exc))
 
 
+@router.get("/items/{item_id}", response_model=SparePartRequestItemOut)
+def get_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    return services.serialize_item(obj)
+
+
 @router.patch("/items/{item_id}", response_model=SparePartRequestItemOut)
 def item(item_id: int, data: SparePartRequestItemUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
@@ -106,6 +114,17 @@ def item(item_id: int, data: SparePartRequestItemUpdate, db: Session = Depends(g
         raise HTTPException(404, "بند طلب الغيار غير موجود")
     try:
         return services.update_item(db, obj, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.delete("/items/{item_id}/receipt")
+def undo_receipt(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    try:
+        return services.serialize_item(services.undo_item_receipt(db, obj))
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
@@ -120,8 +139,3 @@ def delete_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(g
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-
-
-@router.get("/stats/pending-count")
-def pending(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return {"count": services.pending_count(db)}
