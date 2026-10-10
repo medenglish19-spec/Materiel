@@ -111,63 +111,6 @@ async def apply(
             model_id = int(model_id_str)
         except Exception:
             raise HTTPException(status_code=422, detail="model_id غير صالح")
-        candidates = []
-        idx = 0
-        while True:
-            def f(n):
-                return form.get(f"candidates-{idx}-{n}")
-            def fb(n):
-                v = f(n)
-                return v == "true" or v == "on" or v == "1"
-            nm = f("name_found")
-            if nm is None and f("value") is None and f("definition_id") is None:
-                # check if next exists?
-                pass
-            nmv = f("name_found") or ""
-            if nmv == "" and f("value") is None and f("definition_id") is None:
-                # try detect end
-                has_next = False
-                for k in form.keys():
-                    if k.startswith(f"candidates-{idx+1}-"):
-                        has_next = True
-                        break
-                if not has_next:
-                    break
-            try:
-                defid = f("definition_id")
-                definition_id = int(defid) if defid not in (None, "", "None") else None
-            except Exception:
-                definition_id = None
-            is_new_str = f("is_new") or "false"
-            is_new = is_new_str.lower() == "true"
-            val = f("value") or ""
-            unitv = f("unit") or None
-            appr = fb("approved")
-            ign = fb("ignored")
-            ed = fb("edited")
-            val_ed = f("value_edited") or None
-            unit_ed = f("unit_edited") or None
-            src = f("source_ref") or None
-            try:
-                pg = f("page")
-                page = int(pg) if pg else None
-            except Exception:
-                page = None
-            sheet = f("sheet") or None
-            cell = f("cell") or None
-            try:
-                cf = f("confidence")
-                conf = float(cf) if cf else 0.0
-            except Exception:
-                conf = 0.0
-            candidates.append(
-                ImportApplyRequest.__fields__["candidates"].type_(  # pydantic v1 compat not needed; build manually by dict
-                )
-            )
-            idx += 1
-            if idx > 5000:
-                break
-        # rebuild properly
         candidates_list = []
         idx = 0
         while True:
@@ -189,17 +132,23 @@ async def apply(
             except Exception:
                 definition_id = None
             is_new = (f("is_new") or "false").lower() == "true"
+            # edited detection using original values
+            val_orig = f("value_original") or ""
+            unit_orig = f("unit_original") or ""
+            val = valf or ""
+            unit = f("unit") or None
+            edited = (val != val_orig) or (unit != unit_orig)
             candidates_list.append({
                 "definition_id": definition_id,
                 "name_found": nmv or None,
-                "value": valf or "",
-                "unit": f("unit") or None,
+                "value": val,
+                "unit": unit,
                 "is_new": is_new,
                 "approved": fb("approved"),
                 "ignored": fb("ignored"),
-                "edited": fb("edited"),
-                "value_edited": f("value_edited") or None,
-                "unit_edited": f("unit_edited") or None,
+                "edited": edited,
+                "value_edited": val if edited else None,
+                "unit_edited": unit if edited else None,
                 "source_ref": f("source_ref") or None,
                 "page": None,
                 "sheet": f("sheet") or None,
