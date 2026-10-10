@@ -75,7 +75,7 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert "const api='/api/maintenance'" in template
     assert "${api}/operations" in template
     assert "${api}/operation-groups" in template
-    assert "مكتبة شروط الصيانة الدورية" in template
+    assert "مكتبة عمليات الصيانة" in template
     assert "إضافة عملية صيانة" in template
     assert "equipment_model_id" not in template
     assert "maintenance/rules/create" not in router

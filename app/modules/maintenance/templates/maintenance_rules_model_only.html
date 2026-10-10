@@ -1,25 +1,23 @@
-{% extends "base.html" %}
-{% block title %}مكتبة شروط الصيانة الدورية{% endblock %}
+﻿{% extends "base.html" %}
+{% block title %}مكتبة عمليات الصيانة{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
-  <div class="page-top">
-    <div class="page-heading">
-      <h2>مكتبة شروط الصيانة الدورية</h2>
-      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">مكتبة الشروط</span></div>
-    </div>
-    <div class="hero-actions">
-      <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
-      <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
-    </div>
-  </div>
-
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
     <a class="active" href="/maintenance/rules">2. عمليات الصيانة</a>
     <a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a>
     <a href="/maintenance/due">5. الصيانة المستحقة</a>
   </nav>
+  <div class="page-top">
+    <div class="page-heading">
+      <h2>مكتبة عمليات الصيانة</h2>
+      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">مكتبة عمليات الصيانة</span></div>
+    </div>
+    <div class="hero-actions">
+      <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
+    </div>
+  </div>
 
   <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
   <div id="planModeBar" class="plan-mode-bar">
@@ -28,14 +26,17 @@
   </div>
 
   <div class="toolbar-card">
-    <div class="toolbar">
-      <div class="search-wrap"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
-      <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
-      <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
-      <button class="m-btn" type="button" id="editGroupBtn" disabled>✏️ تعديل المجموعة</button>
-      <button class="m-btn" type="button" id="deleteGroupBtn" disabled>🗑 حذف المجموعة</button>
-      <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
-      <button class="m-btn" type="button" id="refreshLibrary">↻ &nbsp;تحديث</button>
+    <div class="toolbar" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div class="search-wrap" style="flex:1 1 280px;min-width:240px"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
+        <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
+        <button class="m-btn" type="button" id="editGroupBtn" disabled>✏️ تعديل المجموعة</button>
+        <button class="m-btn" type="button" id="deleteGroupBtn" disabled>🗑 حذف المجموعة</button>
+        <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
+        <button class="m-btn" type="button" id="refreshLibrary">↻ &nbsp;تحديث</button>
+        <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
+      </div>
     </div>
   </div>
 
@@ -53,6 +54,7 @@
   <th class="mt-actions-th" aria-label="إجراءات"></th>
   <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
+  <th class="filter-head" data-filter-col="models">الطرازات <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th>الوحدة</th>
   <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
@@ -69,6 +71,8 @@
       <input type="hidden" id="operationId">
       <input class="m-input" id="operationName" required placeholder="اسم العملية">
       <select class="m-select" id="operationGroup"><option value="">بدون مجموعة</option></select>
+      <select class="m-select" id="operationModels" multiple style="min-height:100px"><option value="">اختر الطرازات...</option></select>
+      <small class="muted">الطرازات التي تنطبق عليها هذه العملية. إذا تركت فارغًا، لن تكون العملية متاحة لأي عتاد.</small>
       <input class="m-input meter-km-field" id="intervalKm" type="number" min="0.01" step="any" placeholder="كل كم">
       <input class="m-input meter-hours-field" id="intervalHours" type="number" min="0.01" step="any" placeholder="كل ساعة تشغيل">
       <input class="m-input" id="intervalDays" type="number" min="1" step="1" placeholder="كل كم يوم">
@@ -133,6 +137,10 @@
     if(op.interval_days!=null)a.push(op.interval_days+' يوم');
     return a.length?a.join(' أو '):'—';
   }
+  function modelsText(op){
+    if(!op.equipment_model_ids || !op.equipment_model_ids.length) return '<span class="muted">— لا توجد طرازات</span>';
+    return op.equipment_model_ids.map(id => `<span class="badge info" style="font-size:11px;padding:2px 6px;margin:1px;">${escapeHtml(id)}</span>`).join(' ');
+  }
   function unitText(op){
     const a=[];
     if(op.interval_km!=null)a.push('كم');
@@ -161,6 +169,7 @@
   function filterValue(op,col){
     if(col==='name') return op.name||'';
     if(col==='group') return groupName(op.group_id);
+    if(col==='models') return modelsText(op);
     if(col==='condition') return conditionText(op);
     if(col==='warning') return warningText(op);
     if(col==='status') return op.is_active?'مفعلة':'متوقفة';
@@ -238,10 +247,10 @@
       return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
       <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
       <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
-      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
       <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
     </tr>`;
-    }).join(''):'<tr><td colspan="7" class="muted">لا توجد عمليات مطابقة.</td></tr>';
+    }).join(''):'<tr><td colspan="8" class="muted">لا توجد عمليات مطابقة.</td></tr>';
     if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' محددة';
     updateFilterButtons();
   }
@@ -291,6 +300,7 @@
   }
   function resetEditor(){
     $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
+    $('operationModels').value='';
     $('intervalKm').value=''; $('intervalHours').value=''; $('intervalDays').value='';
     $('warningKm').value=''; $('warningDays').value=''; $('operationDescription').value=''; $('operationActive').checked=true;
     $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
@@ -299,6 +309,14 @@
   function editOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
     $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
+    // Set equipment models
+    if(op.equipment_model_ids && op.equipment_model_ids.length){
+      Array.from($('operationModels').options).forEach(opt => {
+        opt.selected = op.equipment_model_ids.includes(Number(opt.value));
+      });
+    } else {
+      $('operationModels').value='';
+    }
     $('intervalKm').value=op.interval_km??''; $('intervalHours').value=op.interval_hours??''; $('intervalDays').value=op.interval_days??'';
     $('warningKm').value=op.warning_km??''; $('warningDays').value=op.warning_days??'';
     $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
@@ -342,8 +360,13 @@
   }
   async function load(){
     try{
-      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
-      state.groups=groups; state.operations=operations; await loadPlanContext();
+      const [groups,operations,models]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`),request('/api/equipment/models')]);
+      state.groups=groups; state.operations=operations; state.models=models;
+      // Populate equipment models select
+      const modelSelect=$('operationModels');
+      modelSelect.innerHTML='<option value="">اختر الطرازات...</option>';
+      models.forEach(m=>{modelSelect.insertAdjacentHTML('beforeend',`<option value="${m.id}">${escapeHtml(m.name)}</option>`);});
+      await loadPlanContext();
       if(isPlanMode()){
         EditManager.register('maintenance-plan-selection',{
           label:'عمليات الخطة',
@@ -353,11 +376,12 @@
         });
       }
       renderGroups(); render(); syncGroupButtons();
-    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
+    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="8" class="muted">${escapeHtml(e.message)}</td></tr>`}
   }
   $('operationForm').addEventListener('submit',async e=>{
     e.preventDefault();
     const id=$('operationId').value;
+    const selectedModels=Array.from($('operationModels').selectedOptions).map(opt=>Number(opt.value));
     const payload={
       name:$('operationName').value.trim(),group_id:$('operationGroup').value?Number($('operationGroup').value):null,
       interval_km:$('intervalKm').value?Number($('intervalKm').value):null,
@@ -365,7 +389,8 @@
       interval_days:$('intervalDays').value?Number($('intervalDays').value):null,
       warning_km:$('warningKm').value?Number($('warningKm').value):null,
       warning_days:$('warningDays').value?Number($('warningDays').value):null,
-      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked
+      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked,
+      equipment_model_ids:selectedModels
     };
     try{
       await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
