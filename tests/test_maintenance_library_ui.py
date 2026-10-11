@@ -5,8 +5,8 @@
 1. حفظ عملية عامة بلا أي طراز وبلا أي شرط استحقاق.
 2. ظهور العملية الجديدة في جدول المكتبة (استعلام المكتبة لا يستبعد أحدًا).
 3. ظهور العمليات القديمة غير المرتبطة بطراز في الجدول نفسه.
-4. تحميل قائمة الطرازات من واجهة البيانات الصحيحة وعرضها في القائمة.
-5. ربط عملية بطراز مع شرط خاص بها.
+4. بقاء واجهة بيانات الطرازات متاحة في الـAPI لبقية النظام.
+5. ربط عملية بطراز مع شرط خاص بها (عبر الـAPI، لا من محرر المكتبة).
 6. ربط العملية نفسها بطرازين بشروط مختلفة مع بقاء الشرطين مستقلين.
 7. عدم ظهور العملية العامة في الاستحقاقات ولا في الإنذارات.
 8. عدم عودة القيم القديمة إلى الـAPI ولا إلى أي حساب.
@@ -153,14 +153,14 @@ def test_the_model_picker_loads_from_the_equipment_models_endpoint(api):
         assert set(model) >= {"id", "name", "type", "brand"}
 
 
-def test_the_template_builds_the_picker_from_that_endpoint():
+def test_the_library_template_has_no_model_picker():
     template = _template()
-    assert "request(`${api}/equipment/models`)" in template
-    assert "state.models" in template
-    assert "function modelOptions(" in template
-    # وإن لم تُحمّل الطرازات تظهر حالة واضحة بدل قائمة فارغة صامتة.
-    assert "لا توجد طرازات محمّلة" in template
-    assert "Array.isArray(models)?models:[]" in template
+    # المكتبة العامة لم تعد تُحمّل قائمة طرازات ولا تبني قائمة اختيار.
+    assert "request(`${api}/equipment/models`)" not in template
+    assert "function modelOptions(" not in template
+    assert "لا توجد طرازات محمّلة" not in template
+    assert "editorModelsBody" not in template
+    assert "equipment_model_conditions" not in template
 
 
 def test_the_router_exposes_the_model_picker_endpoint():
@@ -208,14 +208,41 @@ def test_a_model_row_without_a_condition_is_stored_as_unset_not_rejected(api):
     assert condition["condition_text"] == "—"
 
 
-def test_the_general_operation_is_saved_before_any_model_row_is_added(api):
-    """الصف الفارغ في المحرر لا يمنع حفظ العملية العامة."""
+def test_the_general_operation_is_saved_without_any_model_input():
+    """المحرر لا يحمل أي صف طراز: الاسم وحده يكفي لحفظ العملية العامة."""
     template = _template()
-    # الصف بلا طراز يُهمل ولا يُرسل، والحفظ يستمر.
-    assert "if(rawModel===''){" in template
-    assert "continue;" in template
+    # لا وجود لاختيار طراز أو صفوف شروط في محرر المكتبة.
+    assert "rawModel" not in template
+    assert "addModelRow" not in template
+    assert "editorModelsBody" not in template
+    assert "equipment_model_conditions" not in template
     # والاسم وحده هو شرط الصلاحية.
     assert "if(!name){ showAlert('اسم العملية مطلوب.'" in template
+
+
+def test_editing_a_general_operation_does_not_touch_existing_model_links(api):
+    """حفظ تعديل العملية العامة بلا شروط طرازات لا يحذف ارتباطاتها القائمة."""
+    client, ids = api
+    created = client.post(
+        "/api/maintenance/operations",
+        json=_operation_payload(
+            "عملية مرتبطة تُعدَّل لاحقًا",
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+            warning_km=500,
+        ),
+    ).json()
+
+    # تعديل عام كما ترسله المكتبة الآن: بلا حقل شروط الطرازات إطلاقًا.
+    response = client.put(
+        f"/api/maintenance/operations/{created['id']}",
+        json={"name": "عملية مرتبطة بعد التعديل", "warning_km": 600},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["name"] == "عملية مرتبطة بعد التعديل"
+    # الارتباط بالطراز وشرطه لم يُمسّا.
+    assert [row["model_id"] for row in body["model_conditions"]] == [ids["model_a"]]
+    assert body["model_conditions"][0]["condition_text"] == "5000 كم"
 
 
 # ------------------------------------------------- 6) طرازان مستقلان

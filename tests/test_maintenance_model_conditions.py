@@ -157,18 +157,18 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     assert response.status_code == 200, response.text
     page = response.text
 
-    # أساسيات الصفحة: الجدول وأعمدة الشرط والإنذار ونموذج الإدخال.
+    # أساسيات الصفحة: الجدول وأعمدة الإنذار والحالة ونموذج الإدخال.
     assert 'id="operationsTable"' in page
-    assert 'data-filter-col="condition"' in page
     assert 'data-filter-col="warning"' in page
-    assert 'id="editorModelsBody"' in page
-    assert 'id="conditionDetailsBody"' in page
+    # المكتبة العامة لا تعرض شروط الطرازات: لا عمود شرط ولا نافذة تفاصيل شروط.
+    assert 'data-filter-col="condition"' not in page
+    assert 'id="conditionDetailsBody"' not in page
+    assert 'id="editorModelsBody"' not in page
 
     # مصدر البيانات: واجهات المكتبة الحقيقية.
     assert "const api='/api/maintenance'" in page
     assert "${api}/operations`" in page
-    assert "${api}/equipment/models`" in page
-    assert "equipment_model_conditions" in page
+    assert "equipment_model_conditions" not in page
 
     # لا يستخدم القالب حقلًا غير موجود في الصفحة (كان يُسقط التحميل سابقًا).
     assert "$('operationModels')" not in page
@@ -180,9 +180,10 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     assert "خطأ في التحميل" in page
     assert "state.loadState='error'" in page
 
-    # التفاصيل لكل طراز تُبنى من بيانات الـAPI لا من شرط الخطة.
-    assert "الشرط غير محدد" in page
-    assert "model_conditions" in page
+    # المكتبة لا تعرض شرط الطراز: لا نص «الشرط غير محدد» ولا قراءة model_conditions.
+    assert "الشرط غير محدد" not in page
+    assert "model_conditions" not in page
+    assert "conditionDetails" not in page
 
 
 def test_rules_page_lists_every_operation_with_its_model_summary(api):

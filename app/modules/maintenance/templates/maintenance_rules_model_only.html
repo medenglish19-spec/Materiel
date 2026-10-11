@@ -46,7 +46,7 @@
     <div class="panel-head">
       <div>
         <h3>العمليات الفنية</h3>
-        <p>هذه المكتبة هي المرجع الفني للعمليات. شرط الاستحقاق وإعداد الإنذار يخصّان كل طراز على حدة؛ العملية الواحدة قد ترتبط بعدة طرازات بشروط مختلفة. اضغط على خلية الشرط أو الإنذار لعرض تفاصيل كل طراز.</p>
+        <p>هذه المكتبة هي المرجع الفني للعمليات. العملية العامة في المكتبة تُعرَّف مرة واحدة بلا شرط استحقاق ولا إنذار؛ تُربط بالطرازات وتُضبط شروطها لاحقًا من خلال خطط الصيانة.</p>
       </div>
       <span class="badge info" id="operationCount">0 عملية</span>
     </div>
@@ -56,12 +56,10 @@
   <th class="mt-actions-th" aria-label="إجراءات"></th>
   <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th>الوحدة</th>
   <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="status">الحالة <button class="col-filter" type="button" title="تصفية">▼</button></th>
 </tr></thead>
-        <tbody id="operationsBody"><tr><td colspan="8" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
+        <tbody id="operationsBody"><tr><td colspan="5" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -70,9 +68,8 @@
     <div class="panel-head">
       <div>
         <h3 id="editorTitle">إضافة عملية صيانة</h3>
-        <p>يُعرَّف العملية الفنية مرة واحدة، ثم تُضاف الطرازات ويُضبط شرط استحقاق كل طراز وإعداد إنذاره على حدة.</p>
+        <p>العملية العامة في المكتبة تُعرَّف بلا شرط استحقاق ولا إنذار؛ تُربط بالطرازات وتُضبط شروطها لاحقًا من خلال خطط الصيانة.</p>
       </div>
-      <span class="badge info" id="editorModelCount">0 طراز</span>
     </div>
     <form id="operationForm" style="padding:18px">
       <input type="hidden" id="operationId">
@@ -85,33 +82,10 @@
 
       <div class="toolbar" style="flex-wrap:wrap;gap:10px;margin-top:10px">
         <label style="display:flex;align-items:center;gap:8px;font-weight:600">
-          <span>إنذار العملية (موحد لكل الطرازات):</span>
+          <span>إنذار العملية (موحد عند الربط بالطراز):</span>
           <input class="m-input" id="operationWarningKm" type="number" min="0" step="0.1" placeholder="إنذار قبل كم" style="width:160px">
           <input class="m-input" id="operationWarningDays" type="number" min="0" step="1" placeholder="إنذار قبل أيام" style="width:160px">
         </label>
-      </div>
-
-      <div style="margin-top:16px">
-        <div class="toolbar" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
-          <strong>شروط الاستحقاق بحسب الطراز</strong>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="m-btn" type="button" id="addModelRow">＋ &nbsp;إضافة طراز</button>
-          </div>
-        </div>
-        <div class="muted" style="margin:6px 0 10px">يُحدَّد شرط الاستحقاق وإعداد الإنذار لكل طراز على حدة. الطراز بلا شرط محفوظ يظهر «الشرط غير محدد» ولا تُحسب له استحقاقات. العملية غير المرتبطة بأي طراز تبقى عملية عامة في المكتبة بلا استحقاق وبلا إنذار.</div>
-        <div class="table-wrap">
-          <table class="m-table" id="editorModelsTable">
-            <thead><tr>
-              <th>الطراز</th>
-              <th>الفاصل بالكيلومترات</th>
-              <th>الفاصل بساعات التشغيل</th>
-              <th>الفاصل بالأيام</th>
-              <th>حالة الشرط</th>
-              <th class="mt-actions-th" aria-label="إزالة"></th>
-            </tr></thead>
-            <tbody id="editorModelsBody"></tbody>
-          </table>
-        </div>
       </div>
 
       <div class="toolbar" style="margin-top:14px">
@@ -120,25 +94,6 @@
       </div>
     </form>
   </section>
-
-  <div id="conditionDetails" class="condition-details" style="display:none" role="dialog" aria-modal="true" aria-labelledby="conditionDetailsTitle">
-    <div class="condition-details-card">
-      <div class="condition-details-head">
-        <div>
-          <strong id="conditionDetailsTitle">شروط الاستحقاق بحسب الطراز</strong>
-          <div class="muted" id="conditionDetailsSubtitle"></div>
-        </div>
-        <button class="m-btn" type="button" id="conditionDetailsClose">إغلاق</button>
-      </div>
-      <div class="table-wrap">
-        <table class="m-table">
-          <thead><tr><th>الطراز</th><th>شرط الاستحقاق</th><th>الوحدة</th><th>إعداد الإنذار</th></tr></thead>
-          <tbody id="conditionDetailsBody"></tbody>
-        </table>
-      </div>
-      <div class="muted" id="conditionDetailsNote" style="margin-top:10px"></div>
-    </div>
-  </div>
 
   <!-- Group Editor Modal -->
   <div id="groupEditor" class="condition-details" style="display:none" role="dialog" aria-modal="true" aria-labelledby="groupEditorTitle">
@@ -195,16 +150,9 @@
   .excel-filter-values{max-height:260px;overflow:auto;border-top:1px solid #eee;padding-top:6px}
   .excel-filter-values label{display:flex;align-items:center;gap:7px;padding:5px 3px;cursor:pointer}
   .excel-filter-values label:hover{background:#f5f6f8}
-  .condition-cell{display:flex;align-items:center;gap:6px;justify-content:flex-start}
-  .condition-link{border:1px solid #d8dee8;background:#f8fafc;border-radius:6px;padding:4px 8px;cursor:pointer;font:inherit;font-size:12px;color:#1f2937;display:inline-flex;align-items:center;gap:6px}
-  .condition-link:hover{background:#eef4fa;border-color:#b9cde0}
+  .condition-link{border:1px solid #d8dee8;background:#f8fafc;border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;color:#1f2937;display:inline-flex;align-items:center;gap:6px}
   .condition-link.multi{border-color:#e8c07d;background:#fff8ec;color:#8a5a05;font-weight:600}
-  .condition-link.unset{border-color:#e0b4b4;background:#fdf2f2;color:#9b2c2c;font-weight:600}
   .condition-link.none{border-style:dashed;background:transparent;color:#7b8794;cursor:default}
-  #editorModelsTable .m-input{min-width:96px}
-  #editorModelsTable .model-flag{font-size:12px}
-  #editorModelsTable .model-flag.unset{color:#9b2c2c;font-weight:600}
-  #editorModelsTable .model-flag.set{color:#2b6cb0}
   .condition-details{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px}
   .condition-details-card{background:#fff;border-radius:10px;max-width:860px;width:100%;max-height:86vh;overflow:auto;padding:16px;box-shadow:0 18px 48px rgba(15,23,42,.32)}
   .condition-details-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -215,8 +163,8 @@
 {% raw %}
 (function(){
   const api='/api/maintenance';
-  const state={groups:[],operations:[],models:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),loadState:'loading',loadError:null};
-  const columnFilters={name:new Set(),group:new Set(),models:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
+  const state={groups:[],operations:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),loadState:'loading',loadError:null};
+  const columnFilters={name:new Set(),group:new Set(),warning:new Set(),status:new Set()};
   let openFilterMenu=null;
   const $=id=>document.getElementById(id);
   const alertBox=$('libraryAlert');
@@ -236,46 +184,17 @@
   function groupName(id){return state.groups.find(g=>g.id===id)?.name||'بدون مجموعة'}
   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
   function summaryOf(op){
-    return op.condition_summary || {models_count:0,defined_count:0,unset_count:0,condition:null,condition_state:'no_models',warning:null,warning_state:'no_models',unit:null};
+    return op.condition_summary || {models_count:0,warning:null,has_multiple_warnings:false};
   }
-  function modelName(modelId){
-    const model=state.models.find(m=>Number(m.id)===Number(modelId));
-    return model?model.name:'طراز #'+modelId;
-  }
-  function modelOptions(selectedId){
-    // الطرازات تأتي من /api/maintenance/equipment/models؛ وإن لم تُحمّل بعد
-    // نعرض حالة واضحة بدل قائمة فارغة صامتة.
-    if(!state.models.length) return '<option value="">لا توجد طرازات محمّلة</option>';
-    return state.models.map(m=>`<option value="${m.id}" ${Number(m.id)===Number(selectedId)?'selected':''}>${escapeHtml(m.name)}</option>`).join('');
-  }
-  function modelsText(op){
-    const rows=op.model_conditions||[];
-    if(!rows.length) return '<span class="muted" title="عملية عامة في المكتبة: لا استحقاق ولا إنذار">— عملية عامة</span>';
-    return rows.map(row=>`<span class="badge info" style="font-size:11px;padding:2px 6px;margin:1px;">${escapeHtml(row.model_name||modelName(row.model_id))}</span>`).join(' ');
-  }
-  function unitText(op){
+  function warningCell(op){
     const s=summaryOf(op);
-    if(!s.models_count) return '<span class="muted">—</span>';
-    return escapeHtml(s.unit||'—');
-  }
-  function summaryCell(op,kind){
-    const s=summaryOf(op);
-    const rows=op.model_conditions||[];
-    if(!rows.length) return '<span class="condition-link none" title="العملية غير مرتبطة بأي طراز؛ لا يوجد شرط فعال">— لا توجد طرازات</span>';
-    const text=kind==='condition'?s.condition:s.warning;
-    const stateName=kind==='condition'?s.condition_state:s.warning_state;
-    const multi=kind==='condition'?s.has_multiple_conditions:s.has_multiple_warnings;
-    let cls='condition-link';
-    if(stateName==='multiple'||multi) cls+=' multi';
-    else if(stateName==='unset'||stateName==='partially_unset') cls+=' unset';
-    const label=text||'—';
-    return `<button type="button" class="${cls}" data-condition-details="${op.id}" title="عرض تفاصيل الشروط بحسب الطراز">${escapeHtml(label)}</button>`;
+    // عملية عامة بلا ربط بطراز: لا يوجد إنذار محسوب.
+    if(!s.models_count) return '<span class="condition-link none" title="لا يوجد إنذار لعملية عامة">—</span>';
+    return `<span class="condition-link${s.has_multiple_warnings?' multi':''}" title="إعداد الإنذار الموحد للعملية">${escapeHtml(s.warning||'—')}</span>`;
   }
   function filterValue(op,col){
     if(col==='name') return op.name||'';
     if(col==='group') return groupName(op.group_id);
-    if(col==='models') return (op.model_conditions||[]).map(r=>r.model_name||modelName(r.model_id)).join('، ');
-    if(col==='condition') return summaryOf(op).condition||'—';
     if(col==='warning') return summaryOf(op).warning||'—';
     if(col==='status') return op.is_active?'مفعلة':'متوقفة';
     return '';
@@ -296,7 +215,7 @@
   }
   function renderTableMessage(message,cssClass){
     $('operationCount').textContent='0 عملية';
-    $('operationsBody').innerHTML=`<tr><td colspan="8" class="${cssClass}">${escapeHtml(message)}</td></tr>`;
+    $('operationsBody').innerHTML=`<tr><td colspan="5" class="${cssClass}">${escapeHtml(message)}</td></tr>`;
   }
   function passesColumnFilters(op){
     return Object.entries(columnFilters).every(([col,set])=>!set.size||set.has(filterValue(op,col)));
@@ -374,7 +293,7 @@
         return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
         <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
         <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
-        <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${summaryCell(op,'condition')}</td><td class="num">${unitText(op)}</td><td class="num">${summaryCell(op,'warning')}</td>
+        <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${warningCell(op)}</td>
         <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       </tr>`;
       }).join('');
@@ -385,34 +304,7 @@
       renderTableMessage('خطأ في العرض: '+e.message,'muted danger');
     }
   }
-  function hasStoredCondition(row){
-    return !!row && row.is_defined && (row.interval_km!=null||row.interval_hours!=null||row.interval_days!=null);
-  }
-  function openConditionDetails(operationId){
-    const op=state.operations.find(x=>Number(x.id)===Number(operationId));
-    if(!op) return;
-    const rows=op.model_conditions||[];
-    $('conditionDetailsTitle').textContent='شروط الاستحقاق بحسب الطراز: '+(op.name||'');
-    $('conditionDetailsSubtitle').textContent='هذه الشروط تخص العملية والطراز، وليست شروط خطة صيانة.';
-    $('conditionDetailsBody').innerHTML=rows.length?rows.map(row=>{
-      const unset=!row.is_defined;
-      const conditionCellText=unset?`<span class="model-flag unset">الشرط غير محدد</span>`:escapeHtml(row.condition_text);
-      return `<tr>
-        <td>${escapeHtml(row.model_name||modelName(row.model_id))}</td>
-        <td class="num">${conditionCellText}</td>
-        <td class="num">${unset?'—':escapeHtml(row.unit_text)}</td>
-        <td class="num">${unset?'—':escapeHtml(row.warning_text)}</td>
-      </tr>`;
-    }).join(''):'<tr><td colspan="4" class="muted">العملية غير مرتبطة بأي طراز، فلا يوجد شرط فعال لأي طراز.</td></tr>';
-    $('conditionDetailsNote').textContent=rows.length
-      ? 'الشرط الفعلي المستخدم في حساب الاستحقاق هو الشرط المحفوظ لكل طراز. غياب الإعداد يعني «الشرط غير محدد»، و«بدون إنذار مفعّل» تعني أن الشرط محدد بلا إنذار.'
-      : '';
-    $('conditionDetails').style.display='flex';
-  }
-  function closeConditionDetails(){ $('conditionDetails').style.display='none'; }
   $('operationsBody').addEventListener('click',async e=>{
-    const detailsBtn=e.target.closest('[data-condition-details]');
-    if(detailsBtn){ e.stopPropagation(); openConditionDetails(detailsBtn.dataset.conditionDetails); return; }
     // Handle action menu button (⋮) for each operation row
     const menuBtn=e.target.closest('.mt-row-btn[data-menu]');
     if(menuBtn){
@@ -444,63 +336,7 @@
   document.addEventListener('click',e=>{
     if(openFilterMenu && !openFilterMenu.contains(e.target) && !e.target.closest('.col-filter')) closeFilterMenu();
   });
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeFilterMenu(); closeConditionDetails(); } });
-  $('conditionDetailsClose').onclick=closeConditionDetails;
-  $('conditionDetails').addEventListener('click',e=>{ if(e.target===$('conditionDetails')) closeConditionDetails(); });
-
-  // ---- per-model condition editor -----------------------------------------
-  function modelRowHtml(seed){
-    const data=seed||{};
-    const defined=data.is_defined!==false && (data.condition_source==='model' || data.is_defined===true);
-    const value=v=>v===null||v===undefined?'':v;
-    const km=value(data.interval_km);
-    const hours=value(data.interval_hours);
-    const days=value(data.interval_days);
-    return `<tr class="editor-model-row" data-condition-source="${data.condition_source||'model'}">
-      <td><select class="m-select model-id">${modelOptions(data.model_id)}</select>
-        <div class="model-flag ${defined?'set':'unset'}">${defined?'شرط محدد لهذا الطراز':'لم يُحفظ شرط لهذا الطراز بعد'}</div></td>
-      <td><input class="m-input model-km" type="number" min="0.01" step="any" placeholder="كل كم" value="${value(km)}"></td>
-      <td><input class="m-input model-hours" type="number" min="0.01" step="any" placeholder="كل ساعة تشغيل" value="${value(hours)}"></td>
-      <td><input class="m-input model-days" type="number" min="1" step="1" placeholder="كل كم يوم" value="${value(days)}"></td>
-      <td class="model-state muted">${defined?'محدد':'غير محدد'}</td>
-      <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-remove-model aria-label="إزالة الطراز">✕</button></td>
-    </tr>`;
-  }
-  function refreshEditorModelCount(){
-    const rows=document.querySelectorAll('#editorModelsBody tr.editor-model-row').length;
-    $('editorModelCount').textContent=rows+' طراز';
-  }
-  function addModelRow(seed){
-    const body=$('editorModelsBody');
-    body.insertAdjacentHTML('beforeend',modelRowHtml(seed));
-    refreshEditorModelCount();
-    syncModelSelects();
-  }
-  function syncModelSelects(){
-    // A model can hold its own condition only once per operation: options already
-    // taken by another row are disabled so the same model cannot be added twice.
-    const rows=[...document.querySelectorAll('#editorModelsBody tr.editor-model-row')];
-    const taken=new Set(rows.map(row=>row.querySelector('.model-id').value));
-    rows.forEach(row=>{
-      const select=row.querySelector('.model-id');
-      const own=select.value;
-      [...select.options].forEach(option=>{
-        option.disabled = option.value!==own && taken.has(option.value);
-      });
-    });
-  }
-  // يُضاف صف طراز فارغ دائمًا: لا شرط مفروض مسبقًا من أي مصدر.
-  $('addModelRow').onclick=()=>addModelRow(null);
-  $('editorModelsBody').addEventListener('click',e=>{
-    const btn=e.target.closest('[data-remove-model]');
-    if(!btn) return;
-    btn.closest('tr.editor-model-row').remove();
-    refreshEditorModelCount();
-    syncModelSelects();
-  });
-  $('editorModelsBody').addEventListener('change',e=>{
-    if(e.target.classList.contains('model-id')) syncModelSelects();
-  });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeFilterMenu(); } });
 
   function syncMeterFields(){
     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
@@ -512,10 +348,8 @@
     // Clear operation-level warning fields
     $('operationWarningKm').value = '';
     $('operationWarningDays').value = '';
-    // عملية جديدة تبدأ بلا أي طراز: الحفظ لا يشترط ربطًا ولا شرطًا.
-    $('editorModelsBody').innerHTML='';
     $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
-    refreshEditorModelCount(); syncMeterFields();
+    syncMeterFields();
   }
   function editOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
@@ -524,9 +358,6 @@
     // Load operation-level warning fields (unified across all models)
     $('operationWarningKm').value = op.warning_km ?? '';
     $('operationWarningDays').value = op.warning_days ?? '';
-    const body=$('editorModelsBody'); body.innerHTML='';
-    (op.model_conditions||[]).forEach(row=>body.insertAdjacentHTML('beforeend',modelRowHtml(row)));
-    refreshEditorModelCount(); syncModelSelects();
     $('editorTitle').textContent='تعديل عملية الصيانة'; $('operationEditor').style.display='';
     window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});
   }
@@ -555,17 +386,6 @@
     ];
   }
   function operationPayload(op,overrides){
-    const conditions=(op.model_conditions||[]).map(row=>{
-      const defined=row.is_defined;
-      return {
-        model_id:Number(row.model_id),
-        condition_source:defined?'model':'unset',
-        interval_km:defined?row.interval_km:null,
-        interval_hours:defined?row.interval_hours:null,
-        interval_days:defined?row.interval_days:null,
-        // Warning is unified at operation level, not per-model
-      };
-    });
     return {
       name:op.name,
       group_id:op.group_id??null,
@@ -573,7 +393,6 @@
       is_active:op.is_active,
       warning_km: Number($('operationWarningKm').value) || null,
       warning_days: Number($('operationWarningDays').value) || null,
-      equipment_model_conditions:conditions,
       ...(overrides||{})
     };
   }
@@ -598,12 +417,11 @@
   async function load(){
     state.loadState='loading'; state.loadError=null; render();
     try{
-      const [groups,operations,models]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`),request(`${api}/equipment/models`)]);
+      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
       // البيانات تُقرأ من الـAPI كما هي؛ الحماية هنا تمنع سقوط العرض لو أرجعت
       // إحدى الواجهات شكلًا غير متوقع، ولا تخترع أي صف.
       state.groups=Array.isArray(groups)?groups:[];
       state.operations=Array.isArray(operations)?operations:[];
-      state.models=Array.isArray(models)?models:[];
       await loadPlanContext();
       if(isPlanMode()){
         EditManager.register('maintenance-plan-selection',{
@@ -618,7 +436,7 @@
     }catch(e){
       console.error('Load error:', e);
       state.loadState='error'; state.loadError=e.message;
-      state.groups=[]; state.operations=[]; state.models=[];
+      state.groups=[]; state.operations=[];
       render();
     }
   }
@@ -626,32 +444,14 @@
     e.preventDefault();
     const id=$('operationId').value;
     const name=$('operationName').value.trim();
-    // صلاحية حفظ العملية العامة: الاسم فقط. العلاقة بالطراز اختيارية، والشرط
-    // يخص العلاقة لا تعريف العملية.
     if(!name){ showAlert('اسم العملية مطلوب.','danger'); return; }
-    const rows=[...document.querySelectorAll('#editorModelsBody tr.editor-model-row')];
-    const seen=new Set();
-    const conditions=[];
-    for(const row of rows){
-      const rawModel=row.querySelector('.model-id').value;
-      if(rawModel===''){
-        // صف ربط لم يُختَر فيه طراز: لا يمنع الحفظ ولا يُرسل.
-        if(!state.models.length&&rows.length===1){ showAlert('لا توجد طرازات محمّلة لربطها؛ لا يمكن إضافة صف شرط الآن.','danger'); return; }
-        continue;
-      }
-      const modelId=Number(rawModel);
-      if(seen.has(modelId)){ showAlert('الطراز '+modelName(modelId)+' مكرر؛ لكل طراز صف واحد.','danger'); return; }
-      seen.add(modelId);
-      const num=selector=>{const v=row.querySelector(selector).value; return v===''?null:Number(v)};
-      const km=num('.model-km'),hours=num('.model-hours'),days=num('.model-days');
-      const wkm=num('.model-wkm'),wdays=num('.model-wdays');
-      const defined=km!=null||hours!=null||days!=null||wkm!=null||wdays!=null;
-      conditions.push({model_id:modelId,condition_source:defined?'model':'unset',interval_km:km,interval_hours:hours,interval_days:days,warning_km:wkm,warning_days:wdays});
-    }
     const payload={
-      name:name,group_id:$('operationGroup').value?Number($('operationGroup').value):null,
-      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked,
-      equipment_model_conditions:conditions
+      name:name,
+      group_id:$('operationGroup').value?Number($('operationGroup').value):null,
+      description:$('operationDescription').value.trim()||null,
+      is_active:$('operationActive').checked,
+      warning_km: Number($('operationWarningKm').value) || null,
+      warning_days: Number($('operationWarningDays').value) || null,
     };
     try{
       await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});

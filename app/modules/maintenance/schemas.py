@@ -143,7 +143,10 @@ class MaintenanceOperationCreate(MaintenanceOperationBase):
 
 
 class MaintenanceOperationUpdate(MaintenanceOperationBase):
-    pass
+    # عند تعديل العملية العامة من المكتبة لا تُرسل شروط الطرازات أصلًا. غياب
+    # الحقل يعني «لا تلمس ارتباطات الطرازات الحالية»، وليس «احذفها». الـAPI
+    # يبقى قادرًا على حذف ربط صريح عند إرسال قائمة فعلية.
+    equipment_model_conditions: Optional[list[MaintenanceOperationModelConditionIn]] = None
 
 
 class MaintenanceOperationOut(MaintenanceOperationBase):

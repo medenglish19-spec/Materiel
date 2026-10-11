@@ -110,11 +110,15 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert "${api}/operation-groups" in template
     assert "مكتبة عمليات الصيانة" in template or "مكتبة شروط الصيانة" in template
     assert "إضافة عملية صيانة" in template
-    # شرط الاستحقاق وإعداد الإنذار يُضبطان لكل طراز على حدة، لا مرة واحدة للعملية.
-    assert "equipment_model_conditions" in template
-    assert "editorModelsBody" in template
-    assert "الشرط غير محدد" in template
-    assert "conditionDetails" in template
+    # المكتبة لا تعدّل شروط الطرازات ولا تعرضها: لا محرر ولا عمود شرط ولا نافذة تفاصيل.
+    assert "equipment_model_conditions" not in template
+    assert "editorModelsBody" not in template
+    assert "modelOptions" not in template
+    assert 'data-filter-col="condition"' not in template
+    assert "conditionDetails" not in template
+    assert "الشرط غير محدد" not in template
+    # وحقول الإنذار الموحّد على مستوى العملية تبقى في المكتبة.
+    assert "operationWarningKm" in template
     assert "maintenance/rules/create" not in router
     assert "exceptions/create" not in router
     assert "parent_rule" not in router

@@ -26,13 +26,14 @@ def test_equipment_pages_use_only_the_configured_meter_unit():
     assert "id=\"editOdometerField\"" in meters and "id=\"editHoursField\"" in meters
 
 
-def test_maintenance_conditions_library_uses_operation_conditions():
+def test_maintenance_conditions_library_keeps_the_operation_level_warning_fields():
     rules = read("app/modules/maintenance/templates/maintenance_rules_model_only.html")
 
-    assert "كل كم" in rules
-    assert "كل ساعة تشغيل" in rules
-    assert "كل كم يوم" in rules
+    # حقول الإنذار الموحّدة على مستوى العملية تبقى في المكتبة.
     assert "إنذار قبل كم" in rules
     assert "إنذار قبل أيام" in rules
+    # المكتبة العامة لم تعد تختار طرازًا ولا تحرّر شروطًا لكل طراز.
+    assert "equipment_model_conditions" not in rules
+    assert "editorModelsBody" not in rules
     # Updated page title
     assert "مكتبة عمليات الصيانة" in rules
