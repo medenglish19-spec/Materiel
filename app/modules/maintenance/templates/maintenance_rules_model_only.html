@@ -203,6 +203,8 @@
   .condition-details{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px}
   .condition-details-card{background:#fff;border-radius:10px;max-width:860px;width:100%;max-height:86vh;overflow:auto;padding:16px;box-shadow:0 18px 48px rgba(15,23,42,.32)}
   .condition-details-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  /* This action is always enabled; override any shared disabled-cursor styling on dropdown items. */
+  #managementMenu #menuNewGroup:not(:disabled){cursor:pointer !important}
 </style>
 <script>
 {% raw %}
@@ -655,10 +657,13 @@
   let managementMenuOpen = false;
 
   function openManagementMenu() {
+    // Make the menu measurable before calculating its viewport position.
+    // While display:none, offsetWidth/offsetHeight are zero and the menu can
+    // be positioned partly outside the viewport.
+    managementMenu.style.display = 'block';
     const rect = managementBtn.getBoundingClientRect();
     managementMenu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - managementMenu.offsetWidth - 8)) + 'px';
-    managementMenu.style.top = Math.min(rect.bottom + 4, window.innerHeight - managementMenu.offsetHeight - 8) + 'px';
-    managementMenu.style.display = 'block';
+    managementMenu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - managementMenu.offsetHeight - 8)) + 'px';
     managementBtn.setAttribute('aria-expanded', 'true');
     managementMenuOpen = true;
   }
@@ -752,7 +757,7 @@
     const has=!!selectedGroup();
     const menuEditBtn = $('menuEditGroup'), menuDeleteBtn = $('menuDeleteGroup');
     if (menuEditBtn) { menuEditBtn.disabled = !has; menuEditBtn.style.opacity = has ? '' : '.45'; menuEditBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
-    if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '.45' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
+    if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
   }
   $('groupFilter').addEventListener('change', syncGroupButtons);
 

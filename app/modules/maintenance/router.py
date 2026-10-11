@@ -705,9 +705,9 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
     
     if compatibility_errors:
         # Rollback the changes to operation attributes
-        operation.interval_km = original_interval_km
-        operation.interval_hours = original_interval_hours
-        operation.interval_days = original_interval_days
+        # Roll back every pending attribute and per-model condition change.
+        # Legacy interval fields are not edited here, and the old variables do not exist.
+        db.rollback()
         raise HTTPException(
             status_code=409,
             detail="تعذر تعديل العملية: شروط العملية الجديدة غير متوافقة مع الخطط المرتبطة بها.\n" + "\n".join(compatibility_errors)
