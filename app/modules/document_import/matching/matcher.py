@@ -1,11 +1,12 @@
 from __future__ import annotations
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import difflib
 
 from ..schemas import Candidate
-from app.modules.equipment_types.models import EquipmentModelSpecDefinition
+from app.modules.equipment_types.models import EquipmentModel, EquipmentModelSpecDefinition
 
 _FUZZ_AVAILABLE = False
 try:
@@ -124,8 +125,6 @@ def _norm_key(s: str) -> str:
 
 
 def match_against_definitions(db: Session, candidates: List[Candidate], model: Optional[EquipmentModel] = None) -> List[Candidate]:
-    from sqlalchemy import or_
-    
     query = db.query(EquipmentModelSpecDefinition).order_by(
         EquipmentModelSpecDefinition.group_sort_order,
         EquipmentModelSpecDefinition.group_name,
@@ -138,7 +137,6 @@ def match_against_definitions(db: Session, candidates: List[Candidate], model: O
         if m_type:
             etype_id = getattr(m_type, 'id', None)
             if etype_id is not None:
-                from sqlalchemy import or_
                 query = query.filter(
                     or_(
                         EquipmentModelSpecDefinition.equipment_type_id == etype_id,
