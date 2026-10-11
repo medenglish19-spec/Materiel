@@ -579,6 +579,30 @@
     Array.prototype.forEach.call(document.querySelectorAll('table[data-mt-filters-ready]'), function (table) {
       applyTableFilters(table);
     });
+    /* also enhance eligible tables outside [data-mt-region],
+       using the same skip rules so they compose cleanly with page-level
+       search/pagination/sort and do not duplicate filters already present. */
+    Array.prototype.forEach.call(document.querySelectorAll('table:not([data-mt-region])'), function (table) {
+      if (table.getAttribute('data-mt-filters-ready')) return;
+      if (table.closest('[data-mt-no-filter]') || table.hasAttribute('data-mt-no-filter')) return;
+      if (table.querySelector('.col-filter')) return;
+      if (table.querySelector('tbody input, tbody select, tbody textarea')) return;
+      if (table.querySelector('tr[data-level]')) return;
+      var grouped = false;
+      table.querySelectorAll('thead th').forEach(function (th) {
+        if ((th.colSpan || 1) > 1) { grouped = true; return false; }
+      });
+      if (grouped) return;
+      var tbody = table.querySelector('tbody');
+      if (!tbody) return;
+      var hasData = false;
+      Array.prototype.forEach.call(tbody.rows, function (row) {
+        if (row.cells.length <= 1) return;
+        if (row.cells[0].textContent.trim()) { hasData = true; }
+      });
+      if (!hasData) return;
+      enhanceTable(table);
+    });
   }
 
   var filtersScheduled = false;
