@@ -486,6 +486,7 @@ def received_register(db: Session):
             "distributed": balances["distributed"],
             "remaining": balances["remaining"],
             "returned": balances["returned"],
+            "available_for_distribution": balances["available_for_distribution"],
             "last_movement_type": (
                 latest_by_item[item.id][2]
                 if item.id in latest_by_item

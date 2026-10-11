@@ -905,11 +905,12 @@ COLUMNS = {
     "request_number": "رقم الطلب",
     "part_name": "الغيار",
     "asset_code": "العتاد",
-    "received_quantity": "المستلم",
-    "distributed": "الموزع",
-    "remaining": "الباقي",
-    "returned": "المرتجع",
-    "last_movement_type": "آخر الحركة",
+    "received_quantity": "الكمية المستلمة",
+    "distributed": "الكمية الموزعة",
+    "returned": "الكمية المعادة",
+    "available_for_distribution": "المتاح للتوزيع",
+    "status": "الحالة",
+    "last_movement_type": "آخر حركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
     "recipient": "المستلم إليه",
@@ -934,8 +935,9 @@ def test_every_balance_column_is_shown_under_its_own_header():
         "x.equipment?.asset_code",
         "x.received_quantity",
         "x.distributed",
-        "x.remaining",
         "x.returned",
+        "x.available_for_distribution",
+        "x.status",
         "MOVEMENT_LABELS[x.last_movement_type]",
         "x.received_date",
         "x.registration_number",
@@ -960,11 +962,11 @@ def test_the_received_page_renders_only_the_four_balance_parts():
     html = _page()
     assert "x.received_quantity" in html
     assert "x.distributed" in html
-    assert "x.remaining" in html
     assert "x.returned" in html
-    assert "available_for_distribution" not in html
+    assert "x.available_for_distribution" in html
+    assert "available_for_distribution" in html
+    assert "x.status" in html
     assert "STATUS_LABELS" not in html
-    assert "x.status" not in html
 
 
 def test_the_received_register_exact_example_is_three_one_one_one(db):
@@ -1015,8 +1017,10 @@ def test_the_received_register_keeps_each_item_totals_apart(db):
     assert row_second["returned"] == 0
 
 
-def test_the_page_has_no_lifecycle_states_of_its_own():
-    """لا تُضاف حالات من خارج منطق الأرصدة، حتى لو كان لها عنوان عربي."""
+def test_the_page_shows_request_status_without_inventing_movement_states():
+    """الحالة المعروضة إدارية من الطلب، ولا تنشئ الصفحة دورة حياة للحركة."""
     html = _page()
-    for unwanted in ("قيد الفحص", "مقبول", "مرفوض", "مرجع للمورد", "ملغى"):
+    assert "fetch('/api/spare-parts-requests'" in html
+    assert "STATUS=" in html
+    for unwanted in ("قيد الفحص", "مرجع للمورد"):
         assert unwanted not in html
