@@ -36,7 +36,6 @@
           <th>الثقة</th>
           <th>اعتماد</th>
           <th>تجاهل</th>
-          <th>تعديل</th>
         </tr>
       </thead>
       <tbody>
@@ -56,11 +55,17 @@
             <input type="hidden" name="candidates-{{ loop.index0 }}-unit_original" value="{{ c.unit or '' }}">
           </td>
           <td><input name="candidates-{{ loop.index0 }}-unit" value="{{ c.unit or '' }}"></td>
-          <td>{{ c.source_ref or '' }}</td>
+          <td>
+            {{ c.source_ref or '' }}
+            <input type="hidden" name="candidates-{{ loop.index0 }}-source_ref" value="{{ c.source_ref or '' }}">
+            <input type="hidden" name="candidates-{{ loop.index0 }}-page" value="{{ c.page if c.page is not none else '' }}">
+            <input type="hidden" name="candidates-{{ loop.index0 }}-sheet" value="{{ c.sheet or '' }}">
+            <input type="hidden" name="candidates-{{ loop.index0 }}-cell" value="{{ c.cell or '' }}">
+            <input type="hidden" name="candidates-{{ loop.index0 }}-confidence" value="{{ c.confidence or '' }}">
+          </td>
           <td>{{ '%.0f'|format(c.confidence*100) if c.confidence else '' }}%</td>
           <td><input type="checkbox" name="candidates-{{ loop.index0 }}-approved" value="true"></td>
           <td><input type="checkbox" name="candidates-{{ loop.index0 }}-ignored" value="true"></td>
-          <td><input type="checkbox" name="candidates-{{ loop.index0 }}-edited" value="true"></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -107,7 +112,7 @@
             {% elif r.status == 'definition_error' %}<span style="color:#721c24">✗ تعذر إنشاء التعريف</span>
             {% else %}{{ r.status }}{% endif %}
           </td>
-          <td>{{ r.reason or '' }}</td>
+          <td>{{ r.reason or '' }}{% if r.status == 'created_definition' %}<br><small>نوع نصي افتراضي، يمكن تعديله من إدارة الخصائص</small>{% endif %}</td>
           <td>{{ r.definition_id or '' }}</td>
         </tr>
         {% endfor %}
