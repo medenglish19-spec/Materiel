@@ -60,6 +60,19 @@ def _link_operation_to_model(db, operation, model, interval_km=Decimal("5000")):
     )
 
 
+def _operation_option(body, option_id):
+    """مقطع خيار العملية فقط (يحمل data-model-ids) لا خيار طراز/عتاد/خطة."""
+    marker = f'<option value="{option_id}" data-model-ids='
+    start = body.index(marker)
+    return body[start:body.index(">", start)]
+
+
+def _attribute(tag, name):
+    marker = f'{name}="'
+    start = tag.index(marker) + len(marker)
+    return tag[start:tag.index('"', start)]
+
+
 @pytest.fixture()
 def api():
     """واجهة حقيقية على قاعدة مؤقتة معزولة (لا تُقرأ fleet_assets.db)."""
@@ -98,11 +111,13 @@ def api():
     operation_a = MaintenanceOperation(name="عملية طراز ألف", is_active=True)
     operation_a_extra = MaintenanceOperation(name="عملية ألف أخرى", is_active=True)
     operation_b = MaintenanceOperation(name="عملية طراز باء", is_active=True)
-    db.add_all([operation_a, operation_a_extra, operation_b])
+    operation_library = MaintenanceOperation(name="عملية عامة بلا طراز", is_active=True)
+    db.add_all([operation_a, operation_a_extra, operation_b, operation_library])
     db.flush()
     _link_operation_to_model(db, operation_a, model_a)
     _link_operation_to_model(db, operation_a_extra, model_a)
     _link_operation_to_model(db, operation_b, model_b)
+    # operation_library بلا أي ارتباط بطراز: يجب ألا تظهر لأي طراز.
 
     plan_a = MaintenancePlan(
         name="خطة طراز ألف",
@@ -126,6 +141,7 @@ def api():
         "operation_a": operation_a.id,
         "operation_a_extra": operation_a_extra.id,
         "operation_b": operation_b.id,
+        "operation_library": operation_library.id,
         "plan_a": plan_a.id,
     }
     db.close()
@@ -230,11 +246,57 @@ def test_plan_option_carries_its_model_and_linked_operations(api):
     assert f'value="{ids["plan_a"]}"' in body
 
 
-def test_operation_options_expose_equipment_eligibility(api):
-    """عمليات التنفيذ المستقل تُبنى من ارتباط العملية بالعتاد لا من قائمة كاملة."""
+def test_operation_options_expose_model_linkage_not_equipment(api):
+    """مصدر بيانات العمليات يربطها بالطراز لا بالعتاد، ولا تبقى فلترة على مستوى العتاد."""
     client, ids = api
     body = client.get("/maintenance/records").text
-    assert f'data-equipment-ids="{ids["equipment_a"]}"' in body
+    assert "data-equipment-ids=" not in body, "يجب ألا تبقى فلترة عمليات على مستوى العتاد"
+    assert f'data-model-ids="{ids["model_a"]}"' in body
+    assert f'data-model-ids="{ids["model_b"]}"' in body
+
+
+def test_operation_eligibility_never_lists_another_models_operation(api):
+    """عملية طراز باء لا تحمل طراز ألف، وعملية طراز ألف لا تحمل طراز باء."""
+    client, ids = api
+    body = client.get("/maintenance/records").text
+
+    option_a = _operation_option(body, ids["operation_a"])
+    assert _attribute(option_a, "data-model-ids").split(",") == [str(ids["model_a"])]
+
+    option_b = _operation_option(body, ids["operation_b"])
+    assert _attribute(option_b, "data-model-ids").split(",") == [str(ids["model_b"])]
+
+
+def test_library_only_operation_is_not_offered_to_any_model(api):
+    """العملية العامة غير المرتبطة بأي طراز لا تحمل أي طراز فلا تظهر لأي اختيار."""
+    client, ids = api
+    body = client.get("/maintenance/records").text
+    option = _operation_option(body, ids["operation_library"])
+    assert _attribute(option, "data-model-ids") == ""
+
+
+def test_operation_options_carry_meter_model_conditions(api):
+    """ترتيب السمات يبقى متوافقًا: النموذج بعد الطراز ثم شروط العداد."""
+    client, ids = api
+    body = client.get("/maintenance/records").text
+    option = _operation_option(body, ids["operation_a"])
+    assert option.index("data-model-ids=") < option.index("data-meter-models=")
+    assert f"{ids['model_a']}:1" in _attribute(option, "data-meter-models")
+
+
+def test_model_without_eligible_operations_shows_the_empty_message(api):
+    """عند غياب عمليات مرتبطة بالطراز تظهر رسالة عربية واضحة."""
+    client, _ = api
+    body = client.get("/maintenance/records").text
+    assert 'id="operationEmptyHint"' in body
+    assert "لا توجد عمليات صيانة مرتبطة بهذا الطراز" in body
+
+
+def test_records_table_does_not_reintroduce_a_status_column(api):
+    """لا يُعاد عمود «الحالة» الذي حُذف في كوميت لاحق."""
+    client, _ = api
+    body = client.get("/maintenance/records").text
+    assert "<th>الحالة</th>" not in body
 
 
 def test_technician_select_lists_only_active_real_technicians(api):
@@ -321,6 +383,47 @@ def test_create_rejects_an_operation_from_another_model(api):
     )
     assert response.status_code == 303
     assert "error=operation_model" in response.headers["location"]
+
+
+def test_create_rejects_a_library_only_operation(api):
+    """عملية عامة غير مرتبطة بأي طراز تُرفض خلفيًا ولا تُنفَّذ على العتاد."""
+    client, ids = api
+    response = client.post(
+        "/maintenance/records/create",
+        data=_valid_payload(ids, plan_id="", operation_id=ids["operation_library"]),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=operation_model" in response.headers["location"]
+
+
+def test_update_rejects_an_operation_from_another_model(api):
+    """التعديل يخضع لنفس التحقق: لا يمكن تبديل العملية بعملية طراز آخر."""
+    client, ids = api
+    assert client.post("/maintenance/records/create", data=_valid_payload(ids)).status_code == 200
+    record = _latest_record()
+    response = client.post(
+        f"/maintenance/records/{record.id}/update",
+        data=_valid_payload(ids, plan_id="", operation_id=ids["operation_b"]),
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=operation_model" in response.headers["location"]
+
+
+def test_api_execution_rejects_an_operation_from_another_model(api):
+    """واجهة التنفيذ ترفض عملية تخص طرازًا آخر حتى خارج الواجهة."""
+    client, ids = api
+    response = client.post(
+        "/api/maintenance/execution",
+        json={
+            "equipment_id": ids["equipment_a"],
+            "operation_id": ids["operation_b"],
+            "maintenance_date": date.today().isoformat(),
+            "meter_value": 100,
+        },
+    )
+    assert response.status_code == 409, response.text
 
 
 def test_create_rejects_an_operation_outside_the_selected_plan(api):

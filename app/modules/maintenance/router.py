@@ -201,13 +201,15 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             joinedload(MaintenanceRecord.plan),
         ).filter(MaintenanceRecord.id == int(edit_id)).first()
 
-    operation_equipment_ids = {}
-    for eq in equipment:
-        for operation in effective_operations_for_equipment(db, eq, include_standalone=True):
-            operation_equipment_ids.setdefault(operation.id, set()).add(eq.id)
-    operation_equipment_ids = {
-        operation_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids))
-        for operation_id, equipment_ids in operation_equipment_ids.items()
+    # مؤهّل العملية يُحدَّد بطراز العتاد وحده عبر علاقة العملية بالطراز في
+    # maintenance_operation_models. لا تُدرَج العمليات المستقلة/العامة غير
+    # المرتبطة بأي طراز، لأنها غير قابلة للتنفيذ على عتاد محدد.
+    operation_model_ids = {
+        operation.id: ",".join(
+            str(model.id)
+            for model in sorted(operation.equipment_models, key=lambda model: model.id)
+        )
+        for operation in operations
     }
 
     # Compute meter_required_by_operation: for each operation, check its model conditions
@@ -241,7 +243,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "operations": operations,
             "plans": plans,
             "technicians": technicians,
-            "operation_equipment_ids": operation_equipment_ids,
+            "operation_model_ids": operation_model_ids,
             "meter_required_by_operation": meter_required_by_operation,
             "edit_record": edit_record,
         },

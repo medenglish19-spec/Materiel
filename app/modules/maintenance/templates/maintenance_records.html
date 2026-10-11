@@ -63,7 +63,7 @@
       <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
         <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
         <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
-        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-model-ids="{{ operation_model_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
         <input class="m-input" name="maintenance_date" id="maintenanceEditDate" type="date" required value="{{ edit_record.maintenance_date }}">
         <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="قراءة العداد">
         <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" value="{{ edit_record.work_order or '' }}" placeholder="رقم أمر العمل">
@@ -85,7 +85,8 @@
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required disabled><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
       <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
-      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية</option>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}">{{ o.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية</option>{% for o in operations %}<option value="{{ o.id }}" data-model-ids="{{ operation_model_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}">{{ o.name }}</option>{% endfor %}</select>
+      <div id="operationEmptyHint" class="muted" style="min-width:200px;align-self:center" hidden>لا توجد عمليات صيانة مرتبطة بهذا الطراز</div>
       <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="قراءة العداد"><div id="currentMeterHint" class="muted" style="min-width:180px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
       <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" placeholder="رقم أمر العمل">
       <select class="m-select" name="technician_id" id="technicianSelect"><option value="">{% if technicians %}الفني المنفذ{% else %}لا يوجد فنيون مسجّلون{% endif %}</option>{% for t in technicians %}<option value="{{ t.id }}">{{ t.full_name }}{% if t.employee_number %} — {{ t.employee_number }}{% endif %}</option>{% endfor %}</select>
@@ -102,8 +103,9 @@
   const search=document.getElementById('recordsSearch');
   if(search)search.addEventListener('input',()=>{const x=search.value.toLowerCase().trim();document.querySelectorAll('#recordsTable tbody tr').forEach(r=>r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none')});
   const today=new Date().toISOString().slice(0,10);
-  const model=document.getElementById('modelFilter'), equipment=document.getElementById('equipmentSelect'), operation=document.getElementById('operationSelect'), plan=document.getElementById('planSelect'), meter=document.getElementById('maintenanceMeter'), hint=document.getElementById('currentMeterHint');
-  const allEquipment=equipment?[...equipment.options].slice(1):[], allOperations=operation?[...operation.options].slice(1):[], allPlans=plan?[...plan.options].slice(1):[];
+  const model=document.getElementById('modelFilter'), equipment=document.getElementById('equipmentSelect'), operation=document.getElementById('operationSelect'), plan=document.getElementById('planSelect'), meter=document.getElementById('maintenanceMeter'), hint=document.getElementById('currentMeterHint'), operationEmptyHint=document.getElementById('operationEmptyHint');
+  const editEquipment=document.getElementById('editEquipment'), editPlan=document.getElementById('editPlan'), editOperation=document.getElementById('editOperation');
+  const allEquipment=equipment?[...equipment.options].slice(1):[], allOperations=operation?[...operation.options].slice(1):[], allPlans=plan?[...plan.options].slice(1):[], allEditOperations=editOperation?[...editOperation.options].slice(1):[];
   const newDate=document.getElementById('maintenanceDate'),editDate=document.getElementById('maintenanceEditDate'); if(newDate)newDate.max=today;if(editDate)editDate.max=today;
 
   function buildEquipment(){
@@ -118,18 +120,24 @@
     plan.disabled=plan.options.length===1;
     plan.value=[...plan.options].some(o=>o.value===previous)?previous:'';
   }
+  function operationModelIds(option){return (option.dataset.modelIds||'').split(',').filter(Boolean)}
+  function planLinkedOperationIds(planSelect,planId){if(!planSelect||!planId)return null;const option=[...planSelect.options].find(o=>o.value===planId);return option?(option.dataset.operationIds||'').split(',').filter(Boolean):null}
+  function eligibleOperations(source,modelId,linked){if(!modelId)return[];return source.filter(o=>operationModelIds(o).includes(String(modelId))&&(!linked||linked.includes(o.value)))}
+  function renderOperationOptions(select,source,modelId,linked,previous,emptyHint){
+    const ops=eligibleOperations(source,modelId,linked);
+    const empty=Boolean(modelId)&&ops.length===0;
+    select.innerHTML='<option value="">'+(empty?'لا توجد عمليات صيانة مرتبطة بهذا الطراز':'اختر العملية')+'</option>';
+    ops.forEach(o=>select.appendChild(o.cloneNode(true)));
+    select.disabled=ops.length===0;
+    select.value=[...select.options].some(o=>o.value===previous)?previous:'';
+    if(emptyHint)emptyHint.hidden=!empty;
+  }
   function buildOperations(){
-    const selected=equipment.selectedOptions[0], equipmentId=selected?.value||'', planId=plan.value, previous=operation.value;
-    operation.innerHTML='<option value="">اختر العملية</option>';
-    if(planId){
-      const planOption=[...plan.options].find(o=>o.value===planId);
-      const linked=(planOption?.dataset.operationIds||'').split(',').filter(Boolean);
-      allOperations.forEach(o=>{if(linked.includes(o.value))operation.appendChild(o.cloneNode(true))});
-    }else{
-      allOperations.forEach(o=>{const ids=(o.dataset.equipmentIds||'').split(',').filter(Boolean);if(ids.includes(equipmentId))operation.appendChild(o.cloneNode(true))});
-    }
-    operation.disabled=operation.options.length===1;
-    operation.value=[...operation.options].some(o=>o.value===previous)?previous:'';
+    renderOperationOptions(operation,allOperations,model?.value||'',planLinkedOperationIds(plan,plan.value),operation.value,operationEmptyHint);
+  }
+  function buildEditOperations(){
+    if(!editOperation)return;
+    renderOperationOptions(editOperation,allEditOperations,editEquipment?.selectedOptions[0]?.dataset.modelId||'',planLinkedOperationIds(editPlan,editPlan.value),editOperation.value,null);
   }
   function updateMeterHint(){
     const selected=equipment.selectedOptions[0];
@@ -140,17 +148,16 @@
   }
   function onModelChange(){
     buildEquipment();
-    plan.value=''; buildPlans();
-    operation.value=''; buildOperations();
+    buildPlans();
+    buildOperations();
     meter.value=''; hint.textContent='اختر العتاد لعرض العداد الحالي.';
   }
   function onEquipmentChange(){
-    buildPlans();
-    operation.value=''; buildOperations();
+    buildOperations();
     meter.value=''; updateMeterHint();
   }
   function onPlanChange(){
-    operation.value=''; buildOperations();
+    buildOperations();
   }
   function requiresMeterFor(option,modelId){
     if(!option||!modelId)return false;
@@ -171,6 +178,9 @@
     return true
   }
   if(model)model.addEventListener('change',onModelChange);if(equipment)equipment.addEventListener('change',onEquipmentChange);if(plan)plan.addEventListener('change',onPlanChange);
+  if(editOperation)buildEditOperations();
+  if(editEquipment)editEquipment.addEventListener('change',()=>{if(editPlan)editPlan.value='';buildEditOperations()});
+  if(editPlan)editPlan.addEventListener('change',buildEditOperations);
   const newForm=document.getElementById('maintenanceRecordForm');if(newForm)newForm.addEventListener('submit',e=>{if(!validate(newForm,false))e.preventDefault()});
   const editForm=document.getElementById('maintenanceEditForm');if(editForm)editForm.addEventListener('submit',e=>{if(!validate(editForm,true))e.preventDefault()});
 })();
