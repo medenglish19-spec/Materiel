@@ -14,10 +14,7 @@ from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
 from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
-    check_plan_operation_compatibility,
-    check_plan_operation_condition_compatibility,
     chronology_error,
-    condition_for_equipment,
     contradiction_for,
     current_meter_value,
     effective_operations_for_equipment,
@@ -31,7 +28,8 @@ from app.modules.maintenance.services import (
     latest_plan_records,
     validate_operation_applicable_to_equipment,
     operations_payload,
-    operation_condition_for_model,
+    operation_tasks_for_model,
+    plan_condition,
 )
 from app.modules.users.models import User
 
@@ -106,6 +104,7 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.asset_code).all()
     readings = latest_readings(db); records = latest_records(db)
     rows = []; counts = {"total": 0, "danger": 0, "warning": 0, "success": 0, "neutral": 0}
+    tasks_by_model = {}
     model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
     approved_model_ids = {
         model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
@@ -123,12 +122,16 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     })
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
+        model_id = eq.equipment_model_id
+        if model_id is not None and model_id not in tasks_by_model:
+            tasks_by_model[model_id] = operation_tasks_for_model(db, model_id)
+        for task in tasks_by_model.get(model_id, []):
+            operation = task.operation
             rec = records.get((eq.id, operation.id))
-            condition = condition_for_equipment(db, operation, eq)
-            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=condition)
+            # العمليات التابعة للخطة تُقاس بشرط خطتها؛ والمستقلة بشرط طرازها.
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=task.condition)
             counts["total"] += 1; counts[css] += 1
-            rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
+            rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db), "plan": task.plan})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
     return templates.TemplateResponse(request=request, name="maintenance_dashboard.html", context={"request": request, "user": current_user, "rows": rows, "counts": counts, "unapproved_models": unapproved_models})
 
@@ -453,39 +456,46 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
     readings = latest_readings(db)
     records = latest_records(db)
     due_rows = []
-
-    plan_links = (
-        db.query(MaintenancePlanOperation)
-        .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
-        .filter(MaintenancePlan.is_active.is_(True), MaintenancePlan.is_approved.is_(True))
-        .order_by(MaintenancePlan.name, MaintenancePlan.id, MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
-        .all()
-    )
-    plan_membership = {}
-    for link in plan_links:
-        plan_membership.setdefault((link.plan.equipment_model_id, link.operation_id), []).append(link.plan)
+    plan_groups = []
+    standalone_rows = []
+    group_map: dict = {}
+    tasks_by_model: dict = {}
 
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
-        for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
+        model_id = eq.equipment_model_id
+        if model_id is not None and model_id not in tasks_by_model:
+            tasks_by_model[model_id] = operation_tasks_for_model(db, model_id)
+        # كل مهمة تحمل سياقها: عملية خطة بشرط خطتها، أو عملية مستقلة بشرط طرازها.
+        for task in tasks_by_model.get(model_id, []):
+            operation = task.operation
             rec = records.get((eq.id, operation.id))
-            condition = condition_for_equipment(db, operation, eq)
-            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=condition)
-            if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
-                due_rows.append({
-                    "equipment": eq,
-                    "operation": operation,
-                    "record": rec,
-                    "current": current_value,
-                    "unit": measurement_unit(eq),
-                    "remaining": remaining,
-                    "remaining_days": meta.get("remaining_days"),
-                    "state": state,
-                    "css": css,
-                    "priority": priority_for(state, remaining, meta),
-                    "contradiction": contradiction_for(eq, rec, current_value, db),
-                    "plans": plan_membership.get((eq.equipment_model_id, operation.id), []),
-                })
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=task.condition)
+            if state not in ("مستحقة الآن", "تقترب", "بلا سجل"):
+                continue
+            row = {
+                "equipment": eq,
+                "operation": operation,
+                "record": rec,
+                "current": current_value,
+                "unit": measurement_unit(eq),
+                "remaining": remaining,
+                "remaining_days": meta.get("remaining_days"),
+                "state": state,
+                "css": css,
+                "priority": priority_for(state, remaining, meta),
+                "contradiction": contradiction_for(eq, rec, current_value, db),
+            }
+            due_rows.append(row)
+            if task.plan is not None:
+                group = group_map.get(task.plan.id)
+                if group is None:
+                    group = {"plan": task.plan, "rows": []}
+                    group_map[task.plan.id] = group
+                    plan_groups.append(group)
+                group["rows"].append(row)
+            else:
+                standalone_rows.append(row)
 
     due_rows.sort(key=lambda r: (
         r["priority"],
@@ -493,21 +503,6 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
         r["remaining_days"] if r["remaining_days"] is not None else 999999999,
         r["equipment"].registration_number or r["equipment"].asset_code or "",
     ))
-
-    plan_groups = []
-    standalone_rows = []
-    group_map = {}
-    for row in due_rows:
-        if row["plans"]:
-            for plan in row["plans"]:
-                group = group_map.get(plan.id)
-                if group is None:
-                    group = {"plan": plan, "rows": []}
-                    group_map[plan.id] = group
-                    plan_groups.append(group)
-                group["rows"].append(row)
-        else:
-            standalone_rows.append(row)
 
     plan_groups.sort(key=lambda group: (group["plan"].name, group["plan"].id))
     return templates.TemplateResponse(
@@ -696,30 +691,13 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
                 detail="تعذر تعديل العملية: تغيير الطرازات المرتبطة يتعارض مع الخطط التالية:\n" + "\n".join(model_errors)
             )
 
-    # Check compatibility with affected plans BEFORE committing
+    # Plans that contain this operation no longer depend on its per-model
+    # condition: each plan operation is governed by the plan's condition. Editing
+    # the operation therefore neither rejects nor redefines any plan; plans that
+    # contain it are only flagged for a fresh review.
     affected_plans = db.query(MaintenancePlan).join(
         MaintenancePlanOperation, MaintenancePlanOperation.plan_id == MaintenancePlan.id
     ).filter(MaintenancePlanOperation.operation_id == operation.id).all()
-    
-    compatibility_errors = []
-    for plan in affected_plans:
-        # Get the model condition for this plan's equipment model
-        model_condition = operation_condition_for_model(db, operation.id, plan.equipment_model_id)
-        compatibility_error = check_plan_operation_condition_compatibility(plan, model_condition)
-        if compatibility_error:
-            compatibility_errors.append(f"خطة '{plan.name}' (ID: {plan.id}): {compatibility_error}")
-    
-    if compatibility_errors:
-        # Rollback the changes to operation attributes
-        # Roll back every pending attribute and per-model condition change.
-        # Legacy interval fields are not edited here, and the old variables do not exist.
-        db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="تعذر تعديل العملية: شروط العملية الجديدة غير متوافقة مع الخطط المرتبطة بها.\n" + "\n".join(compatibility_errors)
-        )
-
-    # If compatible, mark affected plans as requiring re-approval
     for plan in affected_plans:
         plan.is_approved = False
 
@@ -858,13 +836,10 @@ def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate
     if model is None:
         raise HTTPException(status_code=404, detail="طراز العتاد للخطة غير موجود.")
 
-    # Check condition compatibility BEFORE any modifications
-    model_condition = operation_condition_for_model(db, operation.id, plan.equipment_model_id)
-    compatibility_error = check_plan_operation_condition_compatibility(plan, model_condition)
-    if compatibility_error:
-        raise HTTPException(status_code=409, detail=f"تعذر إضافة العملية: {compatibility_error}")
-
-    # Link the operation to the plan's model if not already linked
+    # A plan operation inherits the plan's condition, so no independent per-model
+    # condition is required to add it. Membership only needs the operation to be
+    # active (checked above); the plan condition is the source of truth from then
+    # on and is never written back to the operation.
     if model not in operation.equipment_models:
         operation.equipment_models.append(model)
 
@@ -957,9 +932,13 @@ def api_execution_create(
         if linked is None:
             raise HTTPException(status_code=409, detail="العملية المختارة غير مرتبطة بالخطة المحددة.")
 
-    # Check if meter reading is required based on the equipment's model condition
+    # The meter requirement follows the governing condition: a plan record uses
+    # the plan's condition, a standalone record uses the operation's model condition.
     from app.modules.maintenance.services import operation_condition_for_model, meter_required_for_condition
-    model_condition = operation_condition_for_model(db, operation.id, equipment.equipment_model_id)
+    if plan is not None:
+        model_condition = plan_condition(plan)
+    else:
+        model_condition = operation_condition_for_model(db, operation.id, equipment.equipment_model_id)
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
         raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
@@ -1080,10 +1059,12 @@ def api_plan_execution_create(
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
         raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
+    # كل عمليات الخطة ترث شرط الخطة، فتتطلب قراءة العداد وفق محاور الخطة.
+    from app.modules.maintenance.services import meter_required_for_condition
+    plan_cond = plan_condition(plan)
     for operation_id in selected_ids:
         operation = active_links[operation_id].operation
-        interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
-        if interval is not None and payload.meter_value is None:
+        if meter_required_for_condition(plan_cond, unit) and payload.meter_value is None:
             raise HTTPException(status_code=400, detail=f"يجب إدخال قراءة العداد للعملية: {operation.name}.")
 
     chronology = chronology_error(db, payload.equipment_id, payload.maintenance_date, payload.meter_value)

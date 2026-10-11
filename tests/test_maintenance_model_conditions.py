@@ -35,6 +35,7 @@ from app.modules.maintenance.services import (
     MULTIPLE_CONDITIONS_LABEL,
     MULTIPLE_WARNINGS_LABEL,
     CONDITION_UNSET_LABEL,
+    CONDITION_NO_INTERVAL_LABEL,
     ModelCondition,
     condition_axis_text,
     condition_unit_text,
@@ -309,8 +310,25 @@ def test_condition_without_any_axis_is_reported_as_defined_but_empty():
     operation = MaintenanceOperation()
     assert condition.is_defined is True
     assert condition.has_interval is False
-    assert condition_axis_text(condition) == "بدون فاصل محدد"
+    # كل حقول الفاصل فارغة ⇒ «غير محدد» بدلًا من «بدون فاصل محدد»، مع بقاء
+    # حالة الشرط «معرّف» كما هي: لا تتحول إلى شرط مفعّل ولا يُستنتج فاصل.
+    assert condition_axis_text(condition) == CONDITION_NO_INTERVAL_LABEL
+    assert condition_axis_text(condition) == "غير محدد"
+    assert condition_unit_text(condition) == "—"
     assert warning_setting_text(operation, condition) == "بدون إنذار مفعّل"
+
+
+def test_unified_operation_warning_stays_visible_without_any_interval_axis():
+    """إنذار العملية الموحد مستقل عن الفاصل: يظهر حتى مع شرط بلا أي فاصل."""
+    condition = _condition(1)  # محفوظ بلا interval_km/hours/days
+    operation = MaintenanceOperation(warning_km=Decimal("500"), warning_days=30)
+    assert condition.is_defined is True
+    assert condition.has_interval is False
+    assert condition_axis_text(condition) == CONDITION_NO_INTERVAL_LABEL
+    assert warning_setting_text(operation, condition) == "500 كم / 30 يوم"
+
+    # الإنذار مستقل تمامًا: يظهر كذلك عند غياب أي علاقة بالطراز (condition=None).
+    assert warning_setting_text(operation, None) == "500 كم / 30 يوم"
 
 
 def test_unset_condition_is_never_rendered_as_a_value():
@@ -930,7 +948,7 @@ def test_plan_membership_never_changes_the_model_condition(api):
     assert after_edit["model_conditions"][0]["interval_km"] == "10000.0"
 
 
-def test_plan_compatibility_is_checked_against_the_plan_model_condition(api):
+def test_plan_operation_is_added_without_an_independent_model_condition(api):
     client, ids = api
     created = client.post(
         "/api/maintenance/operations",
@@ -942,30 +960,30 @@ def test_plan_compatibility_is_checked_against_the_plan_model_condition(api):
         json={"name": "خطة طراز باء", "equipment_model_id": ids["model_b"], "interval_km": 10000},
     ).json()
 
-    # طراز الخطة (باء) بلا شرط محفوظ للعملية => التوافق غير متحقق بوضوح.
-    rejected = client.post(
-        f"/api/maintenance/plans/{plan['id']}/operations",
-        json={"plan_id": plan["id"], "operation_id": created["id"], "sort_order": 1},
-    )
-    assert rejected.status_code == 409
-    assert CONDITION_UNSET_LABEL in rejected.json()["detail"]
-
-    # بعد ضبط شرط الطراز باء ليطابق الخطة يصبح الإدراج مقبولًا.
-    client.put(
-        f"/api/maintenance/operations/{created['id']}",
-        json=_operation_payload(
-            "عملية شرط الطراز أ",
-            [
-                {"model_id": ids["model_a"], "interval_km": 10000},
-                {"model_id": ids["model_b"], "interval_km": 10000},
-            ],
-        ),
-    )
+    # طراز الخطة (باء) بلا شرط مستقل للعملية؛ عملية الخطة ترث شرط الخطة،
+    # فلا يُشترط شرط طراز مستقل لإدراجها.
     accepted = client.post(
         f"/api/maintenance/plans/{plan['id']}/operations",
         json={"plan_id": plan["id"], "operation_id": created["id"], "sort_order": 1},
     )
     assert accepted.status_code == 201, accepted.text
+
+    # ولم يُكتب شرط الخطة على العملية المشتركة: شرط الطراز (أ) يبقى كما هو،
+    # وشرط الطراز (باء) — إن ظهر — يبقى بلا فاصل مستقل.
+    operation = next(
+        item for item in client.get("/api/maintenance/operations").json() if item["id"] == created["id"]
+    )
+    model_a_condition = next(
+        item for item in operation["model_conditions"] if item["model_id"] == ids["model_a"]
+    )
+    assert model_a_condition["interval_km"] == "10000.0"
+
+    model_b_condition = next(
+        (item for item in operation["model_conditions"] if item["model_id"] == ids["model_b"]),
+        None,
+    )
+    if model_b_condition is not None:
+        assert model_b_condition["interval_km"] is None
 
 
 def test_plan_conditions_are_independent_from_operation_conditions(api):

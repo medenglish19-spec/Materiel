@@ -20,6 +20,9 @@ CONDITION_UNSET = "unset"
 CONDITION_MODEL = "model"
 
 CONDITION_UNSET_LABEL = "الشرط غير محدد"
+# علاقة طراز محفوظة لكنها لا تحدد أي فاصل (interval_km/hours/days كلها فارغة):
+# تُعرض «غير محدد» لا «بدون فاصل محدد»، دون اعتبارها شرطًا مفعّلًا أو استنتاج فاصل.
+CONDITION_NO_INTERVAL_LABEL = "غير محدد"
 MULTIPLE_CONDITIONS_LABEL = "شروط متعددة"
 MULTIPLE_WARNINGS_LABEL = "إعدادات متعددة"
 NO_WARNING_LABEL = "بدون إنذار مفعّل"
@@ -149,10 +152,11 @@ def status_for(obj, equipment, record, current_value, plan_operation=None, today
 
 
 def plan_status_for(plan, equipment, last_record, current_value, today=None):
-    """Calculate the plan trigger independently from operation due status.
+    """Calculate the plan trigger from the plan's own cadence.
 
-    Plan cadence fields are used only for plan-level due/display state;
-    operation-specific conditions remain authoritative for each operation.
+    The plan cadence is the single source of truth for the plan and for its
+    member operations: each plan operation is evaluated inside its plan context
+    with the plan's condition, not an independent operation condition.
     """
     return status_for(plan, equipment, last_record, current_value, today=today)
 
@@ -349,9 +353,151 @@ def operation_conditions_by_model(db: Session, operation_ids) -> dict:
 
 
 def condition_for_equipment(db: Session, operation, equipment) -> ModelCondition:
-    """The condition the due engine must use: the equipment's own model row."""
+    """The condition of one standalone operation: the equipment's own model row.
+
+    This is the operation-level view: it never returns a plan's cadence. Plan
+    members are evaluated per plan through `operation_tasks_for_model`, which
+    carries each plan's condition explicitly.
+    """
     model_id = getattr(equipment, "equipment_model_id", None)
     return operation_condition_for_model(db, getattr(operation, "id", None), model_id)
+
+
+# ---------------------------------------------------------------------------
+# Plan context: a plan's cadence is the eligibility condition of its operations
+#
+# A plan operation does not need an independent per-model condition to become a
+# member of a plan: inside its plan it is evaluated against the plan's condition,
+# which stays the single source of truth for that plan. Nothing is written back
+# to the shared operation or to the operation↔model relation, so changing one
+# plan never touches a standalone condition, the library definition, or another
+# plan's context.
+# ---------------------------------------------------------------------------
+
+
+def plan_condition(plan) -> ModelCondition:
+    """The plan's cadence expressed as the condition governing its operations.
+
+    Returns an unset condition when the plan defines no interval, so a plan
+    operation is never evaluated against an invented cadence. The result is a
+    value derived from the plan at read time; it is never persisted.
+    """
+    if plan is None:
+        return ModelCondition(condition_source=CONDITION_UNSET)
+    if plan.interval_km is None and plan.interval_hours is None and plan.interval_days is None:
+        return ModelCondition(condition_source=CONDITION_UNSET)
+    return ModelCondition(
+        equipment_model_id=getattr(plan, "equipment_model_id", None),
+        condition_source=CONDITION_MODEL,
+        interval_km=plan.interval_km,
+        interval_hours=plan.interval_hours,
+        interval_days=plan.interval_days,
+    )
+
+
+@dataclass(frozen=True)
+class MaintenanceTask:
+    """One follow-up context of one equipment model.
+
+    `plan` is set for a member of an approved, active plan — the operation then
+    inherits the plan's condition. `plan` is None for a standalone operation,
+    which keeps its own per-model condition.
+    """
+
+    operation: "MaintenanceOperation"
+    plan: "MaintenancePlan | None"
+    condition: ModelCondition
+
+
+def operation_tasks_for_model(db: Session, equipment_model_id: int | None) -> list:
+    """Every maintenance follow-up of one equipment model.
+
+    Built once per model so the periodic, due and notification views never issue
+    a query per operation:
+
+    * one task per active operation of an approved, active plan, governed by the
+      plan's condition;
+    * one standalone task per active operation linked to the model that is not a
+      member of any approved, active plan, governed by its own model condition.
+    """
+    if equipment_model_id is None:
+        return []
+
+    plans = (
+        db.query(MaintenancePlan)
+        .filter(
+            MaintenancePlan.equipment_model_id == equipment_model_id,
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
+        )
+        .order_by(MaintenancePlan.name, MaintenancePlan.id)
+        .all()
+    )
+
+    tasks: list = []
+    planned_operation_ids: set = set()
+    if plans:
+        plan_by_id = {plan.id: plan for plan in plans}
+        links = (
+            db.query(MaintenancePlanOperation)
+            .options(joinedload(MaintenancePlanOperation.operation))
+            .join(
+                MaintenanceOperation,
+                MaintenanceOperation.id == MaintenancePlanOperation.operation_id,
+            )
+            .filter(
+                MaintenancePlanOperation.plan_id.in_(list(plan_by_id)),
+                MaintenanceOperation.is_active.is_(True),
+            )
+            .order_by(MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
+            .all()
+        )
+        for link in links:
+            plan = plan_by_id.get(link.plan_id)
+            operation = link.operation
+            if plan is None or operation is None:
+                continue
+            planned_operation_ids.add(operation.id)
+            tasks.append(
+                MaintenanceTask(
+                    operation=operation,
+                    plan=plan,
+                    condition=plan_condition(plan),
+                )
+            )
+
+    linked_operations = (
+        db.query(MaintenanceOperation)
+        .join(MaintenanceOperation.equipment_models)
+        .filter(
+            MaintenanceOperation.is_active.is_(True),
+            MaintenanceOperation.equipment_models.any(id=equipment_model_id),
+        )
+        .order_by(MaintenanceOperation.name, MaintenanceOperation.id)
+        .all()
+    )
+    standalone: list = []
+    seen: set = set()
+    for operation in linked_operations:
+        if operation.id in planned_operation_ids or operation.id in seen:
+            continue
+        seen.add(operation.id)
+        standalone.append(operation)
+
+    conditions = operation_conditions_by_model(db, [operation.id for operation in standalone])
+    for operation in standalone:
+        condition = conditions.get(
+            (operation.id, equipment_model_id),
+            ModelCondition(operation_id=operation.id, equipment_model_id=equipment_model_id),
+        )
+        tasks.append(MaintenanceTask(operation=operation, plan=None, condition=condition))
+
+    return tasks
+
+
+def operation_tasks_for_equipment(db: Session, equipment) -> list:
+    """The maintenance follow-ups of one equipment, by its own model."""
+    return operation_tasks_for_model(db, getattr(equipment, "equipment_model_id", None))
 
 
 def meter_required_for_condition(condition, unit: str) -> bool:
@@ -414,7 +560,7 @@ def condition_axis_text(condition: ModelCondition | None) -> str:
     if condition.interval_days is not None:
         parts.append(f"{condition.interval_days} يوم")
     if not parts:
-        return "بدون فاصل محدد"
+        return CONDITION_NO_INTERVAL_LABEL
     return " أو ".join(parts)
 
 
