@@ -374,6 +374,15 @@
   $('operationsBody').addEventListener('click',async e=>{
     const detailsBtn=e.target.closest('[data-condition-details]');
     if(detailsBtn){ e.stopPropagation(); openConditionDetails(detailsBtn.dataset.conditionDetails); return; }
+    // Handle action menu button (⋮) for each operation row
+    const menuBtn=e.target.closest('.mt-row-btn[data-menu]');
+    if(menuBtn){
+      e.stopPropagation();
+      const id=Number(menuBtn.dataset.menu);
+      const op=state.operations.find(x=>x.id===id);
+      if(op) MaterielTables.openRowMenu({trigger:menuBtn,items:rowMenuItems(op)});
+      return;
+    }
     if(!isPlanMode())return;
     if(e.target.closest('button,a,input,select'))return;
     const row=e.target.closest('tr[data-plan-select]');
@@ -381,6 +390,14 @@
     const id=Number(row.dataset.planSelect);
     if(!Number.isInteger(id)||id<=0)return;
     await togglePlanSelection(id);
+  });
+  // Right-click context menu for operation rows
+  $('operationsBody').addEventListener('contextmenu',e=>{
+    const row=e.target.closest('tr[data-operation-id]');
+    if(!row)return;
+    e.preventDefault();
+    const op=state.operations.find(x=>x.id===Number(row.dataset.operationId));
+    if(op) MaterielTables.openRowMenu({x:e.clientX,y:e.clientY,items:rowMenuItems(op)});
   });
   document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
     btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};

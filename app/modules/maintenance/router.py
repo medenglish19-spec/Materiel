@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import delete, desc
+from sqlalchemy import desc
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
@@ -11,140 +11,28 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
+from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord)
 from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
-    CONDITION_UNSET_LABEL,
-    check_plan_operation_condition_compatibility,
+    check_plan_operation_compatibility,
     chronology_error,
-    condition_axis_text,
-    condition_for_equipment,
     contradiction_for,
     current_meter_value,
     effective_operations_for_equipment,
     latest_readings,
     latest_records,
     measurement_unit,
-    meter_required_for_condition,
-    operation_condition_for_model,
-    operation_conditions_by_model,
-    operation_condition_meta,
-    operations_payload,
     priority_for,
     status_for,
     plan_status_for,
     effective_plans_for_equipment,
     latest_plan_records,
-    warning_setting_text,
+    validate_operation_applicable_to_equipment,
 )
 from app.modules.users.models import User
 
 router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
-
-# أعمدة قديمة مشتركة على العملية: مُهملة في كل حساب وعرض، ومحفوظة في قاعدة
-# البيانات كما هي. لا تُكتب ولا تُمحى عبر الـAPI إلا بطلب صريح من العميل.
-_LEGACY_OPERATION_CONDITION_FIELDS = (
-    "interval_km",
-    "interval_hours",
-    "interval_days",
-    "warning_km",
-    "warning_days",
-)
-
-
-def _operation_payload(db: Session, operation) -> dict:
-    """Operation plus its per-model conditions, as the JSON API exposes it.
-
-    Conditions are read from `maintenance_operation_models` only. The operation's
-    legacy shared columns are ignored: they are kept in the database but never
-    published as a model condition, and no copy decision is requested.
-    """
-    summary = operations_payload(db, [operation])[0]
-    source = "model_conditions" if any(row["is_defined"] for row in summary["model_conditions"]) else "none"
-    return {
-        "id": operation.id,
-        "name": operation.name,
-        "group_id": operation.group_id,
-        "description": operation.description,
-        "is_active": bool(operation.is_active),
-        # الحقل الموروث للكتابة يعود فارغًا في القراءة بدل null، فيبقى شكل
-        # الاستجابة واحدًا في القائمة والإنشاء والتعديل.
-        "equipment_model_conditions": [],
-        "model_conditions": summary["model_conditions"],
-        "condition_summary": summary["condition_summary"],
-        "condition_source": source,
-    }
-
-
-def meter_required_for(condition, unit: str) -> bool:
-    """Does this model condition make an odometer/hour reading mandatory?"""
-    return meter_required_for_condition(condition, unit)
-
-
-def _operation_model_link(db: Session, operation_id: int, equipment_model_id: int):
-    return db.execute(
-        maintenance_operation_models.select().where(
-            maintenance_operation_models.c.operation_id == operation_id,
-            maintenance_operation_models.c.equipment_model_id == equipment_model_id,
-        )
-    ).first()
-
-
-def _sync_operation_model_conditions(db: Session, operation, submitted: list) -> None:
-    """Write the submitted per-model conditions of one operation.
-
-    Each relation row is written on its own, so changing one model's condition
-    cannot alter another model's row. Models absent from the payload lose their
-    relation row; models present in both keep their existing row.
-    """
-    by_model = {}
-    for index, item in enumerate(submitted):
-        data = item.model_dump() if hasattr(item, "model_dump") else dict(item)
-        model_id = data.pop("model_id")
-        if model_id in by_model:
-            raise HTTPException(status_code=400, detail="تم تحديد الطراز نفسه أكثر من مرة في شروط العملية.")
-        if db.get(EquipmentModel, model_id) is None:
-            raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
-        by_model[model_id] = (index, data)
-
-    existing = {
-        row.equipment_model_id: row
-        for row in db.execute(
-            maintenance_operation_models.select().where(
-                maintenance_operation_models.c.operation_id == operation.id
-            )
-        ).all()
-    }
-
-    for model_id in list(existing):
-        if model_id not in by_model:
-            db.execute(
-                delete(maintenance_operation_models).where(
-                    maintenance_operation_models.c.operation_id == operation.id,
-                    maintenance_operation_models.c.equipment_model_id == model_id,
-                )
-            )
-
-    for model_id, (_, data) in by_model.items():
-        row = existing.get(model_id)
-        if row is None:
-            db.execute(
-                maintenance_operation_models.insert().values(
-                    operation_id=operation.id, equipment_model_id=model_id, **data
-                )
-            )
-        else:
-            db.execute(
-                maintenance_operation_models.update()
-                .where(
-                    maintenance_operation_models.c.operation_id == operation.id,
-                    maintenance_operation_models.c.equipment_model_id == model_id,
-                )
-                .values(**data)
-            )
-
-    db.expire(operation, ["equipment_models"])
 
 
 @router.get("/maintenance", response_class=HTMLResponse)
@@ -175,11 +63,9 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
-            rec = records.get((eq.id, operation.id))
-            condition = condition_for_equipment(db, operation, eq)
-            state, css, remaining, meta = operation_condition_meta(condition, eq, rec, current_value)
+            rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             counts["total"] += 1; counts[css] += 1
-            rows.append({"equipment": eq, "operation": operation, "condition": condition, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "condition_unset": bool(meta.get("condition_unset")), "contradiction": contradiction_for(eq, rec, current_value, db)})
+            rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
     return templates.TemplateResponse(request=request, name="maintenance_dashboard.html", context={"request": request, "user": current_user, "rows": rows, "counts": counts, "unapproved_models": unapproved_models})
 
@@ -191,25 +77,8 @@ def maintenance_plans_page(request: Request, db: Session = Depends(get_db), curr
         joinedload(EquipmentModel.equipment_type),
     ).order_by(EquipmentModel.name).all()
     model_options = [{"id": model.id, "name": model.name} for model in models]
-    # شرط كل (عملية، طراز) كما هو محفوظ فعلًا؛ الشاشة لا تستنتج شرطًا من الخطة.
-    operations = db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
-    conditions = operation_conditions_by_model(db, [operation.id for operation in operations])
-    operation_conditions = {}
-    for operation in operations:
-        for model in operation.equipment_models:
-            condition = conditions.get((operation.id, model.id))
-            operation_conditions[f"{operation.id}:{model.id}"] = {
-                "is_defined": bool(condition.is_defined) if condition else False,
-                "condition_text": condition_axis_text(condition) if condition and condition.is_defined else CONDITION_UNSET_LABEL,
-                "warning_text": warning_setting_text(condition),
-            }
     return templates.TemplateResponse(
-        request=request, name="maintenance_plans.html", context={
-            "request": request,
-            "user": current_user,
-            "models": model_options,
-            "operation_conditions": operation_conditions,
-        },
+        request=request, name="maintenance_plans.html", context={"request": request, "user": current_user, "models": model_options},
     )
 
 @router.get("/maintenance/rules", response_class=HTMLResponse)
@@ -253,28 +122,12 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
 
     operation_equipment_ids = {}
     for eq in equipment:
-        for operation in effective_operations_for_equipment(db, eq):
+        for operation in effective_operations_for_equipment(db, eq, include_standalone=True):
             operation_equipment_ids.setdefault(operation.id, set()).add(eq.id)
     operation_equipment_ids = {
         operation_id: ",".join(str(equipment_id) for equipment_id in sorted(equipment_ids))
         for operation_id, equipment_ids in operation_equipment_ids.items()
     }
-    # إلزام قراءة العداد يُحدَّد من شرط كل (عملية، طراز)، لا من القيمة القديمة على العملية.
-    meter_models = sorted({
-        eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None
-    } | {
-        model.id for operation in operations for model in operation.equipment_models
-    })
-    units_by_model = {eq.equipment_model_id: measurement_unit(eq) for eq in equipment}
-    all_conditions = operation_conditions_by_model(db, [operation.id for operation in operations])
-    meter_required_by_operation = {}
-    for operation in operations:
-        entries = []
-        for model_id in meter_models:
-            condition = all_conditions.get((operation.id, model_id))
-            unit = units_by_model.get(model_id, "km")
-            entries.append(f"{model_id}:{'1' if meter_required_for_condition(condition, unit) else '0'}")
-        meter_required_by_operation[operation.id] = ",".join(entries) + ","
 
     plan_equipment_ids = {}
     for plan in plans:
@@ -288,7 +141,6 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "operations": operations,
             "plans": plans,
             "operation_equipment_ids": operation_equipment_ids,
-            "meter_required_by_operation": meter_required_by_operation,
             "edit_record": edit_record,
         },
     )
@@ -319,7 +171,15 @@ def maintenance_record_create(
         MaintenanceOperation.id == operation_id,
         MaintenanceOperation.is_active.is_(True),
     ).first()
-    if operation is None or operation_id not in {
+    if operation is None:
+        return RedirectResponse(f"{records_url}?error=operation_not_found", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Validate operation applicability to equipment using shared function
+    validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+    if validation_error:
+        return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
+    if operation_id not in {
         item.id for item in effective_operations_for_equipment(db, equipment)
     }:
         return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
@@ -354,9 +214,7 @@ def maintenance_record_create(
         if meter < 0:
             return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
 
-    unit = measurement_unit(equipment)
-    operation_condition = condition_for_equipment(db, operation, equipment)
-    if meter_required_for(operation_condition, unit):
+    if (unit == "km" and operation.interval_km is not None) or (unit == "hours" and operation.interval_hours is not None):
         if meter is None:
             return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -411,6 +269,12 @@ def maintenance_record_update(
     ).first()
     if rec is None or equipment is None or operation is None:
         return RedirectResponse(f"{records_url}?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Validate operation applicability to equipment using shared function
+    validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+    if validation_error:
+        return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
     if operation_id not in {item.id for item in effective_operations_for_equipment(db, equipment)}:
         return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -444,8 +308,7 @@ def maintenance_record_update(
             return RedirectResponse(f"{records_url}?error=meter", status_code=status.HTTP_303_SEE_OTHER)
 
     unit = measurement_unit(equipment)
-    operation_condition = condition_for_equipment(db, operation, equipment)
-    if meter_required_for(operation_condition, unit):
+    if (unit == "km" and operation.interval_km is not None) or (unit == "hours" and operation.interval_hours is not None):
         if meter is None:
             return RedirectResponse(f"{records_url}?error=meter_required", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -514,13 +377,11 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
             rec = records.get((eq.id, operation.id))
-            condition = condition_for_equipment(db, operation, eq)
-            state, css, remaining, meta = operation_condition_meta(condition, eq, rec, current_value)
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
                 due_rows.append({
                     "equipment": eq,
                     "operation": operation,
-                    "condition": condition,
                     "record": rec,
                     "current": current_value,
                     "unit": measurement_unit(eq),
@@ -529,7 +390,6 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
                     "state": state,
                     "css": css,
                     "priority": priority_for(state, remaining, meta),
-                    "condition_unset": bool(meta.get("condition_unset")),
                     "contradiction": contradiction_for(eq, rec, current_value, db),
                     "plans": plan_membership.get((eq.equipment_model_id, operation.id), []),
                 })
@@ -590,6 +450,50 @@ def api_operation_group_update(group_id: int, payload: MaintenanceOperationGroup
     return group
 
 @router.delete("/api/maintenance/operation-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+
+def api_operation_group_delete(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+
+    group = db.get(MaintenanceOperationGroup, group_id)
+
+    if group is None:
+
+        raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+
+    db.delete(group)
+
+    try:
+
+        db.commit()
+
+    except Exception as exc:
+
+        db.rollback()
+
+        raise HTTPException(status_code=409, detail="تعذر حذف مجموعة شروط الصيانة.") from exc
+
+    return None
+
+
+
+@router.get("/api/maintenance/equipment/models")
+
+def api_equipment_models(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+
+    """Return all equipment models for operation-model association."""
+
+    models = db.query(EquipmentModel).options(
+
+        joinedload(EquipmentModel.equipment_type),
+
+        joinedload(EquipmentModel.brand)
+
+    ).order_by(EquipmentModel.name).all()
+
+    return [{"id": m.id, "name": m.name, "type": m.equipment_type.name if m.equipment_type else "", "brand": m.brand.name if m.brand else ""} for m in models]
+
+
+
+@router.delete("/api/maintenance/operation-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 def api_operation_group_delete(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     group = db.get(MaintenanceOperationGroup, group_id)
     if group is None:
@@ -622,60 +526,153 @@ def api_operation_delete(operation_id: int, db: Session = Depends(get_db), curre
 
 @router.get("/api/maintenance/operations", response_model=list[MaintenanceOperationOut])
 def api_operations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    operations = db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
-    return [_operation_payload(db, operation) for operation in operations]
+    return db.query(MaintenanceOperation).order_by(MaintenanceOperation.name, MaintenanceOperation.id).all()
 
 @router.post("/api/maintenance/operations", response_model=MaintenanceOperationOut, status_code=status.HTTP_201_CREATED)
 def api_operation_create(payload: MaintenanceOperationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     data = payload.model_dump()
-    data.pop("equipment_model_conditions", None)
-    # العملية الجديدة تُنشأ بلا قيمة قديمة: الأعمدة القديمة لا تُكتب.
-    for legacy_field in _LEGACY_OPERATION_CONDITION_FIELDS:
-        data.pop(legacy_field, None)
     if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
         raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
-    operation = MaintenanceOperation(**data); db.add(operation)
+
+    equipment_model_ids = data.pop("equipment_model_ids", [])
+    for model_id in equipment_model_ids:
+        if db.get(EquipmentModel, model_id) is None:
+            raise HTTPException(status_code=404, detail=f"طراز العتاد {model_id} غير موجود.")
+
+    operation = MaintenanceOperation(**data)
+    if equipment_model_ids:
+        operation.equipment_models = [db.get(EquipmentModel, mid) for mid in equipment_model_ids]
+    db.add(operation)
     try:
-        db.flush()
-        _sync_operation_model_conditions(db, operation, payload.equipment_model_conditions)
-        db.commit(); db.refresh(operation)
-    except HTTPException:
-        db.rollback(); raise
+        db.commit()
+        db.refresh(operation)
     except Exception as exc:
-        db.rollback(); raise HTTPException(status_code=409, detail="تعذر إنشاء عملية الصيانة.") from exc
-    return _operation_payload(db, operation)
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر إنشاء عملية الصيانة.") from exc
+    return operation
 
 @router.put("/api/maintenance/operations/{operation_id}", response_model=MaintenanceOperationOut)
 def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     operation = db.get(MaintenanceOperation, operation_id)
     if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
     data = payload.model_dump()
-    data.pop("equipment_model_conditions", None)
-    # أعمدة القيمة القديمة لا تُكتب ولا تُمحى: تُترك كما هي في قاعدة البيانات،
-    # ولا تُعدَّل إلا إذا أرسل العميل الحقل صراحةً.
-    provided = payload.model_fields_set
-    for legacy_field in _LEGACY_OPERATION_CONDITION_FIELDS:
-        if legacy_field not in provided:
-            data.pop(legacy_field, None)
     if data.get("group_id") is not None and db.get(MaintenanceOperationGroup, data["group_id"]) is None:
         raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
+
+    # Handle equipment_model_ids separately
+    equipment_model_ids = data.pop("equipment_model_ids", None)
+    if equipment_model_ids is not None:
+        # Validate all model IDs exist
+        for model_id in equipment_model_ids:
+            if db.get(EquipmentModel, model_id) is None:
+                raise HTTPException(status_code=404, detail=f"طراز العتاد {model_id} غير موجود.")
+
+    # Capture original values for compatibility check
+    original_interval_km = operation.interval_km
+    original_interval_hours = operation.interval_hours
+    original_interval_days = operation.interval_days
+    original_equipment_model_ids = {m.id for m in operation.equipment_models}
+
     for key, value in data.items(): setattr(operation, key, value)
-    try:
-        # شروط الطرازات تُكتب على حدة: تعديل شرط طراز لا يمس شروط الطرازات الأخرى.
-        _sync_operation_model_conditions(db, operation, payload.equipment_model_conditions)
-        # Changing a library operation can change the meaning of every plan that
-        # uses it, so each affected plan must be reviewed and approved again.
+
+    # Update equipment_model_ids if provided, and validate against plans
+    if equipment_model_ids is not None:
+        # Update the relationship
+        operation.equipment_models = [db.get(EquipmentModel, mid) for mid in equipment_model_ids]
+        
+        # Check if any affected plan's model is no longer in the operation's models
         affected_plans = db.query(MaintenancePlan).join(
             MaintenancePlanOperation, MaintenancePlanOperation.plan_id == MaintenancePlan.id
         ).filter(MaintenancePlanOperation.operation_id == operation.id).all()
+        
+        model_errors = []
         for plan in affected_plans:
-            plan.is_approved = False
-        db.commit(); db.refresh(operation)
-    except HTTPException:
-        db.rollback(); raise
+            if plan.equipment_model_id not in {m.id for m in operation.equipment_models}:
+                model_errors.append(f"خطة '{plan.name}' (ID: {plan.id}) تتطلب طراز العتاد {plan.equipment_model_id} الذي لم يعد مرتبطًا بالعملية")
+        
+        if model_errors:
+            # Rollback equipment_models change
+            operation.equipment_models = [db.get(EquipmentModel, mid) for mid in original_equipment_model_ids]
+            raise HTTPException(
+                status_code=409,
+                detail="تعذر تعديل العملية: تغيير الطرازات المرتبطة يتعارض مع الخطط التالية:\n" + "\n".join(model_errors)
+            )
+
+    # Check compatibility with affected plans BEFORE committing
+    affected_plans = db.query(MaintenancePlan).join(
+        MaintenancePlanOperation, MaintenancePlanOperation.plan_id == MaintenancePlan.id
+    ).filter(MaintenancePlanOperation.operation_id == operation.id).all()
+    
+    compatibility_errors = []
+    for plan in affected_plans:
+        compatibility_error = check_plan_operation_compatibility(plan, operation)
+        if compatibility_error:
+            compatibility_errors.append(f"خطة '{plan.name}' (ID: {plan.id}): {compatibility_error}")
+    
+    if compatibility_errors:
+        # Rollback the changes to operation attributes
+        operation.interval_km = original_interval_km
+        operation.interval_hours = original_interval_hours
+        operation.interval_days = original_interval_days
+        raise HTTPException(
+            status_code=409,
+            detail="تعذر تعديل العملية: شروط العملية الجديدة غير متوافقة مع الخطط المرتبطة بها.\n" + "\n".join(compatibility_errors)
+        )
+
+    # If compatible, mark affected plans as requiring re-approval
+    for plan in affected_plans:
+        plan.is_approved = False
+
+    try: db.commit(); db.refresh(operation)
+    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل عملية الصيانة.") from exc
+    return operation
+
+
+# Operation-Model relationship endpoints
+@router.get("/api/maintenance/operations/{operation_id}/models", response_model=list[dict])
+def api_operation_models(operation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    return [{"id": m.id, "name": m.name} for m in operation.equipment_models]
+
+
+@router.post("/api/maintenance/operations/{operation_id}/models", status_code=status.HTTP_201_CREATED)
+def api_operation_add_model(operation_id: int, equipment_model_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    model = db.get(EquipmentModel, equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+    if model in operation.equipment_models:
+        raise HTTPException(status_code=409, detail="العملية مرتبطة بهذا الطراز مسبقًا.")
+    operation.equipment_models.append(model)
+    try:
+        db.commit()
     except Exception as exc:
-        db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل عملية الصيانة.") from exc
-    return _operation_payload(db, operation)
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر إضافة الطراز للعملية.") from exc
+    return {"operation_id": operation.id, "equipment_model_id": model.id, "name": model.name}
+
+
+@router.delete("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_operation_remove_model(operation_id: int, equipment_model_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    model = db.get(EquipmentModel, equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+    if model not in operation.equipment_models:
+        raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذا الطراز.")
+    operation.equipment_models.remove(model)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر إزالة الطراز من العملية.") from exc
+    return None
 
 @router.get("/api/maintenance/plans", response_model=list[MaintenancePlanOut])
 def api_plans(equipment_model_id: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -691,22 +688,40 @@ def api_plan_create(payload: MaintenancePlanCreate, db: Session = Depends(get_db
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر إنشاء خطة الصيانة.") from exc
     return plan
 
-@router.get("/api/maintenance/equipment/models")
-def api_equipment_models(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Return all equipment models for operation-model association."""
-    models = db.query(EquipmentModel).options(
-        joinedload(EquipmentModel.equipment_type),
-        joinedload(EquipmentModel.brand)
-    ).order_by(EquipmentModel.name).all()
-    return [{"id": m.id, "name": m.name, "type": m.equipment_type.name if m.equipment_type else "", "brand": m.brand.name if m.brand else ""} for m in models]
-
-
 @router.put("/api/maintenance/plans/{plan_id}", response_model=MaintenancePlanOut)
 def api_plan_update(plan_id: int, payload: MaintenancePlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     plan = db.get(MaintenancePlan, plan_id)
     if plan is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
     if db.get(EquipmentModel, payload.equipment_model_id) is None: raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+
+    # Capture original values for compatibility check
+    original_interval_km = plan.interval_km
+    original_interval_hours = plan.interval_hours
+    original_interval_days = plan.interval_days
+
     for key, value in payload.model_dump().items(): setattr(plan, key, value)
+
+    # Check compatibility with affected operations BEFORE committing
+    affected_operations = db.query(MaintenanceOperation).join(
+        MaintenancePlanOperation, MaintenancePlanOperation.operation_id == MaintenanceOperation.id
+    ).filter(MaintenancePlanOperation.plan_id == plan.id).all()
+    
+    compatibility_errors = []
+    for operation in affected_operations:
+        compatibility_error = check_plan_operation_compatibility(plan, operation)
+        if compatibility_error:
+            compatibility_errors.append(f"عملية '{operation.name}' (ID: {operation.id}): {compatibility_error}")
+    
+    if compatibility_errors:
+        # Rollback the changes to plan attributes
+        plan.interval_km = original_interval_km
+        plan.interval_hours = original_interval_hours
+        plan.interval_days = original_interval_days
+        raise HTTPException(
+            status_code=409,
+            detail="تعذر تعديل الخطة: شرط الخطة الجديد غير متوافق مع العمليات المرتبطة بها.\n" + "\n".join(compatibility_errors)
+        )
+
     # Any plan edit requires explicit re-approval before it drives follow-ups.
     plan.is_approved = False
     try: db.commit(); db.refresh(plan)
@@ -743,25 +758,45 @@ def api_plan_operations(plan_id: int, db: Session = Depends(get_db), current_use
     if db.get(MaintenancePlan, plan_id) is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
     return db.query(MaintenancePlanOperation).filter(MaintenancePlanOperation.plan_id == plan_id).order_by(MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id).all()
 
+
 @router.post("/api/maintenance/plans/{plan_id}/operations", response_model=MaintenancePlanOperationOut, status_code=status.HTTP_201_CREATED)
 def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if payload.plan_id != plan_id: raise HTTPException(status_code=400, detail="رقم الخطة في الطلب لا يطابق المسار.")
+    if payload.plan_id != plan_id:
+        raise HTTPException(status_code=400, detail="رقم الخطة في الطلب لا يطابق المسار.")
     plan = db.get(MaintenancePlan, plan_id)
-    if plan is None: raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
-    if not plan.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية إلى خطة صيانة غير مفعلة.")
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if not plan.is_active:
+        raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية إلى خطة صيانة غير مفعلة.")
     operation = db.get(MaintenanceOperation, payload.operation_id)
-    if operation is None: raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
-    if not operation.is_active: raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة.")
-    # التحقق من التوافق يجري مقابل شرط الطراز الذي تخصه الخطة، لا مقابل قيمة
-    # مشتركة واحدة على مستوى العملية.
-    model_condition = operation_condition_for_model(db, operation.id, plan.equipment_model_id)
-    incompatibility = check_plan_operation_condition_compatibility(plan, model_condition)
-    if incompatibility:
-        raise HTTPException(status_code=409, detail=incompatibility)
-    link = MaintenancePlanOperation(**payload.model_dump()); db.add(link)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    if not operation.is_active:
+        raise HTTPException(status_code=409, detail="لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة.")
+
+    # Check if operation is linked to the plan's equipment model
+    model = db.get(EquipmentModel, plan.equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد للخطة غير موجود.")
+
+    # Check condition compatibility BEFORE any modifications
+    compatibility_error = check_plan_operation_compatibility(plan, operation)
+    if compatibility_error:
+        raise HTTPException(status_code=409, detail=f"تعذر إضافة العملية: {compatibility_error}")
+
+    # Link the operation to the plan's model if not already linked
+    if model not in operation.equipment_models:
+        operation.equipment_models.append(model)
+
+    link = MaintenancePlanOperation(**payload.model_dump())
+    db.add(link)
     plan.is_approved = False
-    try: db.commit(); db.refresh(link)
-    except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
+    try:
+        db.commit()
+        db.refresh(link)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
     return link
 
 @router.delete("/api/maintenance/plans/{plan_id}/operations/{operation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -828,37 +863,26 @@ def api_execution_create(
         if plan.equipment_model_id != equipment.equipment_model_id:
             raise HTTPException(status_code=409, detail="خطة الصيانة لا تخص طراز العتاد المحدد.")
 
-    if operation is not None:
-        # الانطباق الصريح أولًا: عملية غير مرتبطة بطراز العتاد لا تُنفَّذ عليه.
-        if _operation_model_link(db, operation.id, equipment.equipment_model_id) is None:
-            raise HTTPException(status_code=409, detail="عملية الصيانة لا تنطبق على طراز هذا العتاد.")
-        membership = (
-            db.query(MaintenancePlanOperation)
-            .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
-            .filter(
-                MaintenancePlanOperation.operation_id == operation.id,
-                MaintenancePlan.equipment_model_id == equipment.equipment_model_id,
-                MaintenancePlan.is_active.is_(True),
-                MaintenancePlan.is_approved.is_(True),
-            )
-            .first()
-        )
-        standalone = not db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.operation_id == operation.id).first()
-        if membership is None and not standalone:
-            raise HTTPException(status_code=409, detail="عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز ولا هي مستقلة.")
-        if plan is not None and db.query(MaintenancePlanOperation.id).filter(
+    # Validate operation applicability to equipment using shared function
+    validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+    if validation_error:
+        raise HTTPException(status_code=409, detail=validation_error)
+
+    # If a plan is specified, verify the operation belongs to that plan
+    if plan is not None:
+        linked = db.query(MaintenancePlanOperation.id).filter(
             MaintenancePlanOperation.plan_id == plan.id,
             MaintenancePlanOperation.operation_id == operation.id,
-        ).first() is None:
+        ).first()
+        if linked is None:
             raise HTTPException(status_code=409, detail="العملية المختارة غير مرتبطة بالخطة المحددة.")
 
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
         raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
     if operation is not None:
-        # قراءة العداد المطلوبة يحددها شرط طراز العتاد، لا القيمة القديمة على العملية.
-        operation_condition = condition_for_equipment(db, operation, equipment)
-        if meter_required_for(operation_condition, unit) and payload.meter_value is None:
+        interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
+        if interval is not None and payload.meter_value is None:
             raise HTTPException(status_code=400, detail="يجب إدخال قراءة العداد لهذه العملية.")
 
     chronology = chronology_error(db, payload.equipment_id, payload.maintenance_date, payload.meter_value)
@@ -965,14 +989,20 @@ def api_plan_execution_create(
     if invalid_ids:
         raise HTTPException(status_code=409, detail="توجد عملية محددة ليست ضمن العمليات المفعلة لهذه الخطة.")
 
+    # Verify all selected operations are linked to the equipment's model
+    for operation_id in selected_ids:
+        operation = active_links[operation_id].operation
+        validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+        if validation_error:
+            raise HTTPException(status_code=409, detail=f"عملية {operation.name}: {validation_error}")
+
     unit = measurement_unit(equipment)
     if payload.meter_value is not None and payload.meter_value < 0:
         raise HTTPException(status_code=400, detail="لا يمكن أن تكون قراءة العداد سالبة.")
     for operation_id in selected_ids:
         operation = active_links[operation_id].operation
-        # شرط الطراز الفعلي لكل عملية هو المرجع، وليس القيمة القديمة على العملية.
-        operation_condition = condition_for_equipment(db, operation, equipment)
-        if meter_required_for(operation_condition, unit) and payload.meter_value is None:
+        interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
+        if interval is not None and payload.meter_value is None:
             raise HTTPException(status_code=400, detail=f"يجب إدخال قراءة العداد للعملية: {operation.name}.")
 
     chronology = chronology_error(db, payload.equipment_id, payload.maintenance_date, payload.meter_value)

@@ -139,7 +139,7 @@ def _option_list_copy(unit: Optional[str], options: Optional[str]) -> bool:
     return bool(left) and left==right
 
 
-def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
+def create_spec_definition(db: Session, data: SpecDefinitionCreate, commit: bool = True) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
     if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first():
@@ -169,7 +169,13 @@ def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> Equipment
         category_id=data.category_id,
         sort_order=db.query(EquipmentModelSpecDefinition).count(),
     )
-    db.add(obj);db.commit();db.refresh(obj);return obj
+    db.add(obj)
+    if commit:
+        db.commit()
+        db.refresh(obj)
+    else:
+        db.flush()
+    return obj
 
 def delete_spec_definition(db: Session, definition_id: int) -> None:
     obj=db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.id==definition_id).first()
