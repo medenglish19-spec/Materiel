@@ -35,8 +35,6 @@ maintenance_operation_models = Table(
     Column("interval_km", Numeric(10, 1), nullable=True),
     Column("interval_hours", Numeric(10, 1), nullable=True),
     Column("interval_days", Integer, nullable=True),
-    Column("warning_km", Numeric(10, 1), nullable=True),
-    Column("warning_days", Integer, nullable=True),
     Column("is_active", Boolean, nullable=False, default=True, server_default="1"),
     UniqueConstraint("operation_id", "equipment_model_id", name="pk_maintenance_operation_models"),
     Index("ix_maintenance_operation_models_equipment_model_id", "equipment_model_id"),

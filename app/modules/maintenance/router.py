@@ -17,6 +17,7 @@ from app.modules.maintenance.services import (
     check_plan_operation_compatibility,
     check_plan_operation_condition_compatibility,
     chronology_error,
+    condition_for_equipment,
     contradiction_for,
     current_meter_value,
     effective_operations_for_equipment,
@@ -123,7 +124,9 @@ def periodic_maintenance_page(request: Request, db: Session = Depends(get_db), c
     for eq in equipment:
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
-            rec = records.get((eq.id, operation.id)); state, css, remaining, meta = status_for(operation, eq, rec, current_value)
+            rec = records.get((eq.id, operation.id))
+            condition = condition_for_equipment(db, operation, eq)
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=condition)
             counts["total"] += 1; counts[css] += 1
             rows.append({"equipment": eq, "operation": operation, "record": rec, "current": current_value, "unit": measurement_unit(eq), "next_meter": meta.get("next_meter"), "next_date": meta.get("next_date"), "remaining": remaining, "remaining_days": meta.get("remaining_days"), "state": state, "css": css, "priority": priority_for(state, remaining, meta), "contradiction": contradiction_for(eq, rec, current_value, db)})
     rows.sort(key=lambda r: (r["priority"], r["remaining"] if r["remaining"] is not None else Decimal("999999999"), r["remaining_days"] if r["remaining_days"] is not None else 999999999, r["equipment"].registration_number or r["equipment"].asset_code or ""))
@@ -466,7 +469,8 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in effective_operations_for_equipment(db, eq, include_standalone=False):
             rec = records.get((eq.id, operation.id))
-            state, css, remaining, meta = status_for(operation, eq, rec, current_value)
+            condition = condition_for_equipment(db, operation, eq)
+            state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=condition)
             if state in ("مستحقة الآن", "تقترب", "بلا سجل"):
                 due_rows.append({
                     "equipment": eq,
@@ -628,7 +632,8 @@ def api_operation_create(payload: MaintenanceOperationCreate, db: Session = Depe
 
     # Legacy interval fields on the operation are not used; they remain None.
     # The authoritative conditions are stored per-model in maintenance_operation_models.
-    for field in ("interval_km", "interval_hours", "interval_days", "warning_km", "warning_days"):
+    # warning_km and warning_days are the unified warning fields at operation level - KEEP them.
+    for field in ("interval_km", "interval_hours", "interval_days"):
         data.pop(field, None)
 
     operation = MaintenanceOperation(**data)
@@ -659,7 +664,8 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
 
     # Legacy interval fields on the operation are not used; they remain unchanged.
     # The authoritative conditions are stored per-model in maintenance_operation_models.
-    for field in ("interval_km", "interval_hours", "interval_days", "warning_km", "warning_days"):
+    # warning_km and warning_days are the unified warning fields at operation level - KEEP them.
+    for field in ("interval_km", "interval_hours", "interval_days"):
         data.pop(field, None)
 
     for key, value in data.items(): setattr(operation, key, value)

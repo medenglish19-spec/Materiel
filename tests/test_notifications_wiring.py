@@ -16,7 +16,12 @@ TEMPLATE = Path("app/modules/dashboard/templates/dashboard.html")
 
 
 def _model_condition(equipment_model_id, **condition):
-    """شرط طراز حقيقي كما يقرأه محرك الاستحقاق من علاقة العملية بالطراز."""
+    """شرط طراز حقيقي كما يقرأه محرك الاستحقاق من علاقة العملية بالطراز.
+    
+    Warning settings are unified at the operation level, not per-model.
+    """
+    # Filter out warning fields - they belong on the operation, not the model condition
+    condition = {k: v for k, v in condition.items() if k not in ("warning_km", "warning_days")}
     values = {"condition_source": CONDITION_MODEL, "equipment_model_id": equipment_model_id}
     values.update(condition)
     return ModelCondition(**values)
@@ -142,9 +147,9 @@ def test_maintenance_provider_reports_upcoming_inside_warning_window(monkeypatch
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq, **kwargs: [_operation(interval_km=10000)],
+        lambda db, eq, **kwargs: [_operation(interval_km=20000, warning_km=Decimal("1000"))],
     )
-    _use_model_condition(monkeypatch, interval_km=20000, warning_km=Decimal("1000"))
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     notes = providers.maintenance_due_provider(
         _DB([_equipment(current_odometer=Decimal("19500"))])
@@ -161,9 +166,9 @@ def test_maintenance_provider_stays_silent_within_schedule(monkeypatch):
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq, **kwargs: [_operation(interval_km=10000)],
+        lambda db, eq, **kwargs: [_operation(interval_km=10000, warning_km=Decimal("100"))],
     )
-    _use_model_condition(monkeypatch, interval_km=20000, warning_km=Decimal("100"))
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     assert providers.maintenance_due_provider(_DB([_equipment()])) == []
 
@@ -197,8 +202,11 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
 
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record, (6, 3): record})
-    monkeypatch.setattr(providers, "effective_operations_for_equipment", _operations)
-    _use_model_condition(monkeypatch, interval_km=20000, warning_km=Decimal("1000"))
+    def _operations_with_warning(db, eq, **kwargs):
+        calls.append(eq.equipment_model_id)
+        return [_operation(warning_km=Decimal("1000"))]
+    monkeypatch.setattr(providers, "effective_operations_for_equipment", _operations_with_warning)
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     notes = providers.maintenance_due_provider(
         _DB(
@@ -220,10 +228,10 @@ def test_maintenance_provider_uses_each_equipment_own_model_condition(monkeypatc
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record_5, (6, 3): record_6})
     monkeypatch.setattr(
-        providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation()]
+        providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation(warning_km=Decimal("1000"))]
     )
     conditions = {
-        11: _model_condition(11, interval_km=Decimal("20000"), warning_km=Decimal("1000")),
+        11: _model_condition(11, interval_km=Decimal("20000")),
         12: _model_condition(12, interval_km=Decimal("100")),
     }
     seen: list = []

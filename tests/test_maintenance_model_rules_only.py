@@ -8,11 +8,27 @@ from sqlalchemy.pool import StaticPool
 from app.database.base import Base
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, maintenance_operation_models
+from app.modules.faults_repairs.models import Fault
 from app.modules.maintenance.services import CONDITION_MODEL, effective_operations_for_equipment, operation_condition_for_model
+from app.modules.users.models import User
 
 
 def link_condition(db, operation, model, **condition):
-    """Create the operation↔model relation with that model's own condition."""
+    """Create the operation↔model relation with that model's own condition.
+    
+    Warning fields (warning_km, warning_days) are not part of the model condition
+    table anymore - they're unified at the operation level.
+    """
+    # Extract warning fields from condition - they belong on the operation, not the model condition
+    warning_km = condition.pop("warning_km", None)
+    warning_days = condition.pop("warning_days", None)
+    
+    # Set warning on operation if provided
+    if warning_km is not None:
+        operation.warning_km = warning_km
+    if warning_days is not None:
+        operation.warning_days = warning_days
+    
     db.execute(
         maintenance_operation_models.insert().values(
             operation_id=operation.id,
@@ -125,8 +141,11 @@ def test_operation_condition_is_read_from_the_model_relation():
 
         condition_a = operation_condition_for_model(db, operation.id, model_a.id)
         condition_b = operation_condition_for_model(db, operation.id, model_b.id)
-        assert (condition_a.interval_km, condition_a.warning_km) == (Decimal("5000.0"), Decimal("250.0"))
-        assert (condition_b.interval_km, condition_b.warning_km) == (Decimal("9000.0"), Decimal("600.0"))
+        # Intervals are per-model
+        assert condition_a.interval_km == Decimal("5000.0")
+        assert condition_b.interval_km == Decimal("9000.0")
+        # Warning is unified at operation level (last one set wins)
+        assert operation.warning_km == Decimal("600.0")
 
         # طراز بلا علاقة => شرط غير محدد، ولا تُستنتج له قيمة من طراز آخر ولا من العملية.
         model_c = EquipmentModel(name="Model C", equipment_type_id=equipment_type.id)

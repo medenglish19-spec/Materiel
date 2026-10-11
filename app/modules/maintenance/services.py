@@ -100,16 +100,31 @@ def contradiction_for(equipment, record, current_value, db):
     return None
 
 
-def status_for(condition, equipment, record, current_value, plan_operation=None, today=None):
-    """Calculate due state with independent km, hours, and calendar axes."""
+def status_for(obj, equipment, record, current_value, plan_operation=None, today=None, condition=None):
+    """Calculate due state with independent km, hours, and calendar axes.
+
+    The first argument can be a MaintenanceOperation or MaintenancePlan.
+    Warning settings are unified at the operation level.
+    Interval settings come from the condition (for operations) or the plan/operation itself (for plans).
+    """
     if record is None:
         return "بلا سجل", "neutral", None, {"remaining_days": None, "next_meter": None, "next_date": None, "remaining_km": None, "remaining_hours": None}
     today = today or date.today()
-    interval_km = getattr(condition, "interval_km", None)
-    interval_hours = getattr(condition, "interval_hours", None)
-    interval_days = getattr(condition, "interval_days", None)
-    warning_km = getattr(condition, "warning_km", None)
-    warning_days = getattr(condition, "warning_days", None)
+    
+    # Interval settings: use condition if provided (for operations with per-model conditions),
+    # otherwise fall back to the object (plan or legacy operation)
+    if condition is not None:
+        interval_km = getattr(condition, "interval_km", None)
+        interval_hours = getattr(condition, "interval_hours", None)
+        interval_days = getattr(condition, "interval_days", None)
+    else:
+        interval_km = getattr(obj, "interval_km", None)
+        interval_hours = getattr(obj, "interval_hours", None)
+        interval_days = getattr(obj, "interval_days", None)
+    
+    # Warning settings are unified at the operation level (or plan level for plans)
+    warning_km = getattr(obj, "warning_km", None)
+    warning_days = getattr(obj, "warning_days", None)
     unit = measurement_unit(equipment)
     current = Decimal(str(current_value)) if current_value is not None else None
     meter_at_service = Decimal(str(record.meter_value)) if record.meter_value is not None else None
@@ -243,7 +258,10 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
 
 @dataclass(frozen=True)
 class ModelCondition:
-    """Eligibility condition of one operation for one equipment model."""
+    """Eligibility condition of one operation for one equipment model.
+    
+    Warning settings are unified at the operation level (MaintenanceOperation).
+    """
 
     operation_id: int | None = None
     equipment_model_id: int | None = None
@@ -251,8 +269,6 @@ class ModelCondition:
     interval_km: Decimal | None = None
     interval_hours: Decimal | None = None
     interval_days: int | None = None
-    warning_km: Decimal | None = None
-    warning_days: int | None = None
     is_active: bool = True
 
     @property
@@ -267,10 +283,6 @@ class ModelCondition:
             or self.interval_days is not None
         )
 
-    @property
-    def has_warning(self) -> bool:
-        return self.warning_km is not None or self.warning_days is not None
-
     def without_condition(self) -> "ModelCondition":
         """The same relation with its stored condition cleared."""
         return replace(
@@ -279,8 +291,6 @@ class ModelCondition:
             interval_km=None,
             interval_hours=None,
             interval_days=None,
-            warning_km=None,
-            warning_days=None,
         )
 
 
@@ -292,8 +302,6 @@ def _condition_from_row(row) -> ModelCondition:
         interval_km=row.interval_km,
         interval_hours=row.interval_hours,
         interval_days=row.interval_days,
-        warning_km=row.warning_km,
-        warning_days=row.warning_days,
         is_active=bool(row.is_active),
     )
 
@@ -434,26 +442,48 @@ def condition_unit_text(condition: ModelCondition | None) -> str:
     return " / ".join(_UNIT_LABELS[unit] for unit in units)
 
 
-def warning_setting_text(condition: ModelCondition | None, reference: bool = False) -> str:
-    """Warning setting of one model condition.
+def warning_setting_text(operation, condition: ModelCondition | None, reference: bool = False) -> str:
+    """Warning setting of one operation.
 
-    Distinguishes "no setting stored" from "configured with no active warning".
-
-    ``reference`` is accepted and ignored: it belonged to the removed design that
-    rendered the operation's legacy shared value as a reference. The legacy value
-    is now ignored everywhere, and keeping the keyword tolerant means a caller
-    left on the old signature can no longer turn the whole operations list into a
-    500.
+    Warning is unified at the operation level. Per-model conditions don't carry warnings.
+    For unset conditions, return "—" regardless of operation warnings.
+    If condition is None (not a model condition), return the operation's warning.
     """
-    if condition is None or not condition.is_defined:
+    # If condition is None (not a model condition), return operation warning
+    if condition is None:
+        if operation is None:
+            return "—"
+        warning_km = getattr(operation, "warning_km", None)
+        warning_days = getattr(operation, "warning_days", None)
+        if warning_km is None and warning_days is None:
+            return NO_WARNING_LABEL
+        parts = []
+        if warning_km is not None:
+            parts.append(f"{_number(warning_km)} كم")
+        if warning_days is not None:
+            parts.append(f"{warning_days} يوم")
+        if not parts:
+            return NO_WARNING_LABEL
+        return " / ".join(parts)
+    
+    # For unset or undefined model conditions, return "—"
+    if not condition.is_defined:
         return "—"
-    if not condition.has_warning:
+    
+    # For defined model conditions, return operation warning
+    if operation is None:
+        return "—"
+    
+    warning_km = getattr(operation, "warning_km", None)
+    warning_days = getattr(operation, "warning_days", None)
+    
+    if warning_km is None and warning_days is None:
         return NO_WARNING_LABEL
     parts = []
-    if condition.warning_km is not None:
-        parts.append(f"{_number(condition.warning_km)} كم")
-    if condition.warning_days is not None:
-        parts.append(f"{condition.warning_days} يوم")
+    if warning_km is not None:
+        parts.append(f"{_number(warning_km)} كم")
+    if warning_days is not None:
+        parts.append(f"{warning_days} يوم")
     if not parts:
         return NO_WARNING_LABEL
     return " / ".join(parts)
@@ -522,10 +552,13 @@ def summarize_operation_conditions(condition_rows: list) -> dict:
     if len(warning_texts) == 1:
         summary["warning"] = warning_texts[0]
         summary["warning_state"] = "shared"
-    else:
+    elif len(warning_texts) > 1:
         summary["warning"] = MULTIPLE_WARNINGS_LABEL
         summary["warning_state"] = "multiple"
         summary["has_multiple_warnings"] = True
+    else:
+        summary["warning"] = NO_WARNING_LABEL
+        summary["warning_state"] = "shared"
 
     return summary
 
@@ -546,12 +579,10 @@ def operation_condition_details(db: Session, operation) -> list:
                 "interval_km": condition.interval_km,
                 "interval_hours": condition.interval_hours,
                 "interval_days": condition.interval_days,
-                "warning_km": condition.warning_km,
-                "warning_days": condition.warning_days,
                 "condition_text": condition_axis_text(condition),
                 "condition_units": condition_axis_units(condition),
                 "unit_text": condition_unit_text(condition),
-                "warning_text": warning_setting_text(condition),
+                "warning_text": warning_setting_text(operation, condition),
             }
         )
     return rows
@@ -573,6 +604,8 @@ def operations_payload(db: Session, operations: list) -> list:
     operation's own `interval_*` / `warning_*` columns are legacy shared values
     that no calculation uses, so they are not sent as a model condition nor as a
     reference the UI is expected to copy.
+    
+    Warning settings are unified at the operation level and included in the payload.
     """
     def _to_float(value):
         """Convert Decimal to float for JSON serialization."""
@@ -599,18 +632,31 @@ def operations_payload(db: Session, operations: list) -> list:
                     "interval_km": _to_float(condition.interval_km),
                     "interval_hours": _to_float(condition.interval_hours),
                     "interval_days": _to_float(condition.interval_days),
-                    "warning_km": _to_float(condition.warning_km),
-                    "warning_days": _to_float(condition.warning_days),
                     "condition_text": condition_axis_text(condition),
                     "condition_units": condition_axis_units(condition),
                     "unit_text": condition_unit_text(condition),
-                    "warning_text": warning_setting_text(condition),
+                    "warning_text": warning_setting_text(operation, condition),
                 }
             )
         # Determine condition_source: "model_conditions" if any model has a stored condition (defined), else "none"
         # An operation with only "unset" model conditions (no stored rows) should report "none"
         has_stored_condition = any(d["condition_source"] != "unset" for d in details)
         condition_source = "model_conditions" if has_stored_condition else "none"
+        
+        # Operation-level warning settings (unified across all models)
+        warning_km = getattr(operation, "warning_km", None)
+        warning_days = getattr(operation, "warning_days", None)
+        
+        # Build condition summary, then override warning with operation-level warning if applicable
+        condition_summary = summarize_operation_conditions(details)
+        # If operation has a warning and there are linked models, use operation warning
+        # (warnings are unified at operation level, not per-model)
+        if (warning_km is not None or warning_days is not None) and details:
+            op_warning = warning_setting_text(operation, None)  # None condition -> returns operation warning
+            condition_summary["warning"] = op_warning
+            condition_summary["warning_state"] = "shared"
+            condition_summary["has_multiple_warnings"] = False
+        
         payload.append(
             {
                 "id": operation.id,
@@ -618,20 +664,24 @@ def operations_payload(db: Session, operations: list) -> list:
                 "group_id": operation.group_id,
                 "description": operation.description,
                 "is_active": bool(operation.is_active),
+                "warning_km": _to_float(warning_km),
+                "warning_days": _to_float(warning_days),
                 "model_conditions": details,
-                "condition_summary": summarize_operation_conditions(details),
+                "condition_summary": condition_summary,
                 "condition_source": condition_source,
             }
         )
     return payload
 
 
-def operation_condition_meta(condition, equipment, record, current_value, today=None):
+def operation_condition_meta(operation, condition, equipment, record, current_value, today=None):
     """Due state of one operation under one model's condition.
 
     The engine refuses to invent a condition: an unset or interval-less model
     condition yields an explicit "not computed" state. The operation's legacy
     shared columns are never consulted, so they cannot produce a due state.
+    
+    Warning settings are unified at the operation level.
     """
     if condition is None or not condition.is_defined or not condition.has_interval:
         return (
@@ -647,7 +697,7 @@ def operation_condition_meta(condition, equipment, record, current_value, today=
                 "condition_unset": True,
             },
         )
-    return status_for(condition, equipment, record, current_value, today=today)
+    return status_for(operation, equipment, record, current_value, today=today, condition=condition)
 
 def priority_for(state, remaining_meter, meta):
     if state == "مستحقة الآن":

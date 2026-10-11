@@ -177,7 +177,8 @@ def test_linking_an_operation_to_a_model_stores_that_model_condition(api):
         "/api/maintenance/operations",
         json=_operation_payload(
             "عملية مرتبطة بطراز",
-            [{"model_id": ids["model_a"], "interval_km": 12000, "warning_km": 1200}],
+            [{"model_id": ids["model_a"], "interval_km": 12000}],
+            warning_km=1200,  # Unified warning at operation level
         ),
     )
     assert response.status_code == 201, response.text
@@ -186,6 +187,7 @@ def test_linking_an_operation_to_a_model_stores_that_model_condition(api):
     condition = body["model_conditions"][0]
     assert condition["model_id"] == ids["model_a"]
     assert condition["condition_text"] == "12000 كم"
+    # Warning is unified at operation level, shown for all linked models
     assert condition["warning_text"] == "1200 كم"
     assert condition["is_defined"] is True
 
@@ -226,14 +228,18 @@ def test_the_same_operation_keeps_two_independent_model_conditions(api):
         json=_operation_payload(
             "عملية طرازين",
             [
-                {"model_id": ids["model_a"], "interval_days": 30, "warning_days": 5},
-                {"model_id": ids["model_b"], "interval_days": 90, "warning_days": 10},
+                {"model_id": ids["model_a"], "interval_days": 30},
+                {"model_id": ids["model_b"], "interval_days": 90},
             ],
+            warning_days=5,  # Unified warning at operation level
         ),
     ).json()
     conditions = {row["model_id"]: row for row in created["model_conditions"]}
     assert conditions[ids["model_a"]]["condition_text"] == "30 يوم"
     assert conditions[ids["model_b"]]["condition_text"] == "90 يوم"
+    # Warning is unified at operation level
+    assert conditions[ids["model_a"]]["warning_text"] == "5 يوم"
+    assert conditions[ids["model_b"]]["warning_text"] == "5 يوم"
 
     # تعديل طراز واحد يترك الآخر كما هو.
     updated = client.put(
@@ -242,14 +248,17 @@ def test_the_same_operation_keeps_two_independent_model_conditions(api):
             "عملية طرازين",
             [
                 {"model_id": ids["model_a"], "interval_days": 45},
-                {"model_id": ids["model_b"], "interval_days": 90, "warning_days": 10},
+                {"model_id": ids["model_b"], "interval_days": 90},
             ],
+            warning_days=5,
         ),
     ).json()
     after = {row["model_id"]: row for row in updated["model_conditions"]}
     assert after[ids["model_a"]]["condition_text"] == "45 يوم"
     assert after[ids["model_b"]]["condition_text"] == "90 يوم"
-    assert after[ids["model_b"]]["warning_text"] == "10 يوم"
+    # Warning is unified at operation level
+    assert after[ids["model_a"]]["warning_text"] == "5 يوم"
+    assert after[ids["model_b"]]["warning_text"] == "5 يوم"
 
 
 # ------------------------------------------------- 7) لا استحقاق ولا إنذار
@@ -311,7 +320,8 @@ def test_equipment_with_the_model_only_sees_operations_linked_to_it(api):
 
 def test_no_legacy_interval_or_warning_field_is_returned_by_the_api(api):
     client, ids = api
-    legacy_fields = {"interval_km", "interval_hours", "interval_days", "warning_km", "warning_days"}
+    # Only interval fields are legacy; warning_km/warning_days are now the unified warning fields at operation level
+    legacy_interval_fields = {"interval_km", "interval_hours", "interval_days"}
     # عملية تُنشأ بقيم قديمة صريحة: يجب ألا تُكتب ولا تُعاد.
     created = client.post(
         "/api/maintenance/operations",
@@ -326,9 +336,17 @@ def test_no_legacy_interval_or_warning_field_is_returned_by_the_api(api):
         },
     )
     assert created.status_code == 201, created.text
-    assert legacy_fields.isdisjoint(created.json().keys())
+    # Legacy interval fields should not be returned
+    assert legacy_interval_fields.isdisjoint(created.json().keys())
+    # Warning fields ARE returned at operation level (unified warnings)
+    assert "warning_km" in created.json()
+    assert "warning_days" in created.json()
     for row in _library_rows(client):
-        assert legacy_fields.isdisjoint(row.keys())
+        # Legacy interval fields should not be returned
+        assert legacy_interval_fields.isdisjoint(row.keys())
+        # Warning fields ARE returned at operation level (unified warnings)
+        assert "warning_km" in row
+        assert "warning_days" in row
         for condition in row["model_conditions"]:
             assert condition.get("is_defined") in (True, False)
 
@@ -372,7 +390,8 @@ def test_the_general_operation_condition_never_falls_back_to_legacy_values():
         condition = operation_condition_for_model(db, operation.id, 999)
         assert condition.is_defined is False
         assert condition.interval_km is None
-        assert condition.warning_km is None
+        # Warning is at operation level, not per-model
+        assert not hasattr(condition, 'warning_km')
     finally:
         db.close()
 
@@ -393,18 +412,23 @@ def test_the_warning_text_helper_tolerates_the_removed_reference_keyword():
         ModelCondition,
         warning_setting_text,
     )
+    from app.modules.maintenance.models import MaintenanceOperation
 
     condition = ModelCondition(
         condition_source=CONDITION_MODEL,
         interval_km=Decimal("5000"),
-        warning_km=Decimal("500"),
     )
-    assert warning_setting_text(condition, reference=True) == warning_setting_text(condition)
-    assert warning_setting_text(condition, reference=True) == "500 كم"
+    operation = MaintenanceOperation(warning_km=Decimal("500"))
+    # New signature: warning_setting_text(operation, condition, reference=False)
+    assert warning_setting_text(operation, condition, reference=True) == warning_setting_text(operation, condition)
+    assert warning_setting_text(operation, condition, reference=True) == "500 كم"
 
     # والقيمة القديمة لا تظهر بحجة الوسيط القديم.
-    legacy_only = ModelCondition(interval_km=Decimal("5000"), warning_km=Decimal("500"))
-    assert warning_setting_text(legacy_only, reference=True) == "—"
+    legacy_only = ModelCondition(interval_km=Decimal("5000"))
+    operation = MaintenanceOperation(warning_km=Decimal("500"))
+    # New signature: warning_setting_text(operation, condition, reference=False)
+    # Unset condition (no condition_source) shows "—" for warning
+    assert warning_setting_text(operation, legacy_only, reference=True) == "—"
 
 
 def test_the_operations_list_still_answers_200_for_every_row(api):

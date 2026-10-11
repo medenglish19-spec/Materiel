@@ -45,6 +45,7 @@ from app.modules.maintenance.services import (
     validate_operation_applicable_to_equipment,
     warning_setting_text,
 )
+from app.modules.maintenance.models import MaintenanceOperation
 from app.modules.users.models import User
 
 engine = create_engine(
@@ -122,7 +123,7 @@ def api():
 def _condition(model_id, intervals=None, source=CONDITION_MODEL, **warnings):
     values = {"condition_source": source, "equipment_model_id": model_id}
     values.update(intervals or {})
-    values.update(warnings)
+    # Note: warnings are now at the operation level, not per-model
     return ModelCondition(**values)
 
 
@@ -191,7 +192,8 @@ def test_rules_page_lists_every_operation_with_its_model_summary(api):
         "/api/maintenance/operations",
         json=_operation_payload(
             "عملية ظاهرة في الصفحة",
-            [{"model_id": ids["model_a"], "interval_km": 5000, "warning_km": 500}],
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+            warning_km=500,  # Unified warning at operation level
         ),
     )
     page = client.get("/maintenance/rules")
@@ -210,9 +212,10 @@ def test_plans_page_carries_the_model_condition_from_the_service(api):
         json=_operation_payload(
             "عملية الخطط",
             [
-                {"model_id": ids["model_a"], "interval_km": 10000, "warning_km": 1000},
+                {"model_id": ids["model_a"], "interval_km": 10000},
                 {"model_id": ids["model_b"], "condition_source": "unset"},
             ],
+            warning_km=1000,  # Unified warning at operation level
         ),
     ).json()
     page = client.get("/maintenance/plans")
@@ -292,33 +295,44 @@ def test_condition_axes_and_unit_text_cover_the_three_supported_units():
     condition = _condition(
         1,
         {"interval_km": Decimal("5000"), "interval_hours": Decimal("250"), "interval_days": 90},
-        warning_km=Decimal("500"),
-        warning_days=30,
     )
+    # Create a mock operation with warnings
+    operation = MaintenanceOperation(warning_km=Decimal("500"), warning_days=30)
     assert condition_axis_text(condition) == "5000 كم أو 250 ساعة أو 90 يوم"
     assert condition_unit_text(condition) == "كم / ساعة / يوم"
-    assert warning_setting_text(condition) == "500 كم / 30 يوم"
+    assert warning_setting_text(operation, condition) == "500 كم / 30 يوم"
 
 
 def test_condition_without_any_axis_is_reported_as_defined_but_empty():
     condition = _condition(1)
+    operation = MaintenanceOperation()
     assert condition.is_defined is True
     assert condition.has_interval is False
     assert condition_axis_text(condition) == "بدون فاصل محدد"
-    assert warning_setting_text(condition) == "بدون إنذار مفعّل"
+    assert warning_setting_text(operation, condition) == "بدون إنذار مفعّل"
 
 
 def test_unset_condition_is_never_rendered_as_a_value():
     condition = _condition(1, {"interval_km": Decimal("5000")}, source=CONDITION_UNSET)
+    operation = MaintenanceOperation()
     assert condition.is_defined is False
     assert condition_axis_text(condition) == "—"
-    assert warning_setting_text(condition) == "—"
+    # Unset conditions show "—" for warning, not the operation's warning
+    assert warning_setting_text(operation, condition) == "—"
+    
+    # Even with operation-level warning, unset condition shows "—"
+    operation_with_warning = MaintenanceOperation(warning_km=Decimal("500"))
+    assert warning_setting_text(operation_with_warning, condition) == "—"
+    
+    # But for defined conditions, operation warning is shown
+    defined_condition = _condition(1, {"interval_km": Decimal("5000")}, source=CONDITION_MODEL)
+    assert warning_setting_text(operation_with_warning, defined_condition) == "500 كم"
 
 
 # --------------------------------------------------------------- ملخص الجدول
 
 
-def _detail(text, units, warning, defined=True):
+def _detail(text, units, warning="—", defined=True):
     return {
         "is_defined": defined,
         "condition_text": text,
@@ -328,37 +342,34 @@ def _detail(text, units, warning, defined=True):
 
 
 def test_summary_shows_the_single_model_condition_directly():
-    summary = summarize_operation_conditions([_detail("5000 كم", ["km"], "500 كم")])
+    summary = summarize_operation_conditions([_detail("5000 كم", ["km"])])
     assert summary["condition"] == "5000 كم"
     assert summary["condition_state"] == "shared"
-    assert summary["warning"] == "500 كم"
+    # Warning is now at operation level, not per-model
     assert summary["models_count"] == 1
 
 
 def test_summary_shows_the_shared_condition_of_matching_models():
     summary = summarize_operation_conditions(
-        [_detail("5000 كم", ["km"], "500 كم"), _detail("5000 كم", ["km"], "500 كم")]
+        [_detail("5000 كم", ["km"]), _detail("5000 كم", ["km"])]
     )
     assert summary["condition"] == "5000 كم"
-    assert summary["warning"] == "500 كم"
     assert summary["has_multiple_conditions"] is False
     assert (summary["defined_count"], summary["models_count"]) == (2, 2)
 
 
 def test_summary_reports_multiple_conditions_when_models_differ():
     summary = summarize_operation_conditions(
-        [_detail("5000 كم", ["km"], "500 كم"), _detail("9000 كم", ["km"], "900 كم")]
+        [_detail("5000 كم", ["km"]), _detail("9000 كم", ["km"])]
     )
     assert summary["condition"] == MULTIPLE_CONDITIONS_LABEL
-    assert summary["warning"] == MULTIPLE_WARNINGS_LABEL
     assert summary["has_multiple_conditions"] is True
-    assert summary["has_multiple_warnings"] is True
     assert summary["unit"] == "كم"
 
 
 def test_summary_reports_unset_without_borrowing_another_model_value():
     summary = summarize_operation_conditions(
-        [_detail("5000 كم", ["km"], "500 كم"), _detail("—", [], "—", defined=False)]
+        [_detail("5000 كم", ["km"]), _detail("—", [], defined=False)]
     )
     assert summary["condition"] == CONDITION_UNSET_LABEL
     assert summary["condition_state"] == "partially_unset"
@@ -431,8 +442,6 @@ def test_general_operation_is_absent_from_the_periodic_and_due_pages(api):
         "/api/maintenance/operations",
         json={
             "name": "عملية عامة لا تظهر",
-            "interval_km": 5000,
-            "warning_km": 500,
             "equipment_model_conditions": [],
         },
     )
@@ -555,12 +564,19 @@ def test_deleting_one_model_relation_keeps_the_other_model_condition():
 # ------------------------------------------------------------------- الـ API
 
 
-def _operation_payload(name, conditions, **overrides):
-    """حمولة إنشاء عملية كما ترسلها الواجهة: بلا أي قيمة قديمة على العملية."""
+def _operation_payload(name, conditions, warning_km=None, warning_days=None, **overrides):
+    """حمولة إنشاء عملية كما ترسلها الواجهة: بلا أي قيمة قديمة على العملية.
+    
+    Warning settings are now at the operation level.
+    """
     payload = {
         "name": name,
         "equipment_model_conditions": conditions,
     }
+    if warning_km is not None:
+        payload["warning_km"] = warning_km
+    if warning_days is not None:
+        payload["warning_days"] = warning_days
     payload.update(overrides)
     return payload
 
@@ -572,25 +588,31 @@ def test_api_returns_each_model_condition_of_the_same_operation(api):
         json=_operation_payload(
             "تغيير زيت المحرك",
             [
-                {"model_id": ids["model_a"], "interval_km": 5000, "warning_km": 500},
-                {"model_id": ids["model_b"], "interval_km": 9000, "warning_km": 900},
+                {"model_id": ids["model_a"], "interval_km": 5000},
+                {"model_id": ids["model_b"], "interval_km": 9000},
             ],
+            warning_km=500,  # Unified warning at operation level
         ),
     )
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["condition_summary"]["condition"] == MULTIPLE_CONDITIONS_LABEL
-    assert body["condition_summary"]["warning"] == MULTIPLE_WARNINGS_LABEL
+    # Warning is unified at operation level, so all models show the same warning
+    assert body["condition_summary"]["warning"] == "500 كم"
     assert body["condition_summary"]["has_multiple_conditions"] is True
     assert body["condition_source"] == "model_conditions"
     conditions = {row["model_id"]: row for row in body["model_conditions"]}
     assert conditions[ids["model_a"]]["condition_text"] == "5000 كم"
     assert conditions[ids["model_b"]]["condition_text"] == "9000 كم"
     assert conditions[ids["model_a"]]["model_name"] == "طراز ألف"
+    # Warning text is the same for all models (from operation level)
+    assert conditions[ids["model_a"]]["warning_text"] == "500 كم"
+    assert conditions[ids["model_b"]]["warning_text"] == "500 كم"
 
     listed = client.get("/api/maintenance/operations").json()
     operation = next(item for item in listed if item["name"] == "تغيير زيت المحرك")
     assert operation["condition_summary"]["condition"] == MULTIPLE_CONDITIONS_LABEL
+    assert operation["condition_summary"]["warning"] == "500 كم"
 
 
 def test_api_edit_of_one_model_does_not_touch_the_other_model(api):
@@ -611,18 +633,20 @@ def test_api_edit_of_one_model_does_not_touch_the_other_model(api):
         json=_operation_payload(
             "عملية استقلال الطرازات",
             [
-                {"model_id": ids["model_a"], "interval_km": 15000, "warning_km": 1500},
+                {"model_id": ids["model_a"], "interval_km": 15000},
                 {"model_id": ids["model_b"], "interval_km": 9000},
             ],
+            warning_km=1500,  # Unified warning at operation level
         ),
     )
     assert updated.status_code == 200, updated.text
     body = updated.json()
     conditions = {row["model_id"]: row for row in body["model_conditions"]}
     assert conditions[ids["model_a"]]["interval_km"] == "15000.0"
+    # Warning is same for all models (from operation level)
     assert conditions[ids["model_a"]]["warning_text"] == "1500 كم"
+    assert conditions[ids["model_b"]]["warning_text"] == "1500 كم"
     assert conditions[ids["model_b"]]["interval_km"] == "9000.0"
-    assert conditions[ids["model_b"]]["warning_text"] == "بدون إنذار مفعّل"
 
 
 def test_api_shows_a_single_shared_condition_without_duplicating_the_operation(api):
@@ -632,9 +656,10 @@ def test_api_shows_a_single_shared_condition_without_duplicating_the_operation(a
         json=_operation_payload(
             "عملية شرط مشترك",
             [
-                {"model_id": ids["model_a"], "interval_days": 90, "warning_days": 7},
-                {"model_id": ids["model_b"], "interval_days": 90, "warning_days": 7},
+                {"model_id": ids["model_a"], "interval_days": 90},
+                {"model_id": ids["model_b"], "interval_days": 90},
             ],
+            warning_days=7,  # Unified warning at operation level
         ),
     )
     listed = client.get("/api/maintenance/operations").json()
@@ -650,25 +675,26 @@ def test_api_reports_unset_condition_for_a_model_without_one(api):
     client, ids = api
     client.post(
         "/api/maintenance/operations",
-        json={
-            # العملية تحمل القيمة القديمة المشتركة، والطراز باء بلا شرط محفوظ.
-            "name": "عملية شرط ناقص",
-            "interval_km": 5000,
-            "warning_km": 500,
-            "equipment_model_conditions": [
+        json=_operation_payload(
+            "عملية شرط ناقص",
+            [
                 {"model_id": ids["model_a"], "interval_km": 5000},
                 {"model_id": ids["model_b"], "condition_source": "unset"},
             ],
-        },
+            warning_km=500,  # Unified warning at operation level
+        ),
     )
     listed = client.get("/api/maintenance/operations").json()
     operation = next(item for item in listed if item["name"] == "عملية شرط ناقص")
     assert operation["condition_summary"]["condition"] == CONDITION_UNSET_LABEL
+    # Warning is unified at operation level - shown in summary
+    assert operation["condition_summary"]["warning"] == "500 كم"
     conditions = {row["model_id"]: row for row in operation["model_conditions"]}
     unset_row = conditions[ids["model_b"]]
     assert unset_row["is_defined"] is False
     assert unset_row["condition_text"] == "—"
     assert unset_row["unit_text"] == "—"
+    # Unset condition shows "—" for warning_text (warning is in summary)
     assert unset_row["warning_text"] == "—"
     # القيمة القديمة على العملية لا تُعرض ولا تُرسل كمرجع في أي حقل.
     assert "legacy_condition_text" not in unset_row
@@ -697,9 +723,8 @@ def test_api_ignores_the_legacy_shared_value_without_asking_for_a_decision(api):
         "/api/maintenance/operations",
         json={
             "name": "عملية بقيمة قديمة مشتركة",
-            "interval_km": 5000,
-            "warning_km": 500,
             "equipment_model_conditions": [{"model_id": ids["model_a"], "condition_source": "unset"}],
+            "warning_km": 500,  # Unified warning at operation level
         },
     )
     listed = client.get("/api/maintenance/operations").json()
@@ -707,6 +732,8 @@ def test_api_ignores_the_legacy_shared_value_without_asking_for_a_decision(api):
     # لا شرط محفوظ لأي طراز ⇒ لا مصدر شرط، ولا مؤشر «قرار مطلوب».
     assert operation["condition_source"] == "none"
     assert operation["condition_summary"]["condition"] == CONDITION_UNSET_LABEL
+    # Warning is from operation level
+    assert operation["condition_summary"]["warning"] == "500 كم"
     assert operation["model_conditions"][0]["condition_text"] == "—"
     assert "condition_decision_required" not in operation
 
@@ -763,7 +790,8 @@ def test_api_toggle_activate_and_deactivate_keeps_the_model_conditions(api):
         "/api/maintenance/operations",
         json=_operation_payload(
             "عملية تعطيل وتفعيل",
-            [{"model_id": ids["model_a"], "interval_km": 5000, "warning_km": 500}],
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+            warning_km=500,  # Unified warning at operation level
         ),
     ).json()
 
@@ -771,18 +799,21 @@ def test_api_toggle_activate_and_deactivate_keeps_the_model_conditions(api):
         f"/api/maintenance/operations/{created['id']}",
         json=_operation_payload(
             "عملية تعطيل وتفعيل",
-            [{"model_id": ids["model_a"], "interval_km": 5000, "warning_km": 500}],
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+            warning_km=500,
             is_active=False,
         ),
     ).json()
     assert disabled["is_active"] is False
     assert disabled["model_conditions"][0]["condition_text"] == "5000 كم"
+    assert disabled["model_conditions"][0]["warning_text"] == "500 كم"
 
     enabled = client.put(
         f"/api/maintenance/operations/{created['id']}",
         json=_operation_payload(
             "عملية تعطيل وتفعيل",
-            [{"model_id": ids["model_a"], "interval_km": 5000, "warning_km": 500}],
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+            warning_km=500,
             is_active=True,
         ),
     ).json()

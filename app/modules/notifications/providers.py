@@ -87,7 +87,7 @@ def maintenance_due_provider(db) -> list[dict]:
             # شرط الطراز الفعلي هو المرجع؛ شرط غير محدد لا يولّد إنذارًا ولا يُخترع له بديل.
             condition = condition_for_equipment(db, operation, eq)
             state, css, remaining, meta = operation_condition_meta(
-                condition, eq, record, current_value
+                operation, condition, eq, record, current_value
             )
             if css not in {"danger", "warning"}:
                 continue

@@ -36,11 +36,12 @@ class MaintenanceOperationGroupOut(MaintenanceOperationGroupBase):
 
 
 class MaintenanceOperationModelConditionIn(BaseModel):
-    """Condition and warning settings of one operation for one equipment model.
+    """Condition settings of one operation for one equipment model.
 
     Both `condition_source` states are meaningful:
       * "unset" → nothing stored for this model yet;
       * "model" → stored for this model (empty columns are then deliberate).
+    Warning settings are unified at the operation level.
     """
 
     model_id: int
@@ -48,8 +49,6 @@ class MaintenanceOperationModelConditionIn(BaseModel):
     interval_km: Optional[Decimal] = None
     interval_hours: Optional[Decimal] = None
     interval_days: Optional[int] = None
-    warning_km: Optional[Decimal] = None
-    warning_days: Optional[int] = None
 
     @field_validator("interval_km")
     @classmethod
@@ -66,25 +65,21 @@ class MaintenanceOperationModelConditionIn(BaseModel):
     def model_interval_days_valid(cls, value):
         return _positive(value, "فترة أيام الطراز")
 
-    @field_validator("warning_km")
-    @classmethod
-    def model_warning_km_valid(cls, value):
-        return _nonnegative(value, "تنبيه كيلومترات الطراز")
 
-    @field_validator("warning_days")
-    @classmethod
-    def model_warning_days_valid(cls, value):
-        return _nonnegative(value, "تنبيه أيام الطراز")
-
-
-class MaintenanceOperationModelConditionOut(MaintenanceOperationModelConditionIn):
+class MaintenanceOperationModelConditionOut(BaseModel):
+    model_id: int
     model_name: Optional[str] = None
+    condition_source: Literal["unset", "model"] = "unset"
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
     # هل حُفظ شرط لهذا الطراز أصلًا؟ يفرّق بين «غير محدد» و«محدد بلا إنذار».
     is_defined: bool = False
     condition_text: str = "—"
     unit_text: str = "—"
-    warning_text: str = "—"
     condition_units: list[str] = Field(default_factory=list)
+    # Warning text (unified at operation level, shown for each model)
+    warning_text: str = "—"
 
 
 class MaintenanceOperationConditionSummaryOut(BaseModel):
@@ -159,8 +154,9 @@ class MaintenanceOperationOut(MaintenanceOperationBase):
     interval_km: Optional[Decimal] = Field(default=None, exclude=True)
     interval_hours: Optional[Decimal] = Field(default=None, exclude=True)
     interval_days: Optional[int] = Field(default=None, exclude=True)
-    warning_km: Optional[Decimal] = Field(default=None, exclude=True)
-    warning_days: Optional[int] = Field(default=None, exclude=True)
+    # warning_km و warning_days هي حقول الإنذار الموحدة على مستوى العملية — تُعرض في الاستجابة.
+    warning_km: Optional[Decimal] = None
+    warning_days: Optional[int] = None
     # شروط الطرازات: تُبنى في الـ router/الخدمة، لا من خصائص ORM مباشرة.
     model_conditions: list[MaintenanceOperationModelConditionOut] = Field(default_factory=list)
     condition_summary: MaintenanceOperationConditionSummaryOut = Field(

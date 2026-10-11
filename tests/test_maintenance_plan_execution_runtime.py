@@ -94,8 +94,10 @@ def test_plan_execution_creates_one_record_per_active_operation():
             MaintenancePlanOperation(plan_id=plan.id, operation_id=disabled.id, sort_order=3),
         ])
         # العلاقة بالطراز تحمل شرط الطراز؛ لا تُستنتج من القيمة القديمة على العملية.
-        link_model_condition(db, oil, model, interval_km=Decimal("10000"), warning_km=Decimal("500"))
-        link_model_condition(db, brakes, model, interval_days=180, warning_days=7)
+        link_model_condition(db, oil, model, interval_km=Decimal("10000"))
+        oil.warning_km = Decimal("500")  # Warning at operation level
+        link_model_condition(db, brakes, model, interval_days=180)
+        brakes.warning_days = 7  # Warning at operation level
         db.commit()
 
         payload = MaintenancePlanExecutionCreate(
