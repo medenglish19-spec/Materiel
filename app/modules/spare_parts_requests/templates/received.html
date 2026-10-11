@@ -3,7 +3,7 @@
 {% block content %}
 <style>
 .rpr .part-link{color:#245d88;font-weight:800;text-decoration:none}.rpr .part-link:hover{text-decoration:underline}
-.rpr{direction:rtl}.rpr .top{display:flex;justify-content:space-between;align-items:end;margin-bottom:14px}.rpr h1{margin:0;color:#183955;font-size:23px}.rpr .muted{font-size:11px;color:#718096;margin-top:5px}.rpr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden}.rpr .bar{padding:11px;border-bottom:1px solid #edf1f4}.rpr input{height:32px;width:min(280px,100%);max-width:100%;min-width:0;box-sizing:border-box;border:1px solid #dce4ea;border-radius:6px;padding:0 9px;font:inherit;font-size:10px}.rpr .table-scroll{width:100%;max-width:100%;overflow:auto}.rpr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}.rpr th,.rpr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap;color:#111}.rpr th{background:#f8fafc;color:#111;font-weight:800}.rpr th:nth-child(4),.rpr td:nth-child(4),.rpr th:nth-child(5),.rpr td:nth-child(5),.rpr th:nth-child(6),.rpr td:nth-child(6),.rpr th:nth-child(7),.rpr td:nth-child(7){text-align:center}.rpr td:nth-child(2),.rpr td:nth-child(9),.rpr td:nth-child(13){white-space:normal;max-width:240px}.rpr .empty{text-align:center;padding:30px;color:#8794a2}@media(max-width:650px){.rpr .top{align-items:flex-start;flex-direction:column;gap:8px}}
+.rpr{direction:rtl}.rpr .top{display:flex;justify-content:space-between;align-items:end;margin-bottom:14px}.rpr h1{margin:0;color:#183955;font-size:23px}.rpr .muted{font-size:11px;color:#718096;margin-top:5px}.rpr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden}.rpr .bar{padding:11px;border-bottom:1px solid #edf1f4}.rpr input{height:32px;width:min(280px,100%);max-width:100%;min-width:0;box-sizing:border-box;border:1px solid #dce4ea;border-radius:6px;padding:0 9px;font:inherit;font-size:10px}.rpr .table-scroll{width:100%;max-width:100%;overflow:auto;max-height:70vh}.rpr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}.rpr th,.rpr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap;color:#111}.rpr th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#111;font-weight:800}.rpr th:nth-child(4),.rpr td:nth-child(4),.rpr th:nth-child(5),.rpr td:nth-child(5),.rpr th:nth-child(6),.rpr td:nth-child(6),.rpr th:nth-child(7),.rpr td:nth-child(7){text-align:center}.rpr td:nth-child(2),.rpr td:nth-child(9),.rpr td:nth-child(13){white-space:normal;max-width:240px}.rpr .status{display:inline-block;padding:4px 7px;border:1px solid #dbe2ea;border-radius:6px;background:#f8fafc;color:#374151;font-weight:700}.rpr .empty{text-align:center;padding:30px;color:#8794a2}@media(max-width:650px){.rpr .top{align-items:flex-start;flex-direction:column;gap:8px}}
 </style>
 <div class="rpr">
   <div class="top">
@@ -11,16 +11,17 @@
 
   </div>
   <div class="panel">
-    <div class="bar"><input id="q" placeholder="بحث في رقم الطلب، الغيار، العتاد، رقم التسجيل، المستلم، المؤسسة الممونة أو آخر حركة"></div>
+    <div class="bar"><input id="q" placeholder="بحث في رقم الطلب، الغيار، العتاد، الحالة، رقم التسجيل، المستلم، المؤسسة الممونة أو آخر حركة"></div>
     <div class="table-scroll" data-mt-region><table>
-      <thead><tr><th>رقم الطلب</th><th>الغيار</th><th>العتاد</th><th>المستلم</th><th>الموزع</th><th>الباقي</th><th>المرتجع</th><th>آخر الحركة</th><th>تاريخ الاستلام</th><th>رقم التسجيل</th><th>المستلم إليه</th><th>المؤسسة الممونة</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="12" class="empty">جارٍ التحميل...</td></tr></tbody>
+      <thead><tr><th>رقم الطلب</th><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th><th>آخر حركة</th><th>تاريخ الاستلام</th><th>رقم التسجيل</th><th>المستلم إليه</th><th>المؤسسة الممونة</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="13" class="empty">جارٍ التحميل...</td></tr></tbody>
     </table></div>
   </div>
 </div>
 <script>
 let data=[];
-async function load(){try{const r=await fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);data=await r.json();render()}catch(e){document.getElementById('rows').innerHTML='<tr><td colspan="12" class="empty">تعذر تحميل السجل. أعد تحديث الصفحة.</td></tr>'}}
+const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
+async function load(){try{const [receivedResponse,requestsResponse]=await Promise.all([fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin',cache:'no-store'}),fetch('/api/spare-parts-requests',{credentials:'same-origin',cache:'no-store'})]);if(!receivedResponse.ok||!requestsResponse.ok)throw new Error('تعذر جلب سجل الاستلام أو حالات الطلبات.');const [received,requests]=await Promise.all([receivedResponse.json(),requestsResponse.json()]);const statusByNumber=new Map(requests.map(x=>[String(x.request_number),STATUS[x.status]||x.status||'—']));data=received.map(x=>({...x,status:statusByNumber.get(String(x.request_number))||'—'}));render()}catch(e){document.getElementById('rows').innerHTML='<tr><td colspan="13" class="empty">تعذر تحميل السجل أو حالات الطلبات. أعد تحديث الصفحة.</td></tr>'}}
 let refreshTimer=null;
 function startAutoRefresh(){if(refreshTimer)clearInterval(refreshTimer);refreshTimer=setInterval(load,5000);}
 const MOVEMENT_LABELS = {
@@ -31,10 +32,11 @@ const MOVEMENT_LABELS = {
 function render(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   const rows=data.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
-  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td><a class="part-link" href="/spare-parts-history/'+encodeURIComponent(x.request_item_id)+'">'+esc(x.request_number)+'</a></td><td><a class="part-link" href="/spare-parts-history/'+encodeURIComponent(x.request_item_id)+'">'+esc(x.part_name)+'</a></td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+x.received_quantity+'</td><td>'+x.distributed+'</td><td>'+x.remaining+'</td><td>'+x.returned+'</td><td>'+esc(MOVEMENT_LABELS[x.last_movement_type]||x.last_movement_type||'—')+(x.last_movement_document_number?' — '+esc(x.last_movement_document_number):'')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="12" class="empty">لا توجد قطع غيار مستلمة.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(x=>'<tr><td><a class="part-link" href="/spare-parts-history/'+encodeURIComponent(x.request_item_id)+'">'+esc(x.request_number)+'</a></td><td><a class="part-link" href="/spare-parts-history/'+encodeURIComponent(x.request_item_id)+'">'+esc(x.part_name)+'</a></td><td>'+esc(x.equipment?.asset_code||'—')+'</td><td>'+quantity(x.received_quantity)+'</td><td>'+quantity(x.distributed)+'</td><td>'+quantity(x.returned)+'</td><td>'+quantity(x.remaining)+'</td><td><span class="status">'+esc(x.status)+'</span></td><td>'+esc(MOVEMENT_LABELS[x.last_movement_type]||x.last_movement_type||'—')+(x.last_movement_document_number?' — '+esc(x.last_movement_document_number):'')+'</td><td>'+esc(x.received_date||'—')+'</td><td>'+esc(x.registration_number)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier_institution)+'</td></tr>').join(''):'<tr><td colspan="13" class="empty">لا توجد قطع غيار مستلمة تطابق البحث.</td></tr>';
 }
 document.getElementById('q').addEventListener('input',render);
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function quantity(value){const n=Number(value);return Number.isFinite(n)?n:0;}
+function esc(v){return String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 load();
 startAutoRefresh();
 </script>
