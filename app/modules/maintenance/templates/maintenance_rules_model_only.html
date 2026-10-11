@@ -203,6 +203,8 @@
   .condition-details{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1200;display:flex;align-items:center;justify-content:center;padding:16px}
   .condition-details-card{background:#fff;border-radius:10px;max-width:860px;width:100%;max-height:86vh;overflow:auto;padding:16px;box-shadow:0 18px 48px rgba(15,23,42,.32)}
   .condition-details-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  /* This action is always enabled; override any shared disabled-cursor styling on dropdown items. */
+  #managementMenu #menuNewGroup:not(:disabled){cursor:pointer !important}
 </style>
 <script>
 {% raw %}
