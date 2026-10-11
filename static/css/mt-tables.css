@@ -129,7 +129,7 @@
    purpose: it never fights the inline `display` each page's own search sets,
    so the two filters compose (a row must pass both).
    -------------------------------------------------------------------------- */
-[data-mt-region] tbody tr.mt-col-hidden{display:none}
+table tbody tr.mt-col-hidden{display:none!important}
 
 .mt-col-filter{
   border:0;

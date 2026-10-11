@@ -102,9 +102,9 @@ def test_engine_injects_filter_buttons_only_on_the_client():
 
 # ----------------------------------------------------------- styles contract
 
-def test_styles_hide_filtered_rows_via_region_scoped_class():
+def test_styles_hide_filtered_rows_in_all_eligible_tables():
     css = _css()
-    assert "[data-mt-region] tbody tr.mt-col-hidden{display:none}" in css
+    assert "table tbody tr.mt-col-hidden{display:none!important}" in css
     assert ".mt-col-filter{" in css
     assert ".mt-filter-menu{" in css
 
