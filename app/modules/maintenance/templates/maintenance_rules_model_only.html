@@ -5,8 +5,8 @@
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading">
-      <h2>مكتبة شروط الصيانة الدورية</h2>
-      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">مكتبة الشروط</span></div>
+      <h2>مكتبة عمليات الصيانة</h2>
+      <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">مكتبة عمليات الصيانة</span></div>
     </div>
     <div class="hero-actions">
       <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
@@ -16,7 +16,7 @@
 
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
-    <a class="active" href="/maintenance/rules">2. شروط الصيانة</a>
+    <a class="active" href="/maintenance/rules">2. عمليات الصيانة</a>
     <a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a>
     <a href="/maintenance/due">5. الصيانة المستحقة</a>
   </nav>
@@ -39,6 +39,11 @@
           <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">↻ &nbsp;تحديث الجدول</button>
         </div>
       </div>
+      <div id="bulkActionBar" style="display:flex;align-items:center;gap:8px;flex-wrap:white-space:nowrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;min-width:160px">
+        <input type="checkbox" id="selectAllOperations" style="margin-right:6px" aria-label="حدد الكل">
+        <span id="selectedCount" class="muted" style="min-width:20px">0 محددة</span>
+        <button id="bulkDeleteBtn" class="m-btn danger" type="button" style="display:none;min-width:100px">حذف المحدد (0)</button>
+      </div>
     </div>
   </div>
 
@@ -53,7 +58,7 @@
     <div class="table-wrap" data-mt-region>
       <table class="m-table" id="operationsTable">
         <thead><tr>
-  <th class="mt-actions-th" aria-label="إجراءات"></th>
+  <th class="mt-actions-th" aria-label="إجراءات"><input type="checkbox" id="selectAllOperations" aria-label="حدد الكل"></th>
   <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
@@ -291,12 +296,15 @@
         const selected=isPlanMode() && state.planOps.has(op.id);
         const groupId = op.group_id || '';
         return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
-        <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
+        <td class="mt-actions-td"><input type="checkbox" class="operation-checkbox" data-operation-id="${op.id}" ${selected?'checked':''} aria-label=`${escapeHtml(op.name)}`></td>
         <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
         <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${warningCell(op)}</td>
         <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       </tr>`;
       }).join('');
+
+      // Update selection UI
+      updateBulkActionUI();
       if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' محددة';
       updateFilterButtons();
     } catch(e) {
@@ -669,6 +677,98 @@
       groupCell.classList.add('selected');
     }
   });
+
+  $('newOperationBtn').onclick = resetEditor;
+  $('savePlanOperations').onclick = savePlanOperations;
+  $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
+  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; };
+  $('groupFilter').onchange = render; $('statusFilter').onchange = render;
+
+  // Bulk selection handling
+  function updateBulkActionUI() {
+    const checked = document.querySelectorAll('.operation-checkbox:checked');
+    const count = checked.length;
+    const selectAll = $('selectAllOperations');
+    const countSpan = $('selectedCount');
+    const bulkDeleteBtn = $('bulkDeleteBtn');
+
+    // Update select all state
+    if (count === 0) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    } else if (count === document.querySelectorAll('.operation-checkbox').length) {
+      selectAll.checked = true;
+      selectAll.indeterminate = false;
+    } else {
+      selectAll.indeterminate = true;
+    }
+
+    // Update count and button
+    countSpan.textContent = count + ' محددة';
+    bulkDeleteBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    bulkDeleteBtn.textContent = 'حذف المحدد (' + count + ')';
+  }
+
+  // Handle select all click
+  $('selectAllOperations').onclick = function() {
+    const checkboxes = document.querySelectorAll('.operation-checkbox');
+    const isChecked = this.checked;
+    checkboxes.forEach(cb => { cb.checked = isChecked; });
+    updateBulkActionUI();
+  };
+
+  // Handle individual checkbox change
+  document.querySelectorAll('.operation-checkbox').forEach(cb => {
+    cb.onchange = updateBulkActionUI;
+  });
+
+  // Bulk delete handler
+  $('bulkDeleteBtn').onclick = function() {
+    const checked = document.querySelectorAll('.operation-checkbox:checked');
+    const count = checked.length;
+    if (count === 0) return;
+
+    const operationIds = Array.from(checked).map(cb => cb.dataset.operationId);
+    const confirmed = confirm('هل أنت متأكد من حذف ' + count + ' عملية صيانة محددة؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم رفض الحذف لأي عملية مرتبطة بسجلات صيانةexistante.');
+    if (!confirmed) return;
+
+    // Show loading state
+    this.disabled = true;
+    this.textContent = 'جاري الحذف...';
+
+    fetch('/api/maintenance/bulk-delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({operation_ids: operationIds})
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert('تم حذف ' + data.deleted + ' عملية(processed successfully.');
+        load();
+      } else {
+        // Show which ones were rejected and why
+        let msg = 'تم رفض حذف ' + (count - data.success) + ' عملية(ies):';
+        data.rejected.forEach(item => {
+          msg += '\n- ' + item.operation_name + ': ' + item.reason;
+        });
+        if (data.deleted > 0) {
+          msg += '\n\nتم حذف ' + data.deleted + ' عملية بنجاح.';
+          showAlert(msg, 'success');
+          load();
+        } else {
+          showAlert(msg, 'danger');
+        }
+      }
+    })
+    .catch(error => {
+      showAlert('تعذر تنفيذ العملية: ' + error.message, 'danger');
+    })
+    .finally(() => {
+      $('bulkDeleteBtn').disabled = false;
+      $('bulkDeleteBtn').textContent = 'حذف المحدد (' + count + ')';
+    });
+  };
 
   $('newOperationBtn').onclick = resetEditor;
   $('savePlanOperations').onclick = savePlanOperations;

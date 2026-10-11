@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, delete
 from sqlalchemy.orm import Session, joinedload
@@ -472,7 +472,68 @@ def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), cur
     return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.get("/maintenance/due", response_class=HTMLResponse)
+@router.post("/api/maintenance/bulk-delete", response_model=dict)
+def api_bulk_delete_operations(
+    payload: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Bulk delete operations with safety checks.
+    
+    Returns:
+        dict with keys:
+            - success: number of operations successfully deleted
+            - rejected: list of {operation_id, operation_name, reason}
+    """
+    operation_ids = payload.get("operation_ids", [])
+    if not operation_ids:
+        return {"success": 0, "rejected": [], "detail": "لا توجدOperations لتحديد الحذف."}
+
+    rejected = []
+    deleted = 0
+
+    for op_id in operation_ids:
+        operation = db.get(MaintenanceOperation, op_id)
+        if operation is None:
+            rejected.append({"operation_id": op_id, "operation_name": f"# {op_id}", "reason": "العملية غير موجودة"})
+            continue
+
+        # Check if operation is linked to any maintenance records
+        has_records = db.query(MaintenanceRecord).filter(
+            MaintenanceRecord.operation_id == op_id
+        ).first() is not None
+
+        if has_records:
+            rejected.append({
+                "operation_id": op_id,
+                "operation_name": operation.name,
+                "reason": "لا يمكن حذف العملية لأنها مستخدمة في سجل صيانةexistante. عطِّل العملية بدلاً من حذفها."
+            })
+            continue
+
+        # Check if operation is linked to any plans
+        has_plan_links = db.query(MaintenancePlanOperation).filter(
+            MaintenancePlanOperation.operation_id == op_id
+        ).first() is not None
+
+        if has_plan_links:
+            rejected.append({
+                "operation_id": op_id,
+                "operation_name": operation.name,
+                "reason": "لا يمكن حذف العملية لأنها مرتبطة بخطط الصيانة. احذف العلاقة من الخطة أولاً."
+            })
+            continue
+
+        db.delete(operation)
+        deleted += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر الحذف الشامل") from exc
+
+    return {"success": deleted, "rejected": rejected}
+
+
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
     model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
