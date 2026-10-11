@@ -296,7 +296,7 @@
         const selected=isPlanMode() && state.planOps.has(op.id);
         const groupId = op.group_id || '';
         return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
-        <td class="mt-actions-td"><input type="checkbox" class="operation-checkbox" data-operation-id="${op.id}" ${selected?'checked':''} aria-label=`${escapeHtml(op.name)}`></td>
+        <td class="mt-actions-td"><input type="checkbox" class="operation-checkbox" data-operation-id="${op.id}" ${selected?'checked':''} aria-label="${escapeHtml(op.name)}"></td>
         <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
         <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${warningCell(op)}</td>
         <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
@@ -429,7 +429,13 @@
       // البيانات تُقرأ من الـAPI كما هي؛ الحماية هنا تمنع سقوط العرض لو أرجعت
       // إحدى الواجهات شكلًا غير متوقع، ولا تخترع أي صف.
       state.groups=Array.isArray(groups)?groups:[];
+      // ضمان إتاحة العمليات حتى لو كانت بلا طراز أو شرط (general operations)
       state.operations=Array.isArray(operations)?operations:[];
+      // سجل_debugging_short: التأكد من نوع البيانات المستلمة
+      if (!Array.isArray(state.operations)) {
+        console.warn('Load: operations is not an array, resetting to []', typeof state.operations, state.operations);
+        state.operations = [];
+      }
       await loadPlanContext();
       if(isPlanMode()){
         EditManager.register('maintenance-plan-selection',{
@@ -443,7 +449,7 @@
       renderGroups(); render(); syncGroupButtons();
     }catch(e){
       console.error('Load error:', e);
-      state.loadState='error'; state.loadError=e.message;
+      state.loadState='error'; state.loadError=e.message||'تعذر تحميل بيانات المكتبة.';
       state.groups=[]; state.operations=[];
       render();
     }
