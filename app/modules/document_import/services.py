@@ -2,7 +2,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
 from .extraction.extractor import extract_document
 from .parsing.parser import parse_to_candidates
@@ -42,18 +41,32 @@ def preview_from_text(model_id: int, text: str, mode: str = "extract", requested
 
 class ApplyResult:
     """نتيجة تطبيق عنصر واحد."""
-    def __init__(self, item: ImportApplyItem, status: str, reason: Optional[str] = None):
+
+    def __init__(self, item: ImportApplyItem, status: str, reason: Optional[str] = None, definition_id: Optional[int] = None):
         self.item = item
-        self.status = status  # applied / created_definition / not_approved / invalid_definition / unit_mismatch / invalid_value / definition_out_of_scope / definition_error / skipped
+        self.status = status  # إحدى STATUSES
         self.reason = reason
+        self.definition_id = definition_id if definition_id is not None else item.definition_id
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name_found": self.item.name_found,
-            "definition_id": self.item.definition_id,
+            "definition_id": self.definition_id,
             "status": self.status,
             "reason": self.reason,
         }
+
+
+STATUSES = [
+    "applied",
+    "created_definition",
+    "not_approved",
+    "invalid_definition",
+    "invalid_value",
+    "unit_mismatch",
+    "definition_out_of_scope",
+    "definition_error",
+]
 
 
 def _normalize_unit(u: Optional[str]) -> Optional[str]:
@@ -69,204 +82,144 @@ def _normalize_unit(u: Optional[str]) -> Optional[str]:
     return mapping.get(u, u.upper() if len(u) <= 3 else u)
 
 
-def _load_defs_for_model(db: Session, model: EquipmentModel) -> Dict[str, EquipmentModelSpecDefinition]:
-    """
-    تحميل التعريفات المتاحة للنموذج: تعريفات نوع المعدة + التعريفات العامة (بدون نوع).
-    Returns: dict mapping normalized_name -> definition
-    """
-    m_type = getattr(model, 'equipment_type', None)
-    if not m_type:
-        # نموذج بدون نوع - إرجاع التعريفات العامة فقط
-        defs = db.query(EquipmentModelSpecDefinition).filter(
-            EquipmentModelSpecDefinition.equipment_type_id.is_(None)
-        ).all()
-    else:
-        # تعريفات النوع + التعريفات العامة
-        etype_id = getattr(m_type, 'id', None)
-        if etype_id is None:
-            defs = db.query(EquipmentModelSpecDefinition).filter(
-                EquipmentModelSpecDefinition.equipment_type_id.is_(None)
-            ).all()
-        else:
-            defs = db.query(EquipmentModelSpecDefinition).filter(
-                or_(
-                    EquipmentModelSpecDefinition.equipment_type_id == etype_id,
-                    EquipmentModelSpecDefinition.equipment_type_id.is_(None)
-                )
-            ).all()
-    
-    result = {}
-    for d in defs:
-        nk = _norm_key(d.name or "")
-        if nk and nk not in result:
-            result[nk] = d
-    return result
-
-
-def _find_or_create_definition(db: Session, name: str, unit: Optional[str], existing_defs_cache: Dict[str, EquipmentModelSpecDefinition], model: EquipmentModel) -> tuple[EquipmentModelSpecDefinition, bool]:
-    """
-    يبحث عن تعريف مطابق بالاسم المطبّع، أو ينشئ جديداً عبر create_spec_definition.
-    يمنع التكرار داخل الدفعة عبر cache.
-    Returns: (definition, was_created)
-    """
-    nk = _norm_key(name)
-    if nk in existing_defs_cache:
-        return existing_defs_cache[nk], False
-    
-    # بحث في قاعدة البيانات - البحث في التعريفات ذات الصلة بالنموذج
-    defs = db.query(EquipmentModelSpecDefinition).all()
-    for d in defs:
-        if _norm_key(d.name or "") == nk:
-            existing_defs_cache[nk] = d
-            return d, False
-    
-    # إنشاء جديد عبر الدالة الموجودة
-    model_type = db.query(EquipmentModel).filter(EquipmentModel.id == model.id).first()
-    if not model_type:
-        raise ValueError(f"Model with id {model.id} not found")
-    
-    eq_type = model_type.equipment_type
-    if not eq_type:
-        raise ValueError(f"Equipment type not found for model {model.id}")
-    
-    data = SpecDefinitionCreate(
-        name=name,
-        code=_norm_key(name),
-        data_type="text",
-        unit=_normalize_unit(unit),
-        group_name="التعريف الفني",
-        group_sort_order=0,
-        equipment_type_id=model_type.equipment_type_id,
-        category_id=eq_type.category_id,
-    )
-    new_def = create_spec_definition(db, data, commit=False)
-    existing_defs_cache[nk] = new_def
-    return new_def, True
+def _check_value_for_definition(defn: EquipmentModelSpecDefinition, value: str) -> Optional[str]:
+    """نفس قواعد الإدخال اليدوي: رقم للنوع number، وإحدى الخيارات للنوع select. يرجع سبب الرفض أو None."""
+    if defn.data_type == "number":
+        try:
+            float(value)
+        except ValueError:
+            return "not_a_number"
+    elif defn.data_type == "select":
+        allowed = {o.strip() for o in (defn.options or "").split(",") if o.strip()}
+        if value not in allowed:
+            return "not_in_options"
+    return None
 
 
 def apply_candidates(model_id: int, candidates: List[ImportApplyItem], db: Session, user_id: int | None = None) -> Dict[str, Any]:
+    """يطبّق العناصر المعتمدة فقط.
+
+    - نتائج التحقق لكل عنصر (غير معتمد، قيمة فارغة، تعريف غير صالح، خارج النطاق، وحدة مختلفة، خطأ تعريف)
+      لا توقف بقية الدفعة.
+    - أي استثناء غير متوقع يلغي الدفعة كلها (rollback) ثم يُرفع ليحوّله الراوتر إلى 500.
+    - فرادة اسم التعريف عالمية في create_spec_definition، لذلك يُبحث بالاسم المطبَّع في كل التعريفات
+      أولًا، ثم يُحكم بالنطاق (نوع النموذج أو None).
+    """
     m = db.query(EquipmentModel).filter(EquipmentModel.id == model_id).first()
     if not m:
-        raise ValueError("نموذج المعدة غير موجود")  # الراوتر يحوّله إلى 404/422
-    
-    STATUSES = ["applied", "created_definition", "not_approved", "invalid_definition",
-                "invalid_value", "unit_mismatch", "definition_out_of_scope", "definition_error"]
-    
-    summary = {k: 0 for k in STATUSES}
-    results = []
-    
-    # Pre-load definitions for this model to avoid N+1 queries
-    defs_for_model = _load_defs_for_model(db, m)
-    
+        raise ValueError("نموذج المعدة غير موجود")  # الراوتر يحوّله إلى 422
+
+    summary: Dict[str, int] = {k: 0 for k in STATUSES}
     results: List[ApplyResult] = []
-    created_defs_cache: Dict[str, EquipmentModelSpecDefinition] = {}
-    # Initialize cache with pre-loaded definitions
-    created_defs_cache.update(defs_for_model)
-    # Track newly created definition keys in this batch
-    newly_created_keys: set[str] = set()
-    summary = {k: 0 for k in STATUSES}
-    
+
+    def done(c: ImportApplyItem, status: str, reason: Optional[str] = None, defn: Optional[EquipmentModelSpecDefinition] = None) -> None:
+        results.append(ApplyResult(c, status, reason or status, defn.id if defn is not None else None))
+        summary[status] += 1
+
+    type_id = m.equipment_type_id
+
+    def in_scope(d: EquipmentModelSpecDefinition) -> bool:
+        return d.equipment_type_id is None or d.equipment_type_id == type_id
+
+    all_defs = db.query(EquipmentModelSpecDefinition).all()  # مرة واحدة للدفعة
+    by_id = {d.id: d for d in all_defs}
+    by_norm: Dict[str, EquipmentModelSpecDefinition] = {}
+    for d in all_defs:
+        nk = _norm_key(d.name or "")
+        if not nk:
+            continue
+        cur = by_norm.get(nk)
+        if cur is None or (in_scope(d) and not in_scope(cur)):
+            by_norm[nk] = d  # عند تشابه الاسم نفضّل التعريف ضمن النطاق
+
+    category_id = m.equipment_type.category_id if m.equipment_type is not None else None
+
     try:
         for c in candidates:
-            # غير معتمد أو متجاهل
             if getattr(c, "ignored", False) or not getattr(c, "approved", False):
-                results.append(ApplyResult(c, "not_approved", "not_approved"))
-                summary["not_approved"] += 1
+                done(c, "not_approved")
                 continue
-            
-            # التحقق من قيمة فارغة
-            val = c.value_edited if getattr(c, "edited", False) and c.value_edited is not None else c.value
-            if not val or not str(val).strip():
-                results.append(ApplyResult(c, "invalid_value", "empty_value"))
-                summary["invalid_value"] += 1
+
+            use_edit = bool(getattr(c, "edited", False))
+            raw_val = c.value_edited if use_edit and c.value_edited is not None else c.value
+            unit = c.unit_edited if use_edit and c.unit_edited is not None else c.unit
+            val = str(raw_val).strip() if raw_val is not None else ""
+            if not val:
+                done(c, "invalid_value", "empty_value")
                 continue
-            
-            # تحديد التعريف
-            defn: Optional[EquipmentModelSpecDefinition] = None
-            status = "applied"
+
             was_created = False
-            
+            defn: Optional[EquipmentModelSpecDefinition] = None
+
             if getattr(c, "is_new", False):
-                # عنصر جديد معتمد - البحث أو إنشاء تعريف
-                name = c.name_found or ""
+                name = (c.name_found or "").strip()
                 if not name:
-                    results.append(ApplyResult(c, "invalid_definition", "empty_name"))
-                    summary["invalid_definition"] += 1
+                    done(c, "invalid_definition", "empty_name")
                     continue
-                defn, was_created = _find_or_create_definition(db, name, c.unit, created_defs_cache, m)
-                if was_created:
-                    status = "created_definition"
-                else:
-                    status = "applied"
+                nk = _norm_key(name)
+                defn = by_norm.get(nk)
+                if defn is None:
+                    try:
+                        defn = create_spec_definition(
+                            db,
+                            SpecDefinitionCreate(
+                                name=name,
+                                data_type="text",
+                                unit=_normalize_unit(unit),
+                                group_sort_order=0,
+                                equipment_type_id=type_id,
+                                category_id=category_id,
+                            ),
+                            commit=False,
+                        )
+                    except ValueError as exc:
+                        done(c, "definition_error", str(exc))
+                        continue
+                    by_norm[nk] = defn
+                    by_id[defn.id] = defn
+                    was_created = True
             else:
-                # عنصر موجود - التحقق من التعريف
                 def_id = getattr(c, "definition_id", None)
                 if def_id is None:
-                    results.append(ApplyResult(c, "invalid_definition", "missing_definition_id"))
-                    summary["invalid_definition"] += 1
+                    done(c, "invalid_definition", "missing_definition_id")
                     continue
-                defn = db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.id == def_id).first()
-                if not defn:
-                    results.append(ApplyResult(c, "invalid_definition", "definition_not_found"))
-                    summary["invalid_definition"] += 1
+                defn = by_id.get(def_id)
+                if defn is None:
+                    done(c, "invalid_definition", "definition_not_found")
                     continue
-            
-            # القيمة والوحدة
-            val = c.value_edited if getattr(c, "edited", False) and c.value_edited is not None else c.value
-            unit = c.unit_edited if getattr(c, "edited", False) and c.unit_edited is not None else c.unit
-            
-            # تحقق من مطابقة الوحدة للتعريفات الموجودة (لكل التعريفات الموجودة، سواء كانت is_new=False أو is_new=True لكن وجدت تعريف مطابق)
-            if not getattr(c, "is_new", False):
-                # للتعريفات الموجودة: تحقق من توافق الوحدة
-                def_unit = _normalize_unit(defn.unit) if defn.unit else None
-                user_unit = _normalize_unit(unit) if unit else None
+
+            if not was_created:
+                if not in_scope(defn):
+                    done(c, "definition_out_of_scope", f"الخاصية '{defn.name}' تابعة لنوع معدة آخر", defn)
+                    continue
+                def_unit = _normalize_unit(defn.unit)
+                user_unit = _normalize_unit(unit)
                 if def_unit and user_unit and def_unit != user_unit:
-                    results.append(ApplyResult(c, "unit_mismatch", f"unit_mismatch: def={defn.unit}, user={unit}"))
-                    summary["unit_mismatch"] += 1
+                    done(c, "unit_mismatch", f"unit_mismatch: def={defn.unit}, user={unit}", defn)
                     continue
-            
-            # upsert EquipmentModelSpecValue
+                bad = _check_value_for_definition(defn, val)
+                if bad:
+                    done(c, "invalid_value", bad, defn)
+                    continue
+
             ev = (
                 db.query(EquipmentModelSpecValue)
-                .filter(EquipmentModelSpecValue.equipment_model_id == model_id, EquipmentModelSpecValue.spec_definition_id == defn.id)
+                .filter(
+                    EquipmentModelSpecValue.equipment_model_id == model_id,
+                    EquipmentModelSpecValue.spec_definition_id == defn.id,
+                )
                 .first()
             )
             if ev:
-                ev.value = str(val) if val is not None else ""
-                if unit is not None:
-                    ev.unit = unit  # type: ignore[attr-defined]
+                ev.value = val
             else:
-                ev = EquipmentModelSpecValue(equipment_model_id=model_id, spec_definition_id=defn.id, value=str(val) if val is not None else "")
-                if unit is not None:
-                    try:
-                        setattr(ev, "unit", unit)
-                    except Exception:
-                        pass
-                db.add(ev)
-                db.flush()  # ensure visibility for subsequent items in same batch
-            
-            results.append(ApplyResult(c, status))
-            
-            # تحديث العدادات بعد الحفظ الناجح
-            if was_created:
-                summary["created_definition"] += 1
-            else:
-                summary["applied"] += 1
-        
+                db.add(EquipmentModelSpecValue(equipment_model_id=model_id, spec_definition_id=defn.id, value=val))
+            db.flush()  # ليراه العنصر التالي في الدفعة نفسها
+            done(c, "created_definition" if was_created else "applied", None, defn)
+
         db.commit()
-        
-        return {
-            "results": [r.to_dict() for r in results],
-            "summary": summary
-        }
-    except ValueError as e:
-        # ValueError من create_spec_definition أو _find_or_create_definition (نموذج/نوع مفقود)
-        db.rollback()
-        return {
-            "results": [],
-            "summary": {"applied": 0, "created_definition": 0, "not_approved": 0, "invalid_definition": 0, "unit_mismatch": 0, "invalid_value": 0, "skipped": 0},
-            "error": str(e)
-        }
     except Exception:
         db.rollback()
         raise
+
+    return {"results": [r.to_dict() for r in results], "summary": summary}
