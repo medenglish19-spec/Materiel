@@ -135,6 +135,34 @@
     </div>
   </div>
 
+  <!-- Group Editor Modal -->
+  <div id="groupEditor" class="condition-details" style="display:none" role="dialog" aria-modal="true" aria-labelledby="groupEditorTitle">
+    <div class="condition-details-card" style="max-width:480px">
+      <div class="condition-details-head">
+        <div>
+          <strong id="groupEditorTitle">إضافة مجموعة</strong>
+          <div class="muted" id="groupEditorSubtitle"></div>
+        </div>
+        <button class="m-btn" type="button" id="groupEditorClose">إغلاق</button>
+      </div>
+      <form id="groupForm" style="padding:18px">
+        <input type="hidden" id="groupId">
+        <div style="margin-bottom:16px">
+          <label for="groupName" style="display:block;margin-bottom:6px;font-weight:600">اسم المجموعة</label>
+          <input class="m-input" id="groupName" required placeholder="اسم المجموعة" style="width:100%;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:16px">
+          <label for="groupSortOrder" style="display:block;margin-bottom:6px;font-weight:600">ترتيب العرض</label>
+          <input class="m-input" id="groupSortOrder" type="number" min="0" step="1" value="0" style="width:100%;box-sizing:border-box">
+        </div>
+        <div class="toolbar" style="justify-content:flex-end;gap:8px">
+          <button class="m-btn" type="button" id="cancelGroupEditor">إلغاء</button>
+          <button class="m-btn primary" type="submit">حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Hidden filters for edit/delete group functionality -->
   <select id="groupFilter" class="m-select" style="display:none"><option value="">كل المجموعات</option></select>
   <select id="statusFilter" class="m-select" style="display:none"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
@@ -145,6 +173,9 @@
   #operationsTable tr[data-plan-select]{cursor:pointer}
   #operationsTable tr.plan-selected{background:rgba(45, 115, 160, .07)}
   #operationsTable tr.plan-selected td:first-child{box-shadow:inset -3px 0 0 rgba(45, 115, 160, .35)}
+  #operationsTable td[data-group-id]{transition:background .15s}
+  #operationsTable td[data-group-id].selected{background:#eef4fa;box-shadow:inset -3px 0 0 #2b6cb0}
+  #operationsTable td[data-group-id]:hover{background:#f5f8fc}
   .plan-mode-bar{display:none;margin-bottom:16px;padding:12px 14px;border:1px solid #dbe5ee;border-radius:8px;background:#f7fafc;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .plan-mode-bar.active{display:flex}
   .plan-mode-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -332,10 +363,11 @@
       if(!rows.length){ renderTableMessage('لا توجد عمليات مطابقة.','muted'); updateFilterButtons(); return; }
       $('operationsBody').innerHTML=rows.map(op=>{
         const selected=isPlanMode() && state.planOps.has(op.id);
+        const groupId = op.group_id || '';
         return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
         <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="إجراءات العملية">⋮</button></td>
         <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
-        <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${summaryCell(op,'condition')}</td><td class="num">${unitText(op)}</td><td class="num">${summaryCell(op,'warning')}</td>
+        <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${summaryCell(op,'condition')}</td><td class="num">${unitText(op)}</td><td class="num">${summaryCell(op,'warning')}</td>
         <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       </tr>`;
       }).join('');
@@ -661,28 +693,8 @@
 
   // Menu item handlers (reusing existing functions)
   $('menuNewOperation').onclick = () => { closeManagementMenu(); resetEditor(); };
-  $('menuNewGroup').onclick = async () => {
-    closeManagementMenu();
-    const name = (prompt('اسم المجموعة الجديدة:') || '').trim();
-    if (!name) return;
-    try {
-      await request(`${api}/operation-groups`, {method: 'POST', body: JSON.stringify({name, sort_order: state.groups.length})});
-      showAlert('تمت إضافة المجموعة.');
-      await load();
-    } catch (err) { showAlert(err.message, 'danger'); }
-  };
-  $('menuEditGroup').onclick = async () => {
-    closeManagementMenu();
-    const g = selectedGroup();
-    if (!g) return;
-    const name = (prompt('اسم المجموعة:', g.name) || '').trim();
-    if (!name || name === g.name) return;
-    try {
-      await request(`${api}/operation-groups/${g.id}`, {method: 'PUT', body: JSON.stringify({name, sort_order: g.sort_order})});
-      showAlert('تم تعديل المجموعة.');
-      await load();
-    } catch (err) { showAlert(err.message, 'danger'); }
-  };
+  $('menuNewGroup').onclick = () => { closeManagementMenu(); openGroupEditor(); };
+  $('menuEditGroup').onclick = () => { closeManagementMenu(); openGroupEditor(selectedGroup()); };
   $('menuDeleteGroup').onclick = async () => {
     closeManagementMenu();
     const g = selectedGroup();
@@ -695,6 +707,46 @@
     } catch (err) { showAlert(err.message, 'danger'); }
   };
   $('menuRefresh').onclick = () => { closeManagementMenu(); load(); };
+
+  // Group Editor Modal
+  function openGroupEditor(group) {
+    const isEdit = !!group;
+    $('groupId').value = isEdit ? group.id : '';
+    $('groupName').value = isEdit ? group.name : '';
+    $('groupSortOrder').value = isEdit ? group.sort_order : state.groups.length;
+    $('groupEditorTitle').textContent = isEdit ? 'تعديل المجموعة' : 'إضافة مجموعة';
+    $('groupEditorSubtitle').textContent = isEdit ? 'عدل اسم المجموعة وترتيب العرض' : 'أدخل اسم المجموعة الجديدة';
+    $('groupEditor').style.display = 'flex';
+    $('groupName').focus();
+  }
+  function closeGroupEditor() {
+    $('groupEditor').style.display = 'none';
+    $('groupForm').reset();
+  }
+  $('groupEditorClose').onclick = closeGroupEditor;
+  $('cancelGroupEditor').onclick = closeGroupEditor;
+  $('groupEditor').addEventListener('click', e => { if (e.target === $('groupEditor')) closeGroupEditor(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('groupEditor').style.display === 'flex') closeGroupEditor(); });
+
+  $('groupForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id = $('groupId').value;
+    const name = $('groupName').value.trim();
+    const sort_order = Number($('groupSortOrder').value) || 0;
+    if (!name) { showAlert('اسم المجموعة مطلوب.', 'danger'); return; }
+    try {
+      if (id) {
+        await request(`${api}/operation-groups/${id}`, {method: 'PUT', body: JSON.stringify({name, sort_order})});
+        showAlert('تم تعديل المجموعة.');
+      } else {
+        await request(`${api}/operation-groups`, {method: 'POST', body: JSON.stringify({name, sort_order})});
+        showAlert('تمت إضافة المجموعة.');
+      }
+      closeGroupEditor();
+      await load();
+    } catch (err) { showAlert(err.message, 'danger'); }
+  });
+
   function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
   function syncGroupButtons(){
     const has=!!selectedGroup();
@@ -703,6 +755,20 @@
     if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '.45' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
   }
   $('groupFilter').addEventListener('change', syncGroupButtons);
+
+  // Click on group name in table to select group for edit/delete
+  $('operationsBody').addEventListener('click', e => {
+    const groupCell = e.target.closest('[data-group-id]');
+    if (groupCell) {
+      const groupId = groupCell.dataset.groupId;
+      $('groupFilter').value = groupId;
+      syncGroupButtons();
+      // Visual feedback
+      document.querySelectorAll('[data-group-id].selected').forEach(el => el.classList.remove('selected'));
+      groupCell.classList.add('selected');
+    }
+  });
+
   $('newOperationBtn').onclick = resetEditor;
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
