@@ -193,16 +193,428 @@
     if (openMenu) closeRowMenu();
   });
 
+  /* ------------------------------------------------------------------------
+     Per-column filters.
+
+     Every list table lives inside a `[data-mt-region]` wrapper, so the shared
+     engine enhances each region's table automatically: it derives the filter
+     kind of every meaningful column from the real rows and adds a small ▼
+     trigger in that column's header. Columns are combined with AND, while the
+     distinct values checked inside one column are OR-ed.
+
+     It is intentionally conservative:
+       · action / selection columns (kind `mt-actions-th`, empty headers, links
+         only, checkboxes) get no filter;
+       · data-entry tables (rows containing inputs) and hierarchical tables
+         (rows carrying `data-level`) are left completely alone;
+       · a table that already ships its own filters (`.col-filter`, e.g. the
+         maintenance operation library) is skipped;
+       · `data-mt-no-filter` on the table or any ancestor disables it.
+
+     Hiding a row uses a class (`.mt-col-hidden`) rather than an inline
+     `display`, so it composes with each page's existing search / pagination:
+     a row must satisfy BOTH the page's own visibility and the column filters.
+     ---------------------------------------------------------------------- */
+  var CORE = window.MaterielFilterCore;
+
+  var FILTER_SKIP_HEADERS = {};
+  ['#', '—', '-', 'الاجراءات', 'اجراء', 'الاجراء', 'العمليات', 'عمليه', 'عمليات',
+    'السجل', 'تفاصيل', 'التفاصيل', 'عرض', 'فتح', 'فتح السجل', 'تحرير', 'تعديل',
+    'اختيار', 'تحديد', 'action', 'actions'].forEach(function (h) {
+    FILTER_SKIP_HEADERS[h] = true;
+  });
+
+  var openFilterMenuEl = null;
+  var activeFilterTrigger = null;
+
+  function headerRow(table) {
+    if (table.tHead && table.tHead.rows.length) return table.tHead.rows[0];
+    var firstBody = table.tBodies[0];
+    if (firstBody && firstBody.rows.length && firstBody.rows[0].querySelector('th')) {
+      return firstBody.rows[0];
+    }
+    return null;
+  }
+
+  function headerCells(table) {
+    var row = headerRow(table);
+    return row ? Array.prototype.slice.call(row.cells) : [];
+  }
+
+  function isMessageRow(row, colCount) {
+    return row.cells.length === 1 && (row.cells[0].colSpan || 1) >= colCount;
+  }
+
+  function dataRows(table, headRow) {
+    var rows = [];
+    Array.prototype.forEach.call(table.tBodies, function (body) {
+      Array.prototype.forEach.call(body.rows, function (row) {
+        if (row === headRow) return;
+        if (row.querySelector('th')) return;
+        rows.push(row);
+      });
+    });
+    return rows;
+  }
+
+  function columnSamples(table, rows, index, colCount) {
+    var samples = [];
+    rows.forEach(function (row) {
+      if (isMessageRow(row, colCount)) return;
+      var cell = row.cells[index];
+      if (cell) samples.push((cell.textContent || '').trim());
+    });
+    return samples;
+  }
+
+  function looksLikeLinkColumn(rows, index, colCount) {
+    var total = 0, links = 0;
+    rows.forEach(function (row) {
+      if (isMessageRow(row, colCount)) return;
+      var cell = row.cells[index];
+      if (!cell) return;
+      total++;
+      if (cell.querySelector('a,button')) links++;
+    });
+    return total > 0 && links / total > 0.6;
+  }
+
+  function buildColumns(table) {
+    var core = CORE;
+    var cells = headerCells(table);
+    if (cells.length < 2) return null;
+    var i;
+    for (i = 0; i < cells.length; i++) {
+      if ((cells[i].colSpan || 1) > 1) return null;   /* grouped header */
+    }
+    var rows = dataRows(table, headerRow(table));
+    var columns = [];
+    for (i = 0; i < cells.length; i++) {
+      var th = cells[i];
+      var label = (th.textContent || '').trim();
+      if (th.hasAttribute('data-mt-no-filter')) continue;
+      if (th.querySelector('input[type=checkbox],input[type=radio]')) continue;
+      if (!label) continue;
+      if (FILTER_SKIP_HEADERS[core.normalize(label)]) continue;
+      if (looksLikeLinkColumn(rows, i, cells.length)) continue;
+      var samples = columnSamples(table, rows, i, cells.length);
+      var hasValue = samples.some(function (s) { return s !== ''; });
+      if (!hasValue) continue;
+      columns.push({
+        index: i,
+        th: th,
+        btn: null,
+        kind: core.detectKind(samples),
+        filter: { values: null, text: '', min: '', max: '', from: '', to: '' }
+      });
+    }
+    return columns.length ? columns : null;
+  }
+
+  function isEditorTable(table) {
+    return !!table.querySelector('tbody input, tbody select, tbody textarea');
+  }
+
+  function isHierarchicalTable(table) {
+    return !!table.querySelector('tbody tr[data-level]');
+  }
+
+  function removeFilterButtons(table) {
+    if (table.__mtColumns) {
+      table.__mtColumns.forEach(function (col) {
+        if (col.btn && col.btn.parentNode) col.btn.parentNode.removeChild(col.btn);
+      });
+    }
+    table.__mtColumns = null;
+    table.removeAttribute('data-mt-filters-ready');
+  }
+
+  function enhanceTable(table) {
+    if (!CORE || !table || table.getAttribute('data-mt-filters-off')) return;
+    if (table.getAttribute('data-mt-filters-ready')) return;
+    if (table.closest('[data-mt-no-filter]')) return;
+    if (table.hasAttribute('data-mt-no-filter')) return;
+    if (table.querySelector('.col-filter')) return;      /* page ships its own */
+    if (isEditorTable(table) || isHierarchicalTable(table)) return;
+    var columns = buildColumns(table);
+    if (!columns) return;
+    columns.forEach(function (col) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mt-col-filter';
+      btn.textContent = '▼';
+      btn.setAttribute('aria-label', 'تصفية العمود');
+      btn.title = 'تصفية';
+      btn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openFilterMenu(table, col, btn);
+      });
+      col.th.appendChild(btn);
+      col.btn = btn;
+    });
+    table.__mtColumns = columns;
+    table.setAttribute('data-mt-filters-ready', '1');
+    applyTableFilters(table);
+  }
+
+  function unenhanceTable(table) {
+    removeFilterButtons(table);
+    table.setAttribute('data-mt-filters-off', '1');
+    var rows = dataRows(table, headerRow(table));
+    rows.forEach(function (row) { row.classList.remove('mt-col-hidden'); });
+  }
+
+  function applyTableFilters(table) {
+    var columns = table.__mtColumns;
+    if (!columns) return;
+    var cells = headerCells(table);
+    var colCount = cells.length;
+    columns.forEach(function (col) {
+      var active = CORE.isFilterActive(col.filter);
+      if (col.btn) {
+        col.btn.classList.toggle('active', active);
+        col.btn.textContent = active ? '▼•' : '▼';
+      }
+    });
+    var rows = dataRows(table, headerRow(table));
+    rows.forEach(function (row) {
+      if (isMessageRow(row, colCount)) {
+        row.classList.remove('mt-col-hidden');
+        return;
+      }
+      var ok = true;
+      for (var i = 0; i < columns.length; i++) {
+        var col = columns[i];
+        if (!CORE.isFilterActive(col.filter)) continue;
+        var cell = row.cells[col.index];
+        if (!CORE.matchesCell(cell ? cell.textContent : '', col.filter, col.kind)) {
+          ok = false;
+          break;
+        }
+      }
+      row.classList.toggle('mt-col-hidden', !ok);
+    });
+  }
+
+  function closeFilterMenu() {
+    if (openFilterMenuEl) {
+      openFilterMenuEl.remove();
+      openFilterMenuEl = null;
+    }
+    if (activeFilterTrigger) {
+      activeFilterTrigger.setAttribute('aria-expanded', 'false');
+      activeFilterTrigger = null;
+    }
+  }
+
+  function distinctValues(table, col) {
+    var cells = headerCells(table);
+    var rows = dataRows(table, headerRow(table));
+    var seen = {};
+    var out = [];
+    rows.forEach(function (row) {
+      if (isMessageRow(row, cells.length)) return;
+      var cell = row.cells[col.index];
+      var text = cell ? (cell.textContent || '').trim() : '';
+      if (text === '') return;
+      var key = CORE.normalize(text);
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push({ value: text, key: key });
+    });
+    out.sort(function (a, b) { return a.value.localeCompare(b.value, 'ar'); });
+    return out;
+  }
+
+  function openFilterMenu(table, col, trigger) {
+    closeFilterMenu();
+    var values = distinctValues(table, col);
+    var filter = col.filter;
+
+    var menu = document.createElement('div');
+    menu.className = 'mt-filter-menu';
+    menu.setAttribute('role', 'dialog');
+    menu.setAttribute('dir', 'rtl');
+
+    var title = document.createElement('div');
+    title.className = 'mt-filter-title';
+    title.textContent = 'تصفية: ' + (col.th.textContent || '').replace(/[▼•]/g, '').trim();
+    menu.appendChild(title);
+
+    var search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'mt-filter-search';
+    search.placeholder = 'بحث في القيم...';
+    search.setAttribute('aria-label', 'بحث في القيم');
+    menu.appendChild(search);
+
+    var actions = document.createElement('div');
+    actions.className = 'mt-filter-actions';
+    actions.innerHTML = '<button type="button" data-select-all>تحديد الكل</button>' +
+      '<button type="button" data-clear>مسح</button>' +
+      '<button type="button" data-apply>تطبيق</button>';
+    menu.appendChild(actions);
+
+    var contains = null;
+    if (col.kind === 'text') {
+      contains = document.createElement('input');
+      contains.type = 'search';
+      contains.className = 'mt-filter-contains';
+      contains.placeholder = 'يحتوي على...';
+      contains.value = filter.text || '';
+      menu.appendChild(contains);
+    }
+
+    var minInput = null, maxInput = null, fromInput = null, toInput = null;
+    if (col.kind === 'number' || col.kind === 'date') {
+      var range = document.createElement('div');
+      range.className = 'mt-filter-range';
+      if (col.kind === 'number') {
+        minInput = document.createElement('input');
+        minInput.type = 'number';
+        minInput.placeholder = 'من';
+        minInput.value = filter.min || '';
+        maxInput = document.createElement('input');
+        maxInput.type = 'number';
+        maxInput.placeholder = 'إلى';
+        maxInput.value = filter.max || '';
+      } else {
+        fromInput = document.createElement('input');
+        fromInput.type = 'date';
+        fromInput.title = 'من تاريخ';
+        fromInput.value = filter.from || '';
+        toInput = document.createElement('input');
+        toInput.type = 'date';
+        toInput.title = 'إلى تاريخ';
+        toInput.value = filter.to || '';
+      }
+      range.appendChild(col.kind === 'number' ? minInput : fromInput);
+      range.appendChild(col.kind === 'number' ? maxInput : toInput);
+      menu.appendChild(range);
+    }
+
+    var valuesBox = document.createElement('div');
+    valuesBox.className = 'mt-filter-values';
+    menu.appendChild(valuesBox);
+
+    function drawValues(term) {
+      var t = CORE.normalize(term || '');
+      valuesBox.innerHTML = '';
+      values.forEach(function (item) {
+        if (t && item.key.indexOf(t) === -1) return;
+        var label = document.createElement('label');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = item.value;
+        cb.dataset.key = item.key;
+        cb.checked = (!filter.values || !filter.values.size) ? true : filter.values.has(item.key);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(item.value));
+        valuesBox.appendChild(label);
+      });
+    }
+    drawValues('');
+
+    document.body.appendChild(menu);
+    var rect = trigger.getBoundingClientRect();
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+
+    search.addEventListener('input', function () { drawValues(search.value); });
+    actions.querySelector('[data-select-all]').addEventListener('click', function () {
+      Array.prototype.forEach.call(valuesBox.querySelectorAll('input'), function (cb) { cb.checked = true; });
+    });
+    actions.querySelector('[data-clear]').addEventListener('click', function () {
+      Array.prototype.forEach.call(valuesBox.querySelectorAll('input'), function (cb) { cb.checked = false; });
+    });
+    actions.querySelector('[data-apply]').addEventListener('click', function () {
+      var checked = Array.prototype.slice.call(valuesBox.querySelectorAll('input:checked'));
+      filter.values = (checked.length === values.length)
+        ? null
+        : new Set(checked.map(function (cb) { return cb.dataset.key; }));
+      if (contains) filter.text = contains.value || '';
+      if (minInput) filter.min = minInput.value;
+      if (maxInput) filter.max = maxInput.value;
+      if (fromInput) filter.from = fromInput.value;
+      if (toInput) filter.to = toInput.value;
+      closeFilterMenu();
+      applyTableFilters(table);
+    });
+
+    openFilterMenuEl = menu;
+    activeFilterTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true');
+    search.focus();
+  }
+
+  document.addEventListener('click', function (event) {
+    if (openFilterMenuEl && !openFilterMenuEl.contains(event.target) &&
+        !(event.target.closest && event.target.closest('.mt-col-filter'))) {
+      closeFilterMenu();
+    }
+  }, true);
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape' || !openFilterMenuEl) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeFilterMenu();
+  }, true);
+
+  document.addEventListener('scroll', function () {
+    if (openFilterMenuEl) closeFilterMenu();
+  }, true);
+
+  function enhanceAll() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-mt-region]'), function (region) {
+      var table = region.querySelector('table');
+      if (table) enhanceTable(table);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('table[data-mt-filters]'), function (table) {
+      if (table.getAttribute('data-mt-filters') !== 'off') enhanceTable(table);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('table[data-mt-filters-ready]'), function (table) {
+      if (isEditorTable(table) || isHierarchicalTable(table)) unenhanceTable(table);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('table[data-mt-filters-ready]'), function (table) {
+      applyTableFilters(table);
+    });
+  }
+
+  var filtersScheduled = false;
+  function scheduleFilterRefresh() {
+    if (filtersScheduled) return;
+    filtersScheduled = true;
+    window.requestAnimationFrame(function () {
+      filtersScheduled = false;
+      enhanceAll();
+    });
+  }
+
+  function initColumnFilters() {
+    enhanceAll();
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver(function () { scheduleFilterRefresh(); })
+        .observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initRegions);
+    document.addEventListener('DOMContentLoaded', function () {
+      initRegions();
+      initColumnFilters();
+    });
   } else {
     initRegions();
+    initColumnFilters();
   }
 
   window.MaterielTables = {
     openRowMenu: openRowMenu,
     closeRowMenu: closeRowMenu,
     isMenuOpen: isMenuOpen,
-    refresh: function () { initRegions(); }
+    refresh: function () { initRegions(); enhanceAll(); },
+    refreshFilters: function () { enhanceAll(); },
+    closeFilterMenu: closeFilterMenu
   };
 })();
