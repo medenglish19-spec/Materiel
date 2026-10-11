@@ -34,8 +34,8 @@
         <div class="dropdown-menu" id="managementMenu" role="menu" style="display:none;position:fixed;z-index:1000;min-width:220px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:6px;">
           <button type="button" class="dropdown-item" id="menuNewOperation" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#2b9a62;white-space:nowrap">➕ &nbsp;إضافة عملية صيانة</button>
           <button type="button" class="dropdown-item" id="menuNewGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">📁 &nbsp;إضافة مجموعة</button>
-          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap;opacity:.45;cursor:not-allowed">✏️ &nbsp;تعديل المجموعة</button>
-          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap;opacity:.45;cursor:not-allowed">🗑 &nbsp;حذف المجموعة</button>
+          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">✏️ &nbsp;تعديل المجموعة</button>
+          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap">🗑 &nbsp;حذف المجموعة</button>
           <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">↻ &nbsp;تحديث الجدول</button>
         </div>
       </div>
@@ -699,19 +699,105 @@
   // Menu item handlers (reusing existing functions)
   $('menuNewOperation').onclick = () => { closeManagementMenu(); resetEditor(); };
   $('menuNewGroup').onclick = () => { closeManagementMenu(); openGroupEditor(); };
-  $('menuEditGroup').onclick = () => { closeManagementMenu(); openGroupEditor(selectedGroup()); };
-  $('menuDeleteGroup').onclick = async () => {
-    closeManagementMenu();
+  $('menuEditGroup').onclick = () => { closeManagementMenu(); handleEditGroup(); };
+  $('menuDeleteGroup').onclick = async () => { closeManagementMenu(); await handleDeleteGroup(); };
+  $('menuRefresh').onclick = () => { closeManagementMenu(); load(); };
+
+  // Group selection modal for edit/delete when no group is pre-selected
+  function handleEditGroup() {
     const g = selectedGroup();
-    if (!g) return;
-    if (!confirm('سيتم حذف المجموعة فقط، وستبقى عملياتها بدون مجموعة. هل أنت متأكد؟')) return;
+    if (g) {
+      openGroupEditor(g);
+      return;
+    }
+    // No group selected - show group selection dialog
+    showGroupSelector('edit');
+  }
+
+  async function handleDeleteGroup() {
+    const g = selectedGroup();
+    if (g) {
+      await deleteGroup(g.id, g.name);
+      return;
+    }
+    // No group selected - show group selection dialog
+    showGroupSelector('delete');
+  }
+
+  function showGroupSelector(mode) {
+    // Create a simple modal for group selection
+    const modal = document.createElement('div');
+    modal.className = 'condition-details';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="condition-details-card" style="max-width:400px">
+        <div class="condition-details-head">
+          <div>
+            <strong>${mode === 'edit' ? 'اختر المجموعة للتعديل' : 'اختر المجموعة للحذف'}</strong>
+            <div class="muted">${mode === 'edit' ? 'سيتم فتح نافذة التعديل بعد الاختيار' : 'سيتم حذف المجموعة فقط، وستبقى عملياتها بدون مجموعة'}</div>
+          </div>
+          <button class="m-btn" type="button" id="groupSelectorClose">إغلاق</button>
+        </div>
+        <form id="groupSelectorForm" style="padding:18px">
+          <div style="margin-bottom:16px">
+            <label for="groupSelector" style="display:block;margin-bottom:6px;font-weight:600">المجموعة</label>
+            <select class="m-select" id="groupSelector" required style="width:100%;box-sizing:border-box">
+              <option value="">-- اختر مجموعة --</option>
+              ${state.groups.map(grp => `<option value="${grp.id}">${escapeHtml(grp.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="toolbar" style="justify-content:flex-end;gap:8px">
+            <button class="m-btn" type="button" id="cancelGroupSelector">إلغاء</button>
+            <button class="m-btn ${mode === 'delete' ? 'danger' : 'primary'}" type="submit">${mode === 'edit' ? 'متابعة للتعديل' : 'متابعة للحذف'}</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      modal.remove();
+    };
+
+    modal.querySelector('#groupSelectorClose').onclick = closeModal;
+    modal.querySelector('#cancelGroupSelector').onclick = closeModal;
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', escHandler);
+      }
+    });
+
+    modal.querySelector('#groupSelectorForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const groupId = Number(modal.querySelector('#groupSelector').value);
+      if (!groupId) {
+        showAlert('يرجى اختيار مجموعة.', 'danger');
+        return;
+      }
+      const group = state.groups.find(g => g.id === groupId);
+      if (!group) {
+        showAlert('المجموعة غير موجودة.', 'danger');
+        return;
+      }
+      closeModal();
+      if (mode === 'edit') {
+        openGroupEditor(group);
+      } else {
+        await deleteGroup(group.id, group.name);
+      }
+    });
+  }
+
+  async function deleteGroup(groupId, groupName) {
+    if (!confirm(`سيتم حذف المجموعة «${groupName}» فقط، وستبقى عملياتها بدون مجموعة. هل أنت متأكد؟`)) return;
     try {
-      await request(`${api}/operation-groups/${g.id}`, {method: 'DELETE'});
+      await request(`${api}/operation-groups/${groupId}`, {method: 'DELETE'});
       showAlert('تم حذف المجموعة.');
       await load();
     } catch (err) { showAlert(err.message, 'danger'); }
-  };
-  $('menuRefresh').onclick = () => { closeManagementMenu(); load(); };
+  }
 
   // Group Editor Modal
   function openGroupEditor(group) {
@@ -754,10 +840,12 @@
 
   function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
   function syncGroupButtons(){
+    // Buttons are always enabled now; this function only updates visual selection feedback
     const has=!!selectedGroup();
     const menuEditBtn = $('menuEditGroup'), menuDeleteBtn = $('menuDeleteGroup');
-    if (menuEditBtn) { menuEditBtn.disabled = !has; menuEditBtn.style.opacity = has ? '' : '.45'; menuEditBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
-    if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
+    // Keep buttons enabled but could add a visual indicator if a group is pre-selected
+    if (menuEditBtn) { menuEditBtn.disabled = false; menuEditBtn.style.opacity = ''; menuEditBtn.style.cursor = 'pointer'; }
+    if (menuDeleteBtn) { menuDeleteBtn.disabled = false; menuDeleteBtn.style.opacity = ''; menuDeleteBtn.style.cursor = 'pointer'; }
   }
   $('groupFilter').addEventListener('change', syncGroupButtons);
 
