@@ -33,7 +33,7 @@
   <section class="panel">
     <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>كل تنفيذ محفوظ كسجل فعلي مرتبط بالمركبة والعملية، ويمكن ربطه بخطة عند التنفيذ ضمن خطة.</p></div><span class="badge success">{{ records|length }} سجل</span></div>
     <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
-    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
+    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
       {% for r in records %}
       <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}">
         <td>{{ loop.index }}</td>
@@ -44,13 +44,13 @@
         <td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td>
         <td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td>
         <td>{{ r.work_order or '—' }}</td><td>{{ r.workshop or '—' }}</td>
-        <td><span class="badge success">{{ 'مكتملة' if r.status == 'completed' else r.status }}</span></td><td>{{ r.description or '—' }}</td>
+        <td>{{ r.description or '—' }}</td>
         <td style="white-space:nowrap">
           {% if r.operation_id %}<a class="m-btn primary" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a>{% endif %}
           <form method="post" action="/maintenance/records/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>
         </td>
       </tr>
-      {% else %}<tr><td colspan="12" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="11" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 
