@@ -32,6 +32,8 @@ from app.modules.maintenance.services import (
     plan_condition,
 )
 from app.modules.users.models import User
+from app.modules.faults_repairs.models import Technician
+from app.modules.faults_repairs.services import list_technicians
 
 router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
@@ -173,6 +175,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model),
         joinedload(MaintenanceRecord.operation),
         joinedload(MaintenanceRecord.plan),
+        joinedload(MaintenanceRecord.technician),
     ).order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id)).all()
     equipment = db.query(Equipment).options(
         joinedload(Equipment.equipment_type),
@@ -186,6 +189,9 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         MaintenancePlan.is_active.is_(True),
         MaintenancePlan.is_approved.is_(True),
     ).order_by(MaintenancePlan.name, MaintenancePlan.id).all()
+
+    # الفنيون الفعليون من الورشة الداخلية (لا قائمة ثابتة ولا أسماء تجريبية).
+    technicians = list_technicians(db, active_only=True)
 
     edit_record = None
     edit_id = request.query_params.get("edit")
@@ -234,6 +240,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "equipment": equipment,
             "operations": operations,
             "plans": plans,
+            "technicians": technicians,
             "operation_equipment_ids": operation_equipment_ids,
             "meter_required_by_operation": meter_required_by_operation,
             "edit_record": edit_record,
@@ -250,7 +257,9 @@ def maintenance_record_create(
     meter_value: str = Form(""),
     work_order: str = Form(""),
     workshop: str = Form(""),
+    technician_id: int | None = Form(None),
     description: str = Form(""),
+    note: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -299,6 +308,16 @@ def maintenance_record_create(
     if maintenance_date > date.today():
         return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
 
+    work_order_clean = work_order.strip()
+    if work_order_clean and not work_order_clean.isdigit():
+        return RedirectResponse(f"{records_url}?error=work_order", status_code=status.HTTP_303_SEE_OTHER)
+
+    technician = None
+    if technician_id is not None:
+        technician = db.query(Technician).filter(Technician.id == technician_id).first()
+        if technician is None or not technician.is_active:
+            return RedirectResponse(f"{records_url}?error=technician", status_code=status.HTTP_303_SEE_OTHER)
+
     unit = measurement_unit(equipment)
     meter = None
     if meter_value:
@@ -323,9 +342,11 @@ def maintenance_record_create(
         plan_id=plan.id if plan is not None else None,
         maintenance_date=maintenance_date,
         meter_value=meter,
-        work_order=work_order.strip() or None,
+        work_order=work_order_clean or None,
         workshop=workshop.strip() or None,
+        technician_id=technician.id if technician is not None else None,
         description=description.strip() or None,
+        note=note.strip() or None,
         status="completed",
         created_by_id=current_user.id if current_user else None,
     )
@@ -348,7 +369,9 @@ def maintenance_record_update(
     meter_value: str = Form(""),
     work_order: str = Form(""),
     workshop: str = Form(""),
+    technician_id: int | None = Form(None),
     description: str = Form(""),
+    note: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -393,6 +416,16 @@ def maintenance_record_update(
     if maintenance_date > date.today():
         return RedirectResponse(f"{records_url}?error=future_date", status_code=status.HTTP_303_SEE_OTHER)
 
+    work_order_clean = work_order.strip()
+    if work_order_clean and not work_order_clean.isdigit():
+        return RedirectResponse(f"{records_url}?error=work_order", status_code=status.HTTP_303_SEE_OTHER)
+
+    technician = None
+    if technician_id is not None:
+        technician = db.query(Technician).filter(Technician.id == technician_id).first()
+        if technician is None or not technician.is_active:
+            return RedirectResponse(f"{records_url}?error=technician", status_code=status.HTTP_303_SEE_OTHER)
+
     meter = None
     if meter_value:
         try:
@@ -416,9 +449,11 @@ def maintenance_record_update(
     rec.plan_id = plan.id if plan is not None else None
     rec.maintenance_date = maintenance_date
     rec.meter_value = meter
-    rec.work_order = work_order.strip() or None
+    rec.work_order = work_order_clean or None
     rec.workshop = workshop.strip() or None
+    rec.technician_id = technician.id if technician is not None else None
     rec.description = description.strip() or None
+    rec.note = note.strip() or None
     try:
         db.commit()
     except ValueError:
@@ -932,6 +967,13 @@ def api_execution_create(
         if linked is None:
             raise HTTPException(status_code=409, detail="العملية المختارة غير مرتبطة بالخطة المحددة.")
 
+    # Validate the technician reference when supplied.
+    technician = None
+    if payload.technician_id is not None:
+        technician = db.get(Technician, payload.technician_id)
+        if technician is None or not technician.is_active:
+            raise HTTPException(status_code=409, detail="الفني المحدد غير موجود أو غير نشط.")
+
     # The meter requirement follows the governing condition: a plan record uses
     # the plan's condition, a standalone record uses the operation's model condition.
     from app.modules.maintenance.services import operation_condition_for_model, meter_required_for_condition
@@ -958,9 +1000,11 @@ def api_execution_create(
         meter_value=payload.meter_value,
         work_order=payload.work_order,
         workshop=payload.workshop,
+        technician_id=technician.id if technician is not None else None,
         status=payload.status or "completed",
         is_scheduled=payload.is_scheduled,
         description=payload.description,
+        note=payload.note,
         created_by_id=current_user.id if current_user else None,
     )
     db.add(record)

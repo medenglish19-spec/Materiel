@@ -231,9 +231,11 @@ class MaintenanceRecordCreate(BaseModel):
     meter_value: Optional[Decimal] = None
     work_order: Optional[str] = None
     workshop: Optional[str] = None
+    technician_id: Optional[int] = None
     status: Optional[str] = None
     is_scheduled: bool = False
     description: Optional[str] = None
+    note: Optional[str] = None
 
     @field_validator("meter_value")
     @classmethod

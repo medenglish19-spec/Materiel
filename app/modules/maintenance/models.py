@@ -181,15 +181,27 @@ class MaintenanceRecord(Base):
     meter_value = Column(Numeric(10, 1), nullable=True)
     work_order = Column(String(80), nullable=True)
     workshop = Column(String(120), nullable=True)
+    # الفني المنفذ: مرجع إلى الفنيين الفعليين في الورشة الداخلية (`workshop_technicians`).
+    # عمود اختياري (SET NULL) حتى لا يمنع حذف فنيّ الاحتفاظ بالسجل التاريخي.
+    technician_id = Column(
+        Integer,
+        ForeignKey("workshop_technicians.id", name="fk_maintenance_records_technician_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     status = Column(String(30), nullable=False, default="completed")
     is_scheduled = Column(Boolean, nullable=False, default=False, server_default="0")
+    # الأعمال المنجزة: وصف العمل الفعلي الذي نُفّذ، منفصل عن الملاحظة.
     description = Column(Text, nullable=True)
+    # الملاحظة: ملاحظات إضافية مستقلة عن الأعمال المنجزة.
+    note = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
     operation = relationship("MaintenanceOperation", back_populates="records", foreign_keys=[operation_id])
     plan = relationship("MaintenancePlan", back_populates="records")
+    technician = relationship("Technician", foreign_keys=[technician_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
 
 

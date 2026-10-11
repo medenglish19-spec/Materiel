@@ -104,8 +104,9 @@
 - **المسؤولية:** توثيق حدث تنفيذ فعلي لعملية على عتاد.
 - **الحقول:** `id`, `equipment_id` (`ondelete="CASCADE"`), `operation_id`
   (`ondelete="RESTRICT"`, nullable تاريخيًا), `plan_id` (`ondelete="SET NULL"`, اختياري),
-  `maintenance_date`, `reported_date`, `meter_value`, `work_order`, `workshop`, `status`,
-  `is_scheduled`, `description`, `created_at`, `created_by_id`.
+  `maintenance_date`, `reported_date`, `meter_value`, `work_order`, `workshop`,
+  `technician_id` (`ondelete="SET NULL"`, مرجع اختياري إلى `workshop_technicians`), `status`,
+  `is_scheduled`, `description` (الأعمال المنجزة), `note` (الملاحظة), `created_at`, `created_by_id`.
 - **قيود:** فهرس فريد `(equipment_id, operation_id, maintenance_date)`، و`meter_value >= 0`.
 - **`is_scheduled`:** سجل مجدول لا يُحتسب تنفيذًا فعليًا في `latest_records`.
 - **حساب الاستحقاق** يستخدم طراز العتاد الفعلي وشرط العملية على ذلك الطراز.
@@ -365,6 +366,7 @@
 
 - **قيود FK الحالية:** `MaintenanceRecord.operation_id` = `ondelete="RESTRICT"`؛
   `MaintenanceRecord.plan_id` = `ondelete="SET NULL"`؛ `equipment_id` = `CASCADE`؛
+  `technician_id` = `SET NULL` (حذف الفني لا يحذف السجل)؛
   `MaintenanceOperation.group_id` = `SET NULL`؛ علاقة الطراز = `CASCADE` على الطرفين.
 - **إزالة رابط عملية/خطة** (`MaintenancePlanOperation`) لا تحذف السجل ولا العملية
   (مُثبت في `tests/test_maintenance_plan_execution_runtime.py`).
