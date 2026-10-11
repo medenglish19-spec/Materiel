@@ -5,6 +5,7 @@ from app.modules.maintenance.router import router
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_TEMPLATE = ROOT / "app/modules/maintenance/templates/maintenance_plans.html"
+RULES_TEMPLATE = ROOT / "app/modules/maintenance/templates/maintenance_rules_model_only.html"
 ROUTER_SOURCE = ROOT / "app/modules/maintenance/router.py"
 
 
@@ -48,3 +49,32 @@ def test_plan_operation_add_rejects_inactive_operation():
     source = ROUTER_SOURCE.read_text(encoding="utf-8")
     assert 'if not operation.is_active:' in source
     assert 'لا يمكن إضافة عملية صيانة غير مفعلة إلى الخطة' in source
+
+
+def test_plan_operations_are_added_only_from_the_operation_library():
+    """الإضافة الوحيدة لعمليات الخطة هي زر «📚 إضافة من مكتبة العمليات».
+
+    يجب أن يبقى زر المكتبة هو مسار الإضافة الوحيد، وأن يختفي الزر المكرر
+    «＋ إضافة العملية للخطة» مع عنصر الإضافة المضمَّن التابع له (operationSelect).
+    """
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+    # مسار الإضافة الوحيد: زر المكتبة وموصّله الفعلي.
+    assert "📚 إضافة من مكتبة العمليات" in html
+    assert 'id="openOperationLibrary"' in html
+    assert "$('openOperationLibrary').onclick" in html
+    assert "/maintenance/rules?plan_id=" in html
+    # لا يوجد زر إضافة مكرر ولا عنصر الإضافة المضمَّن التابع له.
+    assert "＋ إضافة العملية للخطة" not in html
+    assert 'id="addOperation"' not in html
+    assert 'id="operationSelect"' not in html
+
+
+def test_operation_library_plan_mode_keeps_the_full_add_workflow():
+    """مكتبة العمليات في وضع الخطة تحفظ الإضافة فعليًا عبر واجهة الخطة."""
+    rules = RULES_TEMPLATE.read_text(encoding="utf-8")
+    # تقرأ plan_id من العنوان وتُظهر شريط وضع الخطة.
+    assert 'params.get("plan_id")' in rules
+    assert "planModeBar" in rules
+    # وتحفظ العمليات المختارة/المحذوفة على الخطة عبر نقاط النهاية الفعلية.
+    assert 'api+"/plans/"+state.planId+"/operations"' in rules
+    assert 'api+"/plans/"+state.planId+"/operations/"+operationId' in rules
