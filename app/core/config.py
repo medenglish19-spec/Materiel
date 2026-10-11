@@ -38,12 +38,20 @@ class Settings:
 
     # لا نستخدم Uvicorn reload تلقائيًا؛ إعادة تشغيل التطبيق تلقائيًا أثناء
     # startup كانت تجعل init_db/Alembic يعمل أكثر من مرة داخل Codespaces.
+    # عند تفعيله، يراقب المجلدات المحددة في UVICORN_RELOAD_DIRS.
     UVICORN_RELOAD: bool = os.getenv("UVICORN_RELOAD", "false").lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
+
+    # مجلدات تراقبها Uvicorn عند تفعيل reload. الافتراضي يغطي كود Python،
+    # القوالب، والملفات الثابتة. يمكن تجاوزها بمتغير بيئي مفصولة بفواصل.
+    UVICORN_RELOAD_DIRS: list[str] = [
+        d.strip() for d in os.getenv("UVICORN_RELOAD_DIRS", "app,web,static").split(",")
+        if d.strip()
+    ]
 
 
 @lru_cache

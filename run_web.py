@@ -14,9 +14,12 @@ from app.core.config import settings
 
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "web.main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.UVICORN_RELOAD,
-    )
+    kwargs = {
+        "app": "web.main:app",
+        "host": settings.HOST,
+        "port": settings.PORT,
+        "reload": settings.UVICORN_RELOAD,
+    }
+    if settings.UVICORN_RELOAD:
+        kwargs["reload_dirs"] = settings.UVICORN_RELOAD_DIRS
+    uvicorn.run(**kwargs)
