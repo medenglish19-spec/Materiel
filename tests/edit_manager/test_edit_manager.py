@@ -41,10 +41,14 @@ def browser_page():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path in ("/static/js/edit-manager.js", "/static/js/mt-tables.js"):
-                p=STATIC/"js"/Path(self.path).name;data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/javascript");self.end_headers();self.wfile.write(data);return
-            if self.path == "/static/css/mt-tables.css":
-                p=STATIC/"css"/"mt-tables.css";data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/css");self.end_headers();self.wfile.write(data);return
+            if self.path.startswith("/static/"):
+                relative=Path(self.path.removeprefix("/static/"))
+                p=(STATIC/relative).resolve()
+                if STATIC.resolve() not in p.parents or not p.is_file():
+                    self.send_error(404);return
+                data=p.read_bytes()
+                content_type="text/javascript" if p.suffix==".js" else "text/css" if p.suffix==".css" else "application/octet-stream"
+                self.send_response(200);self.send_header("Content-Type",content_type);self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.end_headers();self.wfile.write(html.encode())
         def do_POST(self):
             self.send_response(200);self.send_header("Content-Type","application/json");self.end_headers();self.wfile.write(b'{"ok":true}')
