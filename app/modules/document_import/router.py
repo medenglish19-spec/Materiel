@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -16,6 +17,7 @@ from app.modules.users.models import User
 from .schemas import ImportPreviewResponse, ImportApplyRequest
 from .services import preview_from_document, apply_candidates
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 templates = get_module_templates("app/modules/document_import/templates")
 
@@ -102,7 +104,10 @@ async def apply(
             data = await request.json()
         except Exception:
             raise HTTPException(status_code=422, detail="JSON غير صالح")
-        req = ImportApplyRequest(**data)
+        try:
+            req = ImportApplyRequest(**data)
+        except ValueError as exc:  # pydantic ValidationError يرث ValueError
+            raise HTTPException(status_code=422, detail=f"بيانات غير صالحة: {exc}")
     else:
         form = await request.form()
         model_id_str = form.get("model_id")
@@ -144,6 +149,14 @@ async def apply(
             val_norm = val or None
             unit_norm = unit or None
             edited = (val_norm != val_orig_norm) or (unit_norm != unit_orig_norm)
+            try:
+                page_val = int(f("page")) if f("page") not in (None, "", "None") else None
+            except Exception:
+                page_val = None
+            try:
+                conf_val = float(f("confidence")) if f("confidence") not in (None, "", "None") else 0.0
+            except Exception:
+                conf_val = 0.0
             candidates_list.append({
                 "definition_id": definition_id,
                 "name_found": nmv or None,
@@ -156,15 +169,18 @@ async def apply(
                 "value_edited": val_norm if edited else None,
                 "unit_edited": unit_norm if edited else None,
                 "source_ref": f("source_ref") or None,
-                "page": None,
+                "page": page_val,
                 "sheet": f("sheet") or None,
                 "cell": f("cell") or None,
-                "confidence": 0.0,
+                "confidence": conf_val,
             })
             idx += 1
             if idx > 5000:
                 break
-        req = ImportApplyRequest(model_id=model_id, candidates=candidates_list)
+        try:
+            req = ImportApplyRequest(model_id=model_id, candidates=candidates_list)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"بيانات غير صالحة: {exc}")
     try:
         res = apply_candidates(model_id=req.model_id, candidates=req.candidates, db=db, user_id=current_user.id if current_user else None)
     except HTTPException:
@@ -175,8 +191,9 @@ async def apply(
         raise HTTPException(status_code=422, detail=str(exc))
     except Exception:
         # خطأ غير متوقع أثناء التطبيق: التراجع الكامل وإرجاع خطأ بدل استثناء غير مُعالَج
+        log.exception("document import apply failed")
         db.rollback()
-        raise HTTPException(status_code=500, detail="تعذر تطبيق نتائج الاستيراد")
+        raise HTTPException(status_code=500, detail="تعذر التطبيق، لم يُحفظ أي شيء")
 
     if is_json:
         return res
