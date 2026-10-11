@@ -56,7 +56,6 @@
   <th class="mt-actions-th" aria-label="إجراءات"></th>
   <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th class="filter-head" data-filter-col="models">الطرازات <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>
   <th>الوحدة</th>
   <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
@@ -84,6 +83,14 @@
         <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input type="checkbox" id="operationActive" checked> مفعلة</label>
       </div>
 
+      <div class="toolbar" style="flex-wrap:wrap;gap:10px;margin-top:10px">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:600">
+          <span>إنذار العملية (موحد لكل الطرازات):</span>
+          <input class="m-input" id="operationWarningKm" type="number" min="0" step="0.1" placeholder="إنذار قبل كم" style="width:160px">
+          <input class="m-input" id="operationWarningDays" type="number" min="0" step="1" placeholder="إنذار قبل أيام" style="width:160px">
+        </label>
+      </div>
+
       <div style="margin-top:16px">
         <div class="toolbar" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
           <strong>شروط الاستحقاق بحسب الطراز</strong>
@@ -99,8 +106,6 @@
               <th>الفاصل بالكيلومترات</th>
               <th>الفاصل بساعات التشغيل</th>
               <th>الفاصل بالأيام</th>
-              <th>إنذار قبل كم</th>
-              <th>إنذار قبل أيام</th>
               <th>حالة الشرط</th>
               <th class="mt-actions-th" aria-label="إزالة"></th>
             </tr></thead>
@@ -451,16 +456,12 @@
     const km=value(data.interval_km);
     const hours=value(data.interval_hours);
     const days=value(data.interval_days);
-    const wkm=value(data.warning_km);
-    const wdays=value(data.warning_days);
     return `<tr class="editor-model-row" data-condition-source="${data.condition_source||'model'}">
       <td><select class="m-select model-id">${modelOptions(data.model_id)}</select>
         <div class="model-flag ${defined?'set':'unset'}">${defined?'شرط محدد لهذا الطراز':'لم يُحفظ شرط لهذا الطراز بعد'}</div></td>
       <td><input class="m-input model-km" type="number" min="0.01" step="any" placeholder="كل كم" value="${value(km)}"></td>
       <td><input class="m-input model-hours" type="number" min="0.01" step="any" placeholder="كل ساعة تشغيل" value="${value(hours)}"></td>
       <td><input class="m-input model-days" type="number" min="1" step="1" placeholder="كل كم يوم" value="${value(days)}"></td>
-      <td><input class="m-input model-wkm" type="number" min="0" step="0.1" placeholder="إنذار قبل كم" value="${value(wkm)}"></td>
-      <td><input class="m-input model-wdays" type="number" min="0" step="1" placeholder="إنذار قبل أيام" value="${value(wdays)}"></td>
       <td class="model-state muted">${defined?'محدد':'غير محدد'}</td>
       <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-remove-model aria-label="إزالة الطراز">✕</button></td>
     </tr>`;
@@ -508,6 +509,9 @@
   function resetEditor(){
     $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
     $('operationDescription').value=''; $('operationActive').checked=true;
+    // Clear operation-level warning fields
+    $('operationWarningKm').value = '';
+    $('operationWarningDays').value = '';
     // عملية جديدة تبدأ بلا أي طراز: الحفظ لا يشترط ربطًا ولا شرطًا.
     $('editorModelsBody').innerHTML='';
     $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
@@ -517,6 +521,9 @@
     const op=state.operations.find(x=>x.id===id); if(!op)return;
     $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
     $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
+    // Load operation-level warning fields (unified across all models)
+    $('operationWarningKm').value = op.warning_km ?? '';
+    $('operationWarningDays').value = op.warning_days ?? '';
     const body=$('editorModelsBody'); body.innerHTML='';
     (op.model_conditions||[]).forEach(row=>body.insertAdjacentHTML('beforeend',modelRowHtml(row)));
     refreshEditorModelCount(); syncModelSelects();
@@ -556,8 +563,7 @@
         interval_km:defined?row.interval_km:null,
         interval_hours:defined?row.interval_hours:null,
         interval_days:defined?row.interval_days:null,
-        warning_km:defined?row.warning_km:null,
-        warning_days:defined?row.warning_days:null
+        // Warning is unified at operation level, not per-model
       };
     });
     return {
@@ -565,6 +571,8 @@
       group_id:op.group_id??null,
       description:op.description??null,
       is_active:op.is_active,
+      warning_km: Number($('operationWarningKm').value) || null,
+      warning_days: Number($('operationWarningDays').value) || null,
       equipment_model_conditions:conditions,
       ...(overrides||{})
     };

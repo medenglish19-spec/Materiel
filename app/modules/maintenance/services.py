@@ -649,9 +649,9 @@ def operations_payload(db: Session, operations: list) -> list:
         
         # Build condition summary, then override warning with operation-level warning if applicable
         condition_summary = summarize_operation_conditions(details)
-        # If operation has a warning and there are linked models, use operation warning
-        # (warnings are unified at operation level, not per-model)
-        if (warning_km is not None or warning_days is not None) and details:
+        # If operation has a warning, use operation warning (warnings are unified at operation level)
+        # This applies even when there are no linked models
+        if warning_km is not None or warning_days is not None:
             op_warning = warning_setting_text(operation, None)  # None condition -> returns operation warning
             condition_summary["warning"] = op_warning
             condition_summary["warning_state"] = "shared"
