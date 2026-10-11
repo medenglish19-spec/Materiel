@@ -1,0 +1,9 @@
+toolbar-card">
+    <div class="toolbar">
+      <div class="search-wrap"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
+      <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
+      <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
+      <button class="m-btn" type="button" id="editGroupBtn" disabled>✏️ تعديل المجموعة</button>
+      <button class="m-btn" type="button" id="deleteGroupBtn" disabled>🗑 حذف المجموعة</button>
+      <select id="statusFilter" class="m-select"><option value="">كل الحالات</option><option value="active">مفعلة</option><option value="inactive">متوقفة</option></select>
+      <button class="m-btn" type="button" id="refreshLibrary">

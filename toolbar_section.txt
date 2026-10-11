@@ -1,0 +1,10 @@
+toolbar-card">
+ Updated upstream
+    <div class="toolbar" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div class="search-wrap" style="flex:1 1 280px;min-width:240px"><span class="search-icon">⌕</span><input id="operationSearch" class="m-input" placeholder="بحث في عمليات الصيانة..."></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <select id="groupFilter" class="m-select"><option value="">كل المجموعات</option></select>
+        <button class="m-btn" type="button" id="newGroupBtn">＋ &nbsp;مجموعة</button>
+        <button class="m-btn" type="button" id="editGroupBtn" disabled>✏️ تعديل المجموعة</button>
+        <button class="m-btn" type="button" id="deleteGroupBtn" disabled>🗑 حذف المجموعة</button>
+        <select id="status

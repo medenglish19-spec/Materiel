@@ -1,0 +1,26 @@
+  backup-before-ui-test-2026-10-08                                            [m 633319e5 ci: run Playwright UI tests in GitHub Actions
+  feat/spare-parts-ui-search-actions-confirmation-v2-2026-10-07               [m 9f0f5190 [[34morigin/feat/spare-parts-ui-search-actions-confirmation-v2-2026-10-07[m] revert(equipment-types): remove document import button completely
+  fix/maintenance-plan-approval-gating                                        [m a443e2f3 [[34morigin/fix/maintenance-plan-approval-gating[m] test(maintenance): update remaining notification mocks
+* [32mfix/search-enter-navigation-current-2026-10-09                              [m 082943c1 [[34morigin/fix/search-enter-navigation-current-2026-10-09[m] test(ui): prevent page-wide Enter navigation scope
+  main                                                                        [m af639a66 [[34morigin/main[m] Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+  rescue/current-before-recovery-20261009-085954                              [m 331c43ce test(ui): cover shared search and Enter navigation
+  rescue/master-data-merge                                                    [m 9904bc56 merge: resolve master data workspace conflict
+  rescue/receipt-undo                                                         [m 904f14a9 feat(spare-parts): a mistaken receipt can be undone
+  rescue/received-columns                                                     [m 04f9a0b4 fix: align the received register columns with their headers
+  rescue/spare-parts-before-sync                                              [m 15d614a4 On (no branch): wip spare parts movements before sync
+  rescue/spare-parts-returns-2026-10-05                                       [m 0cd0194c fix(spare-parts): track received quantities for returns
+  rescue/stage3-before-sync                                                   [m 59b0ba2c untracked files on stage3-maintenance-operations: 0cd0194 fix(spare-parts): track received quantities for returns
+  stage2-maintenance-structure                                                [m c1a21935 [[34morigin/stage2-maintenance-structure[m] Fix reversible downgrade for e4f7a1c2b9d0
+  stage3-maintenance-operations                                               [m 5e6b4e92 [[34morigin/stage3-maintenance-operations[m: behind 24] refactor(master-data): remove institution classification tree
+  [31mremotes/origin/HEAD                                                         [m -> origin/main
+  [31mremotes/origin/audit-final-review                                           [m 4dc54fdc chore(tests): remove temporary Excel diagnostic
+  [31mremotes/origin/audit/materiel-final-review                                  [m 4dc54fdc chore(tests): remove temporary Excel diagnostic
+  [31mremotes/origin/backup-before-removing-model-library-2026-09-25              [m f1629cfd Show only selected technical properties in model editor
+  [31mremotes/origin/backup-before-technical-properties-library-2026-09-25        [m 40e203ee test: allow model deletion with tire reference settings
+  [31mremotes/origin/backup/before-search-delete-2026-10-07                       [m d0397eb8 test(spare-parts): fix exact received example setup
+  [31mremotes/origin/backup/responsive-ui-before-standard-20261003                [m a7575efb منع تسجيل استلام قبل تاريخ الطلب، وتاريخ استلام واحد لكل طلب
+  [31mremotes/origin/backup/stage3-before-search-delete-2026-10-07                [m d0397eb8 test(spare-parts): fix exact received example setup
+  [31mremotes/origin/feat/add-equipment-model-axle-count                          [m ac60142a test: cover model axle count validation
+  [31mremotes/origin/feat/document-import-offline-implementation-2026-10-09       [m a20525bb fix(document-import): restore readable Arabic modal labels
+  [31mremotes/origin/feat/equipment-model-custom-specs                            [m 3bc6a3bf fix custom specs router parsing duplicates
+  [31mremotes/ori

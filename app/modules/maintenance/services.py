@@ -574,6 +574,12 @@ def operations_payload(db: Session, operations: list) -> list:
     that no calculation uses, so they are not sent as a model condition nor as a
     reference the UI is expected to copy.
     """
+    def _to_float(value):
+        """Convert Decimal to float for JSON serialization."""
+        if isinstance(value, Decimal):
+            return float(value)
+        return value
+
     operations = list(operations)
     conditions = operation_conditions_by_model(db, [operation.id for operation in operations])
     payload = []
@@ -590,17 +596,21 @@ def operations_payload(db: Session, operations: list) -> list:
                     "model_name": model.name,
                     "is_defined": condition.is_defined,
                     "condition_source": condition.condition_source,
-                    "interval_km": condition.interval_km,
-                    "interval_hours": condition.interval_hours,
-                    "interval_days": condition.interval_days,
-                    "warning_km": condition.warning_km,
-                    "warning_days": condition.warning_days,
+                    "interval_km": _to_float(condition.interval_km),
+                    "interval_hours": _to_float(condition.interval_hours),
+                    "interval_days": _to_float(condition.interval_days),
+                    "warning_km": _to_float(condition.warning_km),
+                    "warning_days": _to_float(condition.warning_days),
                     "condition_text": condition_axis_text(condition),
                     "condition_units": condition_axis_units(condition),
                     "unit_text": condition_unit_text(condition),
                     "warning_text": warning_setting_text(condition),
                 }
             )
+        # Determine condition_source: "model_conditions" if any model has a stored condition (defined), else "none"
+        # An operation with only "unset" model conditions (no stored rows) should report "none"
+        has_stored_condition = any(d["condition_source"] != "unset" for d in details)
+        condition_source = "model_conditions" if has_stored_condition else "none"
         payload.append(
             {
                 "id": operation.id,
@@ -610,6 +620,7 @@ def operations_payload(db: Session, operations: list) -> list:
                 "is_active": bool(operation.is_active),
                 "model_conditions": details,
                 "condition_summary": summarize_operation_conditions(details),
+                "condition_source": condition_source,
             }
         )
     return payload
