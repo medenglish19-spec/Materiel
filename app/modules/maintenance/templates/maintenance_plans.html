@@ -159,15 +159,22 @@
   async function loadPlanOps(){
     const modelId=Number($('modelFilter').value);
     state.planOps={};
-    if(!modelId)return;
+    if(!modelId)return [];
     const plans=state.plans.filter(p=>Number(p.equipment_model_id)===modelId);
-    // فشل تحميل عمليات خطة واحدة لا يعطّل عرض بقية الخطط؛ يُسجَّل الخطأ الحقيقي بدل ابتلاعه.
-    const results=await Promise.allSettled(plans.map(p=>req(api+'/plans/'+p.id+'/operations')));
-    results.forEach((r,i)=>{
-      const id=plans[i].id;
-      if(r.status==='fulfilled')state.planOps[id]=r.value;
-      else{state.planOps[id]=[];console.error('تعذر تحميل عمليات الخطة '+id,r.reason)}
-    });
+    // فشل تحميل عمليات خطة واحدة لا يعطّل عرض بقية الخطط؛ يُسجَّل الخطأ الحقيقي بدل ابتلاعه،
+    // ويُعرض تنبيه مختصر بذلك مع الاستمرار في رسم بقية الخطط.
+    const results=await Promise.allSettled(plans.map(async p=>{
+      const links=await req(api+'/plans/'+p.id+'/operations');
+      state.planOps[p.id]=links;
+      return p.name;
+    }));
+    const failures=results.map((result,index)=>({result,plan:plans[index]})).filter(x=>x.result.status==='rejected');
+    failures.forEach(x=>{state.planOps[x.plan.id]=[];console.error('تعذر تحميل عمليات الخطة '+x.plan.id,x.result.reason)});
+    if(failures.length){
+      const details=failures.map(x=>x.plan.name+': '+(x.result.reason?.message||'تعذر تحميل العمليات')).join('؛ ');
+      alert('تعذر تحميل عمليات بعض الخطط، لكن سيستمر عرض الخطط الأخرى. '+details,true);
+    }
+    return failures;
   }
   function computeStandalone(){
     const modelId=Number($('modelFilter').value);
