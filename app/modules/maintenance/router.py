@@ -760,6 +760,14 @@ def api_plan_execution_create(
                 created_by_id=current_user.id if current_user else None,
             )
             db.add(record)
+            db.flush()
+            if payload.meter_value is not None:
+                meter_reading_services.record_event_reading(
+                    db, payload.equipment_id, payload.meter_value,
+                    datetime.combine(payload.reported_date or payload.maintenance_date, datetime.min.time()),
+                    source="maintenance",
+                    notes=f"قراءة واردة من تنفيذ الخطة لسجل الصيانة رقم {record.id}",
+                )
             records.append(record)
         db.commit()
         for record in records:
