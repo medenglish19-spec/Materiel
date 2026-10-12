@@ -209,9 +209,15 @@ def maintenance_record_create(
         created_by_id=current_user.id if current_user else None,
     )
     try:
-        if meter is not None:
-            meter_reading_services.record_event_reading(db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()), source="maintenance", notes=f"قراءة واردة من سجل الصيانة {operation.id}")
         db.add(rec)
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter,
+                datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance",
+                notes=f"قراءة واردة من سجل الصيانة رقم {rec.id}",
+            )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -610,13 +616,15 @@ def api_execution_create(
         created_by_id=current_user.id if current_user else None,
     )
     try:
+        db.add(record)
+        db.flush()
         if payload.meter_value is not None:
             meter_reading_services.record_event_reading(
                 db, payload.equipment_id, payload.meter_value,
                 datetime.combine(payload.reported_date or payload.maintenance_date, datetime.min.time()),
-                source="maintenance", notes="قراءة واردة من واجهة تنفيذ الصيانة",
+                source="maintenance",
+                notes=f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
             )
-        db.add(record)
         db.commit()
         db.refresh(record)
     except ValueError as exc:
