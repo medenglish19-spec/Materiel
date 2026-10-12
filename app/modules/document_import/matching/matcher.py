@@ -1,11 +1,12 @@
 from __future__ import annotations
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import difflib
 
 from ..schemas import Candidate
-from app.modules.equipment_types.models import EquipmentModelSpecDefinition
+from app.modules.equipment_types.models import EquipmentModel, EquipmentModelSpecDefinition
 
 _FUZZ_AVAILABLE = False
 try:
@@ -123,17 +124,31 @@ def _norm_key(s: str) -> str:
     return s
 
 
-def match_against_definitions(db: Session, candidates: List[Candidate]) -> List[Candidate]:
-    defs = (
-        db.query(EquipmentModelSpecDefinition)
-        .order_by(
-            EquipmentModelSpecDefinition.group_sort_order,
-            EquipmentModelSpecDefinition.group_name,
-            EquipmentModelSpecDefinition.sort_order,
-            EquipmentModelSpecDefinition.name,
-        )
-        .all()
+def match_against_definitions(db: Session, candidates: List[Candidate], model: Optional[EquipmentModel] = None) -> List[Candidate]:
+    query = db.query(EquipmentModelSpecDefinition).order_by(
+        EquipmentModelSpecDefinition.group_sort_order,
+        EquipmentModelSpecDefinition.group_name,
+        EquipmentModelSpecDefinition.sort_order,
+        EquipmentModelSpecDefinition.name,
     )
+    
+    if model:
+        m_type = getattr(model, 'equipment_type', None)
+        if m_type:
+            etype_id = getattr(m_type, 'id', None)
+            if etype_id is not None:
+                query = query.filter(
+                    or_(
+                        EquipmentModelSpecDefinition.equipment_type_id == etype_id,
+                        EquipmentModelSpecDefinition.equipment_type_id.is_(None)
+                    )
+                )
+            else:
+                query = query.filter(EquipmentModelSpecDefinition.equipment_type_id.is_(None))
+        else:
+            query = query.filter(EquipmentModelSpecDefinition.equipment_type_id.is_(None))
+    
+    defs = query.all()
 
     idx = []
     for d in defs:

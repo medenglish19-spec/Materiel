@@ -161,6 +161,7 @@ def create_app() -> FastAPI:
     app.include_router(tires_router, tags=["tires"])
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])
+    app.include_router(document_import_router, tags=["document_import"])
     app.include_router(missions_router, tags=["missions"])
 
     @app.get("/health")

@@ -18,7 +18,7 @@ from app.core.security import hash_password
 from app.modules.users.models import User
 from app.modules.equipment_types.models import (
     EquipmentCategory, EquipmentBrand, EquipmentType, EquipmentModel,
-    EquipmentModelSpecDefinition
+    EquipmentModelSpecDefinition, EquipmentModelSpecValue
 )
 from app.modules.document_import.services import preview_from_text
 
@@ -147,6 +147,55 @@ def _seed(db):
     }
 
 
+# ----------------------------------------------------------------------------
+# مساعدات مشتركة (الـ fixture على مستوى الوحدة: نستعمل أسماء فريدة وأعدادًا نسبية)
+# ----------------------------------------------------------------------------
+def cand(name, value, unit="", *, definition_id=None, is_new=False, approved=True,
+         edited=False, value_edited=None, unit_edited=None):
+    return {
+        "definition_id": definition_id, "name_found": name, "value": value,
+        "unit": unit or None, "is_new": is_new, "approved": approved, "ignored": False,
+        "edited": edited, "value_edited": value_edited, "unit_edited": unit_edited,
+    }
+
+
+def counts(S):
+    """(عدد التعريفات، عدد القيم)"""
+    db = S()
+    try:
+        return (db.query(EquipmentModelSpecDefinition).count(),
+                db.query(EquipmentModelSpecValue).count())
+    finally:
+        db.close()
+
+
+def make_type(S, name, cat_id):
+    db = S()
+    try:
+        t = EquipmentType(name=name, measurement_unit="كم", category_id=cat_id)
+        db.add(t); db.commit()
+        return t.id
+    finally:
+        db.close()
+
+
+def make_def(S, name, unit, type_id, data_type="text", options=None):
+    db = S()
+    try:
+        d = EquipmentModelSpecDefinition(
+            name=name, unit=unit, data_type=data_type, options=options,
+            sort_order=0, equipment_type_id=type_id,
+        )
+        db.add(d); db.commit()
+        return d.id
+    finally:
+        db.close()
+
+
+def apply_json(client, model_id, cands):
+    return client.post("/document-import/apply", json={"model_id": model_id, "candidates": cands})
+
+
 def test_document_import_workflow(client_and_model_data):
     """
     سيناريو كامل:
@@ -176,7 +225,7 @@ def test_document_import_workflow(client_and_model_data):
         cands = preview_from_text(model_id=ids["model_id"], text=text, mode="extract", requested=None, db=db)
     finally:
         db.close()
-    
+
     assert len(cands) >= 5
     c_power = next(c for c in cands if "\u0642\u0648\u0629" in (c.name_found or "") or "\u0642\u062f\u0631\u0629" in (c.name_found or ""))
     c_weight = next(c for c in cands if "\u0648\u0632\u0646" in (c.name_found or ""))
@@ -184,14 +233,14 @@ def test_document_import_workflow(client_and_model_data):
     c_fuel1 = next(c for c in cands if "\u0648\u0642\u0648\u062f" in (c.name_found or "") and "\u062f\u064a\u0632\u0644" in (c.value or ""))
     c_fuel2 = next(c for c in cands if "\u0648\u0642\u0648\u062f" in (c.name_found or "") and "\u0628\u0646\u0632\u064a\u0646" in (c.value or ""))
     c_length = next(c for c in cands if "\u0637\u0648\u0644" in (c.name_found or ""))
-    
+
     assert c_power.definition_id == ids["def1_id"]
     assert c_power.is_new == False
     assert c_weight.definition_id == ids["def2_id"]
     assert c_weight.is_new == False
     assert c_seats.is_new == True
     assert c_seats.definition_id is None
-    
+
     # 2. إرسال نموذج التطبيق (POST /document-import/apply)
     json_data = {
         "model_id": model_id,
@@ -288,96 +337,70 @@ def test_document_import_workflow(client_and_model_data):
             },
         ]
     }
-    
+
+    d0, _ = counts(TestingSession)
     # إرسال POST
     auth_client = client_and_model_data[0]
     response = auth_client.post("/document-import/apply", json=json_data)
     assert response.status_code == 200, f"Apply failed: {response.text}"
-    
+
     result = response.json()
     print("Apply result:", result)
-    
+
     assert "results" in result
     assert "summary" in result
     summary = result["summary"]
-    
+
     assert summary["applied"] == 3  # أ + ج + الثاني من و
     assert summary["created_definition"] == 2  # ب + الأول من و
     assert summary["not_approved"] == 1  # د
     assert summary["invalid_definition"] == 1  # هـ
-    
+
     # 3. استعلام قاعدة البيانات مباشرة للتحقق
-    from app.modules.equipment_types.models import EquipmentModelSpecValue, EquipmentModelSpecDefinition
-    from app.database.session import get_db
-    db = next(get_db())
-    
+    D, V = EquipmentModelSpecDefinition, EquipmentModelSpecValue
+    assert counts(TestingSession)[0] == d0 + 2  # تعريفان جديدان فقط: عدد المقاعد + نوع الوقود
+    after_first = counts(TestingSession)
+    db = TestingSession()
     try:
-        model_id = ids["model_id"]
-        def1_id = ids["def1_id"]
-        def2_id = ids["def2_id"]
-        
-        # أ: قدرة المحرك
-        val_power = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-        ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=ids["def1_id"]).first()
-        assert val_power is not None, "أ: قدرة المحرك لم تُربط"
-        assert val_power.value == "150", f"أ: القيمة خاطئة: {val_power.value}"
-        
-        # ج: الوزن الإجمالي معدّل إلى 6
-        val_weight = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-        ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=ids["def2_id"]).first()
-        assert val_weight is not None, "ج: الوزن الإجمالي لم يُربط"
-        assert val_weight.value == "6", f"ج: القيمة المعدلة خاطئة: {val_weight.value}"
-        
-        # ب: عدد المقاعد - تعريف جديد
-        def_seats = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition
-        ).filter(__import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition.name == "\u0639\u062f\u062f \u0627\u0644\u0645\u0642\u0627\u0639\u062f").first()
-        assert def_seats is not None, "ب: تعريف عدد المقاعد لم يُنشأ"
-        assert def_seats.equipment_type_id == ids["type_id"], f"ب: equipment_type_id غير صحيح: {def_seats.equipment_type_id}"
-        assert def_seats.category_id == ids["cat_id"], f"ب: category_id غير صحيح: {def_seats.category_id}"
-        val_seats = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-        ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=def_seats.id).first()
-        assert val_seats is not None, "ب: قيمة عدد المقاعد لم تُحفظ"
-        assert val_seats.value == "20", f"ب: القيمة خاطئة: {val_seats.value}"
-        
-        # و: نوع الوقود - تعريف واحد فقط
-        def_fuel = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition
-        ).filter(__import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition.name == "\u0646\u0648\u0639 \u0627\u0644\u0648\u0642\u0648\u062f").first()
-        assert def_fuel is not None, "و: تعريف نوع الوقود لم يُنشأ"
-        assert def_fuel.equipment_type_id == ids["type_id"], f"و: equipment_type_id غير صحيح: {def_fuel.equipment_type_id}"
-        assert def_fuel.category_id == ids["cat_id"], f"و: category_id غير صحيح: {def_fuel.category_id}"
-        # يجب أن يكون هناك صف واحد فقط في EquipmentModelSpecValue لهذا التعريف
-        fuel_values = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-        ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=def_fuel.id).all()
-        assert len(fuel_values) == 1, f"و: عدد القيم ل نوع الوقود = {len(fuel_values)} (متوقع 1)"
-        
-        # د: لم تُضاف
-        def_length = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition
-        ).filter(__import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition.name == "\u0637\u0648\u0644 \u0627\u0644\u0645\u0631\u0643\u0628\u0629").first()
-        if def_length:
-            val_length = db.query(
-                __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-            ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=def_length.id).first()
-            assert val_length is None, "د: طول المركبة تم إضافته رغم الرفض"
-        
-        print("All DB checks passed!")
+        def value_rows(def_id):
+            return db.query(V).filter_by(equipment_model_id=model_id, spec_definition_id=def_id).all()
+
+        # أ: قدرة المحرك مربوطة بالتعريف الموجود دون تعريف مكرر
+        rows = value_rows(def1_id)
+        assert len(rows) == 1 and rows[0].value == "150"
+        assert db.query(D).filter(D.code == "engine_power").count() == 1
+
+        # ج: الوزن الإجمالي بالقيمة المعدّلة لا الأصلية
+        rows = value_rows(def2_id)
+        assert len(rows) == 1 and rows[0].value == "6"
+
+        # ب: عدد المقاعد تعريف جديد واحد بنوع المعدة والفئة الصحيحين
+        def_seats = db.query(D).filter(D.name == "عدد المقاعد").one()
+        assert def_seats.equipment_type_id == ids["type_id"]
+        assert def_seats.category_id == ids["cat_id"]
+        rows = value_rows(def_seats.id)
+        assert len(rows) == 1 and rows[0].value == "20"
+
+        # و: نوع الوقود تعريف واحد وقيمة واحدة للاسمين المتطابقين بعد التطبيع
+        def_fuel = db.query(D).filter(D.name == "نوع الوقود").one()
+        assert def_fuel.equipment_type_id == ids["type_id"]
+        assert def_fuel.category_id == ids["cat_id"]
+        assert len(value_rows(def_fuel.id)) == 1
+
+        # د: المرفوض لا يُنشأ تعريفه أصلًا
+        assert db.query(D).filter(D.name == "طول المركبة").first() is None
     finally:
         db.close()
-    
-    # 4. إعادة الإرسال - لا يجب أن يتغير شيء
+
+    # 4. إعادة الإرسال: لا تعريفات ولا صفوف جديدة
     response2 = auth_client.post("/document-import/apply", json=json_data)
     assert response2.status_code == 200
-    result2 = response2.json()
-    assert result2["summary"]["created_definition"] == 0
-    assert result2["summary"]["applied"] >= 2
-    
-    print("Test passed!")
+    s2 = response2.json()["summary"]
+    assert counts(TestingSession) == after_first
+    assert s2["created_definition"] == 0
+    assert s2["applied"] == 5  # أ + ب + ج + الاسمان المتطابقان للوقود
+    assert s2["not_approved"] == 1
+    assert s2["invalid_definition"] == 1
 
 
 def test_unit_mismatch(client_and_model_data):
@@ -385,7 +408,7 @@ def test_unit_mismatch(client_and_model_data):
     auth_client, ids, TestingSession = client_and_model_data
     model_id = ids["model_id"]
     def2_id = ids["def2_id"]  # weight in kg
-    
+
     # First, ensure the weight value exists by applying it
     auth_client = client_and_model_data[0]
     setup_data = {
@@ -407,7 +430,7 @@ def test_unit_mismatch(client_and_model_data):
     }
     response = auth_client.post("/document-import/apply", json=setup_data)
     assert response.status_code == 200
-    
+
     # Now try to apply weight with different unit (t instead of kg)
     json_data = {
         "model_id": model_id,
@@ -426,108 +449,208 @@ def test_unit_mismatch(client_and_model_data):
             },
         ]
     }
-    
+
     response = auth_client.post("/document-import/apply", json=json_data)
     assert response.status_code == 200
     result = response.json()
-    
+
     # Should have unit_mismatch
     assert result["summary"]["unit_mismatch"] == 1
     assert result["results"][0]["status"] == "unit_mismatch"
-    
-    # Verify DB not changed
-    from app.modules.equipment_types.models import EquipmentModelSpecValue
-    from app.database.session import get_db
-    db = next(get_db())
+
+    assert result["summary"]["applied"] == 0
+    assert result["results"][0]["definition_id"] == def2_id
+
+    # القاعدة لم تتغير: القيمة الأصلية محفوظة
+    db = TestingSession()
     try:
-        val_weight = db.query(
-            __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-        ).filter_by(equipment_model_id=ids["model_id"], spec_definition_id=ids["def2_id"]).first()
-        assert val_weight is not None
-        assert val_weight.value == "5000"  # Original value unchanged
+        row = db.query(EquipmentModelSpecValue).filter_by(
+            equipment_model_id=model_id, spec_definition_id=def2_id).one()
+        assert row.value == "5000"
     finally:
         db.close()
 
 
-def test_rollback_on_error(client_and_model_data):
-    """Test that rollback works when an unexpected error occurs mid-batch."""
-    from app.modules.document_import import services
-    auth_client, ids, TestingSession = client_and_model_data
-    model_id = ids["model_id"]
-    
-    # Simulate an unexpected error during processing
-    call_count = {"count": 0}
-    original_find_or_create = services._find_or_create_definition
-    
-    def boom_find_or_create(*args, **kwargs):
-        if not hasattr(boom_find_or_create, "call_count"):
-            boom_find_or_create.call_count = 0
-        boom_find_or_create.call_count += 1
-        if boom_find_or_create.call_count == 2:
-            raise RuntimeError("Simulated unexpected error")
-        return original_find_or_create(*args, **kwargs)
-    
-    import app.modules.document_import.services as services_module
-    original = services_module._find_or_create_definition
-    
+def test_html_form_roundtrip(client_and_model_data):
+    """مسار المتصفح الحقيقي: POST بـ data= (نموذج HTML) بحقول candidates-N-*."""
+    auth_client, ids, S = client_and_model_data
+    def_id = make_def(S, "قدرة المحرك FORM", "kW", ids["type_id"], data_type="number")
+    form = {
+        "model_id": str(ids["model_id"]),
+        # 0: تعريف موجود، عدّل المستخدم القيمة من 150 إلى 999
+        "candidates-0-definition_id": str(def_id), "candidates-0-name_found": "قدرة المحرك FORM",
+        "candidates-0-value": "999", "candidates-0-unit": "kW", "candidates-0-is_new": "false",
+        "candidates-0-approved": "true",
+        "candidates-0-value_original": "150", "candidates-0-unit_original": "kW",
+        # 1: خاصية جديدة معتمدة
+        "candidates-1-definition_id": "", "candidates-1-name_found": "عدد المقاعد FORM",
+        "candidates-1-value": "20", "candidates-1-unit": "", "candidates-1-is_new": "true",
+        "candidates-1-approved": "true",
+        "candidates-1-value_original": "20", "candidates-1-unit_original": "",
+        # 2: غير معتمدة (خانة approved غائبة كما يفعل المتصفح)
+        "candidates-2-definition_id": "", "candidates-2-name_found": "مرفوضة FORM",
+        "candidates-2-value": "1", "candidates-2-unit": "", "candidates-2-is_new": "true",
+        "candidates-2-value_original": "1", "candidates-2-unit_original": "",
+    }
+    d0, _ = counts(S)
+    r = auth_client.post("/document-import/apply", data=form)
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "عدد المقاعد FORM" in r.text and "مرفوضة FORM" in r.text
+    assert "✓ تعريف جديد" in r.text and "✗ غير معتمد" in r.text
+
+    db = S()
     try:
-        services_module._find_or_create_definition = boom_find_or_create
-        
-        # Two new approved items - second one will trigger the error
-        json_data = {
-            "model_id": ids["model_id"],
-            "candidates": [
-                {
-                    "definition_id": None,
-                    "is_new": True,
-                    "name_found": "\u062e\u0627\u0635\u0629 \u062c\u062f\u064a\u062f \u0644\u0644\u062e\u062a\u0628\u0627\u0631",
-                    "value": "100",
-                    "unit": "kW",
-                    "approved": True,
-                    "ignored": False,
-                    "edited": False,
-                    "value_original": "100",
-                    "unit_original": "kW",
-                },
-                {
-                    "definition_id": None,
-                    "is_new": True,
-                    "name_found": "\u062e\u0627\u0635\u0629 \u062c\u062f\u064a\u062f \u062b\u0627\u0646\u064a\u0629",
-                    "value": "200",
-                    "unit": "kW",
-                    "approved": True,
-                    "ignored": False,
-                    "edited": False,
-                    "value_original": "200",
-                    "unit_original": "kW",
-                },
-            ]
-        }
-        
-        auth_client = client_and_model_data[0]
-        response = auth_client.post("/document-import/apply", json=json_data)
-        
-        # Should return 500 due to the exception
-        assert response.status_code >= 400
-        
-        # Verify rollback - no definitions or values should have been created
-        from app.modules.equipment_types.models import EquipmentModelSpecDefinition, EquipmentModelSpecValue
-        db = TestingSession()
-        try:
-            def_test = db.query(
-                __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition
-            ).filter(__import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecDefinition"]).EquipmentModelSpecDefinition.name == "\u062e\u0627\u0635\u0629 \u062c\u062f\u064a\u062f \u0644\u0644\u062e\u062a\u0628\u0627\u0631").first()
-            assert def_test is None, "Rollback failed: definition was created despite error"
-            
-            # Also verify no spec values were created
-            val_test = db.query(
-                __import__("app.modules.equipment_types.models", fromlist=["EquipmentModelSpecValue"]).EquipmentModelSpecValue
-            ).filter_by(equipment_model_id=ids["model_id"]).first()
-            assert val_test is None, "Rollback failed: spec value was created despite error"
-        finally:
-            db.close()
+        row = db.query(EquipmentModelSpecValue).filter_by(
+            equipment_model_id=ids["model_id"], spec_definition_id=def_id).one()
+        assert row.value == "999"  # القيمة المعدّلة لا الأصلية
+        seats = db.query(EquipmentModelSpecDefinition).filter_by(name="عدد المقاعد FORM").one()
+        assert seats.equipment_type_id == ids["type_id"] and seats.category_id == ids["cat_id"]
+        assert db.query(EquipmentModelSpecDefinition).filter_by(name="مرفوضة FORM").count() == 0
     finally:
-        services_module._find_or_create_definition = original
+        db.close()
+    assert counts(S)[0] == d0 + 1  # تعريف جديد واحد فقط
+
+
+def test_new_definition_is_listed_in_library(client_and_model_data):
+    """التعريف المنشأ يظهر في قائمة المكتبة بالمجموعة الافتراضية والنوع والفئة."""
+    from app.modules.equipment_types.services import list_spec_definitions
+    auth_client, ids, S = client_and_model_data
+    r = apply_json(auth_client, ids["model_id"], [cand("خاصية مكتبة LIB", "3", "kg", is_new=True)])
+    assert r.json()["results"][0]["status"] == "created_definition"
+    db = S()
+    try:
+        found = [d for d in list_spec_definitions(db) if d.name == "خاصية مكتبة LIB"]
+        assert len(found) == 1
+        d = found[0]
+        assert d.group_name == "التعريف الفني"
+        assert d.equipment_type_id == ids["type_id"] and d.category_id == ids["cat_id"]
+        assert d.unit == "kg" and d.data_type == "text"
+    finally:
+        db.close()
+
+
+def test_out_of_scope_definition(client_and_model_data):
+    """تعريف تابع لنوع معدة آخر لا يُربط ولا يُنشأ بدله شيء (بالاسم وبالمعرف)."""
+    auth_client, ids, S = client_and_model_data
+    other_type = make_type(S, "نوع آخر OTHER", ids["cat_id"])
+    other_def = make_def(S, "خاصية نوع آخر OTHER", "kg", other_type)
+    before = counts(S)
+    res = apply_json(auth_client, ids["model_id"], [
+        cand("خاصية نوع آخر OTHER", "5", "kg", is_new=True),
+        cand("خاصية نوع آخر OTHER", "5", "kg", definition_id=other_def),
+    ]).json()
+    assert [x["status"] for x in res["results"]] == ["definition_out_of_scope"] * 2
+    assert res["summary"]["definition_out_of_scope"] == 2 and res["summary"]["applied"] == 0
+    assert counts(S) == before
+
+
+def test_batch_partial(client_and_model_data):
+    """العنصر غير الصالح لا يُلغي بقية الدفعة."""
+    auth_client, ids, S = client_and_model_data
+    ok_id = make_def(S, "صالحة BATCH", "kg", ids["type_id"])
+    res = apply_json(auth_client, ids["model_id"], [
+        cand("صالحة BATCH", "7", "kg", definition_id=ok_id),
+        cand("وهمية BATCH", "1", "kg", definition_id=99999),
+    ]).json()
+    assert [x["status"] for x in res["results"]] == ["applied", "invalid_definition"]
+    db = S()
+    try:
+        row = db.query(EquipmentModelSpecValue).filter_by(
+            equipment_model_id=ids["model_id"], spec_definition_id=ok_id).one()
+        assert row.value == "7"
+    finally:
+        db.close()
+
+
+def test_rollback_on_unexpected_error(client_and_model_data, monkeypatch):
+    """استثناء غير متوقع عند العنصر الثاني يلغي الدفعة كلها (لا تعريفات ولا قيم) ويُرجع 500."""
+    from app.modules.document_import import services
+    auth_client, ids, S = client_and_model_data
+    n = {"i": 0}
+    real = services.create_spec_definition
+
+    def boom(*a, **k):
+        n["i"] += 1
+        if n["i"] == 2:
+            raise RuntimeError("boom")
+        return real(*a, **k)
+
+    monkeypatch.setattr(services, "create_spec_definition", boom)
+    before = counts(S)
+    r = apply_json(auth_client, ids["model_id"], [
+        cand("جديدة ROLL 1", "1", is_new=True),
+        cand("جديدة ROLL 2", "2", is_new=True),
+    ])
+    assert r.status_code == 500
+    assert counts(S) == before
+    db = S()
+    try:
+        names = [d.name for d in db.query(EquipmentModelSpecDefinition).filter(
+            EquipmentModelSpecDefinition.name.in_(["جديدة ROLL 1", "جديدة ROLL 2"])).all()]
+        assert names == []
+    finally:
+        db.close()
+
+
+def test_definition_error_does_not_cancel_batch(client_and_model_data, monkeypatch):
+    """ValueError من create_spec_definition ← definition_error لذلك العنصر فقط."""
+    from app.modules.document_import import services
+    auth_client, ids, S = client_and_model_data
+    real = services.create_spec_definition
+
+    def maybe_fail(db, data, *a, **k):
+        if data.name == "خاصية فاشلة DEFERR":
+            raise ValueError("توجد خاصية بهذا الاسم مسبقًا")
+        return real(db, data, *a, **k)
+
+    monkeypatch.setattr(services, "create_spec_definition", maybe_fail)
+    res = apply_json(auth_client, ids["model_id"], [
+        cand("خاصية فاشلة DEFERR", "1", is_new=True),
+        cand("خاصية سليمة DEFERR", "2", is_new=True),
+    ]).json()
+    assert [x["status"] for x in res["results"]] == ["definition_error", "created_definition"]
+    assert res["results"][0]["reason"] == "توجد خاصية بهذا الاسم مسبقًا"
+
+
+def test_invalid_value_empty(client_and_model_data):
+    auth_client, ids, S = client_and_model_data
+    did = make_def(S, "فارغة EMPTY", "kg", ids["type_id"])
+    before = counts(S)
+    res = apply_json(auth_client, ids["model_id"], [cand("فارغة EMPTY", "  ", "kg", definition_id=did)]).json()
+    assert res["results"][0]["status"] == "invalid_value"
+    assert res["results"][0]["reason"] == "empty_value"
+    assert counts(S) == before
+
+
+def test_value_validation_by_data_type(client_and_model_data):
+    """نفس قواعد الإدخال اليدوي: رقم للنوع number، وإحدى الخيارات للنوع select."""
+    auth_client, ids, S = client_and_model_data
+    num_id = make_def(S, "عددية NUMV", "kg", ids["type_id"], data_type="number")
+    sel_id = make_def(S, "اختيارية SELV", None, ids["type_id"], data_type="select", options="أ,ب")
+    res = apply_json(auth_client, ids["model_id"], [
+        cand("عددية NUMV", "abc", "kg", definition_id=num_id),
+        cand("عددية NUMV", "12.5", "kg", definition_id=num_id),
+        cand("اختيارية SELV", "ج", definition_id=sel_id),
+        cand("اختيارية SELV", "أ", definition_id=sel_id),
+    ]).json()
+    assert [x["status"] for x in res["results"]] == ["invalid_value", "applied", "invalid_value", "applied"]
+    assert [x["reason"] for x in res["results"]][0::2] == ["not_a_number", "not_in_options"]
+
+
+def test_unit_cases(client_and_model_data):
+    auth_client, ids, S = client_and_model_data
+    a = make_def(S, "وحدة أ UNIT", "kg", ids["type_id"])
+    b = make_def(S, "وحدة ب UNIT", "kg", ids["type_id"])
+    c_ = make_def(S, "وحدة ج UNIT", "kg", ids["type_id"])
+    res = apply_json(auth_client, ids["model_id"], [
+        cand("وحدة أ UNIT", "1", " KG ", definition_id=a),   # يختلف بالحالة والمسافات فقط ← applied
+        cand("وحدة ب UNIT", "2", "", definition_id=b),        # وحدة فارغة ← applied
+        cand("وحدة ج UNIT", "3", "t", definition_id=c_),      # وحدة مختلفة ← unit_mismatch
+        cand("وحدة أ UNIT", "1", "t", is_new=True),           # is_new بتعريف موجود ووحدة مختلفة ← unit_mismatch
+    ]).json()
+    assert [x["status"] for x in res["results"]] == ["applied", "applied", "unit_mismatch", "unit_mismatch"]
+    assert res["summary"]["applied"] == 2 and res["summary"]["unit_mismatch"] == 2
 
 
 if __name__ == "__main__":

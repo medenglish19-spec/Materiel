@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -16,6 +17,7 @@ from app.modules.users.models import User
 from .schemas import ImportPreviewResponse, ImportApplyRequest
 from .services import preview_from_document, apply_candidates
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 templates = get_module_templates("app/modules/document_import/templates")
 
@@ -96,12 +98,16 @@ async def apply(
     current_user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER)),
 ):
     content_type = request.headers.get("content-type", "")
-    if "application/json" in content_type:
+    is_json = "application/json" in content_type
+    if is_json:
         try:
             data = await request.json()
         except Exception:
             raise HTTPException(status_code=422, detail="JSON غير صالح")
-        req = ImportApplyRequest(**data)
+        try:
+            req = ImportApplyRequest(**data)
+        except ValueError as exc:  # pydantic ValidationError يرث ValueError
+            raise HTTPException(status_code=422, detail=f"بيانات غير صالحة: {exc}")
     else:
         form = await request.form()
         model_id_str = form.get("model_id")
@@ -132,12 +138,25 @@ async def apply(
             except Exception:
                 definition_id = None
             is_new = (f("is_new") or "false").lower() == "true"
-            # edited detection using original values
-            val_orig = f("value_original") or ""
-            unit_orig = f("unit_original") or ""
-            val = valf or ""
-            unit = f("unit") or None
-            edited = (val != val_orig) or (unit != unit_orig)
+            # edited detection using original values - normalize empty strings to None for consistent comparison
+            val_orig = (f("value_original") or "").strip()
+            unit_orig = (f("unit_original") or "").strip()
+            val = (valf or "").strip()
+            unit = (f("unit") or "").strip()
+            # Treat empty string as None for comparison
+            val_orig_norm = val_orig or None
+            unit_orig_norm = unit_orig or None
+            val_norm = val or None
+            unit_norm = unit or None
+            edited = (val_norm != val_orig_norm) or (unit_norm != unit_orig_norm)
+            try:
+                page_val = int(f("page")) if f("page") not in (None, "", "None") else None
+            except Exception:
+                page_val = None
+            try:
+                conf_val = float(f("confidence")) if f("confidence") not in (None, "", "None") else 0.0
+            except Exception:
+                conf_val = 0.0
             candidates_list.append({
                 "definition_id": definition_id,
                 "name_found": nmv or None,
@@ -147,17 +166,48 @@ async def apply(
                 "approved": fb("approved"),
                 "ignored": fb("ignored"),
                 "edited": edited,
-                "value_edited": val if edited else None,
-                "unit_edited": unit if edited else None,
+                "value_edited": val_norm if edited else None,
+                "unit_edited": unit_norm if edited else None,
                 "source_ref": f("source_ref") or None,
-                "page": None,
+                "page": page_val,
                 "sheet": f("sheet") or None,
                 "cell": f("cell") or None,
-                "confidence": 0.0,
+                "confidence": conf_val,
             })
             idx += 1
             if idx > 5000:
                 break
-        req = ImportApplyRequest(model_id=model_id, candidates=candidates_list)
-    res = apply_candidates(model_id=req.model_id, candidates=req.candidates, db=db, user_id=current_user.id if current_user else None)
-    return res
+        try:
+            req = ImportApplyRequest(model_id=model_id, candidates=candidates_list)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"بيانات غير صالحة: {exc}")
+    try:
+        res = apply_candidates(model_id=req.model_id, candidates=req.candidates, db=db, user_id=current_user.id if current_user else None)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        # نموذج غير موجود أو بيانات غير صالحة
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        # خطأ غير متوقع أثناء التطبيق: التراجع الكامل وإرجاع خطأ بدل استثناء غير مُعالَج
+        log.exception("document import apply failed")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="تعذر التطبيق، لم يُحفظ أي شيء")
+
+    if is_json:
+        return res
+    else:
+        # Return HTML with results
+        model_id = req.model_id
+        return templates.TemplateResponse(
+            request=request,
+            name="upload.html",
+            context={
+                "request": request,
+                "model_id": model_id,
+                "user": current_user,
+                "results": res.get("results", []),
+                "summary": res.get("summary", {}),
+            },
+        )
