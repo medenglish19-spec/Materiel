@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "0009_one_active_repair_per_fault"
-down_revision = "0008_fault_repair_documents"
+down_revision = "d4a91c7e2f60"
 branch_labels = None
 depends_on = None
 
