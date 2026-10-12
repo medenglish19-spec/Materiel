@@ -153,7 +153,7 @@ def record_event_reading(db: Session, equipment_id: int, value, reading_date: da
     same-day values are rejected rather than creating ambiguous history.
     """
     source_value = (source or "").strip().lower()
-    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel"}:
+    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel", "battery", "tire"}:
         raise ValueError("مصدر قراءة العداد غير معتمد؛ لا يمكن تسجيل القراءة")
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment:
