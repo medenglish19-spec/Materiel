@@ -214,6 +214,61 @@ def record_event_reading(db: Session, equipment_id: int, value, reading_date: da
     return reading
 
 
+
+def remove_event_reading(
+    db: Session, equipment_id: int, source: str, notes: str
+) -> int:
+    """Remove one event's provenance without deleting another module's reading."""
+    source_value = (source or "").strip().lower()
+    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel", "battery", "tire"}:
+        raise ValueError("مصدر قراءة العداد غير معتمد")
+    marker = (notes or "").strip()
+    if not marker:
+        return 0
+    equipment = get_equipment_with_readings(db, equipment_id)
+    if equipment is None:
+        return 0
+    rows = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.notes.isnot(None),
+    ).all()
+    source_markers = (
+        ("fault", "سجل العطل"),
+        ("repair", "سجل الإصلاح"),
+        ("maintenance", "سجل الصيانة"),
+        ("maintenance", "تنفيذ الصيانة"),
+        ("fuel", "سجل التزويد بالوقود"),
+        ("battery", "حركة البطارية"),
+        ("tire", "حركة الإطار"),
+    )
+    removed = 0
+    for reading in rows:
+        pieces = [part.strip() for part in (reading.notes or "").split("؛") if part.strip()]
+        if marker not in pieces:
+            continue
+        pieces.remove(marker)
+        if reading.source == source_value:
+            replacement_source = None
+            for part in pieces:
+                for candidate, label in source_markers:
+                    if label in part:
+                        replacement_source = candidate
+                        break
+                if replacement_source:
+                    break
+            if replacement_source:
+                reading.source = replacement_source
+                reading.notes = "؛ ".join(pieces)[:300] or None
+            else:
+                db.delete(reading)
+        else:
+            reading.notes = "؛ ".join(pieces)[:300] or None
+        removed += 1
+    if removed:
+        db.flush()
+        _refresh_equipment_current(db, equipment, _unit(equipment))
+    return removed
+
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
     """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type."""
     clean_rows = list(rows)
