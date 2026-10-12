@@ -62,6 +62,11 @@ def _validate_reading_position(db: Session, equipment_id: int, reading_date: dat
         existing_value = _value(existing, unit)
         if existing_value is None: continue
         existing_value = Decimal(existing_value)
+        if existing.reading_date.date() == reading_date.date() and existing_value != value:
+            raise ValueError(
+                f"يوجد سجل عداد بتاريخ {reading_date:%d/%m/%Y} بقيمة مختلفة "
+                f"({existing_value:g})؛ لا يمكن حفظ قراءة متعارضة ({value:g}) في اليوم نفسه."
+            )
         if existing.reading_date < reading_date:
             if existing_value > value: raise ValueError(f"لا يمكن حفظ القراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
         if existing.reading_date > reading_date:
@@ -131,6 +136,7 @@ def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, re
     unit_code = _unit(equipment); value = odometer if unit_code == "km" else hours
     if value is None: raise ValueError("يجب إدخال قراءة العداد الخاصة بوحدة العتاد")
     value = _parse_decimal(value)
+    if not value.is_finite(): raise ValueError("قيمة العداد يجب أن تكون رقمًا صالحًا")
     if value < 0: raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
     date_value = reading_date or datetime.now(timezone.utc)
     if date_value.date() > datetime.now(timezone.utc).date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي. اختر تاريخ اليوم أو تاريخًا سابقًا.")
@@ -159,7 +165,11 @@ def record_event_reading(db: Session, equipment_id: int, value, reading_date: da
     if not equipment:
         raise ValueError("العتاد غير موجود")
     unit_code = _unit(equipment)
+    if unit_code not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير محددة أو غير صحيحة؛ يجب تحديد km أو hours")
     meter_value = _parse_decimal(value)
+    if not meter_value.is_finite():
+        raise ValueError("قيمة العداد يجب أن تكون رقمًا صالحًا")
     if meter_value < 0:
         raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
     if reading_date.date() > datetime.now(timezone.utc).date():
