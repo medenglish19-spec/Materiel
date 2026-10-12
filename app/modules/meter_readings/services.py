@@ -145,6 +145,53 @@ def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, re
     db.add(reading); db.flush()
     _refresh_equipment_current(db, equipment, unit_code)
     db.commit(); db.refresh(reading); return reading
+def record_event_reading(db: Session, equipment_id: int, value, reading_date: datetime, source: str, notes: str | None = None):
+    """Record a meter value supplied by another module in the canonical ledger.
+
+    The caller owns the transaction. Source must identify the originating module.
+    An identical reading already recorded for that date is reused; conflicting
+    same-day values are rejected rather than creating ambiguous history.
+    """
+    source_value = (source or "").strip().lower()
+    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel"}:
+        raise ValueError("مصدر قراءة العداد غير معتمد؛ لا يمكن تسجيل القراءة")
+    equipment = get_equipment_with_readings(db, equipment_id)
+    if not equipment:
+        raise ValueError("العتاد غير موجود")
+    unit_code = _unit(equipment)
+    meter_value = _parse_decimal(value)
+    if meter_value < 0:
+        raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
+    if reading_date.date() > datetime.now(timezone.utc).date():
+        raise ValueError("لا يمكن تسجيل قراءة بتاريخ مستقبلي")
+    existing_rows = list_readings(db, equipment_id)
+    for existing in existing_rows:
+        existing_value = _value(existing, unit_code)
+        if existing.reading_date.date() == reading_date.date() and existing_value is not None:
+            if Decimal(existing_value) == meter_value:
+                return existing
+            raise ValueError(
+                f"يوجد سجل عداد بتاريخ {reading_date:%d/%m/%Y} بقيمة مختلفة؛ "
+                "راجع القراءة المسجلة قبل حفظ قراءة من مصدر آخر."
+            )
+    _ensure_not_duplicate_reading(db, equipment_id, reading_date, meter_value, unit_code)
+    _validate_reading_position(db, equipment_id, reading_date, meter_value, unit_code)
+    captured_status = normalize_equipment_status(equipment.operational_status)
+    reading = MeterReading(
+        equipment_id=equipment_id,
+        reading_date=reading_date,
+        odometer=meter_value if unit_code == "km" else None,
+        hours=meter_value if unit_code == "hours" else None,
+        source=source_value,
+        equipment_status=captured_status,
+        notes=(notes or f"أُدخلت من وحدة {source_value}")[:300],
+    )
+    db.add(reading)
+    db.flush()
+    _refresh_equipment_current(db, equipment, unit_code)
+    return reading
+
+
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
     """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type."""
     clean_rows = list(rows)
