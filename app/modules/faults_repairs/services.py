@@ -284,6 +284,13 @@ def change_fault_status(db: Session, obj: Fault, new_status: str):
     allowed = FAULT_TRANSITIONS.get(obj.status, set())
     if new_status == obj.status: return obj
     if new_status not in allowed: raise ValueError(f"لا يمكن نقل حالة العطل من {obj.status} إلى {new_status}")
+    if new_status == "repaired":
+        active_repair = db.query(Repair.id).filter(
+            Repair.fault_id == obj.id,
+            Repair.status == "in_progress",
+        ).first()
+        if active_repair:
+            raise ValueError("يجب حفظ نتيجة سجل التصليح النشط قبل تغيير حالة العطل إلى تم الإصلاح")
     obj.status = new_status
     _sync_equipment_from_faults(db, obj.equipment_id)
     db.commit()
