@@ -190,12 +190,45 @@ def create_fault(db: Session, data: FaultCreate, user_id: Optional[int] = None):
 
 
 def update_fault(db: Session, obj: Fault, data: FaultUpdate):
-    for k, v in data.model_dump(exclude_unset=True).items(): setattr(obj, k, v)
-    if obj.reported_date > date.today(): raise ValueError("لا يمكن تسجيل عطل بتاريخ مستقبلي")
+    old_equipment_id = obj.equipment_id
+    old_meter_value = obj.meter_value
+    old_reported_date = obj.reported_date
+    updates = data.model_dump(exclude_unset=True)
+    for k, v in updates.items():
+        setattr(obj, k, v)
+    if obj.reported_date > date.today():
+        raise ValueError("لا يمكن تسجيل عطل بتاريخ مستقبلي")
     equipment = db.query(Equipment).filter(Equipment.id == obj.equipment_id).first()
+    if not equipment:
+        raise ValueError("العتاد غير موجود")
     _validate_meter_sequence(db, equipment, obj.meter_value, obj.reported_date)
-    _sync_equipment_from_faults(db, obj.equipment_id)
-    db.commit(); db.refresh(obj); return obj
+    try:
+        if old_meter_value is not None and (
+            old_equipment_id != obj.equipment_id
+            or old_meter_value != obj.meter_value
+            or old_reported_date != obj.reported_date
+        ):
+            meter_reading_services.remove_event_reading(
+                db, old_equipment_id, "fault",
+                f"قراءة واردة من سجل العطل رقم {obj.id}",
+            )
+        if obj.meter_value is not None and (
+            old_equipment_id != obj.equipment_id
+            or old_meter_value != obj.meter_value
+            or old_reported_date != obj.reported_date
+        ):
+            meter_reading_services.record_event_reading(
+                db, obj.equipment_id, obj.meter_value,
+                datetime.combine(obj.reported_date, time.min),
+                source="fault", notes=f"قراءة واردة من سجل العطل رقم {obj.id}",
+            )
+        _sync_equipment_from_faults(db, obj.equipment_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(obj)
+    return obj
 
 
 def change_fault_status(db: Session, obj: Fault, new_status: str):
