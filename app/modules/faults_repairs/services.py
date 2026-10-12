@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.meter_readings.models import MeterReading
+from app.modules.meter_readings import services as meter_reading_services
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
 from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
@@ -176,6 +177,12 @@ def create_fault(db: Session, data: FaultCreate, user_id: Optional[int] = None):
     obj = Fault(**data.model_dump(), status="open", created_by_id=user_id)
     db.add(obj)
     db.flush()
+    if obj.meter_value is not None:
+        meter_reading_services.record_event_reading(
+            db, obj.equipment_id, obj.meter_value,
+            datetime.combine(obj.reported_date, time.min),
+            source="fault", notes=f"قراءة واردة من سجل العطل رقم {obj.id}",
+        )
     _sync_equipment_from_faults(db, obj.equipment_id)
     db.commit()
     db.refresh(obj)
@@ -216,6 +223,12 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
     obj = Repair(**data.model_dump(), created_by_id=user_id)
     db.add(obj)
     db.flush()
+    if obj.meter_value is not None:
+        meter_reading_services.record_event_reading(
+            db, equipment.id, obj.meter_value,
+            datetime.combine(obj.repair_date, time.min),
+            source="repair", notes=f"قراءة واردة من سجل الإصلاح رقم {obj.id}",
+        )
     if obj.status == "in_progress":
         fault.status = "repairing"
     elif obj.status == "completed":
