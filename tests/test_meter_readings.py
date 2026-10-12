@@ -232,3 +232,105 @@ def test_excel_headers_are_detected_without_relying_on_column_order(db):
     reading = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).one()
     assert float(reading.odometer) == 900.0
     assert reading.equipment_status == "available"
+
+def test_event_reading_rejects_value_below_prior_canonical_reading(db):
+    equipment = seed_equipment(db, "564-25-16", "km")
+    services.create_reading(
+        db, equipment.id, odometer=20, reading_date=datetime(2026, 10, 2),
+        source="meter_readings",
+    )
+
+    with pytest.raises(ValueError, match="أقل من القراءة المسجلة"):
+        services.record_event_reading(
+            db, equipment.id, 10, datetime(2026, 10, 11),
+            source="fault", notes="قراءة من سجل عطل للاختبار",
+        )
+
+    readings = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).order_by(MeterReading.reading_date).all()
+    assert len(readings) == 1
+    assert float(readings[0].odometer) == 20
+    assert readings[0].source == "meter_readings"
+
+
+def test_manual_reading_rejects_conflicting_value_on_same_day(db):
+    equipment = seed_equipment(db, "SAME-DAY-CONFLICT", "km")
+    reading_date = datetime(2026, 10, 10)
+    services.create_reading(
+        db, equipment.id, odometer=100, reading_date=reading_date,
+        source="meter_readings",
+    )
+
+    with pytest.raises(ValueError, match="بقيمة مختلفة|قراءة متعارضة"):
+        services.create_reading(
+            db, equipment.id, odometer=110, reading_date=reading_date,
+            source="equipment",
+        )
+
+    readings = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).all()
+    assert len(readings) == 1
+    assert float(readings[0].odometer) == 100
+
+def test_event_reading_reuses_same_daily_value_and_preserves_source_trace(db):
+    equipment = seed_equipment(db, "SAME-TRACE", "km")
+    reading_date = datetime(2026, 10, 9)
+    reading = services.create_reading(
+        db, equipment.id, odometer=300, reading_date=reading_date,
+        source="meter_readings", notes="قراءة يدوية",
+    )
+
+    same = services.record_event_reading(
+        db, equipment.id, 300, reading_date, source="fault",
+        notes="قراءة واردة من سجل العطل رقم 41",
+    )
+
+    assert same.id == reading.id
+    assert same.source == "meter_readings"
+    assert "قراءة واردة من سجل العطل رقم 41" in (same.notes or "")
+    assert db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).count() == 1
+
+def test_remove_event_reading_preserves_shared_canonical_value(db):
+    equipment = seed_equipment(db, "REMOVE-SOURCE-TRACE", "km")
+    reading_date = datetime(2026, 10, 9)
+    reading = services.create_reading(
+        db, equipment.id, odometer=300, reading_date=reading_date,
+        source="meter_readings", notes="قراءة يدوية",
+    )
+    services.record_event_reading(
+        db, equipment.id, 300, reading_date, source="fault",
+        notes="قراءة واردة من سجل العطل رقم 41",
+    )
+
+    removed = services.remove_event_reading(
+        db, equipment.id, "fault", "قراءة واردة من سجل العطل رقم 41",
+    )
+
+    assert removed == 1
+    assert db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).count() == 1
+    db.refresh(reading)
+    assert reading.source == "meter_readings"
+    assert "سجل العطل رقم 41" not in (reading.notes or "")
+
+
+def test_remove_event_reading_deletes_only_unshared_event_row(db):
+    equipment = seed_equipment(db, "REMOVE-OWN-TRACE", "km")
+    reading = services.record_event_reading(
+        db, equipment.id, 420, datetime(2026, 10, 8), source="fault",
+        notes="قراءة واردة من سجل العطل رقم 77",
+    )
+
+    removed = services.remove_event_reading(
+        db, equipment.id, "fault", "قراءة واردة من سجل العطل رقم 77",
+    )
+
+    assert removed == 1
+    assert db.query(MeterReading).filter(
+        MeterReading.id == reading.id
+    ).count() == 0

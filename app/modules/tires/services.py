@@ -360,6 +360,14 @@ def add_movement(db: Session, tire_id: int, data: dict):
         data["removal_disposition"] = None
     movement = TireMovement(tire_id=tire_id, **data)
     db.add(movement)
+    db.flush()
+    if movement.equipment_id is not None and movement.meter_value is not None:
+        from app.modules.meter_readings import services as meter_reading_services
+        meter_reading_services.record_event_reading(
+            db, movement.equipment_id, movement.meter_value,
+            movement.movement_datetime, source="tire",
+            notes=f"قراءة واردة من حركة الإطار رقم {movement.id}",
+        )
     db.commit()
     db.refresh(movement)
     return movement

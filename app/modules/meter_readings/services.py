@@ -9,7 +9,9 @@ from app.modules.equipment_types.models import EquipmentType
 from app.modules.meter_readings.models import MeterReading
 
 def _unit(equipment: Equipment) -> str:
-    return equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
+    if equipment.equipment_type is None:
+        return ""
+    return str(equipment.equipment_type.measurement_unit or "").strip().lower()
 def _value(reading: MeterReading | None, unit: str):
     if reading is None: return None
     return reading.odometer if unit == "km" else reading.hours
@@ -62,6 +64,11 @@ def _validate_reading_position(db: Session, equipment_id: int, reading_date: dat
         existing_value = _value(existing, unit)
         if existing_value is None: continue
         existing_value = Decimal(existing_value)
+        if existing.reading_date.date() == reading_date.date() and existing_value != value:
+            raise ValueError(
+                f"يوجد سجل عداد بتاريخ {reading_date:%d/%m/%Y} بقيمة مختلفة "
+                f"({existing_value:g})؛ لا يمكن حفظ قراءة متعارضة ({value:g}) في اليوم نفسه."
+            )
         if existing.reading_date < reading_date:
             if existing_value > value: raise ValueError(f"لا يمكن حفظ القراءة بتاريخ {reading_date:%d/%m/%Y}: قيمتها ({value:g}) أقل من القراءة المسجلة بتاريخ {existing.reading_date:%d/%m/%Y} ({existing_value:g}). القيمة غير منطقية، راجع القراءة ولم يتم حفظها.")
         if existing.reading_date > reading_date:
@@ -125,22 +132,143 @@ def _ensure_not_duplicate_reading(db: Session, equipment_id: int, reading_date: 
         if existing_value is None: continue
         if existing.reading_date.date() == reading_date.date() and Decimal(existing_value) == value:
             raise ValueError(f"لا يمكن إضافة نفس قراءة العداد مرتين للعتاد في تاريخ {reading_date:%d/%m/%Y}: القيمة ({value:g}) موجودة مسبقًا. لم يتم حفظ قراءة مكررة.")
-def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, reading_date: datetime | None = None, notes: str | None = None, equipment_status: str | None = None) -> MeterReading:
+def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, reading_date: datetime | None = None, notes: str | None = None, equipment_status: str | None = None, source: str = "manual") -> MeterReading:
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment: raise ValueError("العتاد غير موجود")
-    unit_code = _unit(equipment); value = odometer if unit_code == "km" else hours
+    unit_code = _unit(equipment)
+    if unit_code not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير محددة أو غير صحيحة؛ يجب تحديد km أو hours")
+    value = odometer if unit_code == "km" else hours
     if value is None: raise ValueError("يجب إدخال قراءة العداد الخاصة بوحدة العتاد")
     value = _parse_decimal(value)
+    if not value.is_finite(): raise ValueError("قيمة العداد يجب أن تكون رقمًا صالحًا")
     if value < 0: raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
     date_value = reading_date or datetime.now(timezone.utc)
     if date_value.date() > datetime.now(timezone.utc).date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي. اختر تاريخ اليوم أو تاريخًا سابقًا.")
     _ensure_not_duplicate_reading(db, equipment_id, date_value, value, unit_code)
     _validate_reading_position(db, equipment_id, date_value, value, unit_code)
     captured_status = normalize_equipment_status(equipment_status) if equipment_status is not None else normalize_equipment_status(equipment.operational_status)
-    reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source="manual", equipment_status=captured_status, notes=(notes or "").strip()[:300] or None)
+    source_value = (source or "").strip().lower()
+    allowed_sources = {"manual", "equipment", "meter_readings", "import", "fault", "repair", "maintenance", "mission", "fuel"}
+    if source_value not in allowed_sources:
+        raise ValueError("مصدر قراءة العداد غير معتمد؛ حدد الوحدة التي أدخلت القراءة")
+    reading = MeterReading(equipment_id=equipment_id, reading_date=date_value, odometer=value if unit_code == "km" else None, hours=value if unit_code == "hours" else None, source=source_value, equipment_status=captured_status, notes=(notes or "").strip()[:300] or None)
     db.add(reading); db.flush()
     _refresh_equipment_current(db, equipment, unit_code)
     db.commit(); db.refresh(reading); return reading
+def record_event_reading(db: Session, equipment_id: int, value, reading_date: datetime, source: str, notes: str | None = None):
+    """Record a meter value supplied by another module in the canonical ledger.
+
+    The caller owns the transaction. Source must identify the originating module.
+    An identical reading already recorded for that date is reused; conflicting
+    same-day values are rejected rather than creating ambiguous history.
+    """
+    source_value = (source or "").strip().lower()
+    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel", "battery", "tire"}:
+        raise ValueError("مصدر قراءة العداد غير معتمد؛ لا يمكن تسجيل القراءة")
+    equipment = get_equipment_with_readings(db, equipment_id)
+    if not equipment:
+        raise ValueError("العتاد غير موجود")
+    unit_code = _unit(equipment)
+    if unit_code not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير محددة أو غير صحيحة؛ يجب تحديد km أو hours")
+    meter_value = _parse_decimal(value)
+    if not meter_value.is_finite():
+        raise ValueError("قيمة العداد يجب أن تكون رقمًا صالحًا")
+    if meter_value < 0:
+        raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
+    if reading_date.date() > datetime.now(timezone.utc).date():
+        raise ValueError("لا يمكن تسجيل قراءة بتاريخ مستقبلي")
+    existing_rows = list_readings(db, equipment_id)
+    for existing in existing_rows:
+        existing_value = _value(existing, unit_code)
+        if existing.reading_date.date() == reading_date.date() and existing_value is not None:
+            if Decimal(existing_value) == meter_value:
+                # Keep one canonical value per day while retaining every module
+                # that supplied the same value in the central audit note.
+                trace = (notes or f"أُدخلت أيضًا من وحدة {source_value}").strip()
+                if trace and trace not in (existing.notes or ""):
+                    existing.notes = ((existing.notes + "؛ ") if existing.notes else "") + trace
+                    existing.notes = existing.notes[:300]
+                    db.flush()
+                return existing
+            raise ValueError(
+                f"يوجد سجل عداد بتاريخ {reading_date:%d/%m/%Y} بقيمة مختلفة؛ "
+                "راجع القراءة المسجلة قبل حفظ قراءة من مصدر آخر."
+            )
+    _ensure_not_duplicate_reading(db, equipment_id, reading_date, meter_value, unit_code)
+    _validate_reading_position(db, equipment_id, reading_date, meter_value, unit_code)
+    captured_status = normalize_equipment_status(equipment.operational_status)
+    reading = MeterReading(
+        equipment_id=equipment_id,
+        reading_date=reading_date,
+        odometer=meter_value if unit_code == "km" else None,
+        hours=meter_value if unit_code == "hours" else None,
+        source=source_value,
+        equipment_status=captured_status,
+        notes=(notes or f"أُدخلت من وحدة {source_value}")[:300],
+    )
+    db.add(reading)
+    db.flush()
+    _refresh_equipment_current(db, equipment, unit_code)
+    return reading
+
+
+
+def remove_event_reading(
+    db: Session, equipment_id: int, source: str, notes: str
+) -> int:
+    """Remove one event's provenance without deleting another module's reading."""
+    source_value = (source or "").strip().lower()
+    if source_value not in {"fault", "repair", "maintenance", "mission", "fuel", "battery", "tire"}:
+        raise ValueError("مصدر قراءة العداد غير معتمد")
+    marker = (notes or "").strip()
+    if not marker:
+        return 0
+    equipment = get_equipment_with_readings(db, equipment_id)
+    if equipment is None:
+        return 0
+    rows = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.notes.isnot(None),
+    ).all()
+    source_markers = (
+        ("fault", "سجل العطل"),
+        ("repair", "سجل الإصلاح"),
+        ("maintenance", "سجل الصيانة"),
+        ("maintenance", "تنفيذ الصيانة"),
+        ("fuel", "سجل التزويد بالوقود"),
+        ("battery", "حركة البطارية"),
+        ("tire", "حركة الإطار"),
+    )
+    removed = 0
+    for reading in rows:
+        pieces = [part.strip() for part in (reading.notes or "").split("؛") if part.strip()]
+        if marker not in pieces:
+            continue
+        pieces.remove(marker)
+        if reading.source == source_value:
+            replacement_source = None
+            for part in pieces:
+                for candidate, label in source_markers:
+                    if label in part:
+                        replacement_source = candidate
+                        break
+                if replacement_source:
+                    break
+            if replacement_source:
+                reading.source = replacement_source
+                reading.notes = "؛ ".join(pieces)[:300] or None
+            else:
+                db.delete(reading)
+        else:
+            reading.notes = "؛ ".join(pieces)[:300] or None
+        removed += 1
+    if removed:
+        db.flush()
+        _refresh_equipment_current(db, equipment, _unit(equipment))
+    return removed
+
 def create_bulk_readings(db: Session, rows: Iterable[dict]):
     """Validate/import bulk rows. New imports use the equipment model; legacy callers may still send equipment_type."""
     clean_rows = list(rows)

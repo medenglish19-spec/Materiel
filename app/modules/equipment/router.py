@@ -198,7 +198,7 @@ def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:
     try: date_value=datetime.strptime(reading_date,"%Y-%m-%d"); odometer_value=Decimal(odometer) if odometer.strip() else None; hours_value=Decimal(hours) if hours.strip() else None
     except (ValueError,InvalidOperation): raise HTTPException(status_code=400,detail="تاريخ أو قيمة عداد غير صحيحة")
     if odometer_value is None and hours_value is None: raise HTTPException(status_code=400,detail="يجب إدخال قراءة الكيلومترات أو قراءة الساعات")
-    try: meter_services.create_reading(db,equipment_id=equipment_id,odometer=odometer_value,hours=hours_value,reading_date=date_value,notes=notes,equipment_status=equipment_status or None)
+    try: meter_services.create_reading(db,equipment_id=equipment_id,odometer=odometer_value,hours=hours_value,reading_date=date_value,notes=notes,equipment_status=equipment_status or None,source="equipment")
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
     return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
 @router.post("/equipment/{equipment_id}/meters/{reading_id}/update")

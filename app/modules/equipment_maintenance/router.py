@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
+from app.modules.meter_readings import services as meter_reading_services
 from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
 from app.modules.maintenance.services import chronology_error, effective_operations_for_equipment, measurement_unit
 from app.modules.users.models import User
@@ -96,7 +97,16 @@ def equipment_maintenance_create(equipment_id: int, operation_id: int = Form(...
         work_order=work_order.strip() or None, workshop=workshop.strip() or None,
         description=description.strip() or None, status="completed", created_by_id=current_user.id)
     try:
-        db.add(record); db.commit()
+        db.add(record)
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter,
+                datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance",
+                notes=f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+            )
+        db.commit()
     except ValueError as exc:
         db.rollback(); raise HTTPException(status_code=400, detail=str(exc))
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?saved=1", status_code=status.HTTP_303_SEE_OTHER)
@@ -112,10 +122,24 @@ def equipment_maintenance_update(equipment_id: int, record_id: int, operation_id
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
     operation = validate_operation(db, item, operation_id)
     meter = validate_meter_and_date(db, item, operation, maintenance_date, meter_value, exclude_id=record_id)
-    record.operation_id = operation.id; record.maintenance_date = maintenance_date; record.reported_date = maintenance_date
-    record.meter_value = meter; record.work_order = work_order.strip() or None
-    record.workshop = workshop.strip() or None; record.description = description.strip() or None
     try:
+        meter_reading_services.remove_event_reading(
+            db, record.equipment_id, "maintenance",
+            f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+        )
+        record.operation_id = operation.id
+        record.maintenance_date = maintenance_date
+        record.reported_date = maintenance_date
+        record.meter_value = meter
+        record.work_order = work_order.strip() or None
+        record.workshop = workshop.strip() or None
+        record.description = description.strip() or None
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance", notes=f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+            )
         db.commit()
     except ValueError as exc:
         db.rollback(); raise HTTPException(status_code=400, detail=str(exc))
@@ -126,5 +150,14 @@ def equipment_maintenance_delete(equipment_id: int, record_id: int, db: Session 
     record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id, MaintenanceRecord.equipment_id == equipment_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
-    db.delete(record); db.commit()
+    try:
+        meter_reading_services.remove_event_reading(
+            db, record.equipment_id, "maintenance",
+            f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+        )
+        db.delete(record)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)

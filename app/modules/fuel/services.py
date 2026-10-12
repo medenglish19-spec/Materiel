@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -46,6 +46,13 @@ def add_record(db: Session, data: dict):
         data["sequence_number"] = (db.query(func.max(FuelRecord.sequence_number)).filter(FuelRecord.equipment_id == data["equipment_id"]).scalar() or 0) + 1
     record = FuelRecord(**data)
     db.add(record)
+    db.flush()
+    from app.modules.meter_readings import services as meter_reading_services
+    meter_reading_services.record_event_reading(
+        db, record.equipment_id, record.meter_value,
+        datetime.combine(record.fueling_date, datetime.min.time()),
+        source="fuel", notes=f"قراءة واردة من سجل التزويد بالوقود رقم {record.id}",
+    )
     db.commit(); db.refresh(record)
     return record
 

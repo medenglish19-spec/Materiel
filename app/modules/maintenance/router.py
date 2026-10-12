@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
+from app.modules.meter_readings import services as meter_reading_services
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord)
 from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
@@ -207,8 +208,16 @@ def maintenance_record_create(
         status="completed",
         created_by_id=current_user.id if current_user else None,
     )
-    db.add(rec)
     try:
+        db.add(rec)
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter,
+                datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance",
+                notes=f"قراءة واردة من سجل الصيانة رقم {rec.id}",
+            )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -282,15 +291,26 @@ def maintenance_record_update(
     if chronology:
         return RedirectResponse(f"{records_url}?error=chronology", status_code=status.HTTP_303_SEE_OTHER)
 
-    rec.equipment_id = equipment_id
-    rec.operation_id = operation.id
-    rec.plan_id = plan.id if plan is not None else None
-    rec.maintenance_date = maintenance_date
-    rec.meter_value = meter
-    rec.work_order = work_order.strip() or None
-    rec.workshop = workshop.strip() or None
-    rec.description = description.strip() or None
     try:
+        old_equipment_id = rec.equipment_id
+        meter_reading_services.remove_event_reading(
+            db, old_equipment_id, "maintenance",
+            f"قراءة واردة من سجل الصيانة رقم {rec.id}",
+        )
+        rec.equipment_id = equipment_id
+        rec.operation_id = operation.id
+        rec.plan_id = plan.id if plan is not None else None
+        rec.maintenance_date = maintenance_date
+        rec.meter_value = meter
+        rec.work_order = work_order.strip() or None
+        rec.workshop = workshop.strip() or None
+        rec.description = description.strip() or None
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance", notes=f"قراءة واردة من سجل الصيانة رقم {rec.id}",
+            )
         db.commit()
     except ValueError:
         db.rollback()
@@ -302,7 +322,16 @@ def maintenance_record_update(
 def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
     if rec is None: return RedirectResponse("/maintenance/records?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    db.delete(rec); db.commit()
+    try:
+        meter_reading_services.remove_event_reading(
+            db, rec.equipment_id, "maintenance",
+            f"قراءة واردة من سجل الصيانة رقم {rec.id}",
+        )
+        db.delete(rec)
+        db.commit()
+    except ValueError:
+        db.rollback()
+        return RedirectResponse("/maintenance/records?error=validation", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -606,8 +635,16 @@ def api_execution_create(
         description=payload.description,
         created_by_id=current_user.id if current_user else None,
     )
-    db.add(record)
     try:
+        db.add(record)
+        db.flush()
+        if payload.meter_value is not None:
+            meter_reading_services.record_event_reading(
+                db, payload.equipment_id, payload.meter_value,
+                datetime.combine(payload.reported_date or payload.maintenance_date, datetime.min.time()),
+                source="maintenance",
+                notes=f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+            )
         db.commit()
         db.refresh(record)
     except ValueError as exc:
@@ -723,6 +760,14 @@ def api_plan_execution_create(
                 created_by_id=current_user.id if current_user else None,
             )
             db.add(record)
+            db.flush()
+            if payload.meter_value is not None:
+                meter_reading_services.record_event_reading(
+                    db, payload.equipment_id, payload.meter_value,
+                    datetime.combine(payload.reported_date or payload.maintenance_date, datetime.min.time()),
+                    source="maintenance",
+                    notes=f"قراءة واردة من سجل الصيانة رقم {record.id}",
+                )
             records.append(record)
         db.commit()
         for record in records:
