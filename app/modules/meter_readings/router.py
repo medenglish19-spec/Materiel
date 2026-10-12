@@ -84,7 +84,7 @@ def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form
     try:
         if not equipment: raise ValueError("العتاد غير موجود")
         date_value = _parse_date(reading_date); meter_value = _parse_decimal(value); unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
-        reading = services.create_reading(db, equipment_id=equipment_id, odometer=meter_value if unit == "km" else None, hours=meter_value if unit == "hours" else None, reading_date=date_value, notes=notes, equipment_status=equipment_status or "available")
+        reading = services.create_reading(db, equipment_id=equipment_id, odometer=meter_value if unit == "km" else None, hours=meter_value if unit == "hours" else None, reading_date=date_value, notes=notes, equipment_status=equipment_status or "available", source="meter_readings")
     except ValueError as exc:
         db.rollback(); raise HTTPException(status_code=400, detail=f"{context}. {exc}")
     except SQLAlchemyError:
