@@ -232,3 +232,44 @@ def test_excel_headers_are_detected_without_relying_on_column_order(db):
     reading = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).one()
     assert float(reading.odometer) == 900.0
     assert reading.equipment_status == "available"
+
+def test_event_reading_rejects_value_below_prior_canonical_reading(db):
+    equipment = seed_equipment(db, "564-25-16", "km")
+    services.create_reading(
+        db, equipment.id, odometer=20, reading_date=datetime(2026, 10, 2),
+        source="meter_readings",
+    )
+
+    with pytest.raises(ValueError, match="أقل من القراءة المسجلة"):
+        services.record_event_reading(
+            db, equipment.id, 10, datetime(2026, 10, 11),
+            source="fault", notes="قراءة من سجل عطل للاختبار",
+        )
+
+    readings = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).order_by(MeterReading.reading_date).all()
+    assert len(readings) == 1
+    assert float(readings[0].odometer) == 20
+    assert readings[0].source == "meter_readings"
+
+
+def test_manual_reading_rejects_conflicting_value_on_same_day(db):
+    equipment = seed_equipment(db, "SAME-DAY-CONFLICT", "km")
+    reading_date = datetime(2026, 10, 10)
+    services.create_reading(
+        db, equipment.id, odometer=100, reading_date=reading_date,
+        source="meter_readings",
+    )
+
+    with pytest.raises(ValueError, match="بقيمة مختلفة|قراءة متعارضة"):
+        services.create_reading(
+            db, equipment.id, odometer=110, reading_date=reading_date,
+            source="equipment",
+        )
+
+    readings = db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).all()
+    assert len(readings) == 1
+    assert float(readings[0].odometer) == 100
