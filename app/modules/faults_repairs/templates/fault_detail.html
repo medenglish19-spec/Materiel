@@ -20,22 +20,23 @@
 <div class="kv"><span>ملاحظة</span><b>{{ fault.note or '—' }}</b></div>
 </div></section>
 
-<section class="panel"><div class="ph">تسجيل إصلاح جديد</div><div class="body">
+<section class="panel"><div class="ph">{% if active_repair %}تحديث سجل التصليح النشط R-{{ active_repair.id }}{% else %}بدء سجل تصليح جديد{% endif %}</div><div class="body">
+{% if waiting_for_parts %}<div class="state" style="display:block;margin-bottom:12px;background:#fff7e6;color:#8a5a00">في انتظار الغيار — توجد كميات مطلوبة لم تُستلم بعد. لا تغيّر هذه الملاحظة حالة العطل أو طلب الغيار.</div>{% endif %}
 <form id="repairForm">
 <input type="hidden" name="fault_id" value="{{ fault.id }}">
 <div class="form-grid">
-<div class="field"><label>تاريخ الإصلاح *</label><input type="date" name="repair_date" required></div>
-<div class="field"><label>العداد</label><input type="number" min="0" step="0.1" name="meter_value"></div>
-<div class="field"><label>نوع الورشة *</label><select name="workshop_type" id="workshopType"><option value="internal">ورشة داخلية</option><option value="external">ورشة خارجية</option></select></div>
-<div class="field"><label>اسم الورشة</label><input name="workshop"></div>
-<div class="field"><label>حالة الإصلاح *</label><select name="status"><option value="in_progress">قيد الإصلاح</option><option value="completed">تم الإصلاح</option></select></div>
-<div class="field"><label>وثيقة التصليح</label><input name="repair_document" placeholder="رقم/مرجع الوثيقة"></div>
-<div class="field external-fields" id="externalDocument"><label>وثيقة إرسال العتاد للورشة الخارجية *</label><input name="external_dispatch_document"></div>
-<div class="field"><label>ساعات العمل</label><input type="number" min="0" step="0.1" name="labor_hours"></div>
-<div class="field full"><label>التشخيص</label><textarea name="diagnosis"></textarea></div>
-<div class="field full"><label>الإجراء المنفذ *</label><textarea name="action_taken" required></textarea></div>
-<div class="field full"><label>ملاحظات</label><textarea name="notes"></textarea></div>
-</div><button class="btn" type="submit">تسجيل الإصلاح</button><div id="repairMsg" class="msg"></div>
+<div class="field"><label>تاريخ الإصلاح *</label><input type="date" name="repair_date" value="{% if active_repair %}{{ active_repair.repair_date.isoformat() }}{% endif %}" required></div>
+<div class="field"><label>العداد</label><input type="number" min="0" step="0.1" name="meter_value" value="{% if active_repair and active_repair.meter_value is not none %}{{ active_repair.meter_value }}{% endif %}"></div>
+<div class="field"><label>نوع الورشة *</label><select name="workshop_type" id="workshopType"><option value="internal" {% if active_repair and active_repair.workshop_type == 'internal' %}selected{% endif %}>ورشة داخلية</option><option value="external" {% if active_repair and active_repair.workshop_type == 'external' %}selected{% endif %}>ورشة خارجية</option></select></div>
+<div class="field"><label>اسم الورشة</label><input name="workshop" value="{{ active_repair.workshop or '' if active_repair else '' }}"></div>
+<div class="field"><label>حالة الإصلاح *</label><select name="status"><option value="in_progress" {% if not active_repair or active_repair.status == 'in_progress' %}selected{% endif %}>قيد الإصلاح</option><option value="completed">تم الإصلاح</option></select></div>
+<div class="field"><label>وثيقة التصليح</label><input name="repair_document" value="{{ active_repair.repair_document or '' if active_repair else '' }}" placeholder="رقم/مرجع الوثيقة"></div>
+<div class="field external-fields" id="externalDocument"><label>وثيقة إرسال العتاد للورشة الخارجية *</label><input name="external_dispatch_document" value="{{ active_repair.external_dispatch_document or '' if active_repair else '' }}"></div>
+<div class="field"><label>ساعات العمل</label><input type="number" min="0" step="0.1" name="labor_hours" value="{% if active_repair and active_repair.labor_hours is not none %}{{ active_repair.labor_hours }}{% endif %}"></div>
+<div class="field full"><label>التشخيص</label><textarea name="diagnosis">{{ active_repair.diagnosis or '' if active_repair else '' }}</textarea></div>
+<div class="field full"><label>الإجراء المنفذ *</label><textarea name="action_taken" required>{{ active_repair.action_taken or '' if active_repair else '' }}</textarea></div>
+<div class="field full"><label>ملاحظات</label><textarea name="notes">{{ active_repair.notes or '' if active_repair else '' }}</textarea></div>
+</div><button class="btn" type="submit">{% if active_repair %}حفظ تحديث التصليح{% else %}بدء التصليح{% endif %}</button><div id="repairMsg" class="msg"></div>
 </form></div></section>
 
 <section class="panel" style="grid-column:1/-1"><div class="ph">سجل الإصلاحات</div><div class="body"><div class="repair-list">{% for r in fault.repairs %}<div class="repair"><div class="repair-top"><strong>R-{{ r.id }}</strong><span>{{ label('repair', r.status) }}</span></div><div class="repair-meta">{{ r.repair_date.strftime('%d/%m/%Y') }} · {{ 'ورشة خارجية' if r.workshop_type=='external' else 'ورشة داخلية' }} · {{ r.action_taken }}</div><div class="repair-meta">وثيقة الإصلاح: <span class="doc">{{ r.repair_document or '—' }}</span>{% if r.external_dispatch_document %} · وثيقة الإرسال: <span class="doc">{{ r.external_dispatch_document }}</span>{% endif %}</div></div>{% else %}<div style="font-size:10px;color:#8794a2">لا توجد إصلاحات مسجلة لهذا العطل.</div>{% endfor %}</div></div></section>
@@ -44,6 +45,6 @@
 const wt=document.getElementById('workshopType'), ed=document.getElementById('externalDocument');
 function toggleExternal(){const on=wt.value==='external';ed.style.display=on?'flex':'none';ed.querySelector('input').required=on}
 wt.addEventListener('change',toggleExternal);toggleExternal();document.querySelectorAll('.faultStatus').forEach(b=>b.addEventListener('click',async()=>{const r=await fetch('/api/faults-repairs/faults/{{fault.id}}/status',{method:'PATCH',headers:{'Content-Type':'application/json','Accept':'application/json'},credentials:'same-origin',body:JSON.stringify({status:b.dataset.status})});const j=await r.json().catch(()=>({}));if(!r.ok){alert(j.detail||'تعذر تغيير الحالة');return}location.reload();}));
-document.getElementById('repairForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,m=document.getElementById('repairMsg');const data=Object.fromEntries(new FormData(f));data.meter_value=data.meter_value?Number(data.meter_value):null;data.labor_hours=data.labor_hours?Number(data.labor_hours):null;try{const r=await fetch('/api/faults-repairs/repairs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw new Error(j.detail||'تعذر تسجيل الإصلاح');m.className='msg ok';m.textContent='تم تسجيل الإصلاح بنجاح';setTimeout(()=>location.reload(),500)}catch(err){m.className='msg error';m.textContent=err.message}});
+document.getElementById('repairForm').addEventListener('submit',async e=>{e.preventDefault();const f=e.currentTarget,m=document.getElementById('repairMsg');const data=Object.fromEntries(new FormData(f));data.meter_value=data.meter_value?Number(data.meter_value):null;data.labor_hours=data.labor_hours?Number(data.labor_hours):null;try{const r=await fetch('/api/faults-repairs/repairs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw new Error(j.detail||'تعذر تسجيل الإصلاح');m.className='msg ok';m.textContent='تم حفظ سجل التصليح بنجاح';setTimeout(()=>location.reload(),500)}catch(err){m.className='msg error';m.textContent=err.message}});
 </script>
 {% endblock %}
