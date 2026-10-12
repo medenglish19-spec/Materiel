@@ -78,3 +78,38 @@ def test_operation_library_plan_mode_keeps_the_full_add_workflow():
     # وتحفظ العمليات المختارة/المحذوفة على الخطة عبر نقاط النهاية الفعلية.
     assert 'api+"/plans/"+state.planId+"/operations"' in rules
     assert 'api+"/plans/"+state.planId+"/operations/"+operationId' in rules
+
+
+def test_plan_selection_checkboxes_use_set_and_never_blank_the_table():
+    """مربع «تحديد الكل» ومربعات الصفوف موجودة، والتحديد يعتمد على Set.has لا Set.includes.
+
+    السبب الجذري لفراغ الجدول عند اختيار الطراز: كان صف الخطة يستدعي
+    ``state.selectedPlans.includes(p.id)`` بينما ``selectedPlans`` من نوع ``Set``،
+    فيرمي ``TypeError`` أثناء ``render()`` قبل إسناد ``innerHTML``، فلا يُرسم أي صف.
+    """
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+
+    # التحديد الفردي والجماعي باقٍ: مربع رأس الجدول + مربعات الصفوف.
+    assert 'id="selectAllPlans"' in html
+    assert 'class="plan-check"' in html
+
+    # يجب استخدام Set.has؛ واستخدام Set.includes يمنع رسم الجدول بالكامل.
+    assert "selectedPlans.has(" in html
+    assert "selectedPlans.includes" not in html
+    assert ".includes(p.id)" not in html
+
+
+def test_plan_operations_load_failure_does_not_blank_the_table():
+    """فشل تحميل عمليات خطة واحدة لا يمنع عرض بقية الخطط، ويُسجَّل الخطأ الحقيقي."""
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "Promise.allSettled" in html
+    assert "console.error" in html
+
+
+def test_plan_list_has_no_bulk_delete_button_or_selected_counter():
+    """لا زر «حذف المحدد»/«حذف المحدد (N)» ولا عدّاد «0 محددة» في جدول خطط الصيانة."""
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "حذف المحدد" not in html
+    assert "0 محددة" not in html

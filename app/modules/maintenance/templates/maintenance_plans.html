@@ -44,7 +44,14 @@
     </div>
     <div class="table-wrap" data-mt-region>
       <table class="m-table">
-        <thead><tr><th>#</th><th>الخطة / العملية</th><th>شرط الاستحقاق</th><th>الحالة</th><th>العمليات</th><th>الإجراء</th></tr></thead>
+        <thead><tr>
+  <th class="check-col"><input type="checkbox" id="selectAllPlans" aria-label="حدد الكل"></th>
+  <th>الخطة / العملية</th>
+  <th>شرط الاستحقاق</th>
+  <th>الحالة</th>
+  <th>العمليات</th>
+  <th>الإجراء</th>
+</tr></thead>
         <tbody id="body"><tr><td colspan="6" class="muted">جارٍ التحميل...</td></tr></tbody>
       </table>
     </div>
@@ -111,7 +118,7 @@
   const api='/api/maintenance';
   const models={{ models|tojson }};
   const operationConditions={{ operation_conditions | tojson }};
-  const state={plans:[],operations:[],planOps:{},standalone:[],equipment:[],currentPlanId:null,currentPlanModelId:null};
+  const state={plans:[],operations:[],planOps:{},standalone:[],equipment:[],currentPlanId:null,currentPlanModelId:null,selectedPlans:new Set()};
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const modelName=id=>models.find(m=>m.id===id)?.name||'—';
@@ -154,7 +161,13 @@
     state.planOps={};
     if(!modelId)return;
     const plans=state.plans.filter(p=>Number(p.equipment_model_id)===modelId);
-    await Promise.all(plans.map(async p=>{const id=p.id;state.planOps[id]=await req(api+'/plans/'+id+'/operations')}));
+    // فشل تحميل عمليات خطة واحدة لا يعطّل عرض بقية الخطط؛ يُسجَّل الخطأ الحقيقي بدل ابتلاعه.
+    const results=await Promise.allSettled(plans.map(p=>req(api+'/plans/'+p.id+'/operations')));
+    results.forEach((r,i)=>{
+      const id=plans[i].id;
+      if(r.status==='fulfilled')state.planOps[id]=r.value;
+      else{state.planOps[id]=[];console.error('تعذر تحميل عمليات الخطة '+id,r.reason)}
+    });
   }
   function computeStandalone(){
     const modelId=Number($('modelFilter').value);
@@ -183,7 +196,7 @@
         +'</tr>';
     }).join('');
     return '<tr class="plan-row">'
-      +'<td>'+(i+1)+'</td>'
+      +'<td><input type="checkbox" class="plan-check" data-plan-id="'+p.id+'" '+ (state.selectedPlans.has(p.id)?'checked':'') +' aria-label="'+esc(p.name)+'"></td>'
       +'<td><span class="vehicle">'+esc(p.name)+'</span><small style="display:block;color:#8a97a4">خطة صيانة · '+esc(modelName(p.equipment_model_id))+'</small></td>'
       +'<td>'+esc(planConditionText(p))+'</td>'
       +'<td><span class="badge '+(p.is_active?'success':'neutral')+'">'+(p.is_active?'مفعلة':'متوقفة')+'</span> <span class="badge '+(p.is_approved?'success':'warning')+'">'+(p.is_approved?'معتمدة':'غير معتمدة')+'</span></td>'
@@ -229,6 +242,41 @@
     document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>approve(Number(b.dataset.approve)));
     document.querySelectorAll('[data-remove-op]').forEach(b=>b.onclick=()=>removeOperation(Number(b.dataset.planId),Number(b.dataset.removeOp)));
     document.querySelectorAll('[data-edit-standalone]').forEach(b=>b.onclick=()=>editStandalone(Number(b.dataset.editStandalone)));
+    
+    // Handle plan selection checkboxes
+    const updatePlanSelectionUI = () => {
+      const checked = document.querySelectorAll('.plan-check:checked');
+      const count = checked.length;
+      // Update select all state
+      const selectAll = $('selectAllPlans');
+      if (count === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+      } else if (count === document.querySelectorAll('.plan-check').length) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+      } else {
+        selectAll.indeterminate = true;
+      }
+      // Store selected plan IDs
+      state.selectedPlans = new Set(Array.from(checked).map(cb => parseInt(cb.dataset.planId)));
+    };
+    
+    // Initialize selection UI
+    updatePlanSelectionUI();
+    
+    // Handle select all click
+    $('selectAllPlans').onclick = function() {
+      const checkboxes = document.querySelectorAll('.plan-check');
+      const isChecked = this.checked;
+      checkboxes.forEach(cb => { cb.checked = isChecked; });
+      updatePlanSelectionUI();
+    };
+    
+    // Handle individual checkbox change
+    document.querySelectorAll('.plan-check').forEach(cb => {
+      cb.onchange = updatePlanSelectionUI;
+    });
   }
   async function approve(id){const p=state.plans.find(x=>x.id===id);if(!p)return;if(!confirm('اعتماد الخطة سيُظهر عملياتها ضمن متابعات هذا الطراز بشرط الخطة. هل راجعت العمليات؟'))return;try{await req(api+'/plans/'+id+'/approve',{method:'POST'});alert('تم اعتماد الخطة، وستظهر عملياتها ضمن المتابعات.');await load()}catch(e){alert(e.message,true)}}
   function edit(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('planId').value=p.id;$('name').value=p.name;$('model').value=p.equipment_model_id;$('km').value=p.interval_km??'';$('hours').value=p.interval_hours??'';$('days').value=p.interval_days??'';$('description').value=p.description??'';$('active').checked=!!p.is_active;$('editorTitle').textContent='تعديل خطة صيانة';$('planConditionHint').textContent='تعديل شرط الخطة يجعل اعتمادها لاغيًا حتى إعادة الاعتماد.';$('editor').style.display='';window.scrollTo({top:$('editor').offsetTop-20,behavior:'smooth'})}
