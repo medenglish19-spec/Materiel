@@ -392,3 +392,15 @@ def test_completed_repair_cannot_be_reopened(db):
         fault_services.change_repair_status(db, repair, "in_progress")
     assert repair.status == "completed"
 
+def test_fault_cannot_be_marked_repaired_while_repair_is_active(db):
+    equipment = seed_equipment(db, "ACTIVE-4", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    create_repair(db, fault, TODAY, 25)
+
+    with pytest.raises(ValueError, match="نتيجة سجل التصليح النشط"):
+        fault_services.change_fault_status(db, fault, "repaired")
+
+    db.refresh(fault)
+    assert fault.status == "repairing"
+
