@@ -18,6 +18,12 @@ INDEX_NAME = "uq_repairs_one_active_per_fault"
 
 def upgrade() -> None:
     bind = op.get_bind()
+    # Some migration-focused tests and partial legacy schemas intentionally do
+    # not contain the faults/repairs tables yet. This revision is a merge point;
+    # skip the constraint until the repairs table exists.
+    if not sa.inspect(bind).has_table("repairs"):
+        return
+
     dialect = bind.dialect.name
     if dialect not in {"sqlite", "postgresql"}:
         raise RuntimeError(
@@ -54,4 +60,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(INDEX_NAME, table_name="repairs")
+    bind = op.get_bind()
+    if sa.inspect(bind).has_table("repairs"):
+        indexes = {item["name"] for item in sa.inspect(bind).get_indexes("repairs")}
+        if INDEX_NAME in indexes:
+            op.drop_index(INDEX_NAME, table_name="repairs")
