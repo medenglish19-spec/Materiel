@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
+from app.modules.meter_readings import services as meter_reading_services
 from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
 from app.modules.maintenance.services import chronology_error, effective_operations_for_equipment, measurement_unit
 from app.modules.users.models import User
@@ -96,6 +97,8 @@ def equipment_maintenance_create(equipment_id: int, operation_id: int = Form(...
         work_order=work_order.strip() or None, workshop=workshop.strip() or None,
         description=description.strip() or None, status="completed", created_by_id=current_user.id)
     try:
+        if meter is not None:
+            meter_reading_services.record_event_reading(db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()), source="maintenance", notes=f"قراءة واردة من تنفيذ الصيانة {operation.id}")
         db.add(record); db.commit()
     except ValueError as exc:
         db.rollback(); raise HTTPException(status_code=400, detail=str(exc))
