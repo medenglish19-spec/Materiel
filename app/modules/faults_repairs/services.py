@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from typing import Optional
 
 from sqlalchemy import func
@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord
+from app.modules.meter_readings.models import MeterReading
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
 from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
@@ -16,24 +17,80 @@ TERMINAL_FAULT_STATUSES = {"repaired", "closed"}
 
 
 def _latest_meter_before(db: Session, equipment_id: int, before_date: date):
+    """Return the highest known value before the event, including the central meter ledger."""
     values = []
     for query in (
-        db.query(func.max(MaintenanceRecord.meter_value)).filter(MaintenanceRecord.equipment_id == equipment_id, MaintenanceRecord.maintenance_date < before_date, MaintenanceRecord.meter_value.isnot(None)),
-        db.query(func.max(Fault.meter_value)).filter(Fault.equipment_id == equipment_id, Fault.reported_date < before_date, Fault.meter_value.isnot(None)),
-        db.query(func.max(Repair.meter_value)).join(Fault).filter(Fault.equipment_id == equipment_id, Repair.repair_date < before_date, Repair.meter_value.isnot(None)),
+        db.query(func.max(MaintenanceRecord.meter_value)).filter(
+            MaintenanceRecord.equipment_id == equipment_id,
+            MaintenanceRecord.maintenance_date < before_date,
+            MaintenanceRecord.meter_value.isnot(None),
+        ),
+        db.query(func.max(Fault.meter_value)).filter(
+            Fault.equipment_id == equipment_id,
+            Fault.reported_date < before_date,
+            Fault.meter_value.isnot(None),
+        ),
+        db.query(func.max(Repair.meter_value)).join(Fault).filter(
+            Fault.equipment_id == equipment_id,
+            Repair.repair_date < before_date,
+            Repair.meter_value.isnot(None),
+        ),
     ):
         value = query.scalar()
-        if value is not None: values.append(value)
+        if value is not None:
+            values.append(value)
+
+    # MeterReading is the canonical ledger. Select only the field matching the
+    # equipment type's configured measurement unit; never compare km to hours.
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if equipment is not None and equipment.equipment_type is not None:
+        unit = (equipment.equipment_type.measurement_unit or "").strip().lower()
+        value_column = MeterReading.odometer if unit == "km" else MeterReading.hours if unit == "hours" else None
+        if value_column is not None:
+            reading_date = datetime.combine(before_date, time.min)
+            value = db.query(func.max(value_column)).filter(
+                MeterReading.equipment_id == equipment_id,
+                MeterReading.reading_date < reading_date,
+                value_column.isnot(None),
+            ).scalar()
+            if value is not None:
+                values.append(value)
+
     return max(values) if values else None
 
 
 def _validate_meter_sequence(db: Session, equipment: Equipment, meter_value, event_date: date):
-    if meter_value is None: return
-    if equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-        raise ValueError("العداد يتجاوز عداد العتاد الحالي")
+    if meter_value is None:
+        return
+    if equipment.equipment_type is None:
+        raise ValueError("وحدة قياس العتاد غير محددة؛ تعذر التحقق من قراءة العداد")
+    unit = (equipment.equipment_type.measurement_unit or "").strip().lower()
+    if unit not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير صحيحة؛ يجب تحديد الكيلومترات أو ساعات العمل")
+    if meter_value < 0:
+        raise ValueError("قراءة العداد لا يمكن أن تكون سالبة")
+
+    # A reading entered in a fault/repair form must also respect later readings
+    # in the central ledger; otherwise a backdated event can contradict history.
+    value_column = MeterReading.odometer if unit == "km" else MeterReading.hours
+    event_cutoff = datetime.combine(event_date, time.min)
+    later_readings = db.query(value_column, MeterReading.reading_date).filter(
+        MeterReading.equipment_id == equipment.id,
+        MeterReading.reading_date >= datetime.combine(event_date, time.max),
+        value_column.isnot(None),
+    ).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
+    for later_value, later_date in later_readings:
+        if meter_value > later_value:
+            raise ValueError(
+                f"قراءة العداد ({meter_value:g}) أكبر من القراءة اللاحقة في سجل العداد "
+                f"بتاريخ {later_date:%d/%m/%Y} ({later_value:g})"
+            )
+
     previous = _latest_meter_before(db, equipment.id, event_date)
     if previous is not None and meter_value < previous:
-        raise ValueError("العداد أقل من قراءة سابقة لنفس العتاد")
+        raise ValueError(
+            f"قراءة العداد ({meter_value:g}) أقل من قراءة سابقة مسجلة لنفس العتاد ({previous:g})"
+        )
 
 
 def _sync_equipment_from_faults(db: Session, equipment_id: int):
