@@ -273,3 +273,23 @@ def test_manual_reading_rejects_conflicting_value_on_same_day(db):
     ).all()
     assert len(readings) == 1
     assert float(readings[0].odometer) == 100
+
+def test_event_reading_reuses_same_daily_value_and_preserves_source_trace(db):
+    equipment = seed_equipment(db, "SAME-TRACE", "km")
+    reading_date = datetime(2026, 10, 9)
+    reading = services.create_reading(
+        db, equipment.id, odometer=300, reading_date=reading_date,
+        source="meter_readings", notes="قراءة يدوية",
+    )
+
+    same = services.record_event_reading(
+        db, equipment.id, 300, reading_date, source="fault",
+        notes="قراءة واردة من سجل العطل رقم 41",
+    )
+
+    assert same.id == reading.id
+    assert same.source == "meter_readings"
+    assert "قراءة واردة من سجل العطل رقم 41" in (same.notes or "")
+    assert db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).count() == 1
