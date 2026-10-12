@@ -122,10 +122,24 @@ def equipment_maintenance_update(equipment_id: int, record_id: int, operation_id
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
     operation = validate_operation(db, item, operation_id)
     meter = validate_meter_and_date(db, item, operation, maintenance_date, meter_value, exclude_id=record_id)
-    record.operation_id = operation.id; record.maintenance_date = maintenance_date; record.reported_date = maintenance_date
-    record.meter_value = meter; record.work_order = work_order.strip() or None
-    record.workshop = workshop.strip() or None; record.description = description.strip() or None
     try:
+        meter_reading_services.remove_event_reading(
+            db, record.equipment_id, "maintenance",
+            f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+        )
+        record.operation_id = operation.id
+        record.maintenance_date = maintenance_date
+        record.reported_date = maintenance_date
+        record.meter_value = meter
+        record.work_order = work_order.strip() or None
+        record.workshop = workshop.strip() or None
+        record.description = description.strip() or None
+        db.flush()
+        if meter is not None:
+            meter_reading_services.record_event_reading(
+                db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()),
+                source="maintenance", notes=f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+            )
         db.commit()
     except ValueError as exc:
         db.rollback(); raise HTTPException(status_code=400, detail=str(exc))
@@ -136,5 +150,14 @@ def equipment_maintenance_delete(equipment_id: int, record_id: int, db: Session 
     record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id, MaintenanceRecord.equipment_id == equipment_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
-    db.delete(record); db.commit()
+    try:
+        meter_reading_services.remove_event_reading(
+            db, record.equipment_id, "maintenance",
+            f"قراءة واردة من تنفيذ الصيانة رقم {record.id}",
+        )
+        db.delete(record)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
