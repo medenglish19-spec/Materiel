@@ -14,10 +14,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 
@@ -104,6 +106,13 @@ class Repair(Base):
         CheckConstraint(
             "meter_value IS NULL OR meter_value >= 0",
             name="ck_repair_meter_nonnegative",
+        ),
+        Index(
+            "uq_repairs_one_active_per_fault",
+            "fault_id",
+            unique=True,
+            sqlite_where=text("status = 'in_progress'"),
+            postgresql_where=text("status = 'in_progress'"),
         ),
     )
 
