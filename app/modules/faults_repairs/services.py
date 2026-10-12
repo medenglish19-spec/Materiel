@@ -76,7 +76,7 @@ def _validate_meter_sequence(db: Session, equipment: Equipment, meter_value, eve
     event_cutoff = datetime.combine(event_date, time.min)
     later_readings = db.query(value_column, MeterReading.reading_date).filter(
         MeterReading.equipment_id == equipment.id,
-        MeterReading.reading_date >= datetime.combine(event_date, time.max),
+        MeterReading.reading_date >= event_cutoff,
         value_column.isnot(None),
     ).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
     for later_value, later_date in later_readings:
