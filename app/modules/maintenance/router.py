@@ -534,6 +534,7 @@ def api_bulk_delete_operations(
     return {"success": deleted, "rejected": rejected}
 
 
+@router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
     model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
