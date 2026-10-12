@@ -766,7 +766,7 @@ def api_plan_execution_create(
                     db, payload.equipment_id, payload.meter_value,
                     datetime.combine(payload.reported_date or payload.maintenance_date, datetime.min.time()),
                     source="maintenance",
-                    notes=f"قراءة واردة من تنفيذ الخطة لسجل الصيانة رقم {record.id}",
+                    notes=f"قراءة واردة من سجل الصيانة رقم {record.id}",
                 )
             records.append(record)
         db.commit()
