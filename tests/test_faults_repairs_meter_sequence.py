@@ -11,6 +11,7 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine, insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -403,4 +404,29 @@ def test_fault_cannot_be_marked_repaired_while_repair_is_active(db):
 
     db.refresh(fault)
     assert fault.status == "repairing"
+
+def test_database_rejects_two_active_repairs_for_the_same_fault(db):
+    equipment = seed_equipment(db, "ACTIVE-DB-1", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+
+    values = {
+        "fault_id": fault.id,
+        "repair_date": TODAY,
+        "action_taken": "إجراء اختبار",
+        "workshop_type": "internal",
+        "status": "in_progress",
+    }
+    db.execute(Repair.__table__.insert().values(**values))
+    db.commit()
+
+    with pytest.raises(IntegrityError):
+        db.execute(Repair.__table__.insert().values(**values))
+        db.commit()
+
+    db.rollback()
+    active_count = db.query(Repair).filter(
+        Repair.fault_id == fault.id,
+        Repair.status == "in_progress",
+    ).count()
+    assert active_count == 1
 
