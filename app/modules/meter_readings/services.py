@@ -9,7 +9,9 @@ from app.modules.equipment_types.models import EquipmentType
 from app.modules.meter_readings.models import MeterReading
 
 def _unit(equipment: Equipment) -> str:
-    return equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
+    if equipment.equipment_type is None:
+        return ""
+    return str(equipment.equipment_type.measurement_unit or "").strip().lower()
 def _value(reading: MeterReading | None, unit: str):
     if reading is None: return None
     return reading.odometer if unit == "km" else reading.hours
@@ -133,7 +135,10 @@ def _ensure_not_duplicate_reading(db: Session, equipment_id: int, reading_date: 
 def create_reading(db: Session, equipment_id: int, odometer=None, hours=None, reading_date: datetime | None = None, notes: str | None = None, equipment_status: str | None = None, source: str = "manual") -> MeterReading:
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment: raise ValueError("العتاد غير موجود")
-    unit_code = _unit(equipment); value = odometer if unit_code == "km" else hours
+    unit_code = _unit(equipment)
+    if unit_code not in {"km", "hours"}:
+        raise ValueError("وحدة قياس العتاد غير محددة أو غير صحيحة؛ يجب تحديد km أو hours")
+    value = odometer if unit_code == "km" else hours
     if value is None: raise ValueError("يجب إدخال قراءة العداد الخاصة بوحدة العتاد")
     value = _parse_decimal(value)
     if not value.is_finite(): raise ValueError("قيمة العداد يجب أن تكون رقمًا صالحًا")
