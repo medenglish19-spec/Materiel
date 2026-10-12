@@ -310,3 +310,85 @@ def test_update_fault_rejects_conflict_with_a_later_reading(db):
     db.expire_all()
     stored = db.query(Fault).filter(Fault.id == fault.id).one()
     assert stored.meter_value == Decimal("30.0")
+
+# ---------------------------------------------------------------------------
+# Active repair lifecycle: one mutable active row, immutable repair history.
+# ---------------------------------------------------------------------------
+
+
+def test_saving_active_repair_updates_the_same_row(db):
+    equipment = seed_equipment(db, "ACTIVE-1", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+
+    active = create_repair(db, fault, TODAY, 25)
+    active_id = active.id
+    assert active.status == "in_progress"
+
+    saved = fault_services.create_repair(
+        db,
+        RepairCreate(
+            fault_id=fault.id,
+            repair_date=TODAY,
+            meter_value=Decimal("25"),
+            action_taken="نتيجة الإصلاح",
+            workshop_type="internal",
+            status="completed",
+        ),
+    )
+
+    assert saved.id == active_id
+    assert saved.status == "completed"
+    assert saved.action_taken == "نتيجة الإصلاح"
+    assert db.query(Repair).filter(Repair.fault_id == fault.id).count() == 1
+    db.refresh(fault)
+    assert fault.status == "repaired"
+
+
+def test_completed_repair_stays_in_history_when_a_new_repair_starts(db):
+    equipment = seed_equipment(db, "ACTIVE-2", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    previous = fault_services.create_repair(
+        db,
+        RepairCreate(
+            fault_id=fault.id,
+            repair_date=TODAY,
+            meter_value=Decimal("25"),
+            action_taken="التصليح الأول",
+            workshop_type="internal",
+            status="completed",
+        ),
+    )
+    previous_id = previous.id
+
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    current = create_repair(db, fault, TODAY, 25)
+
+    assert current.id != previous_id
+    assert current.status == "in_progress"
+    assert db.query(Repair).filter(Repair.fault_id == fault.id).count() == 2
+    db.refresh(previous)
+    assert previous.status == "completed"
+
+
+def test_completed_repair_cannot_be_reopened(db):
+    equipment = seed_equipment(db, "ACTIVE-3", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = fault_services.create_repair(
+        db,
+        RepairCreate(
+            fault_id=fault.id,
+            repair_date=TODAY,
+            meter_value=Decimal("25"),
+            action_taken="تصليح مكتمل",
+            workshop_type="internal",
+            status="completed",
+        ),
+    )
+
+    with pytest.raises(ValueError, match="تاريخي"):
+        fault_services.change_repair_status(db, repair, "in_progress")
+    assert repair.status == "completed"
+
