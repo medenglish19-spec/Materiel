@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -10,6 +10,7 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
+from app.modules.meter_readings import services as meter_reading_services
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord)
 from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
@@ -207,8 +208,10 @@ def maintenance_record_create(
         status="completed",
         created_by_id=current_user.id if current_user else None,
     )
-    db.add(rec)
     try:
+        if meter is not None:
+            meter_reading_services.record_event_reading(db, equipment_id, meter, datetime.combine(maintenance_date, datetime.min.time()), source="maintenance", notes=f"قراءة واردة من سجل الصيانة {operation.id}")
+        db.add(rec)
         db.commit()
     except ValueError as exc:
         db.rollback()
