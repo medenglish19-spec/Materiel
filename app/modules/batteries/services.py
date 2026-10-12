@@ -274,6 +274,15 @@ def add_movement(db: Session, battery_id: int, data: dict):
         data["equipment_id"] = None
     movement = BatteryMovement(battery_id=battery_id, **data)
     db.add(movement)
+    db.flush()
+    if movement.equipment_id is not None and movement.meter_value is not None:
+        from datetime import datetime, time
+        from app.modules.meter_readings import services as meter_reading_services
+        meter_reading_services.record_event_reading(
+            db, movement.equipment_id, movement.meter_value,
+            datetime.combine(movement.movement_date, time.min), source="battery",
+            notes=f"قراءة واردة من حركة البطارية رقم {movement.id}",
+        )
     db.commit()
     db.refresh(movement)
     return movement
