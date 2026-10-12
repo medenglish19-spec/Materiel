@@ -184,6 +184,13 @@ def record_event_reading(db: Session, equipment_id: int, value, reading_date: da
         existing_value = _value(existing, unit_code)
         if existing.reading_date.date() == reading_date.date() and existing_value is not None:
             if Decimal(existing_value) == meter_value:
+                # Keep one canonical value per day while retaining every module
+                # that supplied the same value in the central audit note.
+                trace = (notes or f"أُدخلت أيضًا من وحدة {source_value}").strip()
+                if trace and trace not in (existing.notes or ""):
+                    existing.notes = ((existing.notes + "؛ ") if existing.notes else "") + trace
+                    existing.notes = existing.notes[:300]
+                    db.flush()
                 return existing
             raise ValueError(
                 f"يوجد سجل عداد بتاريخ {reading_date:%d/%m/%Y} بقيمة مختلفة؛ "
