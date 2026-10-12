@@ -293,3 +293,44 @@ def test_event_reading_reuses_same_daily_value_and_preserves_source_trace(db):
     assert db.query(MeterReading).filter(
         MeterReading.equipment_id == equipment.id
     ).count() == 1
+
+def test_remove_event_reading_preserves_shared_canonical_value(db):
+    equipment = seed_equipment(db, "REMOVE-SOURCE-TRACE", "km")
+    reading_date = datetime(2026, 10, 9)
+    reading = services.create_reading(
+        db, equipment.id, odometer=300, reading_date=reading_date,
+        source="meter_readings", notes="قراءة يدوية",
+    )
+    services.record_event_reading(
+        db, equipment.id, 300, reading_date, source="fault",
+        notes="قراءة واردة من سجل العطل رقم 41",
+    )
+
+    removed = services.remove_event_reading(
+        db, equipment.id, "fault", "قراءة واردة من سجل العطل رقم 41",
+    )
+
+    assert removed == 1
+    assert db.query(MeterReading).filter(
+        MeterReading.equipment_id == equipment.id
+    ).count() == 1
+    db.refresh(reading)
+    assert reading.source == "meter_readings"
+    assert "سجل العطل رقم 41" not in (reading.notes or "")
+
+
+def test_remove_event_reading_deletes_only_unshared_event_row(db):
+    equipment = seed_equipment(db, "REMOVE-OWN-TRACE", "km")
+    reading = services.record_event_reading(
+        db, equipment.id, 420, datetime(2026, 10, 8), source="fault",
+        notes="قراءة واردة من سجل العطل رقم 77",
+    )
+
+    removed = services.remove_event_reading(
+        db, equipment.id, "fault", "قراءة واردة من سجل العطل رقم 77",
+    )
+
+    assert removed == 1
+    assert db.query(MeterReading).filter(
+        MeterReading.id == reading.id
+    ).count() == 0
