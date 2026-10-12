@@ -223,7 +223,7 @@ FAULT_TRANSITIONS = {
     "diagnosing": {"repairing", "waiting_parts"},
     "repairing": {"waiting_parts", "repaired"},
     "waiting_parts": {"repairing", "repaired"},
-    "repaired": {"closed"},
+    "repaired": {"diagnosing", "closed"},
     "closed": set(),
 }
 
@@ -292,16 +292,49 @@ def change_fault_status(db: Session, obj: Fault, new_status: str):
 
 
 def create_repair(db: Session, data: RepairCreate, user_id=None):
-    fault = db.query(Fault).filter(Fault.id == data.fault_id).first()
-    if not fault: raise ValueError("العطل غير موجود")
-    if data.repair_date > date.today(): raise ValueError("لا يمكن تسجيل إصلاح بتاريخ مستقبلي")
+    fault = db.query(Fault).filter(Fault.id == data.fault_id).with_for_update().first()
+    if not fault:
+        raise ValueError("العطل غير موجود")
+    if data.repair_date > date.today():
+        raise ValueError("لا يمكن تسجيل إصلاح بتاريخ مستقبلي")
     equipment = db.query(Equipment).join(Fault, Fault.equipment_id == Equipment.id).filter(Fault.id == data.fault_id).first()
-    if not equipment: raise ValueError("العتاد المرتبط بالعطل غير موجود")
-    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_date)
+    if not equipment:
+        raise ValueError("العتاد المرتبط بالعطل غير موجود")
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
+
+    active = (
+        db.query(Repair)
+        .filter(Repair.fault_id == fault.id, Repair.status == "in_progress")
+        .order_by(Repair.id.desc())
+        .with_for_update()
+        .first()
+    )
+    if active:
+        # Saving from the fault page updates the current active row instead of
+        # creating duplicate repair history for the same fault.
+        _validate_meter_sequence(
+            db, equipment, data.meter_value, data.repair_date,
+            exclude=("repair", active.id),
+        )
+        for field, value in data.model_dump(exclude={"fault_id", "status"}).items():
+            setattr(active, field, value)
+        if data.status == "cancelled":
+            active.status = "cancelled"
+        elif data.status == "completed":
+            active.status = "completed"
+            fault.status = "repaired"
+        else:
+            active.status = "in_progress"
+            fault.status = "repairing"
+        _sync_equipment_from_faults(db, fault.equipment_id)
+        db.commit()
+        db.refresh(active)
+        return active
+
     if fault.status not in {"diagnosing", "repairing", "waiting_parts"}:
-        raise ValueError("لا يمكن تسجيل تصليح قبل أن يكون العطل قيد التشخيص أو الإصلاح أو بانتظار قطع الغيار")
+        raise ValueError("يجب تحويل العطل إلى قيد التشخيص قبل بدء سجل تصليح جديد")
+    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_date)
     obj = Repair(**data.model_dump(), created_by_id=user_id)
     db.add(obj)
     db.flush()
@@ -423,10 +456,22 @@ def list_repairs(db: Session, fault_id=None, workshop_type=None, status=None):
 def change_repair_status(db: Session, repair: Repair, new_status: str):
     if new_status not in {"in_progress", "completed", "cancelled"}:
         raise ValueError("حالة الإصلاح غير صحيحة")
+    if repair.status in {"completed", "cancelled"} and new_status != repair.status:
+        raise ValueError("سجل التصليح المكتمل أو الملغى تاريخي ولا يمكن إعادة فتحه")
+    if new_status == "in_progress":
+        other_active = db.query(Repair.id).filter(
+            Repair.fault_id == repair.fault_id,
+            Repair.status == "in_progress",
+            Repair.id != repair.id,
+        ).first()
+        if other_active:
+            raise ValueError("يوجد سجل تصليح نشط آخر لهذا العطل")
+    if repair.status == new_status:
+        return repair
     repair.status = new_status
     if new_status == "completed":
         repair.fault.status = "repaired"
-    elif new_status == "in_progress" and repair.fault.status in {"repaired", "closed"}:
+    elif new_status == "in_progress":
         repair.fault.status = "repairing"
     _sync_equipment_from_faults(db, repair.fault.equipment_id)
     db.commit()
