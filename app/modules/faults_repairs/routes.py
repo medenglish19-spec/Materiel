@@ -74,7 +74,37 @@ def fault_detail_page(fault_id: int, request: Request, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="العطل غير موجود")
     technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
     parts = db.query(SparePart).order_by(SparePart.name).all()
-    return templates.TemplateResponse(request=request, name="fault_detail.html", context={"request": request, "user": user, "fault": fault, "technicians": technicians, "parts": parts})
+    repair_ids = [repair.id for repair in fault.repairs]
+    spare_query = db.query(SparePartRequest).options(
+        joinedload(SparePartRequest.items),
+        joinedload(SparePartRequest.repair),
+    ).filter(
+        or_(
+            (SparePartRequest.source_type == "fault") & (SparePartRequest.fault_id == fault.id),
+            (SparePartRequest.source_type == "repair") & SparePartRequest.repair_id.in_(repair_ids),
+        )
+    )
+    spare_requests = spare_query.all() if repair_ids else db.query(SparePartRequest).options(
+        joinedload(SparePartRequest.items)
+    ).filter(
+        SparePartRequest.source_type == "fault",
+        SparePartRequest.fault_id == fault.id,
+    ).all()
+    waiting_for_parts = any(
+        req.status in {"pending", "approved"}
+        and any(item.received_quantity < item.requested_quantity for item in req.items)
+        for req in spare_requests
+    )
+    active_repair = next((repair for repair in fault.repairs if repair.status == "in_progress"), None)
+    return templates.TemplateResponse(request=request, name="fault_detail.html", context={
+        "request": request,
+        "user": user,
+        "fault": fault,
+        "technicians": technicians,
+        "parts": parts,
+        "active_repair": active_repair,
+        "waiting_for_parts": waiting_for_parts,
+    })
 
 @router.get("/faults-repairs/repairs", response_class=HTMLResponse)
 def repairs_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
