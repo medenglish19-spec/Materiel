@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from io import BytesIO
 
 import pytest
@@ -15,6 +16,9 @@ from app.modules.meter_readings import services
 from app.modules.meter_readings.audit import MeterReadingOperation, MeterReadingOperationEvent, MeterReadingChange
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.router import meter_readings_import_excel
+from app.modules.fuel.models import FuelRecord
+from app.modules.fuel.services import add_record as add_fuel_record, validate_record as validate_fuel_record
+from app.modules.missions.services import add_mission
 from app.modules.users.models import User
 
 engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
@@ -105,6 +109,50 @@ def test_duplicate_bulk_reading_same_date_and_value_is_rejected(db):
     assert not reading_ids
     assert any("مكررة" in error for error in errors)
     assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).count() == 1
+
+
+def test_central_reading_checks_other_module_observations_and_reports_source(db):
+    equipment = seed_equipment(db, "CROSS-1", "km")
+    db.add(FuelRecord(
+        equipment_id=equipment.id, fueling_date=datetime(2026, 8, 17).date(),
+        sequence_number=1, meter_value=Decimal("700"), quantity=Decimal("20"),
+    ))
+    db.commit()
+
+    with pytest.raises(ValueError, match="الوقود"):
+        services.create_reading(db, equipment.id, odometer=710, reading_date=datetime(2026, 8, 17))
+    with pytest.raises(ValueError, match="الوقود"):
+        services.create_reading(db, equipment.id, odometer=690, reading_date=datetime(2026, 8, 18))
+
+    created, rejected, errors, _warnings, ids = services.create_bulk_readings(
+        db, [bulk_row(equipment, datetime(2026, 8, 17), 700, row_number=2)]
+    )
+    assert created == 0 and rejected == 1 and not ids
+    assert any("الوقود" in error for error in errors)
+
+
+def test_fuel_input_checks_central_reading_chronology(db):
+    equipment = seed_equipment(db, "CROSS-2", "km")
+    services.create_reading(db, equipment.id, odometer=700, reading_date=datetime(2026, 8, 17))
+    with pytest.raises(ValueError, match="القراءات المركزية"):
+        validate_fuel_record(db, equipment.id, datetime(2026, 8, 18).date(), Decimal("690"), Decimal("20"))
+
+    add_fuel_record(db, {
+        "equipment_id": equipment.id, "fueling_date": datetime(2026, 8, 18).date(),
+        "sequence_number": None, "meter_value": Decimal("710"), "quantity": Decimal("20"),
+    })
+    assert equipment.current_odometer == Decimal("710.0")
+
+
+def test_mission_input_advances_current_meter_from_return_reading(db):
+    equipment = seed_equipment(db, "CROSS-3", "km")
+    services.create_reading(db, equipment.id, odometer=700, reading_date=datetime(2026, 8, 17))
+    add_mission(db, {
+        "equipment_id": equipment.id, "start_date": datetime(2026, 8, 18).date(),
+        "end_date": datetime(2026, 8, 19).date(), "departure_meter": Decimal("700"),
+        "return_meter": Decimal("720"),
+    })
+    assert equipment.current_odometer == Decimal("720")
 
 
 def test_meter_change_history_records_old_and_new_values(db):

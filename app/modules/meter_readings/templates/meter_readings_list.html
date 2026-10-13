@@ -19,7 +19,7 @@
         </div>
         <div class="history-table-wrap" data-mt-region>
             <table class="history-table">
-                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
+                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>المصدر</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
                 <tbody>
                 {% for row in rows %}
                     <tr>
@@ -27,6 +27,7 @@
                         <td>{{ row.date }}</td>
                         <td class="reading">{{ row.reading }}</td>
                         <td>{% if row.difference == '—' %}<span class="reference">—</span>{% elif row.difference == 'غير صالح' %}<span class="negative">غير صالح</span>{% else %}<span class="positive">{{ row.difference }}</span>{% endif %}</td>
+                        <td>{{ row.source }}</td>
                         <td>{{ row.note }}</td>
                         <td><span class="status status-{{ row.status_class }}">{{ row.status }}</span></td>
                         <td class="actions">
@@ -34,7 +35,7 @@
                             <button type="button" class="action-btn delete" data-id="{{ row.id }}">حذف</button>
                         </td>
                     </tr>
-                {% else %}<tr><td colspan="7" class="empty">لا توجد قراءات مسجلة لهذا العتاد.</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="8" class="empty">لا توجد قراءات مسجلة لهذا العتاد.</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>

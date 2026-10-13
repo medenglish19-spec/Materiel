@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, Table, event, select, desc
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, Table, event, select
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -341,6 +341,9 @@ def _sync_equipment_current(connection, equipment_id):
     from app.modules.equipment.models import Equipment
     from app.modules.equipment_types.models import EquipmentType
     from app.modules.meter_readings.models import MeterReading
+    from app.modules.faults_repairs.models import Fault, Repair
+    from app.modules.fuel.models import FuelRecord
+    from app.modules.missions.models import Mission
 
     unit = connection.execute(
         select(EquipmentType.measurement_unit)
@@ -352,32 +355,49 @@ def _sync_equipment_current(connection, equipment_id):
         return
 
     reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
-    latest_reading = connection.execute(
+    observations = connection.execute(
         select(MeterReading.reading_date, reading_column)
         .where(MeterReading.equipment_id == equipment_id, reading_column.is_not(None))
-        .order_by(desc(MeterReading.reading_date), desc(MeterReading.id))
-        .limit(1)
-    ).first()
-    latest_maintenance = connection.execute(
+    ).all()
+    observations += connection.execute(
         select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value)
         .where(
             MaintenanceRecord.equipment_id == equipment_id,
             MaintenanceRecord.is_scheduled.is_(False),
             MaintenanceRecord.meter_value.is_not(None),
         )
-        .order_by(desc(MaintenanceRecord.maintenance_date), desc(MaintenanceRecord.id))
-        .limit(1)
-    ).first()
-
+    ).all()
+    observations += connection.execute(
+        select(Fault.reported_date, Fault.meter_value).where(
+            Fault.equipment_id == equipment_id, Fault.meter_value.is_not(None)
+        )
+    ).all()
+    observations += connection.execute(
+        select(Repair.repair_date, Repair.meter_value)
+        .join(Fault, Repair.fault_id == Fault.id)
+        .where(Fault.equipment_id == equipment_id, Repair.meter_value.is_not(None))
+    ).all()
+    observations += connection.execute(
+        select(FuelRecord.fueling_date, FuelRecord.meter_value).where(
+            FuelRecord.equipment_id == equipment_id, FuelRecord.meter_value.is_not(None)
+        )
+    ).all()
+    mission_observations = connection.execute(
+        select(Mission.start_date, Mission.departure_meter, Mission.end_date, Mission.return_meter)
+        .where(Mission.equipment_id == equipment_id)
+    ).all()
     candidates = []
-    if latest_reading is not None:
-        reading_date = latest_reading[0].date() if hasattr(latest_reading[0], "date") else latest_reading[0]
-        candidates.append((reading_date, Decimal(str(latest_reading[1]))))
-    if latest_maintenance is not None:
-        candidates.append((latest_maintenance[0], Decimal(str(latest_maintenance[1]))))
+    for observation_date, meter_value in observations:
+        observation_date = observation_date.date() if hasattr(observation_date, "date") else observation_date
+        if observation_date <= datetime.now(timezone.utc).date():
+            candidates.append((observation_date, Decimal(str(meter_value))))
+    for start_date, departure_meter, end_date, return_meter in mission_observations:
+        if departure_meter is not None and start_date <= datetime.now(timezone.utc).date():
+            candidates.append((start_date, Decimal(str(departure_meter))))
+        if end_date is not None and end_date <= datetime.now(timezone.utc).date() and return_meter is not None:
+            candidates.append((end_date, Decimal(str(return_meter))))
     if not candidates:
         return
-
     latest_date = max(item[0] for item in candidates)
     current_value = max(value for item_date, value in candidates if item_date == latest_date)
     values = {"current_odometer": current_value} if unit == "km" else {"current_hours": current_value}

@@ -215,6 +215,8 @@ def _sync_equipment_from_faults(db: Session, equipment_id: int):
         equipment.operational_status = "unavailable"
     elif equipment.operational_status in {"in_maintenance", "in_external_workshop"}:
         equipment.operational_status = "available"
+    from app.modules.meter_readings.services import sync_current_meter
+    sync_current_meter(db, equipment_id)
     return equipment
 
 

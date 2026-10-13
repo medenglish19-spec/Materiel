@@ -245,17 +245,17 @@ def test_latest_before_uses_chronology_not_maximum_value(db):
 def test_all_sources_participate_in_the_comparison(db):
     equipment = seed_equipment(db, "SRC-1", "km")
     add_maintenance_record(db, equipment, TODAY - timedelta(days=30), 30)
-    add_reading(db, equipment, TODAY - timedelta(days=20), 20)
-    fault = create_fault(db, equipment, TODAY - timedelta(days=15), 25)
+    add_reading(db, equipment, TODAY - timedelta(days=20), 40)
+    fault = create_fault(db, equipment, TODAY - timedelta(days=15), 45)
     fault_services.change_fault_status(db, fault, "diagnosing")
-    create_repair(db, fault, TODAY - timedelta(days=12), 28)
+    create_repair(db, fault, TODAY - timedelta(days=12), 50)
 
-    # The most recent earlier observation is the repair (28), so 22 is rejected.
+    # The most recent earlier observation is the repair (50), so 22 is rejected.
     with pytest.raises(ValueError, match="أقل من قراءة سابقة"):
         create_fault(db, equipment, TODAY, 22)
 
-    # 29 is above every earlier observation and is accepted.
-    ok = create_fault(db, equipment, TODAY, 29)
+    # 55 is above every earlier observation and is accepted.
+    ok = create_fault(db, equipment, TODAY, 55)
     assert ok.id is not None
 
 
