@@ -170,6 +170,10 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
+        # تعطيل مؤقت لاشتراط تسجيل الدخول (انظر app/core/config.py):
+        # الصفحة الرئيسية تفتح لوحة القيادة مباشرة بدل تحويل الزائر إلى /login.
+        if settings.DEV_DISABLE_AUTH:
+            return RedirectResponse(url="/dashboard")
         token = request.cookies.get(settings.SESSION_COOKIE_NAME)
         if token:
             payload = decode_access_token(token)

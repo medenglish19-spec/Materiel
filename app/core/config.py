@@ -29,11 +29,38 @@ class Settings:
 
     SESSION_COOKIE_NAME: str = "fleet_session"
 
+    # ------------------------------------------------------------------
+    # تعطيل مؤقت لاشتراط تسجيل الدخول — بيئة التطوير المحلية فقط.
+    # ------------------------------------------------------------------
+    # عند تفعيله (الافتراضي مؤقتاً):
+    #   * `get_current_user` لا يرفض الطلب بلا جلسة (لا 401)، ويستخدم
+    #     `DEV_AUTH_USERNAME` كدور احتياطي حتى لا تتعطّل الإجراءات التي
+    #     تحتاج `current_user.id`؛
+    #   * `require_role` / `require_min_role` لا تُرجع 403؛
+    #   * الصفحة الرئيسية `/` تفتح لوحة القيادة مباشرة.
+    #
+    # نظام المصادقة نفسه (تسجيل الدخول/الخروج/المستخدمون/كلمات المرور)
+    # لم يُحذف: أي كوكي جلسة صالح لا يزال يُحترم.
+    #
+    # لإعادة تفعيل المصادقة كاملة، شغّل الخادم بـ:
+    #     $env:DEV_DISABLE_AUTH = "false"   # PowerShell
+    # أو أضف DEV_DISABLE_AUTH=false إلى بيئة التشغيل. لا تُستخدم هذه
+    # القيمة على أي جهاز يمكن الوصول إليه من الشبكة.
+    DEV_DISABLE_AUTH: bool = os.getenv("DEV_DISABLE_AUTH", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    DEV_AUTH_USERNAME: str = os.getenv("DEV_AUTH_USERNAME", "admin")
+
     # Logging (طبقتك غير الحظري في app/core/logging.py)
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_DIR: str = os.getenv("LOG_DIR", "logs")
 
-    HOST: str = os.getenv("APP_HOST", "0.0.0.0")
+    # مربوط بالمضيف المحلي فقط أثناء التعطيل المؤقت للمصادقة.
+    # استعادة قيمة "0.0.0.0" عند إعادة تفعيل المصادقة إن لزم النشر على الشبكة.
+    HOST: str = os.getenv("APP_HOST", "127.0.0.1")
     PORT: int = int(os.getenv("APP_PORT", "8000"))
 
     # لا نستخدم Uvicorn reload تلقائيًا؛ إعادة تشغيل التطبيق تلقائيًا أثناء

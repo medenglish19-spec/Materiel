@@ -10,6 +10,7 @@
 كلاهما موجَّه إلى المحرك المؤقت.
 """
 
+from contextlib import contextmanager
 from datetime import date, timedelta
 
 import pytest
@@ -140,15 +141,16 @@ def _seed(db):
     db.refresh(equipment)
 
     return {
+        "user": user.id,
         "equipment": equipment.id,
         "fault": fault.id,
         "repair": repair.id,
     }
 
 
-@pytest.fixture(scope="module")
-def pages(request):
-    """قاعدة مؤقتة + عميل مُصادَق. العزل مضمون على مستويين."""
+@contextmanager
+def _isolated_app():
+    """قاعدة مؤقتة + تطبيق معزول. العزل مضمون على مستويين."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -179,7 +181,13 @@ def pages(request):
 
         app = main.create_app()
         app.dependency_overrides[session_module.get_db] = override_get_db
+        yield app, TestingSession, ids
 
+
+@pytest.fixture(scope="module")
+def pages():
+    """قاعدة مؤقتة + عميل مُصادَق. العزل مضمون على مستويين."""
+    with _isolated_app() as (app, _TestingSession, ids):
         with TestClient(app) as client:
             response = client.post(
                 "/login",
@@ -190,25 +198,72 @@ def pages(request):
             yield client, ids
 
 
+@pytest.fixture(scope="module")
+def anonymous():
+    """نفس القاعدة المعزولة، لكن بلا أي تسجيل دخول (تعطيل المصادقة المؤقت)."""
+    with _isolated_app() as (app, TestingSession, ids):
+        with TestClient(app) as client:
+            yield client, ids, TestingSession
+
+
 def test_login_sets_a_session_that_authenticates_the_pages(pages):
     client, _ = pages
     assert client.cookies.get("fleet_session"), "لا كوكي جلسة بعد الدخول"
 
 
-def test_pages_redirect_to_login_when_there_is_no_session():
-    """كل صفحة محمية: بلا جلسة ⇒ 401/403 أو تحويل إلى /login — لا 200 ولا 500."""
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(main, "init_db", lambda: None)
-        patch.setattr(main, "create_default_admin", lambda: None)
-        with TestClient(main.create_app()) as client:
-            for path, _ in PAGE_MARKERS:
-                response = client.get(path, follow_redirects=False)
-                assert response.status_code != 200, f"{path} متاحة بلا جلسة"
-                assert response.status_code in (302, 303, 401, 403), (
-                    f"{path} رجعت {response.status_code} بلا جلسة"
-                )
-                if response.status_code in (302, 303):
-                    assert "/login" in response.headers.get("location", "")
+def test_pages_open_without_login(anonymous):
+    """تعطيل المصادقة المؤقت: لا تحويل إلى /login ولا 401/403 لأي صفحة رئيسية."""
+    client, _, _ = anonymous
+    failures = []
+
+    for path, marker in PAGE_MARKERS:
+        response = client.get(path, follow_redirects=False)
+        if response.status_code != 200:
+            failures.append(f"{path} -> HTTP {response.status_code}")
+            continue
+        if marker and marker not in response.text:
+            failures.append(f"{path} -> العلامة {marker!r} غير موجودة")
+
+    assert failures == [], "\n".join(failures)
+
+
+def test_api_endpoints_open_without_login(anonymous):
+    """واجهات API المحمية بالمستخدم/الصلاحية تعمل بلا جلسة عند تعطيل المصادقة."""
+    client, _, _ = anonymous
+
+    me = client.get("/api/me")
+    assert me.status_code == 200, me.text
+    assert me.json()["username"] == SEEDED_USERNAME
+
+    # نقطة كانت تتطلّب دور admin.
+    users = client.get("/api/users")
+    assert users.status_code == 200, users.text
+    assert any(item["username"] == SEEDED_USERNAME for item in users.json())
+
+
+def test_user_dependent_write_works_without_login(anonymous):
+    """الإجراءات التي تكتب `current_user.id` لا تتعطّل بلا تسجيل دخول."""
+    from app.modules.faults_repairs.models import Fault
+
+    client, ids, TestingSession = anonymous
+    response = client.post(
+        "/api/faults-repairs/faults",
+        json={
+            "equipment_id": ids["equipment"],
+            "reported_date": date.today().isoformat(),
+            "description": "عطل أُنشئ بلا تسجيل دخول",
+            "severity": "medium",
+        },
+    )
+    assert response.status_code == 201, response.text
+
+    db = TestingSession()
+    try:
+        created = db.query(Fault).filter(Fault.id == response.json()["id"]).first()
+    finally:
+        db.close()
+    assert created is not None
+    assert created.created_by_id == ids["user"], "created_by_id لم يُضبط على المستخدم الاحتياطي"
 
 
 def test_every_page_renders_for_a_logged_in_user(pages):
