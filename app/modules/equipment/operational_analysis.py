@@ -2,7 +2,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 
-CLOSED_FAULT_STATUSES = {"repaired", "closed"}
+COMPLETED_FAULT_STATUSES = {"repaired"}
 COMPLETED_REPAIR_STATUS = "completed"
 
 
@@ -84,7 +84,7 @@ def build_operational_analysis(items, faults, maintenance_records, repairs=None,
         mission_distance = _decimal(u.get("mission_distance_km"))
         fuel_liters = _decimal(u.get("fuel_liters"))
         mission_count = int(u.get("mission_count") or 0)
-        open_fs = [f for f in fs if f.status not in CLOSED_FAULT_STATUSES]
+        open_fs = [f for f in fs if f.status not in COMPLETED_FAULT_STATUSES]
         severe = [f for f in fs if f.severity in ("high", "critical")]
         prohibited = [f for f in fs if f.exploitation_impact == "prohibited"]
         completed = [r for r in rs if r.status == COMPLETED_REPAIR_STATUS]

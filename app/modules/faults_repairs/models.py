@@ -38,7 +38,7 @@ class Fault(Base):
             name="ck_fault_severity",
         ),
         CheckConstraint(
-            "status IN ('open', 'diagnosing', 'repairing', 'waiting_parts', 'repaired', 'closed')",
+            "status IN ('open', 'diagnosing', 'repairing', 'waiting_parts', 'repaired')",
             name="ck_fault_status",
         ),
         CheckConstraint(

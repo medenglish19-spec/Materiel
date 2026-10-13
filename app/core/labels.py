@@ -47,7 +47,6 @@ FAULT_STATUS_LABELS: Dict[str, str] = {
     "repairing": "قيد الإصلاح",
     "waiting_parts": "بانتظار قطع الغيار",
     "repaired": "تم الإصلاح",
-    "closed": "مغلق",
 }
 
 # حالة التصليح (faults_repairs/schemas.py :: REPAIR_STATUSES)
