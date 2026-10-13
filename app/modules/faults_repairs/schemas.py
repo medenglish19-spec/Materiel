@@ -109,6 +109,8 @@ class RepairCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_repair_dates(self):
+        if self.repair_end_date and not self.repair_start_date:
+            raise ValueError("يجب تحديد تاريخ بداية الإصلاح قبل تاريخ النهاية")
         if self.repair_start_date and self.repair_end_date and self.repair_end_date < self.repair_start_date:
             raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
         return self
