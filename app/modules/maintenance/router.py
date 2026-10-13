@@ -227,6 +227,21 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         joinedload(Equipment.equipment_model),
     ).order_by(Equipment.registration_number, Equipment.asset_code).all()
     due_count = _maintenance_due_count(db, equipment)
+    model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
+    approved_model_ids = {
+        model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
+            MaintenancePlan.equipment_model_id.in_(model_ids or {-1}),
+            MaintenancePlan.is_active.is_(True),
+            MaintenancePlan.is_approved.is_(True),
+        ).distinct().all()
+    }
+    unapproved_model_rows = sorted({
+        (eq.equipment_model_id, eq.equipment_model.name)
+        for eq in equipment
+        if eq.equipment_model_id is not None
+        and eq.equipment_model is not None
+        and eq.equipment_model_id not in approved_model_ids
+    }, key=lambda item: (item[1], item[0]))
 
     operations = db.query(MaintenanceOperation).filter(
         MaintenanceOperation.is_active.is_(True)
@@ -287,6 +302,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "records": records,
             "equipment": equipment,
             "due_count": due_count,
+            "unapproved_model_rows": unapproved_model_rows,
             "operations": operations,
             "plans": plans,
             "technicians": technicians,

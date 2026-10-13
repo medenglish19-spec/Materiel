@@ -500,6 +500,11 @@ def test_records_page_shows_due_maintenance_count(api):
 
     assert response.status_code == 200
     assert "الصيانة المستحقة (1)" in response.text
+    assert 'id="openUnapprovedModels"' in response.text
+    assert 'id="unapprovedModelsDialog"' in response.text
+    assert "openUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.showModal())" in response.text
+    assert f"/maintenance/plans?model_id={ids['model_a']}&amp;new=1" in response.text
+    assert 'href="/maintenance/due"' in response.text
     assert 'id="selectAllRecords"' in response.text
 
 

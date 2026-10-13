@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}سجل الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=record-dialog-20261013">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=record-actions-20261013">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
@@ -35,7 +35,17 @@
 
   <section class="panel">
     <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>سجلات التنفيذ الفعلية محفوظة للتاريخ التشغيلي؛ يمكن حذف الموعد المجدول غير المنفذ فقط.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
-    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة ({{ due_count }})</a></div></div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><button class="m-btn warning" type="button" id="openUnapprovedModels">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة ({{ due_count }})</a></div></div>
+    <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
+      <section class="panel">
+        <div class="panel-head"><div><h3 id="unapprovedModelsTitle">طرازات بلا خطة صيانة معتمدة</h3><p>اختر طرازًا للانتقال مباشرة إلى إعداد خطة صيانة له.</p></div><button class="m-btn dialog-close" type="button" id="closeUnapprovedModels" aria-label="إغلاق">×</button></div>
+        <div class="table-wrap"><table class="m-table" data-mt-no-filter><thead><tr><th>#</th><th>طراز العتاد</th><th>الإجراء</th></tr></thead><tbody>
+          {% for model_id, model_name in unapproved_model_rows %}
+          <tr><td>{{ loop.index }}</td><td class="vehicle">{{ model_name }}</td><td><a class="m-btn primary" href="/maintenance/plans?model_id={{ model_id }}&amp;new=1">إعداد الخطة</a></td></tr>
+          {% else %}<tr><td colspan="3" class="muted">جميع الطرازات لديها خطط صيانة معتمدة.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </section>
+    </dialog>
     <div id="recordsActionAlert" class="alert" role="status" aria-live="polite" hidden style="display:none;margin:0 8px 10px;white-space:pre-line"></div>
     {% if can_manage_records %}
     <div id="recordsBulkBar" class="toolbar-card" hidden style="display:none">
@@ -136,6 +146,10 @@
   document.querySelectorAll('[data-open-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.showModal()));
   document.querySelectorAll('[data-close-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.close()));
   if(recordDialog)recordDialog.addEventListener('click',event=>{if(event.target===recordDialog)recordDialog.close()});
+  const unapprovedModelsDialog=document.getElementById('unapprovedModelsDialog');
+  document.getElementById('openUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.showModal());
+  document.getElementById('closeUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.close());
+  if(unapprovedModelsDialog)unapprovedModelsDialog.addEventListener('click',event=>{if(event.target===unapprovedModelsDialog)unapprovedModelsDialog.close()});
   const recordsTable=document.getElementById('recordsTable');
   const selectedRecordIds=new Set();
   const selectAllRecords=document.getElementById('selectAllRecords');

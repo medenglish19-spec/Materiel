@@ -56,6 +56,7 @@
 .maintenance-model-dialog .panel-head{position:sticky;top:0;z-index:1;background:#fff}
 .maintenance-model-dialog .dialog-close{width:34px;height:34px;padding:0;font-size:23px;line-height:1}
 @media(max-width:680px){.maintenance-model-dialog{width:calc(100vw - 16px);max-height:94vh}.maintenance-model-dialog>.panel{max-height:94vh}}
+.maintenance-page .m-btn.warning{color:#9a6200;border-color:#efc66c;background:#fff8e6}.maintenance-page .m-btn.warning:hover{border-color:#dfa936;background:#fff2d4}
 .maintenance-page .plan-name-cell{display:flex;align-items:center;gap:5px}
 .maintenance-page .standalone-check-col{width:34px;text-align:center}
 .maintenance-page #recordsTable input[type="checkbox"]{width:15px;height:15px;accent-color:var(--blue);vertical-align:middle;cursor:pointer}
