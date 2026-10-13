@@ -318,6 +318,54 @@ def test_repair_workspace_uses_live_repair_and_has_four_sections(pages):
     assert "SPR-PAGE-1" in body
 
 
+def test_repair_history_includes_same_equipment_and_excludes_other_equipment(anonymous):
+    from app.modules.equipment.models import Equipment
+    from app.modules.faults_repairs.models import Fault, Repair
+
+    client, ids, TestingSession = anonymous
+    db = TestingSession()
+    try:
+        current_fault = db.query(Fault).filter(Fault.id == ids["fault"]).one()
+        same_equipment_fault = Fault(
+            equipment_id=ids["equipment"], reported_date=date.today(),
+            fault_type="عطل ناقل الحركة", description="فحص ناقل الحركة",
+            severity="medium", status="repaired", exploitation_impact="none",
+        )
+        db.add(same_equipment_fault)
+        db.flush()
+        same_equipment_repair = Repair(
+            fault_id=same_equipment_fault.id, repair_date=date.today() - timedelta(days=10),
+            workshop_type="internal", status="completed", action_taken="صيانة ناقل الحركة",
+        )
+        other_equipment = Equipment(
+            asset_code="PAGE-OTHER", registration_number="222-TEST",
+            equipment_type_id=current_fault.equipment.equipment_type_id,
+            equipment_model_id=current_fault.equipment.equipment_model_id,
+            technical_condition="ready", operational_status="available",
+        )
+        db.add(other_equipment)
+        db.flush()
+        other_fault = Fault(
+            equipment_id=other_equipment.id, reported_date=date.today(),
+            fault_type="عطل مختلف", description="عتاد مختلف",
+            severity="medium", status="repaired", exploitation_impact="none",
+        )
+        db.add_all([same_equipment_repair, other_fault])
+        db.flush()
+        db.add(Repair(
+            fault_id=other_fault.id, repair_date=date.today() - timedelta(days=5),
+            workshop_type="internal", status="completed", action_taken="إصلاح العتاد الآخر",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get(f"/faults-repairs/repairs/{ids['repair']}")
+    assert response.status_code == 200
+    assert "صيانة ناقل الحركة" in response.text
+    assert "إصلاح العتاد الآخر" not in response.text
+
+
 def test_repair_workspace_saves_current_repair_and_rejects_reversed_dates(anonymous):
     client, ids, TestingSession = anonymous
     start = date.today() - timedelta(days=2)

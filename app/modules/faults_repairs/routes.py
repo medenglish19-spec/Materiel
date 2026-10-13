@@ -154,9 +154,9 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
             "documents": [],
         })["documents"].append(f"{line.document.document_number} ({line.quantity})")
     distribution_rows = list(distribution_by_item.values())
-    repair_history = db.query(Repair).filter(Repair.fault_id == repair.fault_id).order_by(
-        Repair.repair_start_date.asc(), Repair.repair_date.asc(), Repair.id.asc()
-    ).all()
+    repair_history = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(
+        Fault.equipment_id == repair.fault.equipment_id,
+    ).order_by(Repair.repair_start_date.asc(), Repair.repair_date.asc(), Repair.id.asc()).all()
     current_repair = next((item for item in repair_history if item.status == "in_progress"), None)
     if current_repair is None and repair_history:
         current_repair = repair_history[-1]
