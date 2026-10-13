@@ -104,6 +104,17 @@ def _refresh_request_status(request):
         request.status = "pending"
 
 
+def refresh_request_statuses(db: Session, requests):
+    """Reconcile stored status with receipt rows before exposing requests."""
+    changed = False
+    for request in requests:
+        previous = request.status
+        _refresh_request_status(request)
+        changed = changed or request.status != previous
+    if changed:
+        db.commit()
+
+
 def _source(db: Session, source_type: str, source_id: int):
     if source_type == "fault":
         obj = db.query(Fault).options(joinedload(Fault.equipment)).filter(Fault.id == source_id).first()
@@ -491,20 +502,25 @@ def list_requests(db: Session, status=None, source_type=None):
         joinedload(SparePartRequest.fault),
         joinedload(SparePartRequest.repair).joinedload(Repair.fault),
     )
-    if status:
-        q = q.filter(SparePartRequest.status == status)
     if source_type:
         q = q.filter(SparePartRequest.source_type == source_type)
-    return [serialize_request(x) for x in q.order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc()).all()]
+    requests = q.order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc()).all()
+    refresh_request_statuses(db, requests)
+    if status:
+        requests = [request for request in requests if request.status == status]
+    return [serialize_request(x) for x in requests]
 
 
 def get_request(db: Session, request_id: int):
-    return db.query(SparePartRequest).options(
+    request = db.query(SparePartRequest).options(
         joinedload(SparePartRequest.items).joinedload(SparePartRequestItem.spare_part),
         joinedload(SparePartRequest.equipment),
         joinedload(SparePartRequest.fault),
         joinedload(SparePartRequest.repair).joinedload(Repair.fault),
     ).filter(SparePartRequest.id == request_id).first()
+    if request:
+        refresh_request_statuses(db, [request])
+    return request
 
 
 def received_register(db: Session):
@@ -624,4 +640,8 @@ def source_options(db: Session, source_type: str):
 
 
 def pending_count(db: Session):
-    return db.query(SparePartRequest).filter(SparePartRequest.status == "pending").count()
+    requests = db.query(SparePartRequest).options(
+        joinedload(SparePartRequest.items)
+    ).all()
+    refresh_request_statuses(db, requests)
+    return sum(request.status == "pending" for request in requests)

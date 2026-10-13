@@ -8,6 +8,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.users.models import User
 from app.modules.spare_parts_requests.models import SparePartRequest
+from app.modules.spare_parts_requests import services as spare_request_services
 from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
 from app.modules.equipment.models import Equipment
 from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, equipment_fault_stats, list_repairs
@@ -47,6 +48,7 @@ def faults_page(request: Request, db: Session = Depends(get_db), user: User = De
         .all()
         if fault_ids else []
     )
+    spare_request_services.refresh_request_statuses(db, spare_requests)
     spare_requests_by_fault = {}
     for request_item in spare_requests:
         fault_id = request_item.fault_id
@@ -90,6 +92,7 @@ def fault_detail_page(fault_id: int, request: Request, db: Session = Depends(get
         SparePartRequest.source_type == "fault",
         SparePartRequest.fault_id == fault.id,
     ).all()
+    spare_request_services.refresh_request_statuses(db, spare_requests)
     waiting_for_parts = any(
         req.status in {"pending", "approved"}
         and any(item.received_quantity < item.requested_quantity for item in req.items)

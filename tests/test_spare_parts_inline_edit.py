@@ -81,7 +81,7 @@ def _seed(db):
     from app.core.security import hash_password
     from app.modules.equipment.models import Equipment
     from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-    from app.modules.faults_repairs.models import Fault, SparePart
+    from app.modules.faults_repairs.models import Fault, Repair, SparePart
     from app.modules.spare_parts_requests import services
     from app.modules.spare_parts_requests.schemas import SparePartRequestCreate
     from app.modules.users.models import User
@@ -143,6 +143,17 @@ def _seed(db):
         db.flush()
         spare_faults.append(extra.id)
 
+    repair = Repair(
+        fault_id=spare_faults[7],
+        repair_date=date.today(),
+        action_taken="إصلاح للاختبار",
+        workshop_type="internal",
+        status="completed",
+        created_by_id=user.id,
+    )
+    db.add(repair)
+    db.flush()
+
     part = SparePart(name="فلتر هوائي", part_number="F-1", receiving_document="وثيقة استلام")
     db.add(part)
     db.flush()
@@ -165,6 +176,7 @@ def _seed(db):
         "part": part.id,
         "fault": fault.id,
         "spare_faults": spare_faults,
+        "repair": repair.id,
         "request": request_obj.id,
         "item": request_obj.items[0].id,
     }
@@ -727,6 +739,55 @@ def test_request_status_is_derived_from_receipt_and_cancelled_manually(client):
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["status"] == "cancelled"
 
+
+def test_stale_received_request_is_reconciled_in_requests_and_faults_pages(client):
+    page, ids = client
+    created = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-STALE-STATUS",
+            "request_date": date.today().isoformat(),
+            "source_type": "repair",
+            "source_id": ids["repair"],
+            "items": [{"spare_part_id": ids["part"], "requested_quantity": 2}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    request_id = created.json()["id"]
+    item_id = created.json()["items"][0]["id"]
+    assert _record_receipt(page, item_id).status_code == 200
+
+    # Simulate an older row where receipt saved but status was not refreshed.
+    from app.database import session as session_module
+    from app.modules.spare_parts_requests.models import SparePartRequest
+
+    db_generator = page.app.dependency_overrides[session_module.get_db]()
+    db = next(db_generator)
+    try:
+        request = db.get(SparePartRequest, request_id)
+        request.status = "pending"
+        db.commit()
+    finally:
+        db.close()
+
+    fault_page = page.get("/faults-repairs/faults").text
+    assert "SR-STALE-STATUS" in fault_page
+    assert "معتمد" in fault_page
+
+    # Verify the request API also repairs a stale row, including status filters.
+    db_generator = page.app.dependency_overrides[session_module.get_db]()
+    db = next(db_generator)
+    try:
+        request = db.get(SparePartRequest, request_id)
+        request.status = "pending"
+        db.commit()
+    finally:
+        db.close()
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
+    assert all(
+        request["id"] != request_id
+        for request in page.get("/api/spare-parts-requests?status=pending").json()
+    )
 
 def test_a_mistaken_receipt_can_be_undone(client):
     """الاستلام الخاطئ كان يقفل الطلب للأبد: لا حذف ولا تصفير.
