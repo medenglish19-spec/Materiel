@@ -19,6 +19,8 @@ def test_maintenance_plan_routes_cover_page_management_and_execution():
     assert ("/api/maintenance/plans", ("GET",)) in paths
     assert ("/api/maintenance/plans", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}", ("PUT",)) in paths
+    assert ("/api/maintenance/plans/{plan_id}", ("DELETE",)) in paths
+    assert ("/api/maintenance/plans/bulk-delete", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/approve", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("GET",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("POST",)) in paths
@@ -39,12 +41,21 @@ def test_maintenance_plan_ui_exposes_complete_controls():
         html.index(f'id="{section}"') < html.index('id="summaryPlans"')
         for section in ("editor", "operationsPanel", "standalonePanel", "executionPanel")
     )
-    assert 'data-edit="' in html
-    assert 'data-approve="' in html
+    # قائمة الإجراءات الموحّدة لكل صف بدل الأزرار الدائمة المتعددة.
+    assert 'data-action-toggle=' in html
+    assert 'data-action-menu' in html
+    assert 'data-menu-action=' in html
     assert "is_approved" in html
-    assert 'data-ops="' in html
-    assert 'data-execute="' in html
     assert 'data-remove-op="' in html
+    # إجراءات الخطة متميزة وواضحة داخل القائمة.
+    for label in ("إدارة العمليات", "تعديل الخطة", "اعتماد الخطة", "تنفيذ الخطة", "حذف الخطة"):
+        assert label in html
+    # إجراءات العملية المستقلة مميزة عن إجراءات الخطة.
+    for label in ("تعديل شرط العملية", "إزالة من هذا الطراز", "حذف العملية من المكتبة"):
+        assert label in html
+    # لا أزرار إجراءات دائمة ولا عمود إجراءات منفصل بعد التوحيد.
+    for legacy in ('data-edit="', 'data-approve="', 'data-ops="', 'data-execute="', 'data-edit-standalone="'):
+        assert legacy not in html
     assert 'id="executionPanel"' in html
     assert 'id="executionForm"' in html
     assert 'id="executionEquipment"' in html
@@ -117,9 +128,39 @@ def test_plan_operations_load_failure_does_not_blank_the_table():
     assert "console.error" in html
 
 
-def test_plan_list_has_no_bulk_delete_button_or_selected_counter():
-    """لا زر «حذف المحدد»/«حذف المحدد (N)» ولا عدّاد «0 محددة» في جدول خطط الصيانة."""
+def test_plan_list_exposes_bulk_selection_and_scoped_bulk_actions():
+    """شريط التحديد يعرض عدّاد الخطط المحددة وإجراءين مقيّدين بنوع التحديد."""
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
 
-    assert "حذف المحدد" not in html
-    assert "0 محددة" not in html
+    assert 'id="bulkBar"' in html
+    assert 'id="plansSelectedCount"' in html
+    assert 'id="bulkDeletePlans"' in html
+    assert 'id="bulkRemoveStandalone"' in html
+
+    # تحديد الخطط وتحديد العمليات المستقلة مجموعتان منفصلتان.
+    assert 'id="selectAllPlans"' in html
+    assert 'id="selectAllStandalone"' in html
+    assert "selectedPlans" in html
+    assert "selectedStandalone" in html
+
+    # الحذف الجماعي الحقيقي عبر نقطة النهاية الخادمية.
+    assert 'api+"/plans/bulk-delete"' in html
+    # إزالة العمليات المستقلة تبقى على نقطة نهاية إزالة الطراز الواحدة.
+    assert 'api+"/operations/"+operationId+"/models/"+modelId' in html
+
+
+def test_operation_library_bulk_delete_consumes_success_and_rejected_contract():
+    """معالج الحذف يستهلك أسماء استجابة الخادم ويعرض الرفض الجزئي دون نجاح زائف."""
+    html = RULES_TEMPLATE.read_text(encoding="utf-8")
+    handler_start = html.index("$('bulkDeleteBtn').onclick")
+    handler_end = html.index("$('newOperationBtn').onclick", handler_start)
+    handler = html[handler_start:handler_end]
+
+    assert "response.ok" in handler
+    assert "Number.isInteger(data.success)" in handler
+    assert "Array.isArray(data.rejected)" in handler
+    assert "data.rejected.map" in handler
+    assert "data.deleted" not in handler
+    assert "await load()" in handler
+    assert "finally" in handler
+    assert "this.disabled = false" in handler

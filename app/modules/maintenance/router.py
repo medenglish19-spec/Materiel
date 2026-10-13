@@ -1,19 +1,22 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, delete
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.permissions import Role, require_min_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
-from app.modules.maintenance.schemas import (MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
+from app.modules.maintenance.schemas import (MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
+    maintenance_record_delete_reason,
     chronology_error,
     contradiction_for,
     current_meter_value,
@@ -96,6 +99,18 @@ def _sync_operation_model_conditions(db: Session, operation, submitted: list) ->
     db.expire(operation, ["equipment_models"])
 
 
+def _delete_plan(db: Session, plan: MaintenancePlan) -> None:
+    """Delete a plan only when no execution history depends on its context."""
+    if db.query(MaintenanceRecord.id).filter(
+        MaintenanceRecord.plan_id == plan.id
+    ).first():
+        raise ValueError("لا يمكن حذف الخطة لارتباطها بسجلات تنفيذ تاريخية.")
+    db.query(MaintenancePlanOperation).filter(
+        MaintenancePlanOperation.plan_id == plan.id
+    ).delete(synchronize_session=False)
+    db.delete(plan)
+
+
 @router.get("/maintenance", response_class=HTMLResponse)
 def maintenance_dashboard_page(request: Request, current_user: User = Depends(get_current_user)):
     return templates.TemplateResponse(request=request, name="maintenance_home.html", context={"request": request, "user": current_user})
@@ -170,6 +185,10 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
 
 @router.get("/maintenance/records", response_class=HTMLResponse)
 def maintenance_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    can_manage_records = settings.DEV_DISABLE_AUTH or current_user.role in {
+        Role.ADMIN.value,
+        Role.FLEET_MANAGER.value,
+    }
     records = db.query(MaintenanceRecord).options(
         joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_type),
         joinedload(MaintenanceRecord.equipment).joinedload(Equipment.equipment_model),
@@ -195,7 +214,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
 
     edit_record = None
     edit_id = request.query_params.get("edit")
-    if edit_id and edit_id.isdigit():
+    if can_manage_records and edit_id and edit_id.isdigit():
         edit_record = db.query(MaintenanceRecord).options(
             joinedload(MaintenanceRecord.operation),
             joinedload(MaintenanceRecord.plan),
@@ -246,6 +265,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "operation_model_ids": operation_model_ids,
             "meter_required_by_operation": meter_required_by_operation,
             "edit_record": edit_record,
+            "can_manage_records": can_manage_records,
         },
     )
 
@@ -375,7 +395,7 @@ def maintenance_record_update(
     description: str = Form(""),
     note: str = Form(""),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     records_url = "/maintenance/records"
     rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
@@ -465,71 +485,136 @@ def maintenance_record_update(
 
 
 @router.post("/maintenance/records/{record_id}/delete")
-def maintenance_record_delete(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def maintenance_record_delete(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
+):
     rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
     if rec is None: return RedirectResponse("/maintenance/records?error=not_found", status_code=status.HTTP_303_SEE_OTHER)
-    db.delete(rec); db.commit()
-    return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
-
-
-@router.post("/api/maintenance/bulk-delete", response_model=dict)
-def api_bulk_delete_operations(
-    payload: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """Bulk delete operations with safety checks.
-    
-    Returns:
-        dict with keys:
-            - success: number of operations successfully deleted
-            - rejected: list of {operation_id, operation_name, reason}
-    """
-    operation_ids = payload.get("operation_ids", [])
-    if not operation_ids:
-        return {"success": 0, "rejected": [], "detail": "لا توجدOperations لتحديد الحذف."}
-
-    rejected = []
-    deleted = 0
-
-    for op_id in operation_ids:
-        operation = db.get(MaintenanceOperation, op_id)
-        if operation is None:
-            rejected.append({"operation_id": op_id, "operation_name": f"# {op_id}", "reason": "العملية غير موجودة"})
-            continue
-
-        # Check if operation is linked to any maintenance records
-        has_records = db.query(MaintenanceRecord).filter(
-            MaintenanceRecord.operation_id == op_id
-        ).first() is not None
-
-        if has_records:
-            rejected.append({
-                "operation_id": op_id,
-                "operation_name": operation.name,
-                "reason": "لا يمكن حذف العملية لأنها مستخدمة في سجل صيانةexistante. عطِّل العملية بدلاً من حذفها."
-            })
-            continue
-
-        # Check if operation is linked to any plans
-        has_plan_links = db.query(MaintenancePlanOperation).filter(
-            MaintenancePlanOperation.operation_id == op_id
-        ).first() is not None
-
-        if has_plan_links:
-            rejected.append({
-                "operation_id": op_id,
-                "operation_name": operation.name,
-                "reason": "لا يمكن حذف العملية لأنها مرتبطة بخطط الصيانة. احذف العلاقة من الخطة أولاً."
-            })
-            continue
-
-        db.delete(operation)
-        deleted += 1
-
+    if maintenance_record_delete_reason(rec):
+        return RedirectResponse("/maintenance/records?error=protected_record", status_code=status.HTTP_303_SEE_OTHER)
+    db.delete(rec)
     try:
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=409, detail="تعذر الحذف الشامل") from exc
+        raise HTTPException(status_code=409, detail="تعذر حذف سجل الصيانة.") from exc
+    return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.delete("/api/maintenance/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_maintenance_record_delete(
+    record_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
+):
+    """حذف سجل صيانة واحد عبر API مع الحفاظ على البيانات المرتبطة.
+
+    يُرجع استجابة 204 بلا محتوى ولا رأس Content-Type، لتجنب اعتراض
+    أدوات الواجهة العامة (مثل edit-manager.js) التي تحاول تحليل JSON من استجابات فارغة.
+    """
+    from fastapi import Response
+    rec = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id).first()
+    if rec is None:
+        raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود.")
+    reason = maintenance_record_delete_reason(rec)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    db.delete(rec)
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حذف سجل الصيانة.") from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/api/maintenance/records/bulk-delete", response_model=dict)
+def api_maintenance_records_bulk_delete(
+    payload: MaintenanceRecordBulkDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
+):
+    deleted_ids = []
+    rejected = []
+    try:
+        for record_id in payload.record_ids:
+            record = db.get(MaintenanceRecord, record_id)
+            if record is None:
+                rejected.append({
+                    "record_id": record_id,
+                    "record_label": f"سجل #{record_id}",
+                    "reason": "سجل الصيانة غير موجود.",
+                })
+                continue
+            reason = maintenance_record_delete_reason(record)
+            if reason:
+                rejected.append({
+                    "record_id": record.id,
+                    "record_label": f"{record.maintenance_date} — {record.operation.name if record.operation else 'سجل قديم'}",
+                    "reason": reason,
+                })
+                continue
+            db.delete(record)
+            deleted_ids.append(record_id)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر تنفيذ الحذف الجماعي لسجلات الصيانة.") from exc
+    return {"success": len(deleted_ids), "deleted_ids": deleted_ids, "rejected": rejected}
+
+
+@router.post("/api/maintenance/bulk-delete", response_model=dict)
+def api_bulk_delete_operations(
+    payload: MaintenanceOperationBulkDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """حذف آمن جزئي لعمليات المكتبة مع بيان سبب رفض كل عملية."""
+    operation_ids = payload.operation_ids
+    rejected = []
+    deleted = 0
+
+    try:
+        for op_id in operation_ids:
+            operation = db.get(MaintenanceOperation, op_id)
+            if operation is None:
+                rejected.append({"operation_id": op_id, "operation_name": f"# {op_id}", "reason": "العملية غير موجودة"})
+                continue
+
+            # Check if operation is linked to any maintenance records
+            has_records = db.query(MaintenanceRecord).filter(
+                MaintenanceRecord.operation_id == op_id
+            ).first() is not None
+
+            if has_records:
+                rejected.append({
+                    "operation_id": op_id,
+                    "operation_name": operation.name,
+                    "reason": "لا يمكن حذف العملية لأنها مرتبطة بسجل صيانة. عطّل العملية بدلًا من حذفها."
+                })
+                continue
+
+            # Check if operation is linked to any plans
+            has_plan_links = db.query(MaintenancePlanOperation).filter(
+                MaintenancePlanOperation.operation_id == op_id
+            ).first() is not None
+
+            if has_plan_links:
+                rejected.append({
+                    "operation_id": op_id,
+                    "operation_name": operation.name,
+                    "reason": "لا يمكن حذف العملية لأنها مرتبطة بخطط الصيانة. أزل ارتباطها بالخطة أولًا."
+                })
+                continue
+
+            db.delete(operation)
+            deleted += 1
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر تنفيذ الحذف الجماعي لعمليات الصيانة.") from exc
 
     return {"success": deleted, "rejected": rejected}
 
@@ -843,6 +928,16 @@ def api_operation_remove_model(operation_id: int, equipment_model_id: int, db: S
         raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
     if model not in operation.equipment_models:
         raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذا الطراز.")
+    affected_plans = db.query(MaintenancePlan).join(
+        MaintenancePlanOperation,
+        MaintenancePlanOperation.plan_id == MaintenancePlan.id,
+    ).filter(
+        MaintenancePlan.equipment_model_id == model.id,
+        MaintenancePlanOperation.operation_id == operation.id,
+        MaintenancePlan.is_approved.is_(True),
+    ).all()
+    for plan in affected_plans:
+        plan.is_approved = False
     operation.equipment_models.remove(model)
     try:
         db.commit()
@@ -865,6 +960,32 @@ def api_plan_create(payload: MaintenancePlanCreate, db: Session = Depends(get_db
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر إنشاء خطة الصيانة.") from exc
     return plan
 
+@router.post("/api/maintenance/plans/bulk-delete", response_model=dict)
+def api_plans_bulk_delete(payload: MaintenancePlanBulkDelete, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """حذف الخطط الآمنة، مع رفض الخطط التي تحفظ سياق تنفيذ تاريخي.
+
+    كل رفض يعيد معرّف الخطة وسبب منع حذفها. لا يُحذف تعريف عملية من المكتبة.
+    """
+    deleted = 0
+    rejected: list[dict] = []
+    try:
+        for plan_id in payload.plan_ids:
+            plan = db.get(MaintenancePlan, plan_id)
+            if plan is None:
+                rejected.append({"plan_id": plan_id, "plan_name": f"# {plan_id}", "reason": "خطة الصيانة غير موجودة"})
+                continue
+            try:
+                _delete_plan(db, plan)
+            except ValueError as exc:
+                rejected.append({"plan_id": plan.id, "plan_name": plan.name, "reason": str(exc)})
+            else:
+                deleted += 1
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر تنفيذ الحذف الجماعي لخطط الصيانة.") from exc
+    return {"success": deleted, "rejected": rejected}
+
 @router.put("/api/maintenance/plans/{plan_id}", response_model=MaintenancePlanOut)
 def api_plan_update(plan_id: int, payload: MaintenancePlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     plan = db.get(MaintenancePlan, plan_id)
@@ -883,6 +1004,23 @@ def api_plan_update(plan_id: int, payload: MaintenancePlanUpdate, db: Session = 
     try: db.commit(); db.refresh(plan)
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="تعذر تعديل خطة الصيانة.") from exc
     return plan
+
+@router.delete("/api/maintenance/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
+def api_plan_delete(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """حذف خطة صيانة لا ترتبط بتنفيذ تاريخي فقط."""
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    try:
+        _delete_plan(db, plan)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حذف خطة الصيانة.") from exc
+    return None
 
 @router.post("/api/maintenance/plans/{plan_id}/approve", response_model=MaintenancePlanOut)
 def api_plan_approve(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -971,7 +1109,11 @@ def api_plan_operation_remove(
         raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذه الخطة.")
     db.delete(link)
     plan.is_approved = False
-    db.commit()
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر إزالة العملية من الخطة.") from exc
     return None
 
 

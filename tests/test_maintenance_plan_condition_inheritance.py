@@ -404,11 +404,14 @@ def test_plans_page_exposes_the_unified_workspace_controls():
     # اختيار الطراز والمؤشرات الملخصة.
     assert 'id="modelFilter"' in html
     assert 'id="summaryPlans"' in html and 'id="summaryStandalone"' in html
-    # العرض الهرمي + إدارة عمليات الخطة + تعديل/إزالة.
-    assert 'data-ops="' in html and 'data-remove-op="' in html
-    assert 'data-edit="' in html and 'data-plan-id="' in html
+    # العرض الهرمي + قائمة الإجراءات الموحّدة (إدارة/تعديل/اعتماد/تنفيذ/حذف) + إزالة.
+    assert 'data-action-toggle=' in html and 'data-action-menu' in html
+    assert 'data-menu-action=' in html and 'data-remove-op="' in html
+    assert 'data-edit="' not in html and 'data-approve="' not in html
+    assert 'data-plan-id="' in html
     # محرر العملية المستقلة.
-    assert 'id="standalonePanel"' in html and 'data-edit-standalone="' in html
+    assert 'id="standalonePanel"' in html and 'data-op-id="' in html
+    assert 'data-edit-standalone="' not in html
     # نقاط النهاية الحقيقية.
     assert "api+'/plans'" in html
     assert "api+'/plans/'+id+'/operations'" in html

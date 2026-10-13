@@ -729,51 +729,48 @@
   });
 
   // Bulk delete handler
-  $('bulkDeleteBtn').onclick = function() {
+  $('bulkDeleteBtn').onclick = async function() {
     const checked = document.querySelectorAll('.operation-checkbox:checked');
     const count = checked.length;
     if (count === 0) return;
 
     const operationIds = Array.from(checked).map(cb => cb.dataset.operationId);
-    const confirmed = confirm('هل أنت متأكد من حذف ' + count + ' عملية صيانة محددة؟ هذا الإجراء لا يمكن التراجع عنه، وسيتم رفض الحذف لأي عملية مرتبطة بسجلات صيانةexistante.');
+    const confirmed = confirm('هل أنت متأكد من حذف ' + count + ' عملية صيانة محددة؟ سيتم رفض حذف أي عملية مرتبطة بسجل تنفيذ أو خطة.');
     if (!confirmed) return;
 
-    // Show loading state
     this.disabled = true;
     this.textContent = 'جاري الحذف...';
-
-    fetch('/api/maintenance/bulk-delete', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({operation_ids: operationIds})
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        showAlert('تم حذف ' + data.deleted + ' عملية(processed successfully.');
-        load();
-      } else {
-        // Show which ones were rejected and why
-        let msg = 'تم رفض حذف ' + (count - data.success) + ' عملية(ies):';
-        data.rejected.forEach(item => {
-          msg += '\n- ' + item.operation_name + ': ' + item.reason;
-        });
-        if (data.deleted > 0) {
-          msg += '\n\nتم حذف ' + data.deleted + ' عملية بنجاح.';
-          showAlert(msg, 'success');
-          load();
-        } else {
-          showAlert(msg, 'danger');
-        }
+    try {
+      const response = await fetch('/api/maintenance/bulk-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({operation_ids: operationIds})
+      });
+      const contentType = response.headers.get('content-type') || '';
+      let data = null;
+      if (contentType.includes('application/json')) {
+        try { data = await response.json(); }
+        catch (_) { throw new Error('استجابة الخادم غير صالحة.'); }
       }
-    })
-    .catch(error => {
-      showAlert('تعذر تنفيذ العملية: ' + error.message, 'danger');
-    })
-    .finally(() => {
-      $('bulkDeleteBtn').disabled = false;
-      $('bulkDeleteBtn').textContent = 'حذف المحدد (' + count + ')';
-    });
+      if (!response.ok) {
+        throw new Error(data?.detail || 'فشل طلب الحذف الجماعي (HTTP ' + response.status + ').');
+      }
+      if (!data || !Number.isInteger(data.success) || !Array.isArray(data.rejected)) {
+        throw new Error('استجابة الحذف الجماعي غير متوقعة؛ لم يتم اعتبار الطلب ناجحًا.');
+      }
+      if (data.success > 0) await load();
+      const reasons = data.rejected.map(item =>
+        '- ' + (item.operation_name || ('عملية #' + item.operation_id)) + ': ' + (item.reason || 'سبب الرفض غير متوفر')
+      ).join('\n');
+      const message = 'تم حذف ' + data.success + ' عملية، ورُفض حذف ' + data.rejected.length + ' عملية.' +
+        (reasons ? '\n' + reasons : '');
+      showAlert(message, data.rejected.length || data.success === 0 ? 'danger' : 'success');
+    } catch (error) {
+      showAlert('تعذر تنفيذ الحذف الجماعي: ' + error.message, 'danger');
+    } finally {
+      this.disabled = false;
+      updateBulkActionUI();
+    }
   };
 
   $('newOperationBtn').onclick = resetEditor;

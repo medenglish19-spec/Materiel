@@ -23,21 +23,34 @@
       {% elif error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لسجل الصيانة.
       {% elif error == 'work_order' %}رقم أمر العمل يجب أن يتكوّن من أرقام فقط.
       {% elif error == 'technician' %}الفني المنفذ المحدد غير موجود أو غير نشط.
+      {% elif error == 'protected_record' %}لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي.
       {% elif error == 'validation' %}تعذر حفظ السجل بسبب مخالفة أحد شروط صحة سجل الصيانة.
       {% elif error == 'not_found' %}السجل أو العملية المطلوبة غير موجودة.
       {% else %}تعذر تنفيذ العملية. تحقق من البيانات ثم أعد المحاولة.{% endif %}
     </div>
   </div>
   {% endif %}
-  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المحدد. لم يتم حذف المركبة أو عملية الصيانة.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
+  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المجدول غير المنفذ.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
   {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل سجل الصيانة بنجاح.{% else %}تم تسجيل عملية الصيانة بنجاح.{% endif %}</div>{% endif %}
 
   <section class="panel">
-    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>كل تنفيذ محفوظ كسجل فعلي مرتبط بالمركبة والعملية، ويمكن ربطه بخطة عند التنفيذ ضمن خطة.</p></div><span class="badge success">{{ records|length }} سجل</span></div>
+    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>سجلات التنفيذ الفعلية محفوظة للتاريخ التشغيلي؛ يمكن حذف الموعد المجدول غير المنفذ فقط.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
     <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
-    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th><th>الإجراءات</th></tr></thead><tbody>
+    <div id="recordsActionAlert" class="alert" role="status" aria-live="polite" hidden style="display:none;margin:0 8px 10px;white-space:pre-line"></div>
+    {% if can_manage_records %}
+    <div id="recordsBulkBar" class="toolbar-card" hidden style="display:none">
+      <div class="toolbar" style="display:flex;flex-wrap:wrap;justify-content:space-between">
+        <span id="recordsSelectedCount" class="muted">0 محددة</span>
+        <button class="m-btn danger" type="button" id="bulkDeleteRecords">حذف المحدد (0)</button>
+      </div>
+    </div>
+    {% endif %}
+    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr>{% if can_manage_records %}<th><input type="checkbox" id="selectAllRecords" aria-label="تحديد كل السجلات الظاهرة"></th>{% endif %}<th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>{% if can_manage_records %}<th>الإجراءات</th>{% endif %}</tr></thead><tbody>
       {% for r in records %}
-      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}">
+      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}" data-can-delete="{{ 'true' if r.is_scheduled and r.status == 'scheduled' else 'false' }}">
+        {% if can_manage_records %}
+        <td><input type="checkbox" class="record-check" value="{{ r.id }}" aria-label="تحديد سجل الصيانة {{ r.id }}"></td>
+        {% endif %}
         <td>{{ loop.index }}</td>
         <td>{{ r.equipment.equipment_model.name if r.equipment.equipment_model and r.equipment.equipment_model.name is defined else '—' }}</td>
         <td class="vehicle">{{ r.equipment.registration_number or r.equipment.vin }}</td>
@@ -47,16 +60,29 @@
         <td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td>
         <td>{{ r.work_order or '—' }}</td><td>{{ r.technician.full_name if r.technician else '—' }}</td><td>{{ r.workshop or '—' }}</td>
         <td>{{ r.description or '—' }}</td><td>{{ r.note or '—' }}</td>
+        {% if can_manage_records %}
         <td style="white-space:nowrap">
-          {% if r.operation_id %}<a class="m-btn primary" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a>{% endif %}
-          <form method="post" action="/maintenance/records/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>
+          {% if can_manage_records %}
+          <span class="row-action-menu">
+            <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="record-menu-{{ r.id }}">⋯</button>
+            <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
+              {% if r.operation_id %}
+              <button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>
+              {% endif %}
+              {% if r.is_scheduled and r.status == 'scheduled' %}
+              <button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف الموعد المجدول</button>
+              {% endif %}
+            </div>
+          </span>
+          {% endif %}
         </td>
+        {% endif %}
       </tr>
-      {% else %}<tr><td colspan="13" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="{{ 14 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 
-  {% if edit_record %}
+  {% if edit_record and can_manage_records %}
     {% if edit_record.operation_id %}
     <section class="panel" id="editRecord" style="margin-top:16px">
       <div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>التعديل يظل خاضعًا لشروط العملية والطراز وتسلسل العداد.</p></div></div>
@@ -101,7 +127,105 @@
 <script>
 (function(){
   const search=document.getElementById('recordsSearch');
-  if(search)search.addEventListener('input',()=>{const x=search.value.toLowerCase().trim();document.querySelectorAll('#recordsTable tbody tr').forEach(r=>r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none')});
+  const recordsTable=document.getElementById('recordsTable');
+  const selectedRecordIds=new Set();
+  const selectAllRecords=document.getElementById('selectAllRecords');
+  const recordsBulkBar=document.getElementById('recordsBulkBar');
+  const bulkDeleteRecords=document.getElementById('bulkDeleteRecords');
+  const recordsSelectedCount=document.getElementById('recordsSelectedCount');
+  const recordsActionAlert=document.getElementById('recordsActionAlert');
+  function recordRows(){return [...recordsTable.querySelectorAll('tbody tr[data-record-id]')]}
+  function visibleRecordRows(){return recordRows().filter(row=>row.style.display!=='none')}
+  function updateRecordCount(){
+    const count=recordRows().length;
+    const badge=document.getElementById('recordCount');
+    if(badge)badge.textContent=count+' سجل';
+    recordRows().forEach((row,index)=>{row.querySelector('td:nth-child(2)').textContent=String(index+1)});
+    if(!count)recordsTable.querySelector('tbody').innerHTML='<tr><td colspan="{{ 14 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>';
+  }
+  function updateRecordSelection(){
+    if(!selectAllRecords||!recordsBulkBar||!bulkDeleteRecords)return;
+    const checks=recordRows().map(row=>row.querySelector('.record-check'));
+    const visible=visibleRecordRows().map(row=>row.querySelector('.record-check'));
+    const visibleSelected=visible.filter(check=>selectedRecordIds.has(Number(check.value))).length;
+    selectAllRecords.checked=visible.length>0&&visibleSelected===visible.length;
+    selectAllRecords.indeterminate=visibleSelected>0&&visibleSelected<visible.length;
+    recordsBulkBar.hidden=selectedRecordIds.size===0;
+    recordsBulkBar.style.display=selectedRecordIds.size?'':'none';
+    recordsSelectedCount.textContent=selectedRecordIds.size+' محددة';
+    bulkDeleteRecords.textContent='حذف المحدد ('+selectedRecordIds.size+')';
+    bulkDeleteRecords.disabled=selectedRecordIds.size===0;
+    checks.forEach(check=>{check.checked=selectedRecordIds.has(Number(check.value))});
+  }
+  function showRecordActionResult(message,bad=false){
+    recordsActionAlert.textContent=message;
+    recordsActionAlert.className='alert '+(bad?'danger':'success');
+    recordsActionAlert.hidden=false;
+    recordsActionAlert.style.display='';
+  }
+  function removeRecordRows(ids){
+    ids.forEach(id=>{
+      const row=recordsTable.querySelector('tr[data-record-id="'+id+'"]');
+      if(row)row.remove();
+      selectedRecordIds.delete(Number(id));
+    });
+    updateRecordCount();
+    updateRecordSelection();
+  }
+  if(search)search.addEventListener('input',()=>{
+    const x=search.value.toLowerCase().trim();
+    recordRows().forEach(row=>row.style.display=!x||row.innerText.toLowerCase().includes(x)?'':'none');
+    updateRecordSelection();
+  });
+  recordsTable.addEventListener('change',event=>{
+    const check=event.target.closest('.record-check');
+    if(!check)return;
+    const id=Number(check.value);
+    if(check.checked)selectedRecordIds.add(id);else selectedRecordIds.delete(id);
+    updateRecordSelection();
+  });
+  if(selectAllRecords)selectAllRecords.addEventListener('change',()=>{
+      visibleRecordRows().forEach(row=>{
+        const id=Number(row.dataset.recordId);
+        if(selectAllRecords.checked)selectedRecordIds.add(id);else selectedRecordIds.delete(id);
+      });
+      updateRecordSelection();
+    });
+  async function bulkDeleteSelectedRecords(){
+    const ids=[...selectedRecordIds];
+    if(!ids.length||!confirm('سيُحذف الموعد المجدول غير المنفذ فقط. سجلات التنفيذ التاريخية المحمية ستُرفض مع توضيح السبب. هل تريد المتابعة؟'))return;
+    bulkDeleteRecords.disabled=true;
+    bulkDeleteRecords.textContent='جارٍ الحذف...';
+    try{
+      const response=await fetch('/api/maintenance/records/bulk-delete',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({record_ids:ids})
+      });
+      const contentType=response.headers.get('content-type')||'';
+      let result=null;
+      if(contentType.includes('application/json')){
+        try{result=await response.json()}catch(_){throw new Error('استجابة الخادم غير صالحة.')}
+      }
+      if(!response.ok)throw new Error(result?.detail||'فشل طلب الحذف الجماعي (HTTP '+response.status+').');
+      if(!result||!Number.isInteger(result.success)||!Array.isArray(result.rejected)||!Array.isArray(result.deleted_ids)){
+        throw new Error('استجابة الحذف الجماعي غير متوقعة؛ لم يتم تحديث الجدول.');
+      }
+      removeRecordRows(result.deleted_ids);
+      selectedRecordIds.clear();
+      updateRecordSelection();
+      const rejectedDetails=result.rejected.map(item=>'• '+(item.record_label||('سجل #'+item.record_id))+': '+item.reason).join('\n');
+      const message='تم حذف '+result.success+' سجل، ورُفض حذف '+result.rejected.length+' سجل.'+(rejectedDetails?'\n'+rejectedDetails:'');
+      showRecordActionResult(message,result.rejected.length>0||result.success===0);
+    }catch(error){
+      showRecordActionResult(error.message||'تعذر تنفيذ الحذف الجماعي.',true);
+    }finally{
+      bulkDeleteRecords.disabled=false;
+      updateRecordSelection();
+    }
+  }
+  if(bulkDeleteRecords)bulkDeleteRecords.addEventListener('click',bulkDeleteSelectedRecords);
+  updateRecordSelection();
   const today=new Date().toISOString().slice(0,10);
   const model=document.getElementById('modelFilter'), equipment=document.getElementById('equipmentSelect'), operation=document.getElementById('operationSelect'), plan=document.getElementById('planSelect'), meter=document.getElementById('maintenanceMeter'), hint=document.getElementById('currentMeterHint'), operationEmptyHint=document.getElementById('operationEmptyHint');
   const editEquipment=document.getElementById('editEquipment'), editPlan=document.getElementById('editPlan'), editOperation=document.getElementById('editOperation');
@@ -183,6 +307,75 @@
   if(editPlan)editPlan.addEventListener('change',buildEditOperations);
   const newForm=document.getElementById('maintenanceRecordForm');if(newForm)newForm.addEventListener('submit',e=>{if(!validate(newForm,false))e.preventDefault()});
   const editForm=document.getElementById('maintenanceEditForm');if(editForm)editForm.addEventListener('submit',e=>{if(!validate(editForm,true))e.preventDefault()});
+
+  // قائمة الإجراءات الموحّدة (⋯) لجدول سجل الصيانة
+  const api='/api/maintenance';
+  function alert(msg,bad=false){const a=document.getElementById('alert');if(!a)return;a.textContent=msg;a.className='alert '+(bad?'danger':'success');a.style.display='';setTimeout(()=>a.style.display='none',4000)}
+  async function req(url,opt={}){const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d=null;try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d?.detail||'تعذر تنفيذ العملية.');return d}
+  function closeActionMenus(except=null){
+    document.querySelectorAll("[data-action-menu]").forEach(menu=>{if(menu!==except)menu.hidden=true;});
+    document.querySelectorAll("[data-action-toggle]").forEach(button=>{const menu=document.getElementById(button.dataset.actionToggle);button.setAttribute("aria-expanded",String(Boolean(menu&&!menu.hidden)));});
+  }
+  function positionActionMenu(menu,toggle){
+    const rect=toggle.getBoundingClientRect();
+    const width=menu.offsetWidth||180;
+    let left=rect.right-width;
+    if(left<8)left=8;
+    if(left+width>window.innerWidth-8)left=Math.max(8,window.innerWidth-width-8);
+    menu.style.top=Math.max(8,rect.bottom+4)+"px";
+    menu.style.left=left+"px";
+  }
+  document.addEventListener("click",event=>{
+    const toggle=event.target.closest("[data-action-toggle]");
+    if(toggle){
+      const menu=document.getElementById(toggle.dataset.actionToggle);
+      if(!menu)return;
+      const shouldOpen=menu.hidden;
+      closeActionMenus(menu);
+      menu.hidden=!shouldOpen;
+      if(shouldOpen){
+        positionActionMenu(menu,toggle);
+        const first=menu.querySelector("[data-menu-action]:not(:disabled)");
+        if(first&&event.detail===0)first.focus({preventScroll:true});
+      }
+      toggle.setAttribute("aria-expanded",String(shouldOpen));
+      return;
+    }
+    const action=event.target.closest("[data-menu-action]");
+    if(action){
+      if(action.disabled)return;
+      const id=Number(action.dataset.id);
+      const handlers={
+        "record-edit":()=>{window.location.href="/maintenance/records?edit="+id+"#editRecord";},
+        "record-delete":async()=>{
+          if(!confirm('سيتم حذف الموعد المجدول غير المنفذ فقط. هل أنت متأكد؟'))return;
+          action.disabled=true;
+          try{
+            await req(api+"/records/"+id,{method:"DELETE"});
+            removeRecordRows([id]);
+            showRecordActionResult("تم حذف الموعد المجدول غير المنفذ.");
+          }catch(e){showRecordActionResult(e.message||"تعذر حذف سجل الصيانة.",true)}
+          finally{action.disabled=false}
+        }
+      };
+      closeActionMenus();
+      const handler=handlers[action.dataset.menuAction];
+      if(handler)handler();
+      return;
+    }
+    closeActionMenus();
+  });
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){closeActionMenus();return;}
+    const menu=event.target.closest("[data-action-menu]");
+    if(!menu)return;
+    const items=Array.from(menu.querySelectorAll("[data-menu-action]:not(:disabled)"));
+    if(!items.length)return;
+    const i=items.indexOf(document.activeElement);
+    if(event.key==="ArrowDown"){event.preventDefault();items[(i+1)%items.length].focus()}
+    else if(event.key==="ArrowUp"){event.preventDefault();items[(i-1+items.length)%items.length].focus()}
+  });
+  document.addEventListener("scroll",()=>closeActionMenus(),true);
 })();
 </script>
 {% endblock %}

@@ -100,6 +100,11 @@
       <span class="badge warning" id="summaryStandalone">0 عملية مستقلة</span>
       <span class="badge danger" id="summaryUnapproved">0 خطة بحاجة اعتماد</span>
     </div>
+    <div id="bulkBar" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:0 13px 12px">
+      <span class="muted" id="plansSelectedCount" style="min-width:70px">0 محددة</span>
+      <button class="m-btn danger" type="button" id="bulkDeletePlans" style="display:none">حذف المحدد</button>
+      <button class="m-btn" type="button" id="bulkRemoveStandalone" style="display:none">إزالة المحدد من هذا الطراز</button>
+    </div>
     <div class="table-wrap" data-mt-region>
       <table class="m-table">
         <thead><tr>
@@ -108,9 +113,8 @@
   <th>شرط الاستحقاق</th>
   <th>الحالة</th>
   <th>العمليات</th>
-  <th>الإجراء</th>
 </tr></thead>
-        <tbody id="body"><tr><td colspan="6" class="muted">جارٍ التحميل...</td></tr></tbody>
+        <tbody id="body"><tr><td colspan="5" class="muted">جارٍ التحميل...</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -121,7 +125,7 @@
   const api='/api/maintenance';
   const models={{ models|tojson }};
   const operationConditions={{ operation_conditions | tojson }};
-  const state={plans:[],operations:[],planOps:{},standalone:[],equipment:[],currentPlanId:null,currentPlanModelId:null,selectedPlans:new Set()};
+  const state={plans:[],operations:[],planOps:{},standalone:[],equipment:[],currentPlanId:null,currentPlanModelId:null,selectedPlans:new Set(),selectedStandalone:new Set()};
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const modelName=id=>models.find(m=>m.id===id)?.name||'—';
@@ -157,11 +161,13 @@
       state.plans=plans;state.operations=ops;state.equipment=equipment;
       await loadPlanOps();
       render();
-    }catch(e){$('body').innerHTML='<tr><td colspan="6" class="muted">'+esc(e.message)+'</td></tr>'}
+    }catch(e){$('body').innerHTML='<tr><td colspan="5" class="muted">'+esc(e.message)+'</td></tr>'}
   }
   async function loadPlanOps(){
     const modelId=Number($('modelFilter').value);
     state.planOps={};
+    // تحديد العمليات المستقلة يخص الطراز الحالي؛ يُعاد ضبطه عند كل تحميل أو تغيير طراز.
+    state.selectedStandalone.clear();
     if(!modelId)return [];
     const plans=state.plans.filter(p=>Number(p.equipment_model_id)===modelId);
     // فشل تحميل عمليات خطة واحدة لا يعطّل عرض بقية الخطط؛ يُسجَّل الخطأ الحقيقي بدل ابتلاعه،
@@ -193,6 +199,36 @@
     $('summaryStandalone').textContent=state.standalone.length+' عملية مستقلة';
     $('summaryUnapproved').textContent=unapproved+' خطة بحاجة اعتماد';
   }
+  function closeActionMenus(except=null){
+    document.querySelectorAll("[data-action-menu]").forEach(menu=>{
+      if(menu!==except)menu.hidden=true;
+    });
+    document.querySelectorAll("[data-action-toggle]").forEach(button=>{
+      const menu=document.getElementById(button.dataset.actionToggle);
+      button.setAttribute("aria-expanded",String(Boolean(menu&&!menu.hidden)));
+    });
+  }
+  // القائمة مثبّتة (fixed) فلا يقصّها overflow الجدول، وتُوضع يدويًا بجوار الزر.
+  function positionActionMenu(menu,toggle){
+    const rect=toggle.getBoundingClientRect();
+    const width=menu.offsetWidth||190;
+    let left=rect.right-width;
+    if(left<8)left=8;
+    if(left+width>window.innerWidth-8)left=Math.max(8,window.innerWidth-width-8);
+    menu.style.top=Math.max(8,rect.bottom+4)+"px";
+    menu.style.left=left+"px";
+  }
+  function actionMenuButton(id,items,kind="row"){
+    const menuId="row-menu-"+kind+"-"+id;
+    const actions=items.map(item=>`
+      <button type="button" role="menuitem" data-menu-action="${item.action}" data-id="${id}" ${item.disabled?"disabled":""}>${esc(item.label)}</button>
+    `).join("");
+    return `
+      <span class="row-action-menu">
+        <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="${menuId}">⋯</button>
+        <div id="${menuId}" data-action-menu role="menu" hidden>${actions}</div>
+      </span>`;
+  }
   function planRow(p,i){
     const links=state.planOps[p.id]||[];
     const opsRows=links.map(link=>{
@@ -201,38 +237,78 @@
         +'<td class="muted"></td>'
         +'<td style="padding-right:26px">↳ '+esc(o?.name||'—')+' <small class="muted">(ضمن الخطة)</small></td>'
         +'<td>يتبع شرط الخطة: '+esc(planConditionText(p))+'</td>'
-        +'<td class="muted">—</td><td class="muted">—</td>'
+        +'<td class="muted">—</td>'
         +'<td><button class="m-btn" type="button" data-remove-op="'+link.operation_id+'" data-plan-id="'+p.id+'">🗑 إزالة</button></td>'
         +'</tr>';
     }).join('');
+    const planActions=[
+      {label:"إدارة العمليات",action:"plan-manage"},
+      {label:"تعديل الخطة",action:"plan-edit"},
+      ...(p.is_active&&!p.is_approved?[{label:"اعتماد الخطة",action:"plan-approve"}]:[]),
+      {label:"تنفيذ الخطة",action:"plan-execute",disabled:!p.is_active||!p.is_approved},
+      {label:"حذف الخطة",action:"plan-delete"}
+    ];
     return '<tr class="plan-row">'
       +'<td><input type="checkbox" class="plan-check" data-plan-id="'+p.id+'" '+ (state.selectedPlans.has(p.id)?'checked':'') +' aria-label="'+esc(p.name)+'"></td>'
-      +'<td><span class="vehicle">'+esc(p.name)+'</span><small style="display:block;color:#8a97a4">خطة صيانة · '+esc(modelName(p.equipment_model_id))+'</small></td>'
+      +'<td><div class="plan-name-cell">'+actionMenuButton(p.id,planActions,"plan")+'<span class="vehicle">'+esc(p.name)+'</span></div><small style="display:block;color:#8a97a4">خطة صيانة · '+esc(modelName(p.equipment_model_id))+'</small></td>'
       +'<td>'+esc(planConditionText(p))+'</td>'
       +'<td><span class="badge '+(p.is_active?'success':'neutral')+'">'+(p.is_active?'مفعلة':'متوقفة')+'</span> <span class="badge '+(p.is_approved?'success':'warning')+'">'+(p.is_approved?'معتمدة':'غير معتمدة')+'</span></td>'
       +'<td>'+links.length+' عملية</td>'
-      +'<td>'
-        +'<button class="m-btn primary" type="button" data-ops="'+p.id+'">إدارة العمليات</button> '
-        +(p.is_active&&!p.is_approved?'<button class="m-btn" type="button" data-approve="'+p.id+'">✓ اعتماد</button> ':'')
-        +'<button class="m-btn" type="button" data-edit="'+p.id+'">✏️ تعديل</button> '
-        +'<button class="m-btn primary" type="button" data-execute="'+p.id+'" '+(!p.is_active||!p.is_approved?'disabled title="يجب اعتماد الخطة أولًا"':'')+'>▶ تنفيذ</button>'
-      +'</td></tr>'+opsRows;
+      +'</tr>'+opsRows;
   }
   function standaloneRow(o,i){
+    const standaloneActions=[
+      {label:"تعديل شرط العملية",action:"standalone-edit"},
+      {label:"إزالة من هذا الطراز",action:"standalone-remove-model"},
+      {label:"حذف العملية من المكتبة",action:"standalone-delete-library"}
+    ];
     return '<tr class="standalone-row">'
-      +'<td>'+(i+1)+'</td>'
-      +'<td><span class="vehicle">'+esc(o.name)+'</span><small style="display:block;color:#8a97a4">عملية مستقلة</small></td>'
+      +'<td class="standalone-check-col"><input type="checkbox" class="standalone-check" data-op-id="'+o.id+'" '+ (state.selectedStandalone.has(o.id)?'checked':'') +' aria-label="'+esc(o.name)+'"></td>'
+      +'<td><div class="plan-name-cell">'+actionMenuButton(o.id,standaloneActions,"standalone")+'<span class="vehicle">'+esc(o.name)+'</span></div><small style="display:block;color:#8a97a4">عملية مستقلة</small></td>'
       +'<td>'+esc(condition(o,Number($('modelFilter').value)))+'</td>'
       +'<td><span class="badge info">مستقلة</span></td><td class="muted">—</td>'
-      +'<td><button class="m-btn" type="button" data-edit-standalone="'+o.id+'">✏️ تعديل الشرط</button></td>'
       +'</tr>';
+  }
+  function syncSelectionUI(){
+    const boxes=Array.from(document.querySelectorAll('.plan-check'));
+    const selected=boxes.filter(cb=>cb.checked);
+    const selectAll=$('selectAllPlans');
+    if(selectAll){
+      selectAll.checked=boxes.length>0&&selected.length===boxes.length;
+      selectAll.indeterminate=selected.length>0&&selected.length<boxes.length;
+    }
+    state.selectedPlans=new Set(selected.map(cb=>Number(cb.dataset.planId)));
+
+    const standaloneBoxes=Array.from(document.querySelectorAll('.standalone-check'));
+    const standaloneSelected=standaloneBoxes.filter(cb=>cb.checked);
+    const selectAllStandalone=$('selectAllStandalone');
+    if(selectAllStandalone){
+      selectAllStandalone.checked=standaloneBoxes.length>0&&standaloneSelected.length===standaloneBoxes.length;
+      selectAllStandalone.indeterminate=standaloneSelected.length>0&&standaloneSelected.length<standaloneBoxes.length;
+    }
+    state.selectedStandalone=new Set(standaloneSelected.map(cb=>Number(cb.dataset.opId)));
+
+    const counter=$('plansSelectedCount');
+    if(counter)counter.textContent=state.selectedPlans.size+' محددة';
+    const bulkPlans=$('bulkDeletePlans');
+    if(bulkPlans){
+      bulkPlans.style.display=state.selectedPlans.size?'inline-flex':'none';
+      bulkPlans.textContent='حذف المحدد ('+state.selectedPlans.size+')';
+    }
+    const bulkStandalone=$('bulkRemoveStandalone');
+    if(bulkStandalone){
+      bulkStandalone.style.display=state.selectedStandalone.size?'inline-flex':'none';
+      bulkStandalone.textContent='إزالة المحدد من هذا الطراز ('+state.selectedStandalone.size+')';
+    }
   }
   function render(){
     const q=$('search').value.toLowerCase().trim(), modelId=Number($('modelFilter').value);
     if(!modelId){
       $('count').textContent='0 عنصر';
       $('summaryPlans').textContent='0 خطة صيانة';$('summaryPlanOps').textContent='0 عملية ضمن خطط';$('summaryStandalone').textContent='0 عملية مستقلة';$('summaryUnapproved').textContent='0 خطة بحاجة اعتماد';
-      $('body').innerHTML='<tr><td colspan="6" class="muted">اختر طراز العتاد لعرض خططه وعملياته المستقلة.</td></tr>';
+      $('body').innerHTML='<tr><td colspan="5" class="muted">اختر طراز العتاد لعرض خططه وعملياته المستقلة.</td></tr>';
+      state.selectedPlans.clear();state.selectedStandalone.clear();
+      syncSelectionUI();
       return;
     }
     const plans=state.plans.filter(p=>Number(p.equipment_model_id)===modelId&&(!q||p.name.toLowerCase().includes(q)));
@@ -242,51 +318,42 @@
     $('count').textContent=(plans.length+standalone.length)+' عنصر';
     let html=plans.map((p,i)=>planRow(p,i)).join('');
     if(standalone.length){
-      html+='<tr><td colspan="6" style="background:#f4f7fa;font-weight:900;color:#5b6b7a">عمليات مستقلة (ليست ضمن أي خطة) — لا تُقيَّم إلا بشرطها الخاص</td></tr>';
+      html+='<tr class="standalone-group"><td class="standalone-check-col"><input type="checkbox" id="selectAllStandalone" aria-label="حدد كل العمليات المستقلة"></td><td colspan="4" style="background:#f4f7fa;font-weight:900;color:#5b6b7a">عمليات مستقلة (ليست ضمن أي خطة) — لا تُقيَّم إلا بشرطها الخاص</td></tr>';
       html+=standalone.map((o,i)=>standaloneRow(o,i)).join('');
     }
-    $('body').innerHTML=html||'<tr><td colspan="6" class="muted">لا توجد خطط أو عمليات لهذا الطراز.</td></tr>';
-    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(Number(b.dataset.edit)));
-    document.querySelectorAll('[data-ops]').forEach(b=>b.onclick=()=>manage(Number(b.dataset.ops)));
-    document.querySelectorAll('[data-execute]').forEach(b=>b.onclick=()=>prepareExecution(Number(b.dataset.execute)));
-    document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>approve(Number(b.dataset.approve)));
+    $('body').innerHTML=html||'<tr><td colspan="5" class="muted">لا توجد خطط أو عمليات لهذا الطراز.</td></tr>';
     document.querySelectorAll('[data-remove-op]').forEach(b=>b.onclick=()=>removeOperation(Number(b.dataset.planId),Number(b.dataset.removeOp)));
-    document.querySelectorAll('[data-edit-standalone]').forEach(b=>b.onclick=()=>editStandalone(Number(b.dataset.editStandalone)));
-    
-    // Handle plan selection checkboxes
-    const updatePlanSelectionUI = () => {
-      const checked = document.querySelectorAll('.plan-check:checked');
-      const count = checked.length;
-      // Update select all state
-      const selectAll = $('selectAllPlans');
-      if (count === 0) {
-        selectAll.checked = false;
-        selectAll.indeterminate = false;
-      } else if (count === document.querySelectorAll('.plan-check').length) {
-        selectAll.checked = true;
-        selectAll.indeterminate = false;
-      } else {
-        selectAll.indeterminate = true;
-      }
-      // Store selected plan IDs
-      state.selectedPlans = new Set(Array.from(checked).map(cb => parseInt(cb.dataset.planId)));
-    };
-    
-    // Initialize selection UI
-    updatePlanSelectionUI();
-    
-    // Handle select all click
-    $('selectAllPlans').onclick = function() {
-      const checkboxes = document.querySelectorAll('.plan-check');
-      const isChecked = this.checked;
-      checkboxes.forEach(cb => { cb.checked = isChecked; });
-      updatePlanSelectionUI();
-    };
-    
-    // Handle individual checkbox change
-    document.querySelectorAll('.plan-check').forEach(cb => {
-      cb.onchange = updatePlanSelectionUI;
+
+    // تحديد الخطط والعمليات المستقلة: الحالة هي مجموعة المعرّفات، والمربعات تعكسها.
+    document.querySelectorAll('.plan-check').forEach(cb=>{
+      cb.onchange=()=>{
+        const id=Number(cb.dataset.planId);
+        if(cb.checked)state.selectedPlans.add(id);else state.selectedPlans.delete(id);
+        syncSelectionUI();
+      };
     });
+    document.querySelectorAll('.standalone-check').forEach(cb=>{
+      cb.onchange=()=>{
+        const id=Number(cb.dataset.opId);
+        if(cb.checked)state.selectedStandalone.add(id);else state.selectedStandalone.delete(id);
+        syncSelectionUI();
+      };
+    });
+    const selectAllPlans=$('selectAllPlans');
+    if(selectAllPlans){
+      selectAllPlans.onclick=function(){
+        document.querySelectorAll('.plan-check').forEach(cb=>{cb.checked=this.checked});
+        syncSelectionUI();
+      };
+    }
+    const selectAllStandalone=$('selectAllStandalone');
+    if(selectAllStandalone){
+      selectAllStandalone.onclick=function(){
+        document.querySelectorAll('.standalone-check').forEach(cb=>{cb.checked=this.checked});
+        syncSelectionUI();
+      };
+    }
+    syncSelectionUI();
   }
   async function approve(id){const p=state.plans.find(x=>x.id===id);if(!p)return;if(!confirm('اعتماد الخطة سيُظهر عملياتها ضمن متابعات هذا الطراز بشرط الخطة. هل راجعت العمليات؟'))return;try{await req(api+'/plans/'+id+'/approve',{method:'POST'});alert('تم اعتماد الخطة، وستظهر عملياتها ضمن المتابعات.');await load()}catch(e){alert(e.message,true)}}
   function edit(id){const p=state.plans.find(x=>x.id===id);if(!p)return;$('planId').value=p.id;$('name').value=p.name;$('model').value=p.equipment_model_id;$('km').value=p.interval_km??'';$('hours').value=p.interval_hours??'';$('days').value=p.interval_days??'';$('description').value=p.description??'';$('active').checked=!!p.is_active;$('editorTitle').textContent='تعديل خطة صيانة';$('planConditionHint').textContent='تعديل شرط الخطة يجعل اعتمادها لاغيًا حتى إعادة الاعتماد.';$('editor').style.display='';window.scrollTo({top:$('editor').offsetTop-20,behavior:'smooth'})}
@@ -300,6 +367,91 @@
   async function removeOperation(planId,operationId){
     if(!confirm('سيتم إزالة العملية من الخطة فقط، ولن يتم حذف العملية من مكتبة عمليات الصيانة. هل أنت متأكد؟'))return;
     try{await req(api+'/plans/'+planId+'/operations/'+operationId,{method:'DELETE'});const p=state.plans.find(x=>x.id===planId);if(p)p.is_approved=false;await load();alert('تمت إزالة العملية من الخطة، ويلزم اعتمادها مجددًا.')}catch(e){alert(e.message,true)}
+  }
+  async function deletePlan(id){
+    const plan=state.plans.find(item=>item.id===id);
+    if(!plan)return;
+    if(!confirm(`هل تريد حذف خطة «${plan.name}»؟\nلن يسمح النظام بحذفها إذا كانت مرتبطة بسجل تنفيذ تاريخي.`))return;
+    try{
+      await req(api+"/plans/"+id,{method:"DELETE"});
+      state.selectedPlans.delete(id);
+      await load();
+      alert("تم حذف خطة الصيانة.");
+    }catch(error){
+      alert(error.message||"تعذر حذف خطة الصيانة.",true);
+    }
+  }
+  async function deleteSelectedPlans(){
+    const planIds=[...state.selectedPlans];
+    if(!planIds.length){alert("حدد خطة واحدة على الأقل.",true);return}
+    if(!confirm(`هل تريد حذف ${planIds.length} خطة محددة؟\nستُرفض الخطط المرتبطة بسجلات تنفيذ تاريخية مع توضيح السبب.`))return;
+    try{
+      const result=await req(api+"/plans/bulk-delete",{method:"POST",body:JSON.stringify({plan_ids:planIds})});
+      if(!result||!Number.isInteger(result.success)||!Array.isArray(result.rejected)){
+        throw new Error("استجابة الحذف الجماعي غير متوقعة.");
+      }
+      state.selectedPlans.clear();
+      await load();
+      const deleted=result?.success??0;
+      const failures=result?.rejected||[];
+      if(failures.length){
+        alert(`تم حذف ${deleted} خطة.\n`+failures.map(item=>`${item.plan_name}: ${item.reason}`).join("\n"),true);
+      }else{
+        alert(`تم حذف ${deleted} خطة.`);
+      }
+    }catch(error){
+      alert(error.message||"تعذر تنفيذ الحذف الجماعي.",true);
+    }
+  }
+  async function removeStandaloneFromModel(operationId){
+    const modelId=Number($('modelFilter').value);
+    const operation=opById(operationId);
+    if(!modelId||!operation){alert("تعذر تحديد العملية أو الطراز.",true);return}
+    if(!confirm(`هل تريد إزالة «${operation.name}» من الطراز الحالي فقط؟\nلن يُحذف تعريف العملية من المكتبة.`))return;
+    try{
+      await req(api+"/operations/"+operationId+"/models/"+modelId,{method:"DELETE"});
+      state.selectedStandalone.delete(operationId);
+      await load();
+      alert("تمت إزالة العملية من الطراز الحالي.");
+    }catch(error){
+      alert(error.message||"تعذر إزالة العملية من الطراز.",true);
+    }
+  }
+  async function bulkRemoveSelectedStandalone(){
+    const modelId=Number($('modelFilter').value);
+    const operationIds=[...state.selectedStandalone];
+    if(!modelId||!operationIds.length){alert("حدد عملية مستقلة واحدة على الأقل.",true);return}
+    if(!confirm(`هل تريد إزالة ${operationIds.length} عملية محددة من الطراز الحالي؟\nلن تُحذف تعريفاتها من المكتبة العامة.`))return;
+    const removed=[];const failed=[];
+    for(const operationId of operationIds){
+      try{
+        await req(api+"/operations/"+operationId+"/models/"+modelId,{method:"DELETE"});
+        removed.push(operationId);
+      }catch(error){
+        const operation=opById(operationId);
+        failed.push({name:operation?.name||('#'+operationId),reason:error.message||"تعذرت الإزالة."});
+      }
+    }
+    state.selectedStandalone.clear();
+    await load();
+    if(failed.length){
+      alert(`تمت إزالة ${removed.length} عملية.\n`+failed.map(item=>`${item.name}: ${item.reason}`).join("\n"),true);
+    }else{
+      alert(`تمت إزالة ${removed.length} عملية من الطراز الحالي.`);
+    }
+  }
+  async function deleteStandaloneFromLibrary(operationId){
+    const operation=opById(operationId);
+    if(!operation)return;
+    if(!confirm(`هل تريد حذف «${operation.name}» من مكتبة العمليات العامة؟\nقد يرفض الخادم الحذف إذا كانت العملية مرتبطة بخطة أو سجل صيانة.`))return;
+    try{
+      await req(api+"/operations/"+operationId,{method:"DELETE"});
+      state.selectedStandalone.delete(operationId);
+      await load();
+      alert("تم حذف العملية من المكتبة.");
+    }catch(error){
+      alert(error.message||"تعذر حذف العملية من المكتبة.",true);
+    }
   }
   function fillStandaloneOperations(){
     $('standaloneOperation').innerHTML='<option value="">اختر عملية من المكتبة</option>'+state.operations.filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join('');
@@ -399,12 +551,63 @@
     document.addEventListener('click',e=>{if(!menu.hidden&&!e.target.closest('#addSplit'))close(false)});
     document.addEventListener('keydown',e=>{if(e.key==='Escape')close(false)});
   })();
+  // قائمة الإجراءات الموحّدة (⋯): مستمع واحد للنقر، وآخر للوحة المفاتيح.
+  document.addEventListener("click",event=>{
+    const toggle=event.target.closest("[data-action-toggle]");
+    if(toggle){
+      const menu=document.getElementById(toggle.dataset.actionToggle);
+      if(!menu)return;
+      const shouldOpen=menu.hidden;
+      closeActionMenus(menu);
+      menu.hidden=!shouldOpen;
+      if(shouldOpen){
+        positionActionMenu(menu,toggle);
+        const first=menu.querySelector("[data-menu-action]:not(:disabled)");
+        if(first&&event.detail===0)first.focus({preventScroll:true});
+      }
+      toggle.setAttribute("aria-expanded",String(shouldOpen));
+      return;
+    }
+    const action=event.target.closest("[data-menu-action]");
+    if(action){
+      if(action.disabled)return;
+      const id=Number(action.dataset.id);
+      const handlers={
+        "plan-manage":manage,
+        "plan-edit":edit,
+        "plan-approve":approve,
+        "plan-execute":prepareExecution,
+        "plan-delete":deletePlan,
+        "standalone-edit":editStandalone,
+        "standalone-remove-model":removeStandaloneFromModel,
+        "standalone-delete-library":deleteStandaloneFromLibrary
+      };
+      closeActionMenus();
+      const handler=handlers[action.dataset.menuAction];
+      if(handler)handler(id);
+      return;
+    }
+    closeActionMenus();
+  });
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){closeActionMenus();return;}
+    const menu=event.target.closest("[data-action-menu]");
+    if(!menu)return;
+    const items=Array.from(menu.querySelectorAll("[data-menu-action]:not(:disabled)"));
+    if(!items.length)return;
+    const i=items.indexOf(document.activeElement);
+    if(event.key==="ArrowDown"){event.preventDefault();items[(i+1)%items.length].focus()}
+    else if(event.key==="ArrowUp"){event.preventDefault();items[(i-1+items.length)%items.length].focus()}
+  });
+  document.addEventListener("scroll",()=>closeActionMenus(),true);
+  $('bulkDeletePlans').onclick=deleteSelectedPlans;
+  $('bulkRemoveStandalone').onclick=bulkRemoveSelectedStandalone;
   $('cancel').onclick=()=>{$('editor').style.display='none'};
   $('cancelStandalone').onclick=()=>{$('standalonePanel').style.display='none'};
   $('cancelExecution').onclick=()=>{$('executionPanel').style.display='none'};
   $('refresh').onclick=load;
   $('search').oninput=render;
-  $('modelFilter').onchange=async()=>{await loadPlanOps();render()};
+  $('modelFilter').onchange=async()=>{state.selectedPlans.clear();state.selectedStandalone.clear();await loadPlanOps();render()};
   $('model').onchange=()=>{if(!$('planId').value&&$('modelFilter').value!==$('model').value)$('modelFilter').value=$('model').value};
   fillModels();load();
 })();

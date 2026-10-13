@@ -25,3 +25,16 @@
 .maintenance-page .add-menu-item:hover,.maintenance-page .add-menu-item:focus-visible{background:#eef5fc;outline:none}
 .maintenance-page .toolbar .add-split,.maintenance-page .toolbar .add-split>.m-btn{width:100%}
 @media(max-width:680px){.maintenance-page .add-split{width:100%}.maintenance-page .add-split>.m-btn{width:100%}.maintenance-page .add-menu{right:0;left:0;min-width:0}}
+/* قائمة الإجراءات الموحّدة (⋯) — الخطط والعمليات المستقلة */
+.maintenance-page .row-action-menu{position:relative;display:inline-flex;align-items:center;margin-inline-end:6px}
+.maintenance-page .row-action-toggle{border:0;background:transparent;border-radius:5px;padding:2px 7px;font-size:18px;line-height:1;cursor:pointer;color:#3971a3}
+.maintenance-page .row-action-toggle:hover,.maintenance-page .row-action-toggle:focus-visible{background:#eef5fc;outline:none}
+/* مثبّتة (fixed) حتى لا يقصّها overflow الجدول؛ يُحدَّد موضعها من JS. */
+.maintenance-page .row-action-menu [data-action-menu]{position:fixed;z-index:1000;min-width:180px;padding:5px;background:#fff;border:1px solid var(--line,#e2e8ef);border-radius:7px;box-shadow:0 4px 14px rgb(0 0 0 / 12%)}
+.maintenance-page .row-action-menu [data-action-menu][hidden]{display:none}
+.maintenance-page .row-action-menu [data-menu-action]{display:block;width:100%;padding:8px 10px;text-align:start;white-space:nowrap;background:transparent;border:0;border-radius:4px;cursor:pointer;font:inherit;font-size:12px;color:var(--text,#26384a)}
+.maintenance-page .row-action-menu [data-menu-action]:hover:not(:disabled){background:#eef5fc}
+.maintenance-page .row-action-menu [data-menu-action]:disabled{opacity:.5;cursor:not-allowed}
+.maintenance-page .plan-name-cell{display:flex;align-items:center;gap:5px}
+.maintenance-page .standalone-check-col{width:34px;text-align:center}
+.maintenance-page #recordsTable input[type="checkbox"]{width:15px;height:15px;accent-color:var(--blue);vertical-align:middle;cursor:pointer}

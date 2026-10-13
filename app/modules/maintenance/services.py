@@ -29,6 +29,13 @@ NO_WARNING_LABEL = "بدون إنذار مفعّل"
 NO_MODELS_LABEL = "لا توجد طرازات مرتبطة"
 
 
+def maintenance_record_delete_reason(record: MaintenanceRecord) -> str | None:
+    """Only an unexecuted scheduled placeholder may be deleted."""
+    if not record.is_scheduled or record.status != "scheduled":
+        return "لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي."
+    return None
+
+
 def latest_readings(db: Session):
     readings = {}
     rows = db.query(MeterReading).order_by(

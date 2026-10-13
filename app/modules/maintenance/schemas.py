@@ -208,6 +208,51 @@ class MaintenancePlanOut(MaintenancePlanBase):
     is_approved: bool = False
 
 
+class MaintenancePlanBulkDelete(BaseModel):
+    """طلب حذف جماعي لخطط الصيانة المحددة.
+
+    تُرد الخطط غير الموجودة داخل ``rejected`` مع سببها، وتُحذف البقية. لا يمس
+    الحذف سجلات الصيانة التاريخية ولا تعريفات العمليات في المكتبة.
+    """
+
+    plan_ids: list[int] = Field(min_length=1)
+
+    @field_validator("plan_ids")
+    @classmethod
+    def plan_ids_valid(cls, value):
+        if any(plan_id <= 0 for plan_id in value):
+            raise ValueError("معرّفات الخطط يجب أن تكون أكبر من صفر")
+        if len(value) != len(set(value)):
+            raise ValueError("لا يمكن تكرار معرّف الخطة في الطلب نفسه")
+        return value
+
+
+class MaintenanceOperationBulkDelete(BaseModel):
+    operation_ids: list[int] = Field(min_length=1)
+
+    @field_validator("operation_ids")
+    @classmethod
+    def operation_ids_valid(cls, value):
+        if any(operation_id <= 0 for operation_id in value):
+            raise ValueError("معرّفات العمليات يجب أن تكون أكبر من صفر")
+        if len(value) != len(set(value)):
+            raise ValueError("لا يمكن تكرار معرّف العملية في الطلب نفسه")
+        return value
+
+
+class MaintenanceRecordBulkDelete(BaseModel):
+    record_ids: list[int] = Field(min_length=1)
+
+    @field_validator("record_ids")
+    @classmethod
+    def record_ids_valid(cls, value):
+        if any(record_id <= 0 for record_id in value):
+            raise ValueError("معرّفات سجلات الصيانة يجب أن تكون أكبر من صفر")
+        if len(value) != len(set(value)):
+            raise ValueError("لا يمكن تكرار معرّف السجل في الطلب نفسه")
+        return value
+
+
 class MaintenancePlanOperationBase(BaseModel):
     plan_id: int
     operation_id: int
