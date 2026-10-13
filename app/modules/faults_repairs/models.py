@@ -122,6 +122,8 @@ class Repair(Base):
         nullable=False, index=True,
     )
     repair_date = Column(Date, nullable=False)
+    repair_start_date = Column(Date, nullable=True)
+    repair_end_date = Column(Date, nullable=True)
     meter_value = Column(Numeric(10, 1), nullable=True)
     diagnosis = Column(Text, nullable=True)
     action_taken = Column(Text, nullable=False)
