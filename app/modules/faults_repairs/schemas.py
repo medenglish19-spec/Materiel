@@ -2,11 +2,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 FAULT_SEVERITIES = {"low", "medium", "high", "critical"}
-FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired", "closed"}
+FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired"}
 FAULT_EXPLOITATION_IMPACTS = {"none", "limited", "prohibited"}
 REPAIR_STATUSES = {"in_progress", "completed", "cancelled"}
 WORKSHOP_TYPES = {"internal", "external"}
@@ -79,6 +79,8 @@ class FaultOut(FaultCreate):
 class RepairCreate(BaseModel):
     fault_id: int
     repair_date: date
+    repair_start_date: Optional[date] = None
+    repair_end_date: Optional[date] = None
     meter_value: Optional[Decimal] = Field(default=None, ge=0)
     diagnosis: Optional[str] = None
     action_taken: str = Field(min_length=1)
@@ -88,7 +90,7 @@ class RepairCreate(BaseModel):
     repair_document: Optional[str] = None
     external_dispatch_document: Optional[str] = None
     labor_hours: Optional[Decimal] = Field(default=None, ge=0)
-    status: str = "completed"
+    status: str = "in_progress"
     notes: Optional[str] = None
 
     @field_validator("workshop_type")
@@ -104,6 +106,12 @@ class RepairCreate(BaseModel):
         if v not in REPAIR_STATUSES:
             raise ValueError("حالة الإصلاح غير صحيحة")
         return v
+
+    @model_validator(mode="after")
+    def validate_repair_dates(self):
+        if self.repair_start_date and self.repair_end_date and self.repair_end_date < self.repair_start_date:
+            raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
+        return self
 
 
 class RepairOut(RepairCreate):
