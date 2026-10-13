@@ -168,7 +168,7 @@
 {% raw %}
 (function(){
   const api='/api/maintenance';
-  const state={groups:[],operations:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),loadState:'loading',loadError:null};
+  const state={groups:[],operations:[],hasLoadedOperations:false,planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),loadState:'loading',loadError:null};
   const columnFilters={name:new Set(),group:new Set(),warning:new Set(),status:new Set()};
   let openFilterMenu=null;
   const $=id=>document.getElementById(id);
@@ -286,8 +286,8 @@
     });
   }
   function render(){
-    if(state.loadState==='loading'){ renderTableMessage('جارٍ تحميل المكتبة...','muted'); return; }
-    if(state.loadState==='error'){ renderTableMessage('خطأ في التحميل: '+(state.loadError||'تعذر تحميل بيانات المكتبة.'),'muted danger'); return; }
+    if(state.loadState==='loading'&&!state.hasLoadedOperations){ renderTableMessage('جارٍ تحميل المكتبة...','muted'); return; }
+    if(state.loadState==='error'&&!state.hasLoadedOperations){ renderTableMessage('خطأ في التحميل: '+(state.loadError||'تعذر تحميل بيانات المكتبة.'),'muted danger'); return; }
     try {
       const rows=state.operations.filter(op=>passesColumnFilters(op));
       $('operationCount').textContent=rows.length+' عملية';
@@ -431,6 +431,7 @@
       state.groups=Array.isArray(groups)?groups:[];
       // ضمان إتاحة العمليات حتى لو كانت بلا طراز أو شرط (general operations)
       state.operations=Array.isArray(operations)?operations:[];
+      state.hasLoadedOperations=true;
       // سجل_debugging_short: التأكد من نوع البيانات المستلمة
       if (!Array.isArray(state.operations)) {
         console.warn('Load: operations is not an array, resetting to []', typeof state.operations, state.operations);
@@ -446,12 +447,18 @@
         });
       }
       state.loadState='ready';
+      state.loadError=null;
       renderGroups(); render(); syncGroupButtons();
+      return true;
     }catch(e){
       console.error('Load error:', e);
-      state.loadState='error'; state.loadError=e.message||'تعذر تحميل بيانات المكتبة.';
-      state.groups=[]; state.operations=[];
+      state.loadError=e.message||'تعذر تحميل بيانات المكتبة.';
+      state.loadState=state.hasLoadedOperations?'ready':'error';
       render();
+      if(state.hasLoadedOperations){
+        showAlert('تعذر تحديث المكتبة؛ ما زالت آخر بيانات محمّلة ظاهرة. '+state.loadError,'danger');
+      }
+      return false;
     }
   }
   $('operationForm').addEventListener('submit',async e=>{
@@ -694,20 +701,15 @@
   function updateBulkActionUI() {
     const checked = document.querySelectorAll('.operation-checkbox:checked');
     const count = checked.length;
-    const selectAll = $('selectAllOperations');
+    const selectAllInputs = document.querySelectorAll('input[id="selectAllOperations"]');
     const countSpan = $('selectedCount');
     const bulkDeleteBtn = $('bulkDeleteBtn');
 
-    // Update select all state
-    if (count === 0) {
-      selectAll.checked = false;
-      selectAll.indeterminate = false;
-    } else if (count === document.querySelectorAll('.operation-checkbox').length) {
-      selectAll.checked = true;
-      selectAll.indeterminate = false;
-    } else {
-      selectAll.indeterminate = true;
-    }
+    const allChecked = count > 0 && count === document.querySelectorAll('.operation-checkbox').length;
+    selectAllInputs.forEach(input => {
+      input.checked = allChecked;
+      input.indeterminate = count > 0 && !allChecked;
+    });
 
     // Update count and button
     countSpan.textContent = count + ' محددة';
@@ -716,16 +718,14 @@
   }
 
   // Handle select all click
-  $('selectAllOperations').onclick = function() {
-    const checkboxes = document.querySelectorAll('.operation-checkbox');
-    const isChecked = this.checked;
-    checkboxes.forEach(cb => { cb.checked = isChecked; });
-    updateBulkActionUI();
-  };
-
-  // Handle individual checkbox change
-  document.querySelectorAll('.operation-checkbox').forEach(cb => {
-    cb.onchange = updateBulkActionUI;
+  document.querySelectorAll('input[id="selectAllOperations"]').forEach(selectAll => {
+    selectAll.onchange = function() {
+      document.querySelectorAll('.operation-checkbox').forEach(cb => { cb.checked = this.checked; });
+      updateBulkActionUI();
+    };
+  });
+  $('operationsBody').addEventListener('change', event => {
+    if (event.target.matches('.operation-checkbox')) updateBulkActionUI();
   });
 
   // Bulk delete handler
@@ -758,15 +758,24 @@
       if (!data || !Number.isInteger(data.success) || !Array.isArray(data.rejected)) {
         throw new Error('استجابة الحذف الجماعي غير متوقعة؛ لم يتم اعتبار الطلب ناجحًا.');
       }
-      if (data.success > 0) await load();
+      const refreshed = data.success === 0 || await load();
       const reasons = data.rejected.map(item =>
         '- ' + (item.operation_name || ('عملية #' + item.operation_id)) + ': ' + (item.reason || 'سبب الرفض غير متوفر')
       ).join('\n');
       const message = 'تم حذف ' + data.success + ' عملية، ورُفض حذف ' + data.rejected.length + ' عملية.' +
-        (reasons ? '\n' + reasons : '');
+        (reasons ? '\n' + reasons : '') +
+        (refreshed ? '' : '\nتعذر تحديث الجدول بعد الحذف؛ استخدم «تحديث الجدول» لمراجعة الحالة الحالية.');
       showAlert(message, data.rejected.length || data.success === 0 ? 'danger' : 'success');
     } catch (error) {
-      showAlert('تعذر تنفيذ الحذف الجماعي: ' + error.message, 'danger');
+      const refreshed = await load();
+      showAlert(
+        'تعذر تأكيد نتيجة الحذف الجماعي. ' +
+        (refreshed
+          ? 'تم تحديث الجدول من الخادم؛ راجع الحالة قبل إعادة المحاولة.'
+          : 'لا يزال الاتصال بالخادم متعذرًا؛ لا تعاود الطلب قبل التحقق من الحالة بعد عودة الاتصال.') +
+        '\nالتفاصيل: ' + error.message,
+        'danger'
+      );
     } finally {
       this.disabled = false;
       updateBulkActionUI();

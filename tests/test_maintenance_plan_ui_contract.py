@@ -162,5 +162,33 @@ def test_operation_library_bulk_delete_consumes_success_and_rejected_contract():
     assert "data.rejected.map" in handler
     assert "data.deleted" not in handler
     assert "await load()" in handler
+    assert "تعذر تأكيد نتيجة الحذف الجماعي" in handler
     assert "finally" in handler
     assert "this.disabled = false" in handler
+
+
+def test_operation_library_preserves_loaded_rows_when_refresh_fails():
+    """فشل الاتصال المؤقت لا يمسح آخر بيانات سليمة من جدول العمليات."""
+    html = RULES_TEMPLATE.read_text(encoding="utf-8")
+    render_start = html.index("function render(){")
+    render_end = html.index("$('operationsBody').addEventListener", render_start)
+    render = html[render_start:render_end]
+    load_start = html.index("async function load(){")
+    load_end = html.index("$('operationForm').addEventListener", load_start)
+    load = html[load_start:load_end]
+
+    assert "hasLoadedOperations" in render
+    assert "state.groups=[]; state.operations=[];" not in load
+    assert "ما زالت آخر بيانات محمّلة ظاهرة" in load
+
+
+def test_operation_library_bulk_selection_handles_rendered_rows():
+    """تُربط تغييرات تحديد الصفوف بعد رسمها وتزامن مربعي تحديد الكل."""
+    html = RULES_TEMPLATE.read_text(encoding="utf-8")
+    selection_start = html.index("function updateBulkActionUI()")
+    selection_end = html.index("// Bulk delete handler", selection_start)
+    selection = html[selection_start:selection_end]
+
+    assert "input[id=\"selectAllOperations\"]" in selection
+    assert "$('operationsBody').addEventListener('change'" in selection
+    assert "document.querySelectorAll('.operation-checkbox').forEach" in selection
