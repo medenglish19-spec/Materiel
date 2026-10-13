@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,9 +18,12 @@ from app.core.dependencies import get_current_user
 from app.core.config import settings
 from app.database import session as session_module
 from app.database.base import Base
+from app.database.session import _enable_sqlite_foreign_keys
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenanceRecord
+from app.modules.faults_repairs.models import Fault
+from app.modules.equipment_maintenance.router import router as equipment_maintenance_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.models import MeterReading
 from app.modules.users.models import User
@@ -30,6 +33,7 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+event.listen(engine, "connect", _enable_sqlite_foreign_keys)
 Session = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -59,6 +63,7 @@ def api():
 
     app = FastAPI()
     app.include_router(maintenance_router)
+    app.include_router(equipment_maintenance_router)
 
     def override_db():
         db = Session()
@@ -278,27 +283,73 @@ def test_delete_record_preserves_other_records_of_same_equipment(api):
     assert remaining[0]["id"] == record2["id"]
 
 
-def test_actual_execution_cannot_be_deleted_or_change_equipment_meter(api):
-    """رفض حذف التنفيذ يحمي السجل وقيمة العداد المشتقة منه."""
+def test_completed_execution_can_be_deleted_and_meter_is_recomputed(api):
+    """حذف التنفيذ المكتمل يعيد مزامنة العداد من التاريخ المتبقي."""
     client, ids = api
     plan, operation = _approve_plan_with_operation(client, ids["model_a"])
     record = _create_record(client, ids["equipment_a"], operation["id"], plan["id"])
     record_id = record["id"]
+    older = _create_record(
+        client, ids["equipment_a"], operation["id"], plan["id"],
+        date(2026, 9, 24), meter_value=900,
+    )
+    # The newer execution's 1000 reading is removed; the remaining latest
+    # execution must become the equipment's current meter value.
 
     deleted = client.delete(f"/api/maintenance/records/{record_id}")
-    assert deleted.status_code == 409
-    assert "تاريخ" in deleted.json()["detail"]
+    assert deleted.status_code == 204
 
     execution = client.get("/api/maintenance/execution").json()
-    assert any(row["id"] == record_id for row in execution)
+    assert not any(row["id"] == record_id for row in execution)
+    assert any(row["id"] == older["id"] for row in execution)
+    assert _current_odometer(ids["equipment_a"]) == 900
 
-    assert _current_odometer(ids["equipment_a"]) == 1000
+
+def test_completed_execution_can_be_deleted_from_html_route_and_unlinks_fault(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    record = _create_record(client, ids["equipment_a"], operation["id"])
+    db = Session()
+    fault = Fault(
+        equipment_id=ids["equipment_a"], maintenance_record_id=record["id"],
+        reported_date=date(2026, 9, 26), description="عطل مرتبط بالسجل",
+    )
+    db.add(fault)
+    db.commit()
+    fault_id = fault.id
+    db.close()
+    response = client.post(f"/maintenance/records/{record['id']}/delete", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert "changed=deleted" in response.headers["location"]
+    db = Session()
+    assert db.get(MaintenanceRecord, record["id"]) is None
+    assert db.get(Fault, fault_id).maintenance_record_id is None
+    db.close()
 
 
-def test_html_delete_route_uses_the_same_protection(api):
+def test_completed_execution_cannot_be_deleted_from_equipment_detail_page(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    record = _create_record(client, ids["equipment_a"], operation["id"])
+
+    response = client.post(
+        f"/equipment/{ids['equipment_a']}/maintenance/{record['id']}/delete",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 409
+    assert "جدول سجل الصيانة فقط" in response.json()["detail"]
+    assert any(row["id"] == record["id"] for row in client.get("/api/maintenance/execution").json())
+
+
+def test_html_delete_route_keeps_noncompleted_statuses_protected(api):
     client, ids = api
     plan, operation = _approve_plan_with_operation(client, ids["model_a"])
-    record = _create_record(client, ids["equipment_a"], operation["id"], plan["id"])
+    record = _create_record(
+        client, ids["equipment_a"], operation["id"], plan["id"],
+        status="in_progress",
+    )
 
     response = client.post(
         f"/maintenance/records/{record['id']}/delete",
@@ -316,24 +367,41 @@ def test_bulk_delete_reports_mixed_safe_and_protected_records(api):
         client, ids["equipment_a"], operation["id"], plan["id"], date(2026, 9, 25),
         is_scheduled=True, status="scheduled",
     )
-    actual = _create_record(
+    completed = _create_record(
         client, ids["equipment_a"], operation["id"], plan["id"], date(2026, 9, 26),
     )
 
     response = client.post(
         "/api/maintenance/records/bulk-delete",
-        json={"record_ids": [scheduled["id"], actual["id"], 999999]},
+        json={"record_ids": [scheduled["id"], completed["id"], 999999]},
     )
     assert response.status_code == 200, response.text
     result = response.json()
-    assert result["success"] == 1
-    assert result["deleted_ids"] == [scheduled["id"]]
+    assert result["success"] == 2
+    assert result["deleted_ids"] == [scheduled["id"], completed["id"]]
     assert [(item["record_id"], item["reason"]) for item in result["rejected"]] == [
-        (actual["id"], "لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي."),
         (999999, "سجل الصيانة غير موجود."),
     ]
     rows = client.get("/api/maintenance/execution").json()
-    assert [row["id"] for row in rows] == [actual["id"]]
+    assert rows == []
+
+
+def test_bulk_delete_keeps_other_statuses_protected(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    protected = _create_record(
+        client, ids["equipment_a"], operation["id"], status="in_progress",
+    )
+
+    response = client.post(
+        "/api/maintenance/records/bulk-delete",
+        json={"record_ids": [protected["id"]]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] == 0
+    assert response.json()["rejected"][0]["reason"] == "لا يمكن حذف سجل صيانة بهذه الحالة."
+    assert any(row["id"] == protected["id"] for row in client.get("/api/maintenance/execution").json())
 
 
 def test_bulk_delete_rejects_invalid_requests_without_changing_records(api):
@@ -402,7 +470,7 @@ def test_viewer_can_view_record_details_but_cannot_edit_or_delete(api, monkeypat
     )
 
 
-def test_delete_scheduled_record_preserves_meter_history_and_current_value(api):
+def test_delete_completed_record_preserves_meter_history_and_current_value(api):
     client, ids = api
     plan, operation = _approve_plan_with_operation(client, ids["model_a"])
     db = Session()
@@ -424,7 +492,7 @@ def test_delete_scheduled_record_preserves_meter_history_and_current_value(api):
     db.close()
     scheduled = _create_record(
         client, ids["equipment_a"], operation["id"], plan["id"], date(2026, 9, 26),
-        meter_value=1100, is_scheduled=True, status="scheduled",
+        meter_value=1100, is_scheduled=False, status="completed",
     )
     before = _current_odometer(ids["equipment_a"])
 
@@ -447,22 +515,32 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert "{% if can_manage_records %}" in template
     assert "{% if edit_record and can_manage_records %}" in template
     assert 'data-menu-action="record-edit"' in template
-    assert "can_manage_records and r.is_scheduled and r.status == 'scheduled'" in template
+    assert "can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed')" in template
     assert 'data-menu-action="record-delete"' in template
     assert "visibleRecordRows()" in template
     assert "result.success" in template
     assert "result.rejected" in template
     assert "response.ok" in template
     assert "finally{" in template
-    assert "سيتم حذف الموعد المجدول غير المنفذ فقط" in template
+    assert "تحذير: سيُحذف سجل الصيانة المحدد نهائيًا" in template
     assert 'data-menu-action="record-details"' in template
     assert 'class="record-operation-cell"' in template
     assert '<th>الإجراءات</th>' not in template
     assert 'class="record-details-row" data-mt-filter-auxiliary hidden' in template
     assert '"record-details":()=>{' in template
     assert "can_manage_records and r.operation_id" in template
-    assert "can_manage_records and r.is_scheduled and r.status == 'scheduled'" in template
+    assert "can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed')" in template
     assert 'class="record-check"' in template  # Per-row and bulk selection stays available.
+
+
+def test_record_delete_confirmations_warn_and_cancel_before_requests():
+    template = Path("app/modules/maintenance/templates/maintenance_records.html").read_text(encoding="utf-8")
+    warning = "تحذير: سيُحذف سجل الصيانة المحدد نهائيًا"
+    assert template.count(warning) == 2
+    assert "if(!ids.length||!confirm('" + warning in template
+    assert 'if(!confirm(\'تحذير: سيُحذف سجل الصيانة المحدد نهائيًا' in template
+    assert "<th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>" in template
+    assert "<th>الإجراءات</th>" not in template
 
 
 def test_new_record_form_is_available_from_a_dialog_triggered_by_toolbar():

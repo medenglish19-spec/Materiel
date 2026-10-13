@@ -140,5 +140,7 @@ def equipment_maintenance_delete(equipment_id: int, record_id: int, db: Session 
     record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id, MaintenanceRecord.equipment_id == equipment_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
+    if not (record.is_scheduled and record.status == "scheduled"):
+        raise HTTPException(status_code=409, detail="يُحذف سجل التنفيذ من جدول سجل الصيانة فقط.")
     db.delete(record); db.commit()
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)

@@ -35,9 +35,11 @@ def maintenance_record_has_execution_data(record: MaintenanceRecord) -> bool:
 
 
 def maintenance_record_delete_reason(record: MaintenanceRecord) -> str | None:
-    """Only an unexecuted scheduled placeholder may be deleted."""
+    """Allow scheduled placeholders and completed records to be deleted."""
+    if (record.is_scheduled and record.status == "scheduled") or record.status == "completed":
+        return None
     if maintenance_record_has_execution_data(record):
-        return "لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي."
+        return "لا يمكن حذف سجل صيانة بهذه الحالة."
     return None
 
 

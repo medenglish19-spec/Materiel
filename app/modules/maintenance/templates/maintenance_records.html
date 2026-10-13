@@ -23,18 +23,18 @@
       {% elif error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لسجل الصيانة.
       {% elif error == 'work_order' %}رقم أمر العمل يجب أن يتكوّن من أرقام فقط.
       {% elif error == 'technician' %}الفني المنفذ المحدد غير موجود أو غير نشط.
-      {% elif error == 'protected_record' %}لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي.
+      {% elif error == 'protected_record' %}لا يمكن حذف سجل صيانة بهذه الحالة.
       {% elif error == 'validation' %}تعذر حفظ السجل بسبب مخالفة أحد شروط صحة سجل الصيانة.
       {% elif error == 'not_found' %}السجل أو العملية المطلوبة غير موجودة.
       {% else %}تعذر تنفيذ العملية. تحقق من البيانات ثم أعد المحاولة.{% endif %}
     </div>
   </div>
   {% endif %}
-  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المجدول غير المنفذ.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
+  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المحدد.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
   {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل سجل الصيانة بنجاح.{% else %}تم تسجيل عملية الصيانة بنجاح.{% endif %}</div>{% endif %}
 
   <section class="panel">
-    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>سجلات التنفيذ الفعلية محفوظة للتاريخ التشغيلي؛ يمكن حذف الموعد المجدول غير المنفذ فقط.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
+    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>يمكن حذف سجل الصيانة المحدد بعد تأكيد التحذير.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
     <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><button class="m-btn warning" type="button" id="openUnapprovedModels">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة ({{ due_count }})</a><a class="m-btn" href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل ({{ unrecorded_count }})</a></div></div>
     <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
       <section class="panel">
@@ -57,7 +57,7 @@
     {% endif %}
     <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr>{% if can_manage_records %}<th><input type="checkbox" id="selectAllRecords" aria-label="تحديد كل السجلات الظاهرة"></th>{% endif %}<th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th></tr></thead><tbody>
       {% for r in records %}
-      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}" data-can-delete="{{ 'true' if r.is_scheduled and r.status == 'scheduled' else 'false' }}">
+      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}" data-can-delete="{{ 'true' if (r.is_scheduled and r.status == 'scheduled') or r.status == 'completed' else 'false' }}">
         {% if can_manage_records %}
         <td><input type="checkbox" class="record-check" value="{{ r.id }}" aria-label="تحديد سجل الصيانة {{ r.id }}"></td>
         {% endif %}
@@ -70,7 +70,7 @@
             <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
               <button type="button" role="menuitem" data-menu-action="record-details" data-id="{{ r.id }}">◉ عرض التفاصيل</button>
               {% if can_manage_records and r.operation_id %}<button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>{% endif %}
-              {% if can_manage_records and r.is_scheduled and r.status == 'scheduled' %}<button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف الموعد المجدول</button>{% endif %}
+              {% if can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed') %}<button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف سجل الصيانة</button>{% endif %}
             </div>
           </span>
           <span class="record-operation-name">{{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</span>
@@ -218,7 +218,7 @@
     });
   async function bulkDeleteSelectedRecords(){
     const ids=[...selectedRecordIds];
-    if(!ids.length||!confirm('سيُحذف الموعد المجدول غير المنفذ فقط. سجلات التنفيذ التاريخية المحمية ستُرفض مع توضيح السبب. هل تريد المتابعة؟'))return;
+    if(!ids.length||!confirm('تحذير: سيُحذف سجل الصيانة المحدد نهائيًا من التاريخ التشغيلي، وقد تتغير قراءة العداد الحالية وفق السجلات المتبقية. ستبقى الأعطال وطلبات قطع الغيار المرتبطة، لكن سيُزال ارتباطها بهذا السجل. هل تريد المتابعة؟'))return;
     bulkDeleteRecords.disabled=true;
     bulkDeleteRecords.textContent='جارٍ الحذف...';
     try{
@@ -377,12 +377,12 @@
         },
         "record-edit":()=>{window.location.href="/maintenance/records?edit="+id+"#editRecord";},
         "record-delete":async()=>{
-          if(!confirm('سيتم حذف الموعد المجدول غير المنفذ فقط. هل أنت متأكد؟'))return;
+          if(!confirm('تحذير: سيُحذف سجل الصيانة المحدد نهائيًا من التاريخ التشغيلي، وقد تتغير قراءة العداد الحالية وفق السجلات المتبقية. ستبقى الأعطال وطلبات قطع الغيار المرتبطة، لكن سيُزال ارتباطها بهذا السجل. هل تريد المتابعة؟'))return;
           action.disabled=true;
           try{
             await req(api+"/records/"+id,{method:"DELETE"});
             removeRecordRows([id]);
-            showRecordActionResult("تم حذف الموعد المجدول غير المنفذ.");
+            showRecordActionResult("تم حذف سجل الصيانة المحدد.");
           }catch(e){showRecordActionResult(e.message||"تعذر حذف سجل الصيانة.",true)}
           finally{action.disabled=false}
         }
