@@ -275,6 +275,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
 
 
 def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpdate):
+    refresh_request_statuses(db, [obj])
     if obj.status not in {"pending", "approved"}:
         raise ValueError("لا يمكن تعديل طلب ملغى أو مرفوض")
     values = data.model_dump(exclude_unset=True)
@@ -385,6 +386,7 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
 
 
 def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestItemUpdate):
+    refresh_request_statuses(db, [item.request])
     if item.request.status == "cancelled":
         raise ValueError("لا يمكن تعديل طلب ملغى")
     values = data.model_dump(exclude_unset=True)
@@ -447,6 +449,7 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
 
 
 def delete_item(db: Session, item: SparePartRequestItem):
+    refresh_request_statuses(db, [item.request])
     if item.received_quantity > 0:
         raise ValueError(
             "لا يمكن حذف بند تم تسجيل استلام له. إن كان الاستلام خطأً فاستخدم "

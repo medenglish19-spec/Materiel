@@ -153,6 +153,16 @@ def _seed(db):
     )
     db.add(repair)
     db.flush()
+    undo_repair = Repair(
+        fault_id=spare_faults[7],
+        repair_date=date.today(),
+        action_taken="إصلاح إضافي للاختبار",
+        workshop_type="internal",
+        status="completed",
+        created_by_id=user.id,
+    )
+    db.add(undo_repair)
+    db.flush()
 
     part = SparePart(name="فلتر هوائي", part_number="F-1", receiving_document="وثيقة استلام")
     db.add(part)
@@ -177,6 +187,7 @@ def _seed(db):
         "fault": fault.id,
         "spare_faults": spare_faults,
         "repair": repair.id,
+        "undo_repair": undo_repair.id,
         "request": request_obj.id,
         "item": request_obj.items[0].id,
     }
@@ -739,6 +750,54 @@ def test_request_status_is_derived_from_receipt_and_cancelled_manually(client):
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["status"] == "cancelled"
 
+
+def test_item_edits_and_deletion_reconcile_status_after_receipt_undo(client):
+    page, ids = client
+    created = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-UNDO-STALE-STATUS",
+            "request_date": date.today().isoformat(),
+            "source_type": "repair",
+            "source_id": ids["undo_repair"],
+            "items": [{"spare_part_id": ids["part"], "requested_quantity": 2}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    request_id = created.json()["id"]
+    item_id = created.json()["items"][0]["id"]
+    assert _record_receipt(page, item_id).status_code == 200
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
+
+    from app.database import session as session_module
+    from app.modules.spare_parts_requests.models import SparePartRequest
+
+    db_generator = page.app.dependency_overrides[session_module.get_db]()
+    db = next(db_generator)
+    try:
+        request = db.get(SparePartRequest, request_id)
+        request.status = "approved"  # stale stored status after the undo
+        db.commit()
+    finally:
+        db.close()
+
+    edited = page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={"requested_quantity": 4},
+    )
+    assert edited.status_code == 200, edited.text
+
+    db_generator = page.app.dependency_overrides[session_module.get_db]()
+    db = next(db_generator)
+    try:
+        request = db.get(SparePartRequest, request_id)
+        request.status = "approved"
+        db.commit()
+    finally:
+        db.close()
+    deleted = page.delete(f"/api/spare-parts-requests/items/{item_id}")
+    assert deleted.status_code == 200, deleted.text
 
 def test_stale_received_request_is_reconciled_in_requests_and_faults_pages(client):
     page, ids = client
