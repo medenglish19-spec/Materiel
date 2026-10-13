@@ -81,8 +81,14 @@ def _distribution_total(db, received_request_item_id, exclude=None):
 def _legacy_return_total(db, request_item_id, exclude=None):
     q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "return",
-        SparePartMovementItem.request_item_id == request_item_id,
         SparePartMovementItem.source_item_id.is_(None),
+        or_(
+            SparePartMovementItem.received_request_item_id == request_item_id,
+            (
+                SparePartMovementItem.received_request_item_id.is_(None)
+                & (SparePartMovementItem.request_item_id == request_item_id)
+            ),
+        ),
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
@@ -132,19 +138,33 @@ def _legacy_return_totals(db, request_item_ids, exclude=None):
     if not request_item_ids:
         return {}
     q = (
-        db.query(SparePartMovementItem.request_item_id, func.sum(SparePartMovementItem.quantity))
+        db.query(
+            func.coalesce(
+                SparePartMovementItem.received_request_item_id,
+                SparePartMovementItem.request_item_id,
+            ),
+            func.sum(SparePartMovementItem.quantity),
+        )
         .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
         .filter(
             SparePartMovementDocument.document_type == "return",
             SparePartMovementItem.source_item_id.is_(None),
-            SparePartMovementItem.request_item_id.in_(request_item_ids),
+            func.coalesce(
+                SparePartMovementItem.received_request_item_id,
+                SparePartMovementItem.request_item_id,
+            ).in_(request_item_ids),
         )
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
     # GROUP BY صريح كما في `_distribution_totals`: بلاه يعود مجموع كل
     # الإرجاعات القديمة على بند واحد بدل أن يُوزّع على أصحابها.
-    q = q.group_by(SparePartMovementItem.request_item_id)
+    q = q.group_by(
+        func.coalesce(
+            SparePartMovementItem.received_request_item_id,
+            SparePartMovementItem.request_item_id,
+        )
+    )
     return {row[0]: _sum([row[1]]) for row in q.all()}
 
 
@@ -160,21 +180,38 @@ def _returned_totals(db, request_item_ids, exclude=None):
     if not request_item_ids:
         return {}
     DistItem = aliased(SparePartMovementItem)
+    DistDocument = aliased(SparePartMovementDocument)
     q = (
-        db.query(DistItem.request_item_id, func.sum(SparePartMovementItem.quantity))
+        db.query(
+            func.coalesce(
+                DistItem.received_request_item_id,
+                DistItem.request_item_id,
+            ),
+            func.sum(SparePartMovementItem.quantity),
+        )
         .select_from(SparePartMovementItem)
         .join(SparePartMovementDocument, SparePartMovementItem.document_id == SparePartMovementDocument.id)
         .join(DistItem, SparePartMovementItem.source_item_id == DistItem.id)
+        .join(DistDocument, DistItem.document_id == DistDocument.id)
         .filter(
             SparePartMovementDocument.document_type == "return",
-            DistItem.request_item_id.in_(request_item_ids),
+            DistDocument.document_type == "distribution",
+            func.coalesce(
+                DistItem.received_request_item_id,
+                DistItem.request_item_id,
+            ).in_(request_item_ids),
         )
     )
     if exclude:
         q = q.filter(SparePartMovementDocument.id != exclude)
     # GROUP BY صريح كما في `_distribution_totals`: بلاه يعود مجموع
     # الإرجاعات على بندٍ واحد عشوائي بدل إرجاعات كل بند.
-    q = q.group_by(DistItem.request_item_id)
+    q = q.group_by(
+        func.coalesce(
+            DistItem.received_request_item_id,
+            DistItem.request_item_id,
+        )
+    )
     return {row[0]: _sum([row[1]]) for row in q.all()}
 
 
@@ -188,19 +225,26 @@ def _balances_maps(db, request_item_ids, exclude=None):
     }
 
 
-def _available(received_qty, distributed, legacy_returned):
-    """المتاح للتوزيع = المستلم − الموزع − الإرجاع القديم، ولا ينزل تحت الصفر.
-
-    طرح الإرجاع القديم مقصود: قطعة عادت إلى المخزن تصير متاحة للتوزيع من جديد.
-    والصيغة هنا وحدها حتى لا يختلف رقمان للبند نفسه بين حساب وآخر.
-    """
-    return _at_least_zero(received_qty - distributed - legacy_returned)
+def _available(received_qty, distributed, returned_from_distributed, receipt_returned):
+    """المتاح = المستلم − الموزع الصافي − ما أُعيد إلى المورّد."""
+    distributed_after_returns = distributed - returned_from_distributed
+    if (
+        received_qty < 0
+        or distributed < 0
+        or returned_from_distributed < 0
+        or receipt_returned < 0
+        or returned_from_distributed > distributed
+        or distributed_after_returns + receipt_returned > received_qty
+    ):
+        return Decimal("0")
+    return _at_least_zero(received_qty - distributed_after_returns - receipt_returned)
 
 
 def available_quantity(db, item, exclude=None):
     return _available(
         Decimal(str(item.received_quantity or 0)),
         _distribution_total(db, item.id, exclude),
+        _returned_total_by_received_item(db, item.id, exclude),
         _legacy_return_total(db, item.id, exclude),
     )
 
@@ -216,21 +260,9 @@ def _return_total(db, source_item_id, exclude=None):
 
 
 def _returned_total_by_received_item(db, received_request_item_id, exclude=None):
-    if not received_request_item_id:
-        return Decimal("0")
-    q = db.query(SparePartMovementItem.quantity).join(SparePartMovementDocument).filter(
-        SparePartMovementDocument.document_type == "return",
-        or_(
-            SparePartMovementItem.received_request_item_id == received_request_item_id,
-            (
-                SparePartMovementItem.received_request_item_id.is_(None)
-                & (SparePartMovementItem.request_item_id == received_request_item_id)
-            ),
-        ),
+    return _returned_totals(db, [received_request_item_id], exclude).get(
+        received_request_item_id, Decimal("0")
     )
-    if exclude:
-        q = q.filter(SparePartMovementDocument.id != exclude)
-    return _sum([x[0] for x in q.all()])
 
 
 def _returned_total_by_distribution_item(db, distribution_item_id, exclude=None):
@@ -259,13 +291,14 @@ def returnable_quantity(db, distribution_item, exclude=None):
     if received_item is None:
         return Decimal("0")
 
-    returned_total = _returned_total_by_received_item(db, received_item_id, exclude)
-    remaining_received = Decimal(str(received_item.received_quantity or 0)) - returned_total
-    remaining_distributed = _distribution_total(db, received_item_id, exclude) - returned_total
+    returned_from_distributed = _returned_total_by_received_item(db, received_item_id, exclude)
+    receipt_returned = _legacy_return_total(db, received_item_id, exclude)
+    remaining_received = Decimal(str(received_item.received_quantity or 0)) - receipt_returned
+    remaining_distributed = _distribution_total(db, received_item_id, exclude) - returned_from_distributed
     return _at_least_zero(min(remaining_received, remaining_distributed))
 
 
-def _status(received, distributed, returned):
+def _status(received, distributed, returned_from_distributed, receipt_returned):
     """الحالة مشتقّة من الأرصدة نفسها، لا من حقل حالة يدوي.
 
     الترتيب هنا هو الترتيب الأكثر تحديداً أولاً: متى تداخلت حالتان انطبقت
@@ -279,19 +312,24 @@ def _status(received, distributed, returned):
       4. موزع جزئيًا     → 0 < وُزّع < استُلم
       5. لم يوزع         → لم يُوزّع شيء
     """
-    if received < 0 or distributed < 0 or returned < 0 or returned > distributed:
+    if (
+        received < 0
+        or distributed < 0
+        or returned_from_distributed < 0
+        or receipt_returned < 0
+        or returned_from_distributed > distributed
+    ):
         return "invalid_movement_balance"
-    if received <= 0 or distributed <= 0:
-        return "received_not_distributed"
-
-    net_distributed = distributed - returned
-    if returned >= distributed:
-        return "distributed_then_fully_returned"
-    if net_distributed > received:
+    net_distributed = distributed - returned_from_distributed
+    if net_distributed + receipt_returned > received:
         return "invalid_distribution_over_received"
-    if net_distributed == received:
+    if distributed > 0 and returned_from_distributed == distributed:
+        return "distributed_then_fully_returned"
+    if received <= 0 or net_distributed <= 0:
+        return "received_not_distributed"
+    if net_distributed == received and receipt_returned == 0:
         return "fully_distributed"
-    if returned > 0:
+    if returned_from_distributed > 0:
         return "partially_remaining_with_entity"
     return "partially_distributed"
 
@@ -313,24 +351,30 @@ def _balance_from_maps(item, maps):
     legacy_returned = maps["legacy_returned"].get(item.id, Decimal("0"))
 
     received_qty = Decimal(str(item.received_quantity or 0))
-    returned = returned_from_distributed + legacy_returned
-    # الموزعة فعليًا = إجمالي التوزيع ناقص كل الإرجاعات المسجلة.
-    # نحتفظ بالإجمالي التاريخي منفصلًا حتى لا نفقد أثر الحركة.
-    distributed_actual = _at_least_zero(distributed - returned)
-    remaining = _at_least_zero(received_qty - distributed_actual - returned)
+    # لا يُنقص الإرجاع المباشر الذي يعكس الاستلام إجمالي التوزيع.
+    distributed_actual = distributed - returned_from_distributed
+    remaining = received_qty - distributed_actual - legacy_returned
+    status = _status(
+        received_qty,
+        distributed,
+        returned_from_distributed,
+        legacy_returned,
+    )
     return {
         "received_quantity": received_qty,
         "distributed": distributed_actual,
         "distributed_total": distributed,
-        "returned": returned,
+        "returned": legacy_returned,
         "remaining": remaining,
-        "remaining_with_entity": distributed,
+        "remaining_with_entity": distributed_actual,
         "returned_from_distributed": returned_from_distributed,
         "legacy_returned": legacy_returned,
-        # رصيد التشغيل الداخلي: الكمية التي لم تُوزع ولم تُرجع للمورد.
-        "available_for_distribution": _available(received_qty, distributed, legacy_returned),
-        # الحالة تُستخدم داخليًا للتحقق من سلامة سجل الحركة عند التعديل/الحذف.
-        "status": _status(received_qty, distributed, returned),
+        "available_for_distribution": (
+            _available(received_qty, distributed, returned_from_distributed, legacy_returned)
+            if not status.startswith("invalid_")
+            else Decimal("0")
+        ),
+        "status": status,
     }
 
 
@@ -430,11 +474,7 @@ def _return_received_line(db, received_request_item_id, quantity, document_date,
     supplier = (item.supplier_institution or "").strip()
     if not supplier:
         raise ValueError("لا يمكن الإرجاع قبل تحديد الهيئة التي استلم منها الغيار")
-    available = _at_least_zero(
-        received_quantity
-        - _distribution_total(db, item.id, exclude)
-        - _returned_total_by_received_item(db, item.id, exclude)
-    )
+    available = available_quantity(db, item, exclude)
     if quantity > available:
         raise ValueError(f"الكمية القابلة للإرجاع هي {available} فقط")
     return item, supplier
@@ -516,15 +556,14 @@ def return_register(db, exclude_document_id=None):
     ).filter(SparePartRequestItem.received_quantity > 0).order_by(
         SparePartRequest.request_date.desc(), SparePartRequest.id.desc(), SparePartRequestItem.id
     ).all()
+    balances_by_item = _balances_for(db, rows, exclude_document_id)
     result = []
     for item in rows:
-        received_quantity = Decimal(str(item.received_quantity or 0))
-        distributed_quantity = _distribution_total(db, item.id)
-        returned_quantity = _returned_total_by_received_item(db, item.id, exclude_document_id)
-        # الإرجاع المباشر يُستهلك من الكمية المستلمة غير الموزعة،
-        # لذلك يبقى البند قابلاً للإرجاع ما دام: المستلم − الموزع − المعاد > 0.
-        # الرصيد يشمل البنود المستلمة التي لم تُوزع بعد.
-        qty = _at_least_zero(received_quantity - distributed_quantity - returned_quantity)
+        balances = balances_by_item[item.id]
+        received_quantity = balances["received_quantity"]
+        distributed_quantity = balances["distributed"]
+        returned_quantity = balances["returned"]
+        qty = balances["available_for_distribution"]
         if qty <= 0:
             continue
         request = item.request
@@ -539,6 +578,7 @@ def return_register(db, exclude_document_id=None):
             "returned_quantity": returned_quantity,
             "remaining_quantity": qty,
             "returnable_quantity": qty,
+            "balance_status": balances["status"],
             "return_recipient": item.supplier_institution or "—",
             "received_date": _receipt_date(item),
             "equipment": equipment.asset_code if equipment else "—",

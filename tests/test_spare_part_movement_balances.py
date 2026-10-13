@@ -131,7 +131,7 @@ def _item_id(document):
     return document.items[0].id
 
 
-def _add_legacy_return(db, item, quantity, number=None):
+def _add_legacy_return(db, item, quantity, number=None, received_item_id=None):
     """إرجاع قديم: سطر حركة بلا سند توزيع، كما في البيانات القائمة.
 
     هذه السطور موجودة فعلاً في القاعدة من قبل ربط الإرجاع بسند التوزيع،
@@ -152,7 +152,10 @@ def _add_legacy_return(db, item, quantity, number=None):
     db.flush()
     db.add(
         SparePartMovementItem(
-            request_item_id=item.id, quantity=Decimal(str(quantity)), document_id=document.id
+            request_item_id=item.id,
+            received_request_item_id=received_item_id,
+            quantity=Decimal(str(quantity)),
+            document_id=document.id,
         )
     )
     db.commit()
@@ -212,10 +215,33 @@ def _distribute(db, item, quantity, day=2, exclude=None, bypass_schema=False, re
 
 
 def _return(db, item, quantity, source_item_id, day=3, exclude=None, bypass_schema=False):
-    """إرجاع من بند الاستلام؛ وسيط التوزيع محفوظ لتقليل تغيير الاستدعاءات."""
-    return _return_received(
-        db, item, quantity, day=day, exclude=exclude, bypass_schema=bypass_schema
+    """حركة تاريخية مرتجعة مرتبطة فعليًا بسطر التوزيع."""
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    source = db.get(SparePartMovementItem, source_item_id)
+    assert source is not None
+    _COUNTER["n"] += 1
+    document = SparePartMovementDocument(
+        document_number=f"R-DISTRIBUTED-{_COUNTER['n']}",
+        document_type="return",
+        document_date=RECEIVED + timedelta(days=day),
+        issuer="الورشة",
+        recipient="المخزن",
+        beneficiary="المخزن",
     )
+    db.add(document)
+    db.flush()
+    db.add(
+        SparePartMovementItem(
+            document_id=document.id,
+            request_item_id=source.request_item_id,
+            received_request_item_id=source.received_request_item_id or source.request_item_id,
+            source_item_id=source.id,
+            quantity=Decimal(str(quantity)),
+        )
+    )
+    db.commit()
+    return document
 
 
 def _return_received(db, item, quantity, day=3, exclude=None, bypass_schema=False):
@@ -316,21 +342,22 @@ def test_the_most_specific_state_wins_when_two_overlap(db):
     (0 < 1 < 3). الثانية أدق لأنها تذكر الإرجاع الذي لا تذكره الأولى.
     """
     item = _received_item(db, 10)
-    _distribute(db, item, 3)
-    _return_received(db, item, 1)
+    distribution = _distribute(db, item, 3)
+    _return(db, item, 1, _item_id(distribution))
     balances = _balances(db, item)
     assert balances["distributed"] == 2
     assert balances["distributed_total"] == 3
-    assert balances["returned"] == 1
-    assert balances["remaining"] == 7
-    assert movements.return_register(db)[0]["remaining_quantity"] == 6
+    assert balances["returned"] == 0
+    assert balances["returned_from_distributed"] == 1
+    assert balances["remaining"] == 8
+    assert movements.available_quantity(db, item) == 8
 
 
 # ------------------------------------------------------ منع تجاوز الكميات
 
 
-def test_a_direct_return_can_settle_a_historical_over_distribution(db):
-    """التوزيع التاريخي الزائد تُسوّيه إرجاعات الاستلام المباشرة."""
+def test_a_direct_return_does_not_settle_a_historical_over_distribution(db):
+    """إرجاع يعكس الاستلام لا يخصم من إجمالي التوزيع التاريخي."""
     item = _received_item(db, 3)
     _COUNTER["n"] += 1
     from app.modules.spare_parts_movements.models import SparePartMovementDocument
@@ -369,11 +396,24 @@ def test_a_direct_return_can_settle_a_historical_over_distribution(db):
     db.commit()
 
     balances = _balances(db, item)
-    assert balances["distributed"] == 3
+    assert balances["distributed"] == 4
     assert balances["distributed_total"] == 4
     assert balances["returned"] == 1
+    assert balances["remaining"] == -2
     assert balances["available_for_distribution"] == 0
-    assert balances["status"] == "fully_distributed"
+    assert balances["status"] == "invalid_distribution_over_received"
+
+    from app.modules.spare_parts_requests import services as requests_services
+
+    row = next(
+        row for row in requests_services.received_register(db)
+        if row["request_item_id"] == item.id
+    )
+    assert row["distributed"] == 4
+    assert row["returned"] == 1
+    assert row["remaining"] == -2
+    assert row["available_for_distribution"] == 0
+    assert row["balance_status"] == "invalid_distribution_over_received"
 
 
 def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):
@@ -399,8 +439,30 @@ def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):
     balances = _balances(db, item)
     assert balances['received_quantity'] == 3
     assert balances['distributed'] == 4
+    assert balances['remaining'] == -1
     assert balances['available_for_distribution'] == 0
     assert balances['status'] == 'invalid_distribution_over_received'
+
+
+def test_receipt_return_does_not_reduce_later_distribution_total(db):
+    from app.modules.spare_parts_requests import services as requests_services
+
+    item = _received_item(db, 4)
+    _distribute(db, item, 1)
+    _return_received(db, item, 1)
+
+    row = next(
+        row for row in requests_services.received_register(db)
+        if row["request_item_id"] == item.id
+    )
+    assert row["received_quantity"] == 4
+    assert row["distributed"] == 1
+    assert row["returned"] == 1
+    assert row["available_for_distribution"] == 2
+    assert row["balance_status"] == "partially_distributed"
+    assert row["received_quantity"] == (
+        row["distributed"] + row["returned"] + row["available_for_distribution"]
+    )
 
 
 def test_distribution_uses_the_explicit_received_item_as_its_balance_source(db):
@@ -662,11 +724,11 @@ def test_the_balances_can_look_past_the_document_being_edited(db):
     return_doc = _return_received(db, item, 1)
 
     whole = _balances(db, item)
-    assert whole["distributed"] == 3
+    assert whole["distributed"] == 4
     assert whole["distributed_total"] == 4
     assert whole["returned"] == 1
     assert whole["available_for_distribution"] == 5
-    assert whole["remaining"] == 6
+    assert whole["remaining"] == 5
 
     without = _balances(db, item, exclude=return_doc.id)
     assert without["distributed"] == 4
@@ -676,8 +738,6 @@ def test_the_balances_can_look_past_the_document_being_edited(db):
 
 
 def test_the_history_page_reports_the_same_balances(db):
-    from app.modules.spare_parts_requests import services as requests_services
-
     item = _received_item(db, 10)
     doc = _distribute(db, item, 6)
     _return(db, item, 2, _item_id(doc))
@@ -685,17 +745,15 @@ def test_the_history_page_reports_the_same_balances(db):
     balances = movements.history(db, item.id)["balances"]
     assert balances["distributed"] == 4
     assert balances["distributed_total"] == 6
-    assert balances["returned"] == 2
-    assert balances["available_for_distribution"] == 2
-    assert balances["remaining"] == 4
+    assert balances["returned"] == 0
+    assert balances["returned_from_distributed"] == 2
+    assert balances["available_for_distribution"] == 6
+    assert balances["remaining"] == 6
     assert balances["status"] == "partially_remaining_with_entity"
 
 
-def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
-    """إرجاع قديم بلا سند توزيع يُخرج القطعة من المتاح من جديد.
-
-    ولولا طرحه من المتاح لبقيت القطعة محجوزة إلى الأبد.
-    """
+def test_a_legacy_return_without_a_distribution_reverses_the_receipt(db):
+    """الإرجاع القديم المباشر ينعكس على الاستلام ولا يغيّر التوزيعات."""
     item = _received_item(db, 10)
     _distribute(db, item, 6)
     _add_legacy_return(db, item, 2)
@@ -703,12 +761,25 @@ def test_a_legacy_return_without_a_distribution_goes_back_to_stock(db):
     balances = _balances(db, item)
     assert balances["legacy_returned"] == 2
     assert balances["returned"] == 2
-    assert balances["distributed"] == 4
+    assert balances["distributed"] == 6
     assert balances["distributed_total"] == 6
-    # المتاح 10 - 6 - 2: القطعةان العائدتان صارتا متاحتين للتوزيع
+    # المتاح 10 - 6 - 2.
     assert balances["available_for_distribution"] == 2
-    # والمتبقي لدى الجهة لا يمسّه الإرجاع القديم: هو لم يردْ من الجهة
     assert balances["remaining_with_entity"] == 6
+
+
+def test_legacy_return_uses_its_explicit_received_source(db):
+    display_item = _received_item(db, 1)
+    received_item = _received_item(db, 3)
+    _add_legacy_return(
+        db, display_item, 1, received_item_id=received_item.id
+    )
+
+    balances = _balances(db, received_item)
+    assert balances["legacy_returned"] == 1
+    assert balances["returned"] == 1
+    assert balances["remaining"] == 2
+    assert balances["available_for_distribution"] == 2
 
 
 def test_editing_a_document_restores_the_full_available_quantity(db):
@@ -761,8 +832,8 @@ def test_the_received_register_shows_the_balances_and_the_state(db):
     assert {k: row[k] for k in BALANCE_KEYS} == {
         "received_quantity": 10,
         "distributed": 4,
-        "remaining": 4,
-        "returned": 2,
+        "remaining": 6,
+        "returned": 0,
     }
 
 
@@ -775,8 +846,9 @@ def test_balance_has_only_received_distributed_remaining_and_returned(db):
 
     assert balances["received_quantity"] == 10
     assert balances["distributed"] == 4
-    assert balances["remaining"] == 4
-    assert balances["returned"] == 2
+    assert balances["remaining"] == 6
+    assert balances["returned"] == 0
+    assert balances["returned_from_distributed"] == 2
     assert balances["received_quantity"] == (
         balances["distributed"] + balances["remaining"] + balances["returned"]
     )
@@ -797,14 +869,13 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
     )
     db.add(distribution)
     db.flush()
-    db.add(
-        SparePartMovementItem(
+    distribution_item = SparePartMovementItem(
             document_id=distribution.id,
             request_item_id=item.id,
             received_request_item_id=item.id,
             quantity=Decimal("4"),
         )
-    )
+    db.add(distribution_item)
 
     return_document = SparePartMovementDocument(
         document_number=f"R-OVER-{_COUNTER['n']}",
@@ -821,23 +892,24 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
             document_id=return_document.id,
             request_item_id=item.id,
             received_request_item_id=item.id,
+            source_item_id=distribution_item.id,
             quantity=Decimal("1"),
         )
     )
     db.commit()
 
     balances = _balances(db, item)
-    # التوزيع التاريخي 4 صار 3 موزعة فعليًا بعد إرجاع 1، لذلك الرصيد
-    # الحالي مكتمل. لكن حذف الإرجاع سيعيد حالة التجاوز، ولذلك يُمنع الحذف.
+    # الإرجاع المرتبط بالتوزيع يخفض الكمية التي ما زالت لدى الجهة.
     assert balances["status"] == "fully_distributed"
     assert balances["distributed"] == 3
     assert balances["distributed_total"] == 4
-    assert balances["returned"] == 1
+    assert balances["returned"] == 0
+    assert balances["returned_from_distributed"] == 1
 
     with pytest.raises(ValueError, match="حذف الإرجاع"):
         movements.delete_document(db, return_document.id)
 
-    assert _balances(db, item)["returned"] == 1
+    assert _balances(db, item)["returned_from_distributed"] == 1
 
 
 def test_deleting_direct_return_restores_received_return_balance(db):
@@ -867,8 +939,8 @@ def test_the_received_register_agrees_with_the_distribution_page(db):
     # سجل الاستلام يعرض الرصيد المرئي الجديد، بينما صفحة التوزيع تحتفظ
     # برصيد التشغيل الداخلي اللازم لمنع تجاوز الكمية المستلمة.
     assert row["received_quantity"] == 10
-    assert row["distributed"] == 4
-    assert row["remaining"] == 4
+    assert row["distributed"] == 6
+    assert row["remaining"] == 2
     assert row["returned"] == 2
     assert page["available_quantity"] == 2
     assert legacy
@@ -969,26 +1041,21 @@ def test_the_received_page_renders_only_the_four_balance_parts():
     assert "STATUS_LABELS" not in html
 
 
-def test_the_received_register_exact_example_is_three_one_one_one(db):
-    """الحالة الفعلية المطلوبة: 3 مستلمة، توزيعا 1+1، وإرجاع 1.
+def test_the_received_register_exact_example_is_four_one_one_two(db):
+    """إرجاع الاستلام لا يُخصم من التوزيع: 4 = 1 + 1 + 2."""
+    item = _received_item(db, 4)
+    _distribute(db, item, 1, day=2)
+    _return_received(db, item, 1, day=3)
 
-    الرصيد المرئي يجب أن يبقى أربعة أجزاء متسقة:
-    3 = 1 موزعة فعلياً + 1 باقٍ + 1 مرتجع.
-    """
-    item = _received_item(db, 3)
-    first = _distribute(db, item, 1, day=2)
-    _distribute(db, item, 1, day=3)
-    _return_received(db, item, 1, day=4)
-
-    row = _register_row(db, 3)
-    assert row["received_quantity"] == 3
+    row = _register_row(db, 4)
+    assert row["received_quantity"] == 4
     assert row["distributed"] == 1
-    assert row["remaining"] == 1
     assert row["returned"] == 1
+    assert row["available_for_distribution"] == 2
+    assert row["balance_status"] == "partially_distributed"
     assert row["received_quantity"] == (
-        row["distributed"] + row["remaining"] + row["returned"]
+        row["distributed"] + row["returned"] + row["available_for_distribution"]
     )
-    assert first.items[0].quantity == Decimal("1")
 
 
 def test_the_received_register_keeps_each_item_totals_apart(db):
@@ -1007,8 +1074,8 @@ def test_the_received_register_keeps_each_item_totals_apart(db):
     _distribute(db, second, 2, day=2)
 
     row_first = _register_row(db, 3)
-    assert row_first["distributed"] == 1
-    assert row_first["remaining"] == 1
+    assert row_first["distributed"] == 2
+    assert row_first["available_for_distribution"] == 0
     assert row_first["returned"] == 1
 
     row_second = _register_row(db, 5)
@@ -1024,3 +1091,9 @@ def test_the_page_shows_request_status_without_inventing_movement_states():
     assert "STATUS=" in html
     for unwanted in ("قيد الفحص", "مرجع للمورد"):
         assert unwanted not in html
+
+
+def test_the_received_page_marks_invalid_balances_visibly():
+    html = _page()
+    assert "String(x.balance_status||'').startsWith('invalid_')" in html
+    assert 'class="status balance-error" role="alert">رصيد غير متسق</span>' in html
