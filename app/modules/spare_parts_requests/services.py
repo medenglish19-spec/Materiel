@@ -505,9 +505,18 @@ def undo_item_receipt(db: Session, item: SparePartRequestItem):
 
 
 def update_status(db: Session, obj: SparePartRequest, data: SparePartRequestStatusUpdate):
-    if data.status != "cancelled" and data.status != obj.status:
-        raise ValueError("حالة الطلب تُحدد تلقائياً من الاستلام؛ يمكن إلغاء الطلب يدوياً فقط")
-    obj.status = data.status
+    if data.status == "cancelled":
+        if obj.status != "cancelled" and any(
+            item.received_quantity > 0 for item in obj.items
+        ):
+            raise ValueError("لا يمكن إلغاء طلب تم استلام كمية منه")
+        obj.status = "cancelled"
+    elif data.status == "pending" and obj.status == "cancelled":
+        # التراجع عن الإلغاء يعيد الحالة المشتقة من سجل الاستلام السابق.
+        obj.status = "pending"
+        _refresh_request_status(obj)
+    elif data.status != obj.status:
+        raise ValueError("حالة الطلب تُحدد تلقائياً من الاستلام؛ يمكن إلغاء الطلب أو التراجع عن إلغائه فقط")
     db.commit()
     db.refresh(obj)
     return serialize_request(get_request(db, obj.id))

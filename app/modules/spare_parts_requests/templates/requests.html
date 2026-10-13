@@ -236,9 +236,11 @@ async function load(){
 }
 
 function row(x){
+  const hasReceivedQuantity=(x.items||[]).some(i=>Number(i.received_quantity||0)>0);
   const statusOptions=[[x.status,STATUS[x.status]||x.status]];
-  if(x.status!=='cancelled')statusOptions.push(['cancelled',STATUS.cancelled]);
-  const status='<select class="status" data-id="'+x.id+'" aria-label="إلغاء الطلب يدوياً">'+statusOptions.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('')+'</select>';
+  if(x.status==='cancelled')statusOptions.push(['pending','التراجع عن الإلغاء']);
+  else if(!hasReceivedQuantity)statusOptions.push(['cancelled',STATUS.cancelled]);
+  const status='<select class="status" data-id="'+x.id+'" aria-label="حالة الطلب والإلغاء">'+statusOptions.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('')+'</select>';
   const actions='<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>';
   const parts=(x.items||[]).map(i=>i.part_name).filter(Boolean);
   const partLabel=parts.length?parts.join('، '):'—';
@@ -500,7 +502,7 @@ document.getElementById('rows').addEventListener('keydown',e=>{
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('requestModal').hidden)closeRequestDetail();});
 document.getElementById('rows').addEventListener('change',async e=>{
   if(!e.target.classList.contains('status'))return;
-  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok)alert(errText((await r.json()).detail,'تعذر تغيير الحالة'));else load();
+  const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok){alert(errText((await r.json()).detail,'تعذر تغيير الحالة'));load();}else load();
 });
 document.getElementById('requestSearch').addEventListener('input',renderRequests);
 document.getElementById('filterStatus').addEventListener('change',load);

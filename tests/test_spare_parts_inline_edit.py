@@ -128,7 +128,7 @@ def _seed(db):
     # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
     # واحد لكل عطل.
     spare_faults = []
-    for n in range(11):
+    for n in range(12):
         extra = Fault(
             equipment_id=equipment.id,
             reported_date=date.today(),
@@ -709,7 +709,7 @@ def test_a_null_received_quantity_is_refused_instead_of_crashing(client):
     )
 
 
-def test_request_status_is_derived_from_receipt_and_cancelled_manually(client):
+def test_request_status_is_derived_from_receipt_and_received_request_cannot_be_cancelled(client):
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-AUTO-STATUS", slot=6)
     assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "pending"
@@ -737,8 +737,50 @@ def test_request_status_is_derived_from_receipt_and_cancelled_manually(client):
     cancelled = page.patch(
         f"/api/spare-parts-requests/{request_id}/status", json={"status": "cancelled"}
     )
+    assert cancelled.status_code == 400, cancelled.text
+    assert "تم استلام كمية" in cancelled.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
+
+
+def test_cancellation_is_allowed_without_positive_receipt_and_can_be_undone(client):
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-CANCEL-UNDO", slot=11)
+
+    cancelled = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status",
+        json={"status": "cancelled"},
+    )
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()["status"] == "cancelled"
+    reopened = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status",
+        json={"status": "pending"},
+    )
+    assert reopened.status_code == 200, reopened.text
+    assert reopened.json()["status"] == "pending"
+
+    zero = page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={
+            "received_quantity": 0,
+            "received_date": date.today().isoformat(),
+            "recipient": "أمين الاستلام",
+            "supplier_institution": "مؤسسة الاختبار",
+        },
+    )
+    assert zero.status_code == 200, zero.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "rejected"
+    cancelled_zero = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status",
+        json={"status": "cancelled"},
+    )
+    assert cancelled_zero.status_code == 200, cancelled_zero.text
+    restored_zero = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status",
+        json={"status": "pending"},
+    )
+    assert restored_zero.status_code == 200, restored_zero.text
+    assert restored_zero.json()["status"] == "rejected"
 
 
 def test_item_edits_and_deletion_reconcile_status_after_receipt_undo(client):
@@ -947,22 +989,6 @@ def test_receipt_undo_resets_approved_request_to_pending(client):
     request = page.get(f"/api/spare-parts-requests/{request_id}").json()
     assert request["status"] == "pending"
     assert float(request["items"][0]["received_quantity"]) == 0
-
-
-def test_receipt_undo_resets_cancelled_request_to_pending_when_no_movements_exist(client):
-    page, ids = client
-    request_id, item_id = _new_request(page, ids, "SR-UNDO-CANCELLED", slot=10)
-    assert _record_receipt(page, item_id).status_code == 200
-    cancelled = page.patch(
-        f"/api/spare-parts-requests/{request_id}/status",
-        json={"status": "cancelled"},
-    )
-    assert cancelled.status_code == 200, cancelled.text
-
-    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 200, undone.text
-    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
-    assert request["status"] == "pending"
 
 
 def test_receipt_undo_after_distribution_directs_user_to_delete_request(client):
