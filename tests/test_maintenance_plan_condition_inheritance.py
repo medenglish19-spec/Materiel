@@ -398,8 +398,9 @@ def test_plan_approval_and_execution_rules_are_intact(api):
 def test_plans_page_exposes_the_unified_workspace_controls():
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
     # أزرار الإنشاء: خطة + عملية مستقلة.
-    assert 'id="btnNewPlan"' in html and 'data-action="new-plan"' in html
-    assert 'id="btnNewStandalone"' in html and 'data-action="new-standalone"' in html
+    assert 'id="btnAdd"' in html and 'aria-controls="addMenu"' in html
+    assert 'id="menuNewPlan"' in html and 'data-action="new-plan"' in html
+    assert 'id="menuNewStandalone"' in html and 'data-action="new-standalone"' in html
     # اختيار الطراز والمؤشرات الملخصة.
     assert 'id="modelFilter"' in html
     assert 'id="summaryPlans"' in html and 'id="summaryStandalone"' in html

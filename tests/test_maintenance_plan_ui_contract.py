@@ -28,7 +28,12 @@ def test_maintenance_plan_routes_cover_page_management_and_execution():
 
 def test_maintenance_plan_ui_exposes_complete_controls():
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
-    assert 'id="btnNewPlan"' in html
+    assert 'id="btnAdd"' in html
+    assert 'aria-haspopup="menu"' in html
+    assert 'aria-controls="addMenu"' in html
+    assert 'id="addMenu"' in html and 'hidden>' in html
+    assert 'id="menuNewPlan"' in html and 'data-action="new-plan"' in html
+    assert 'id="menuNewStandalone"' in html and 'data-action="new-standalone"' in html
     assert 'data-edit="' in html
     assert 'data-approve="' in html
     assert "is_approved" in html

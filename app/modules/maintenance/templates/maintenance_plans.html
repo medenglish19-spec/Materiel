@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}خطط الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=20261012">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
@@ -9,8 +9,13 @@
       <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">خطط الصيانة</span></div>
     </div>
     <div class="hero-actions">
-      <button class="m-btn" id="btnNewStandalone" data-action="new-standalone" type="button">＋ عملية مستقلة</button>
-      <button class="m-btn primary" id="btnNewPlan" data-action="new-plan" type="button">＋ خطة صيانة</button>
+      <div class="add-split" id="addSplit">
+        <button class="m-btn primary" id="btnAdd" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="addMenu">＋ إضافة <span aria-hidden="true">▾</span></button>
+        <div class="add-menu" id="addMenu" role="menu" aria-labelledby="btnAdd" hidden>
+          <button class="add-menu-item" id="menuNewPlan" role="menuitem" type="button" data-action="new-plan">📋 إضافة خطة صيانة</button>
+          <button class="add-menu-item" id="menuNewStandalone" role="menuitem" type="button" data-action="new-standalone">🔧 إضافة عملية مستقلة</button>
+        </div>
+      </div>
     </div>
   </div>
   <nav class="module-tabs" aria-label="وحدة الصيانة">
@@ -366,6 +371,36 @@
     const standaloneBtn=e.target.closest('#btnNewStandalone,[data-action="new-standalone"]');
     if(standaloneBtn){e.preventDefault();newStandalone()}
   });
+  (function addMenuInit(){
+    const btn=$('btnAdd'),menu=$('addMenu');
+    if(!btn||!menu)return;
+    function place(){
+      menu.classList.remove('align-end');
+      const r=menu.getBoundingClientRect();
+      if(r.left<8)menu.classList.add('align-end');
+    }
+    function open(focusFirst){
+      menu.hidden=false;btn.setAttribute('aria-expanded','true');place();
+      if(focusFirst){const f=menu.querySelector('[role=menuitem]');if(f)f.focus()}
+    }
+    function close(returnFocus){
+      if(menu.hidden)return;
+      menu.hidden=true;btn.setAttribute('aria-expanded','false');
+      if(returnFocus)btn.focus();
+    }
+    btn.addEventListener('click',()=>{menu.hidden?open(false):close(false)});
+    btn.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();open(true)}});
+    menu.addEventListener('click',e=>{if(e.target.closest('[role=menuitem]'))close(false)});
+    menu.addEventListener('keydown',e=>{
+      const items=Array.from(menu.querySelectorAll('[role=menuitem]'));
+      const i=items.indexOf(document.activeElement);
+      if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus()}
+      else if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus()}
+      else if(e.key==='Escape'){e.preventDefault();close(true)}
+    });
+    document.addEventListener('click',e=>{if(!menu.hidden&&!e.target.closest('#addSplit'))close(false)});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')close(false)});
+  })();
   $('cancel').onclick=()=>{$('editor').style.display='none'};
   $('cancelStandalone').onclick=()=>{$('standalonePanel').style.display='none'};
   $('cancelExecution').onclick=()=>{$('executionPanel').style.display='none'};
