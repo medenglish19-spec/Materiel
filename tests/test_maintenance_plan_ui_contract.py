@@ -123,3 +123,14 @@ def test_plan_list_has_no_bulk_delete_button_or_selected_counter():
 
     assert "حذف المحدد" not in html
     assert "0 محددة" not in html
+
+def test_operation_bulk_delete_ui_matches_api_response_contract():
+    """واجهة الحذف الجماعي تقرأ مفاتيح الاستجابة الفعلية وتعرض الرفض لكل عملية."""
+    rules = RULES_TEMPLATE.read_text(encoding="utf-8")
+    assert "Number(data.success) || 0" in rules
+    assert "Array.isArray(data.rejected)" in rules
+    assert "rejected.length" in rules
+    assert "data.deleted" not in rules
+    assert "if (!response.ok)" in rules
+    assert "data.detail || data.message" in rules
+
