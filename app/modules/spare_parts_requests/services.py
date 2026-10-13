@@ -92,6 +92,18 @@ def _store_receipt_date(request, received_date):
         item.received_date = received_date
 
 
+def _refresh_request_status(request):
+    """Keep receipt outcomes automatic while preserving manual cancellation."""
+    if request.status == "cancelled":
+        return
+    if any(item.received_quantity > 0 for item in request.items):
+        request.status = "approved"
+    elif any(item.supplier_institution for item in request.items):
+        request.status = "rejected"
+    else:
+        request.status = "pending"
+
+
 def _source(db: Session, source_type: str, source_id: int):
     if source_type == "fault":
         obj = db.query(Fault).options(joinedload(Fault.equipment)).filter(Fault.id == source_id).first()
@@ -156,6 +168,8 @@ def serialize_request(obj):
         "request_number": obj.request_number,
         "request_date": obj.request_date,
         "received_date": obj.received_date,
+        "recipient": next((item.recipient for item in obj.items if item.recipient), None),
+        "supplier_institution": next((item.supplier_institution for item in obj.items if item.supplier_institution), None),
         "source_type": obj.source_type,
         "fault_id": obj.fault_id,
         "repair_id": obj.repair_id,
@@ -190,6 +204,23 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         raise ValueError(RECEIPT_CONFLICT)
     receipt_date = next(iter(dates), None)
     _check_receipt_date(data.request_date, receipt_date)
+    recipients = {item.recipient.strip() for item in data.items if item.recipient and item.recipient.strip()}
+    if data.recipient and data.recipient.strip():
+        recipients.add(data.recipient.strip())
+    if len(recipients) > 1:
+        raise ValueError("لكل طلب مستلم واحد لجميع البنود")
+    suppliers = {item.supplier_institution.strip() for item in data.items if item.supplier_institution and item.supplier_institution.strip()}
+    if data.supplier_institution and data.supplier_institution.strip():
+        suppliers.add(data.supplier_institution.strip())
+    if len(suppliers) > 1:
+        raise ValueError("لكل طلب مؤسسة ممونة واحدة لجميع البنود")
+    recipient = data.recipient.strip() if data.recipient and data.recipient.strip() else next(iter(recipients), None)
+    supplier = data.supplier_institution.strip() if data.supplier_institution and data.supplier_institution.strip() else next(iter(suppliers), None)
+    for item in data.items:
+        if (item.received_quantity > 0 or item.recipient or item.supplier_institution) and (
+            not (item.received_date or data.received_date) or not recipient or not supplier
+        ):
+            raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
 
     resolved = [
         _resolve_part(db, item.spare_part_id, item.part_name)
@@ -217,6 +248,8 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     for item, (part_id, part_name) in zip(data.items, resolved):
         values = item.model_dump(exclude={"spare_part_id", "part_name"})
         values["received_date"] = receipt_date
+        values["recipient"] = recipient
+        values["supplier_institution"] = supplier
         obj.items.append(
             SparePartRequestItem(
                 **values,
@@ -224,15 +257,25 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
                 part_name=part_name,
             )
         )
+    _refresh_request_status(obj)
     with _no_raw_sql(db):
         db.commit()
     return get_request(db, obj.id)
 
 
 def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpdate):
-    if obj.status != "pending":
-        raise ValueError("لا يمكن تعديل طلب إلا وهو قيد الانتظار")
+    if obj.status not in {"pending", "approved"}:
+        raise ValueError("لا يمكن تعديل طلب ملغى أو مرفوض")
     values = data.model_dump(exclude_unset=True)
+    shared_recipient = values.pop("recipient", None)
+    shared_supplier = values.pop("supplier_institution", None)
+    has_shared_recipient = "recipient" in data.model_fields_set
+    has_shared_supplier = "supplier_institution" in data.model_fields_set
+    if obj.status == "approved" and (
+        values.get("request_number", obj.request_number) != obj.request_number
+        or values.get("request_date", obj.request_date) != obj.request_date
+    ):
+        raise ValueError("لا يمكن تعديل رقم الطلب أو تاريخه بعد تسجيل الاستلام")
     if "request_number" in values:
         number = _request_number(values["request_number"])
         _check_request_number_free(db, number, obj.id)
@@ -250,8 +293,25 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
         )
     if "received_date" in values and values["received_date"] != obj.received_date:
         _store_receipt_date(obj, values["received_date"])
+    if has_shared_recipient:
+        shared_recipient = (shared_recipient or "").strip() or None
+        recorded_items = [item for item in obj.items if item.received_quantity > 0 or item.supplier_institution]
+        if recorded_items and not shared_recipient:
+            raise ValueError("لا يمكن مسح اسم المستلم بعد تسجيل الاستلام")
+        for item in obj.items:
+            item.recipient = shared_recipient
+    if has_shared_supplier:
+        shared_supplier = (shared_supplier or "").strip() or None
+        recorded_items = [item for item in obj.items if item.received_quantity > 0 or item.supplier_institution]
+        if recorded_items and not shared_supplier:
+            raise ValueError("لا يمكن مسح المؤسسة الممونة بعد تسجيل الاستلام")
+        for item in obj.items:
+            if item.received_quantity > 0 or item.supplier_institution:
+                item.supplier_institution = shared_supplier
     for key, value in values.items():
         setattr(obj, key, value)
+    if has_shared_recipient or has_shared_supplier:
+        _refresh_request_status(obj)
     with _no_raw_sql(db):
         db.commit()
     return get_request(db, obj.id)
@@ -281,11 +341,24 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     for existing in request.items:
         if _item_identity(existing.spare_part_id, existing.part_name) == identity:
             raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
-    if data.received_quantity > 0 and (not data.received_date or not data.recipient or not data.supplier_institution):
+    current_recipient = next((item.recipient for item in request.items if item.recipient), None)
+    current_supplier = next((item.supplier_institution for item in request.items if item.supplier_institution), None)
+    new_recipient = (data.recipient or current_recipient or "").strip() or None
+    new_supplier = (data.supplier_institution or current_supplier or "").strip() or None
+    if data.recipient and current_recipient and data.recipient.strip() != current_recipient.strip():
+        raise ValueError("لكل طلب مستلم واحد لجميع البنود")
+    if data.supplier_institution and current_supplier and data.supplier_institution.strip() != current_supplier.strip():
+        raise ValueError("لكل طلب مؤسسة ممونة واحدة لجميع البنود")
+    receipt_submitted = data.received_quantity > 0 or bool(
+        data.recipient or data.supplier_institution
+    )
+    if receipt_submitted and (not data.received_date or not new_recipient or not new_supplier):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
     values = data.model_dump(exclude={"part_name", "spare_part_id"})
     # بند الطلب الجديد يشارك تاريخ استلام الطلب، لا تاريخاً خاصاً به.
     values["received_date"] = request.received_date
+    values["recipient"] = new_recipient
+    values["supplier_institution"] = new_supplier if receipt_submitted else None
     item = SparePartRequestItem(
         request_id=request_id,
         spare_part_id=part_id,
@@ -293,6 +366,8 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         **values,
     )
     db.add(item)
+    db.flush()
+    _refresh_request_status(request)
     db.commit()
     db.refresh(item)
     return item
@@ -302,6 +377,21 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
     if item.request.status == "cancelled":
         raise ValueError("لا يمكن تعديل طلب ملغى")
     values = data.model_dump(exclude_unset=True)
+    has_recipient_update = "recipient" in values
+    shared_recipient = (values.pop("recipient", None) or "").strip() or None
+    has_supplier_update = "supplier_institution" in values
+    shared_supplier = (values.pop("supplier_institution", None) or "").strip() or None
+    if has_recipient_update:
+        if any(
+            other.received_quantity > 0 or other.supplier_institution
+            for other in item.request.items
+        ) and not shared_recipient:
+            raise ValueError("لا يمكن مسح اسم المستلم بعد تسجيل الاستلام")
+    if has_supplier_update and any(
+        other.received_quantity > 0 or other.supplier_institution
+        for other in item.request.items
+    ) and not shared_supplier:
+        raise ValueError("لا يمكن مسح المؤسسة الممونة بعد تسجيل الاستلام")
     touches_assignment = any(k in values for k in ("spare_part_id", "part_name", "requested_quantity"))
     if touches_assignment and item.request.status != "pending":
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
@@ -323,12 +413,23 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         _check_receipt_date(item.request.request_date, values["received_date"])
         if _receipt_conflicts(item.request, values["received_date"]):
             raise ValueError(RECEIPT_CONFLICT)
+    if has_recipient_update:
+        for sibling in item.request.items:
+            sibling.recipient = shared_recipient
+    if has_supplier_update:
+        item.supplier_institution = shared_supplier
     for key, value in values.items():
         setattr(item, key, value)
     if "received_date" in values and values["received_date"] != item.request.received_date:
         _store_receipt_date(item.request, values["received_date"])
-    if item.received_quantity > 0 and (not item.received_date or not item.recipient or not item.supplier_institution):
-        raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
+    receipt_changed = any(k in values for k in ("received_quantity", "received_date")) or has_recipient_update or has_supplier_update
+    if receipt_changed and (item.received_quantity > 0 or item.recipient or item.supplier_institution):
+        if not item.received_date or not item.recipient or not item.supplier_institution:
+            raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
+    if receipt_changed and item.received_quantity == 0 and not (item.received_date and item.recipient and item.supplier_institution):
+        raise ValueError("عند تسجيل استلام بكمية صفر يجب إدخال التاريخ والمستلم والمؤسسة الممونة")
+    if receipt_changed:
+        _refresh_request_status(item.request)
     db.commit()
     db.refresh(item)
     return item
@@ -348,24 +449,35 @@ def delete_item(db: Session, item: SparePartRequestItem):
 
 def undo_item_receipt(db: Session, item: SparePartRequestItem):
     """Delete one receipt and its dependent distribution/return movements."""
-    if item.received_quantity <= 0:
+    has_receipt = item.received_quantity > 0 or bool(item.supplier_institution)
+    if not has_receipt:
         raise ValueError("لا يوجد استلام مسجل لهذا البند")
     from app.modules.spare_parts_movements.services import delete_movements_for_request_items
 
     delete_movements_for_request_items(db, [item.id])
     item.received_quantity = 0
     item.received_date = None
-    item.recipient = None
     item.supplier_institution = None
     # تاريخ الاستلام في الترويسة مشترك بين البنود، فلا يبقى بلا معنى بعد آخر بند
-    if not any(other.received_quantity > 0 for other in item.request.items):
+    if not any(
+        other.id != item.id and (
+            other.received_quantity > 0 or other.supplier_institution
+        )
+        for other in item.request.items
+    ):
         item.request.received_date = None
+        for other in item.request.items:
+            other.recipient = None
+            other.supplier_institution = None
+    _refresh_request_status(item.request)
     db.commit()
     db.refresh(item)
     return item
 
 
 def update_status(db: Session, obj: SparePartRequest, data: SparePartRequestStatusUpdate):
+    if data.status != "cancelled" and data.status != obj.status:
+        raise ValueError("حالة الطلب تُحدد تلقائياً من الاستلام؛ يمكن إلغاء الطلب يدوياً فقط")
     obj.status = data.status
     db.commit()
     db.refresh(obj)

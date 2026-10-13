@@ -392,8 +392,14 @@ def test_the_page_exposes_one_receipt_date_in_the_request_header(client):
     html = page.get("/spare-parts-requests").text
 
     assert 'class="f-rdate" type="date"' in html
+    assert 'class="f-recipient"' in html
+    assert 'class="f-supplier"' in html
     detail_block = html[html.index("function detailHtml"):html.index("function itemsHtml")]
+    item_block = html[html.index("function itemRow"):html.index("async function undoReceipt")]
     assert "تاريخ الاستلام" in detail_block
+    assert "المستلم" in detail_block
+    assert "المؤسسة الممونة" in detail_block
+    assert "i-rdate" not in item_block and "i-recipient" not in item_block and "i-supplier" not in item_block
 
 
 def test_the_page_blocks_both_rules_before_sending_anything(client):
@@ -405,7 +411,7 @@ def test_the_page_blocks_both_rules_before_sending_anything(client):
         )
     ]
 
-    assert "RECEIPT_CONFLICT" in block, "الصفحة لا ترفض اختلاف تواريخ الاستلام بين البنود"
     assert "RECEIPT_BEFORE_REQUEST" in block, "الصفحة لا ترفض تاريخ استلام قبل تاريخ الطلب"
+    assert "receiptEntered" in block, "الصفحة لا تربط تسجيل الاستلام بكمية البند"
     # القاعدة تُفحص قبل أول طلب إلى الخادم
-    assert block.index("RECEIPT_CONFLICT") < block.index("fetch('/api/spare-parts-requests/'+id")
+    assert block.index("RECEIPT_BEFORE_REQUEST") < block.index("fetch('/api/spare-parts-requests/'+id")

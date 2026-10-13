@@ -204,14 +204,14 @@ def test_header_fields_and_items_are_editable_in_place(client):
     for cls in (
         "f-number",
         "f-date",
+        "f-rdate",
+        "f-recipient",
         "f-notes",
         "i-name",
         "i-part",
         "i-qty",
         "received",
-        "i-rdate",
-        "i-recipient",
-        "i-supplier",
+        "f-supplier",
         "i-note",
         "add-line",
         "rm-line",
@@ -228,10 +228,10 @@ def test_the_global_editor_does_not_manage_this_area(client):
     assert "data-em-ignore" in html
 
 
-def test_received_quantity_input_refuses_zero_in_the_browser(client):
+def test_received_quantity_input_allows_zero_for_rejection(client):
     page, _ = client
     html = page.get("/spare-parts-requests").text
-    assert 'class="received" type="number" min="1" step="1"' in html
+    assert 'class="received" type="number" min="0" step="1"' in html
 
 
 # ------------------------------------------------------------- الحفظ فعلياً
@@ -351,39 +351,58 @@ def test_receiving_data_is_editable_and_lands_in_the_register(client):
     """بيانات الاستلام تُحفظ من داخل الطلب وتظهر في سجل المستلم."""
     page, ids = client
     today = date.today().isoformat()
+    request_id, item_id = _new_request(page, ids, "SR-SHARED-RECEIPT", slot=7)
 
+    header = page.patch(
+        f"/api/spare-parts-requests/{request_id}",
+        json={"received_date": today, "recipient": "أمين المخزن"},
+    )
+    assert header.status_code == 200, header.text
     response = page.patch(
-        f"/api/spare-parts-requests/items/{ids['item']}",
-        json={
-            "received_quantity": 2,
-            "received_date": today,
-            "recipient": "أمين المخزن",
-            "supplier_institution": "مؤسسة الاختبار",
-        },
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={"received_quantity": 2, "supplier_institution": "مؤسسة الاختبار"},
     )
     assert response.status_code == 200, response.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
 
     register = page.get("/api/spare-parts-requests/received-register").json()
-    rows = [r for r in register if r["request_number"] == "SR-EDIT-2"]
+    rows = [r for r in register if r["request_number"] == "SR-SHARED-RECEIPT"]
     assert rows, "البند المستلم لم يظهر في سجل المستلم"
     assert rows[0]["recipient"] == "أمين المخزن"
     assert rows[0]["supplier_institution"] == "مؤسسة الاختبار"
     assert rows[0]["part_name"], "سجل المستلم يجب أن يعرض اسم البند الحر"
 
 
-def test_an_empty_receipt_is_refused(client):
-    """صفر ليس استلاماً: الكمية المستلمة إما مُتروكة (0) أو 1 فأكثر."""
+def test_a_zero_receipt_is_recorded_as_rejected(client):
     page, ids = client
+    _, item_id = _new_request(page, ids, "SR-ZERO-RECEIPT", slot=5)
 
     response = page.patch(
-        f"/api/spare-parts-requests/items/{ids['item']}",
-        json={"received_quantity": 0},
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={
+            "received_quantity": 0,
+            "received_date": date.today().isoformat(),
+            "recipient": "أمين المخزن",
+            "supplier_institution": "مؤسسة الاختبار",
+        },
     )
-    assert response.status_code == 422, response.text
+    assert response.status_code == 200, response.text
+    assert float(response.json()["received_quantity"]) == 0
 
 
 def test_a_received_item_cannot_be_deleted(client):
     page, ids = client
+
+    recorded = page.patch(
+        f"/api/spare-parts-requests/items/{ids['item']}",
+        json={
+            "received_quantity": 1,
+            "received_date": date.today().isoformat(),
+            "recipient": "أمين المخزن",
+            "supplier_institution": "مؤسسة الاختبار",
+        },
+    )
+    assert recorded.status_code == 200, recorded.text
 
     response = page.delete(f"/api/spare-parts-requests/items/{ids['item']}")
     assert response.status_code == 400
@@ -573,7 +592,7 @@ def test_a_received_item_is_not_resent_with_its_assignment(client):
         "delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;"
         in html
     ), "a locked row must not re-send its assignment"
-    assert "if(itemId&&p.tr.dataset.locked){" in html
+    assert "if(itemId&&(p.tr.dataset.locked||p.receiptEntered)){" in html
 
     # a brand-new row is never locked, so it still sends everything
     add_line = html[html.index("function addLineRow") : html.index("function itemBody")]
@@ -591,8 +610,8 @@ def test_the_locked_guard_stays_on_the_server(client):
     assert "if item.received_quantity > 0 and touches_assignment:" in services_src
 
 
-def test_the_header_receipt_date_is_read_and_sent(client):
-    """detailHtml() renders .f-rdate and the API accepts received_date.
+def test_shared_receipt_date_and_recipient_are_read_and_sent(client):
+    """detailHtml() renders the shared receipt date and recipient.
 
     saveRequest() used to ignore the field entirely, so a receipt date typed in
     the request header was silently discarded.
@@ -601,6 +620,8 @@ def test_the_header_receipt_date_is_read_and_sent(client):
     html = page.get("/spare-parts-requests").text
 
     assert 'class="f-rdate"' in html, "the header receipt date field is missing"
+    assert 'class="f-recipient"' in html, "the request-level recipient field is missing"
+    assert 'class="f-supplier"' in html, "the request-level supplier field is missing"
 
     save = html[html.index("async function saveRequest") :]
     assert "host.querySelector('.f-rdate')" in save, (
@@ -612,8 +633,12 @@ def test_the_header_receipt_date_is_read_and_sent(client):
     assert "received_date:receipt||null" in save, (
         "the header receipt date must be sent to the API"
     )
-    # one receipt date for the whole request: header and items must agree
-    assert "dates[0]!==headerDate" in save
+    assert "recipient:recipient||null" in save
+    assert "supplier_institution:supplier||null" in save
+    assert "const recipient=host.querySelector('.f-recipient').value.trim();" in save
+    assert "أدخل تاريخ الاستلام والمستلم والمؤسسة الممونة في بيانات الطلب" in save
+    item_block = html[html.index("function itemRow"):html.index("function addLineRow")]
+    assert "i-supplier" not in item_block
 
     schemas_src = (
         ROOT / "app" / "modules" / "spare_parts_requests" / "schemas.py"
@@ -669,6 +694,38 @@ def test_a_null_received_quantity_is_refused_instead_of_crashing(client):
         f"يجب أن يُرفض تفريغ الكمية برسالة مفهومة، لا أن ينهار الخادم: "
         f"{response.status_code} {response.text}"
     )
+
+
+def test_request_status_is_derived_from_receipt_and_cancelled_manually(client):
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-AUTO-STATUS", slot=6)
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "pending"
+
+    zero_receipt = page.patch(
+        f"/api/spare-parts-requests/items/{item_id}",
+        json={
+            "received_quantity": 0,
+            "received_date": date.today().isoformat(),
+            "recipient": "أمين المخزن",
+            "supplier_institution": "مؤسسة الاختبار",
+        },
+    )
+    assert zero_receipt.status_code == 200, zero_receipt.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "rejected"
+
+    positive_receipt = _record_receipt(page, item_id)
+    assert positive_receipt.status_code == 200, positive_receipt.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
+
+    manual_approval = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status", json={"status": "rejected"}
+    )
+    assert manual_approval.status_code == 400, manual_approval.text
+    cancelled = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status", json={"status": "cancelled"}
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["status"] == "cancelled"
 
 
 def test_a_mistaken_receipt_can_be_undone(client):
@@ -763,10 +820,7 @@ def test_receipt_undo_removes_its_movement_chain_even_after_approval(client):
     request_id, item_id = _new_request(page, ids, "SR-APPROVED-FINAL", slot=4)
 
     assert _record_receipt(page, item_id).status_code == 200
-    approved = page.patch(
-        f"/api/spare-parts-requests/{request_id}/status", json={"status": "approved"}
-    )
-    assert approved.status_code == 200, approved.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
 
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
     assert undone.status_code == 200, undone.text
@@ -774,14 +828,12 @@ def test_receipt_undo_removes_its_movement_chain_even_after_approval(client):
     assert page.get(f"/api/spare-parts-requests/{request_id}").status_code == 200
 
 
-def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):
-    """التراجع يظهر على بندٍ مستلَم في طلب ما زال قيد الانتظار فقط."""
+def test_the_undo_button_is_offered_for_receipts_unless_the_request_is_cancelled(client):
+    """يمكن حذف الاستلام المسجل، سواء كان موجباً أو صفراً، ما لم يُلغَ الطلب."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    assert "const canUndo=received>0&&x.status==='pending';" in html, (
-        "التراجع عن الاستلام مسموح ما دام الطلب قد يتغير"
-    )
+    assert "const canUndo=hasReceipt&&x.status!=='cancelled';" in html
     assert html.count('class="secondary undo-receipt"') == 1, (
         "الزر يُرسم في خلية السطر المخزَّن فقط، لا في خلية الإضافة"
     )

@@ -1,7 +1,6 @@
-"""الكمية في طلبات الغيار عدد صحيح: المطلوبة 1 فأكثر، والمستلمة 1 فأكثر.
+"""الكمية في طلبات الغيار عدد صحيح: المطلوبة 1 فأكثر، والمستلمة صفر فأكثر.
 
-الصفر حالة داخلية تعني «لم يُستلم بعد»: يُحفظ تلقائياً عند إنشاء الطلب،
-لكن لا يُقبل تسجيل استلام بصفر.
+الصفر في حقل الاستلام يعني أن الاستلام سُجل بكمية صفر، وحالة الطلب تصبح مرفوضاً.
 """
 
 from pathlib import Path
@@ -66,9 +65,8 @@ class TestReceivedQuantity:
         with pytest.raises(ValidationError):
             _create(received_quantity=2.5)
 
-    def test_rejects_zero_because_a_receipt_cannot_be_empty(self):
-        with pytest.raises(ValidationError):
-            _create(received_quantity=0)
+    def test_accepts_zero_receipt_quantity(self):
+        assert _create(received_quantity=0).received_quantity == 0
 
     def test_rejects_a_negative_value(self):
         with pytest.raises(ValidationError):
@@ -95,9 +93,8 @@ class TestUpdateQuantities:
         with pytest.raises(ValidationError):
             SparePartRequestItemUpdate(received_quantity=1.5)
 
-    def test_rejects_recording_a_receipt_of_zero(self):
-        with pytest.raises(ValidationError):
-            SparePartRequestItemUpdate(received_quantity=0)
+    def test_accepts_recording_a_receipt_of_zero(self):
+        assert SparePartRequestItemUpdate(received_quantity=0).received_quantity == 0
 
     def test_rejects_a_negative_received_quantity(self):
         with pytest.raises(ValidationError):
@@ -138,8 +135,8 @@ class TestFormInputsAreWholeNumbers:
     def test_requested_quantity_step_is_one(self):
         assert 'class="new-qty" type="number" min="1" step="1"' in self.html
 
-    def test_received_quantity_step_is_one(self):
-        assert 'class="received" type="number" min="1" step="1"' in self.html
+    def test_received_quantity_step_is_one_and_zero_is_valid(self):
+        assert 'class="received" type="number" min="0" step="1"' in self.html
 
     def test_no_quantity_input_still_accepts_two_decimals(self):
         assert 'step="0.01"' not in self.html
