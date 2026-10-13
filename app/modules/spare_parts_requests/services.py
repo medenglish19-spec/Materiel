@@ -350,9 +350,10 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
 def delete_request(db: Session, obj: SparePartRequest):
     from app.modules.spare_parts_movements.services import delete_movements_for_request_items
 
-    delete_movements_for_request_items(db, [item.id for item in obj.items])
+    movement_result = delete_movements_for_request_items(db, [item.id for item in obj.items])
     db.delete(obj)
     db.commit()
+    return movement_result
 
 
 def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):

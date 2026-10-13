@@ -1019,6 +1019,40 @@ def test_receipt_undo_after_distribution_removes_dependent_movements(client):
     assert page.get(f"/api/spare-parts-movements/{distributed.json()['id']}").status_code == 404
 
 
+def test_deleting_request_preview_matches_deleted_distribution(client):
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-DELETE-MOVEMENT-CHAIN", slot=10)
+    assert _record_receipt(page, item_id).status_code == 200
+    distributed = page.post(
+        "/api/spare-parts-movements",
+        json={
+            "document_number": "DIST-DELETE-REQUEST",
+            "document_type": "distribution",
+            "document_date": date.today().isoformat(),
+            "issuer": "المخزن",
+            "recipient": "مستفيد",
+            "items": [{"request_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert distributed.status_code == 201, distributed.text
+
+    preview = page.get(f"/api/spare-parts-requests/{request_id}/delete-impact")
+    assert preview.status_code == 200, preview.text
+    effects = {row["label"]: row["count"] for row in preview.json()["effects"]}
+    assert effects["سطور حركات الغيار التي ستحذف"] == 1
+    assert effects["وثائق الحركة التي ستحذف بالكامل"] == 1
+
+    deleted = page.delete(f"/api/spare-parts-requests/{request_id}")
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {
+        "ok": True,
+        "movement_lines_deleted": 1,
+        "movement_documents_deleted": 1,
+    }
+    assert page.get(f"/api/spare-parts-requests/{request_id}").status_code == 404
+    assert page.get(f"/api/spare-parts-movements/{distributed.json()['id']}").status_code == 404
+
+
 def test_the_undo_button_is_shown_for_the_shared_receipt_once(client):
     """الواجهة تعرض زرًا واحدًا للاستلام المشترك وتزيله بعد التراجع."""
     page, _ = client

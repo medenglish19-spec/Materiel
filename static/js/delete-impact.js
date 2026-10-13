@@ -36,23 +36,40 @@
   async function get(url) {
     const response = await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.detail || 'تعذر تحميل أثر الحذف. لم يتم حذف أي بيانات.');
+    if (!response.ok) {
+      const detail = data.detail && data.detail !== 'Not Found'
+        ? data.detail
+        : response.status === 404
+          ? 'مسار معاينة الحذف أو السجل غير متاح على الخادم الحالي. لم يتم حذف أي بيانات.'
+          : 'تعذر تحميل أثر الحذف. لم يتم حذف أي بيانات.';
+      throw new Error(detail);
+    }
     return data;
   }
   async function confirmOne(url, title) {
-    const data = await get(url);
-    return show(data.effects || [], title || (data.label ? `حذف «${data.label}»؟` : 'تأكيد الحذف'), data.blocked);
+    try {
+      const data = await get(url);
+      return await show(data.effects || [], title || (data.label ? `حذف «${data.label}»؟` : 'تأكيد الحذف'), data.blocked);
+    } catch (error) {
+      global.alert(error.message || 'تعذر التحقق من أثر الحذف. لم يتم حذف أي بيانات.');
+      return false;
+    }
   }
   async function confirmMany(urls, title) {
-    const previews = await Promise.all(urls.map(get));
-    const rows = [];
-    const blocked = [];
-    previews.forEach(preview => {
-      rows.push({ label: preview.label || 'عنصر', count: 1 });
-      (preview.effects || []).forEach(effect => rows.push({ ...effect, label: `${preview.label || 'العنصر'} — ${effect.label}` }));
-      if (preview.blocked) blocked.push(`${preview.label || 'العنصر'}: ${preview.blocked}`);
-    });
-    return show(rows, title || 'مراجعة أثر الحذف المحدد', blocked.join('؛ ') || null);
+    try {
+      const previews = await Promise.all(urls.map(get));
+      const rows = [];
+      const blocked = [];
+      previews.forEach(preview => {
+        rows.push({ label: preview.label || 'عنصر', count: 1 });
+        (preview.effects || []).forEach(effect => rows.push({ ...effect, label: `${preview.label || 'العنصر'} — ${effect.label}` }));
+        if (preview.blocked) blocked.push(`${preview.label || 'العنصر'}: ${preview.blocked}`);
+      });
+      return await show(rows, title || 'مراجعة أثر الحذف المحدد', blocked.join('؛ ') || null);
+    } catch (error) {
+      global.alert(error.message || 'تعذر التحقق من أثر الحذف. لم يتم حذف أي بيانات.');
+      return false;
+    }
   }
   document.addEventListener('submit', async event => {
     const form = event.target.closest('form[data-delete-impact]');

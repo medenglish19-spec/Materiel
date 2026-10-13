@@ -454,13 +454,44 @@ def test_deleting_request_removes_receipt_movement_chain_but_preserves_other_req
     other_distribution = _distribute(db, unrelated, 1)
     request = item.request
 
-    request_services.delete_request(db, request)
+    plan = movements.request_item_movement_deletion_plan(db, [item.id])
+    assert {line.id for line in plan["lines"]} == {
+        distribution.items[0].id,
+        returned.items[0].id,
+    }
+    assert {document.id for document in plan["documents_to_delete"]} == {
+        distribution.id,
+        returned.id,
+    }
 
+    result = request_services.delete_request(db, request)
+
+    assert result == {"movement_lines_deleted": 2, "movement_documents_deleted": 2}
     assert db.get(SparePartRequest, request.id) is None
     assert db.get(SparePartMovementDocument, distribution.id) is None
     assert db.get(SparePartMovementDocument, returned.id) is None
     assert db.get(SparePartMovementDocument, other_distribution.id) is not None
     assert unrelated.request is not None
+
+
+def test_request_deletion_is_refused_if_a_linked_movement_survives(db, monkeypatch):
+    from app.modules.spare_parts_requests import services as request_services
+    from app.modules.spare_parts_requests.models import SparePartRequest
+
+    item = _received_item(db, 2)
+    distribution = _distribute(db, item, 1)
+    request = item.request
+    monkeypatch.setattr(
+        movements,
+        "request_item_movement_deletion_plan",
+        lambda *_args: {"lines": [], "documents": [], "documents_to_delete": []},
+    )
+
+    with pytest.raises(ValueError, match="تعذر حذف جميع حركات الغيار"):
+        request_services.delete_request(db, request)
+
+    assert db.get(SparePartRequest, request.id) is not None
+    assert movements.get_document(db, distribution.id) is not None
 
 
 def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):

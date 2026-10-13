@@ -6,6 +6,7 @@ from urllib.parse import quote, urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import make_url
 
 from app.core.config import security_warnings, settings
 from app.core.logging import configure_logging, get_logger, shutdown_logging
@@ -39,13 +40,13 @@ logger = get_logger(__name__)
 
 def _database_file() -> str | None:
     """مسار ملف SQLite من DATABASE_URL، أو None لقاعدة غير ملفاتية."""
-    prefix = "sqlite:///"
-    if not settings.DATABASE_URL.startswith(prefix):
+    url = make_url(settings.DATABASE_URL)
+    if not url.drivername.startswith("sqlite"):
         return None
-    tail = settings.DATABASE_URL[len(prefix) :]
-    if tail in ("", ":memory:"):
+    database_file = url.database
+    if database_file in (None, "", ":memory:") or database_file.startswith("file:"):
         return None
-    return tail
+    return database_file
 
 
 def _git_commit() -> str:

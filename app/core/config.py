@@ -6,10 +6,32 @@ core/config.py
 
 import os
 from functools import lru_cache
+from pathlib import Path
+from sqlalchemy.engine import make_url
 
 
 DEFAULT_SECRET_KEY = "dev-only-secret-change-me-in-production"
 DEFAULT_ADMIN_PASSWORD = "Admin@123"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def default_database_url(project_root: Path = PROJECT_ROOT) -> str:
+    """Keep the default operational database independent of the launch cwd."""
+    return f"sqlite:///{(project_root / 'fleet_assets.db').resolve().as_posix()}"
+
+
+def resolve_database_url(database_url: str, project_root: Path = PROJECT_ROOT) -> str:
+    """Resolve relative SQLite paths from the repository, not the process cwd."""
+    url = make_url(database_url)
+    if not url.drivername.startswith("sqlite") or not url.database:
+        return database_url
+    if url.database == ":memory:" or url.database.startswith("file:"):
+        return database_url
+    path = Path(url.database)
+    if path.is_absolute():
+        return database_url
+    resolved = (project_root / path).resolve().as_posix()
+    return url.set(database=resolved).render_as_string(hide_password=False)
 
 
 class Settings:
@@ -17,8 +39,8 @@ class Settings:
     ENV: str = os.getenv("APP_ENV", "development")
     DEBUG: bool = ENV != "production"
 
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", "sqlite:///./fleet_assets.db"
+    DATABASE_URL: str = resolve_database_url(
+        os.getenv("DATABASE_URL") or default_database_url()
     )
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)

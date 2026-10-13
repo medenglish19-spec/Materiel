@@ -843,11 +843,15 @@ def delete_document(db, document_id):
     db.commit()
 
 
-def delete_movements_for_request_items(db, request_item_ids):
-    """Remove movements owned by these request items, including returns on distributions."""
+def request_item_movement_deletion_plan(db, request_item_ids):
+    """Return the exact movement rows and documents owned by request items.
+
+    This read-only plan is shared by deletion preview and execution so the UI
+    cannot promise a different impact from the one the service applies.
+    """
     request_item_ids = {int(value) for value in request_item_ids}
     if not request_item_ids:
-        return
+        return {"lines": [], "documents": [], "documents_to_delete": []}
     distribution_lines = db.query(SparePartMovementItem).join(
         SparePartMovementDocument
     ).filter(
@@ -884,19 +888,51 @@ def delete_movements_for_request_items(db, request_item_ids):
         SparePartMovementDocument.document_type == "return",
         or_(*return_filters),
     ).all()
-    affected_document_ids = {line.document_id for line in distribution_lines + return_lines}
-    for line in return_lines:
-        db.delete(line)
-    for line in distribution_lines:
+    # Older returns linked only by source_document_id. If every distribution
+    # line in a document is being removed, those legacy return documents also
+    # belong to the deleted request's movement chain.
+    affected_lines = {line.id: line for line in distribution_lines + return_lines}
+    affected_document_ids = {line.document_id for line in affected_lines.values()}
+    documents = db.query(SparePartMovementDocument).filter(
+        SparePartMovementDocument.id.in_(affected_document_ids)
+    ).all() if affected_document_ids else []
+    lines_by_document = {}
+    for line in affected_lines.values():
+        lines_by_document.setdefault(line.document_id, set()).add(line.id)
+    documents_to_delete = [
+        document for document in documents
+        if len(lines_by_document.get(document.id, set())) == len(document.items)
+    ]
+    return {
+        "lines": list(affected_lines.values()),
+        "documents": documents,
+        "documents_to_delete": documents_to_delete,
+    }
+
+
+def delete_movements_for_request_items(db, request_item_ids):
+    """Remove movements owned by request items without committing the caller's transaction."""
+    plan = request_item_movement_deletion_plan(db, request_item_ids)
+    for line in plan["lines"]:
         db.delete(line)
     db.flush()
-    for document_id in affected_document_ids:
-        document = db.query(SparePartMovementDocument).filter(
-            SparePartMovementDocument.id == document_id
-        ).first()
-        if document is not None and not document.items:
+    deleted_documents = 0
+    for document in plan["documents"]:
+        db.expire(document, ["items"])
+        if not document.items:
             db.delete(document)
+            deleted_documents += 1
     db.flush()
+    remaining = db.query(SparePartMovementItem.id).filter(or_(
+        SparePartMovementItem.request_item_id.in_(request_item_ids),
+        SparePartMovementItem.received_request_item_id.in_(request_item_ids),
+    )).first()
+    if remaining:
+        raise ValueError("تعذر حذف جميع حركات الغيار المرتبطة؛ أُلغي حذف الطلب للمحافظة على سلامة السجلات")
+    return {
+        "movement_lines_deleted": len(plan["lines"]),
+        "movement_documents_deleted": deleted_documents,
+    }
 
 
 def history(db, request_item_id):

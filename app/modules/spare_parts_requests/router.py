@@ -9,6 +9,7 @@ from . import services
 from .models import SparePartRequestItem
 from .models import SparePartRequest
 from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
+from app.modules.spare_parts_movements import services as movement_services
 from .schemas import (
     SparePartRequestCreate,
     SparePartRequestItemCreate,
@@ -77,8 +78,8 @@ def delete(request_id: int, db: Session = Depends(get_db), _: User = Depends(get
     if not obj:
         raise HTTPException(404, "طلب الغيار غير موجود")
     try:
-        services.delete_request(db, obj)
-        return {"ok": True}
+        movement_result = services.delete_request(db, obj)
+        return {"ok": True, **movement_result}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
@@ -89,45 +90,17 @@ def delete_impact(request_id: int, db: Session = Depends(get_db), _: User = Depe
     if not obj:
         raise HTTPException(404, "طلب الغيار غير موجود")
     item_ids = {item.id for item in obj.items}
-    distributions = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
-        SparePartMovementDocument.document_type == "distribution",
-        or_(SparePartMovementItem.request_item_id.in_(item_ids), SparePartMovementItem.received_request_item_id.in_(item_ids)),
-    ).all() if item_ids else []
-    distribution_ids = {line.id for line in distributions}
-    return_filters = [SparePartMovementItem.request_item_id.in_(item_ids), SparePartMovementItem.received_request_item_id.in_(item_ids)] if item_ids else []
-    if distribution_ids:
-        return_filters.append(SparePartMovementItem.source_item_id.in_(distribution_ids))
-    distribution_lines_per_doc = {}
-    for line in distributions:
-        distribution_lines_per_doc[line.document_id] = distribution_lines_per_doc.get(line.document_id, 0) + 1
-    fully_removed_distribution_docs = [
-        document_id for document_id, selected_count in distribution_lines_per_doc.items()
-        if db.query(SparePartMovementItem.id).filter(SparePartMovementItem.document_id == document_id).count() == selected_count
-    ]
-    if fully_removed_distribution_docs:
-        legacy_return_doc_ids = [row[0] for row in db.query(SparePartMovementDocument.id).filter(
-            SparePartMovementDocument.document_type == "return",
-            SparePartMovementDocument.source_document_id.in_(fully_removed_distribution_docs),
-        ).all()]
-        if legacy_return_doc_ids:
-            return_filters.append(SparePartMovementItem.document_id.in_(legacy_return_doc_ids))
-    returns = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
-        SparePartMovementDocument.document_type == "return", or_(*return_filters)
-    ).all() if return_filters else []
-    matching_by_doc = {}
-    for line in distributions + returns:
-        matching_by_doc.setdefault(line.document_id, set()).add(line.id)
-    affected_documents = db.query(SparePartMovementDocument).filter(SparePartMovementDocument.id.in_(matching_by_doc)).all() if matching_by_doc else []
-    deleted_lines = sum(len(line_ids) for line_ids in matching_by_doc.values())
-    deleted_documents = sum(1 for doc in affected_documents if len(matching_by_doc[doc.id]) == len(doc.items))
-    affected_docs = [doc.document_number for doc in affected_documents]
+    plan = movement_services.request_item_movement_deletion_plan(db, item_ids)
+    deleted_lines = len(plan["lines"])
+    deleted_documents = len(plan["documents_to_delete"])
+    affected_docs = [doc.document_number for doc in plan["documents"]]
     return {
         "label": obj.request_number,
         "effects": [
             {"label": "بنود الطلب التي ستحذف", "count": len(obj.items)},
             {"label": "سطور حركات الغيار التي ستحذف", "count": deleted_lines},
             {"label": "وثائق الحركة التي ستحذف بالكامل", "count": deleted_documents},
-            {"label": "وثائق الحركة التي ستبقى مع تعديل بنودها", "count": len(affected_docs) - deleted_documents, "kind": "remain"},
+            {"label": "وثائق الحركة التي ستبقى مع تعديل بنودها", "count": len(plan["documents"]) - deleted_documents, "kind": "remain"},
             {"label": "ارتباطات العطل/الإصلاح/العتاد التي ستنفصل عن الطلب", "count": sum(bool(value) for value in (obj.fault_id, obj.repair_id, obj.equipment_id)), "kind": "unlink"},
         ],
         "documents": affected_docs,
