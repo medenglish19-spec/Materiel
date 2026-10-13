@@ -683,15 +683,7 @@ def test_a_mistaken_receipt_can_be_undone(client):
 
     assert _record_receipt(page, item_id).status_code == 200
 
-    # بعد الاستلام: الحذف مرفوض، برسالة تشرح出路
-    blocked = page.delete(f"/api/spare-parts-requests/{request_id}")
-    assert blocked.status_code == 400
-    assert "تراجع عن الاستلام" in blocked.text, (
-        "رسالة رفض الحذف يجب أن تذكر التراجع عن الاستلام، وإلا بقي المستخدم "
-        "بلا طريق: " + blocked.text
-    )
-
-    # التراجع عن الاستلام
+    # حذف الاستلام يصفر أثره مع بقاء الطلب وبنوده.
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
     assert undone.status_code == 200, undone.text
     body = undone.json()
@@ -765,8 +757,8 @@ def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
     assert "لا يوجد استلام" in again.text
 
 
-def test_the_receipt_is_final_once_the_request_is_approved(client):
-    """الاستلام واقعة موثّقة، فبعد القبول يصبح السجل نهائياً."""
+def test_receipt_undo_removes_its_movement_chain_even_after_approval(client):
+    """يمكن حذف سجل الاستلام وسلسلة حركاته التابعة بعد اعتماد الطلب."""
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-APPROVED-FINAL", slot=4)
 
@@ -776,9 +768,10 @@ def test_the_receipt_is_final_once_the_request_is_approved(client):
     )
     assert approved.status_code == 200, approved.text
 
-    refused = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert refused.status_code == 400, refused.text
-    assert "قيد الانتظار" in refused.text
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
+    assert float(undone.json()["received_quantity"]) == 0
+    assert page.get(f"/api/spare-parts-requests/{request_id}").status_code == 200
 
 
 def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):

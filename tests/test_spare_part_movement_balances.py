@@ -416,6 +416,52 @@ def test_a_direct_return_does_not_settle_a_historical_over_distribution(db):
     assert row["balance_status"] == "invalid_distribution_over_received"
 
 
+def test_undoing_receipt_deletes_only_its_distribution_and_return_chain(db):
+    from app.modules.spare_parts_requests import services as request_services
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    item = _received_item(db, 10)
+    unrelated = _received_item(db, 5)
+    distribution = _distribute(db, item, 6)
+    returned = _return(db, item, 2, distribution.items[0].id)
+    _distribute(db, unrelated, 1)
+
+    request_services.undo_item_receipt(db, item)
+
+    assert db.query(SparePartMovementDocument).filter(
+        SparePartMovementDocument.id == distribution.id
+    ).first() is None
+    assert db.query(SparePartMovementDocument).filter(
+        SparePartMovementDocument.id == returned.id
+    ).first() is None
+    assert db.query(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "distribution"
+    ).count() == 1
+    assert item.request.received_date is None
+    assert unrelated.received_quantity == 5
+
+
+def test_deleting_request_removes_receipt_movement_chain_but_preserves_other_request(db):
+    from app.modules.spare_parts_requests import services as request_services
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+    from app.modules.spare_parts_requests.models import SparePartRequest
+
+    item = _received_item(db, 10)
+    unrelated = _received_item(db, 5)
+    distribution = _distribute(db, item, 6)
+    returned = _return(db, item, 2, distribution.items[0].id)
+    other_distribution = _distribute(db, unrelated, 1)
+    request = item.request
+
+    request_services.delete_request(db, request)
+
+    assert db.get(SparePartRequest, request.id) is None
+    assert db.get(SparePartMovementDocument, distribution.id) is None
+    assert db.get(SparePartMovementDocument, returned.id) is None
+    assert db.get(SparePartMovementDocument, other_distribution.id) is not None
+    assert unrelated.request is not None
+
+
 def test_a_corrupt_historical_distribution_is_flagged_as_invalid(db):
     item = _received_item(db, 3)
     _COUNTER['n'] += 1

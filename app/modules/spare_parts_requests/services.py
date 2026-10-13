@@ -258,16 +258,9 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
 
 
 def delete_request(db: Session, obj: SparePartRequest):
-    if obj.status == "approved":
-        raise ValueError(
-            "لا يمكن حذف طلب معتمد، فهو وثيقة معتمدة. غيّر الحالة إلى «ملغى» أو «مرفوض»."
-        )
-    if any(item.received_quantity > 0 for item in obj.items):
-        raise ValueError(
-            "لا يمكن حذف طلب تم تسجيل استلام فيه: الكميات المستلمة جزء من سجل "
-            "الاستلام ولا يمكن التراجع عنها. إن كان الاستلام خطأً فتراجع عنه بنداً بنداً "
-            "من زر «تراجع عن الاستلام»؛ وإن كان صحيحاً فغيّر الحالة إلى «ملغى»."
-        )
+    from app.modules.spare_parts_movements.services import delete_movements_for_request_items
+
+    delete_movements_for_request_items(db, [item.id for item in obj.items])
     db.delete(obj)
     db.commit()
 
@@ -354,18 +347,12 @@ def delete_item(db: Session, item: SparePartRequestItem):
 
 
 def undo_item_receipt(db: Session, item: SparePartRequestItem):
-    """يلغي استلام بند سُجّل بالخطأ.
-
-    الاستلام واقعة موثّقة في سجل الاستلام، فلا يُلغى إلا ما دام الطلب قيد
-    الانتظار: بعد القبول أو الإلغاء يصبح السجل نهائياً. التصفير يفضي أيضاً
-    إلى فتح الحذف، فيجب أن يكون قراراً صريحاً لا نتيجةً جانبية.
-    """
-    if item.request.status != "pending":
-        raise ValueError(
-            "لا يمكن التراجع عن الاستلام إلا لطلب قيد الانتظار؛ السجل نهائي بعد تغيير الحالة."
-        )
+    """Delete one receipt and its dependent distribution/return movements."""
     if item.received_quantity <= 0:
         raise ValueError("لا يوجد استلام مسجل لهذا البند")
+    from app.modules.spare_parts_movements.services import delete_movements_for_request_items
+
+    delete_movements_for_request_items(db, [item.id])
     item.received_quantity = 0
     item.received_date = None
     item.recipient = None

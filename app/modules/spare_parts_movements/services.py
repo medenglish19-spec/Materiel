@@ -788,6 +788,46 @@ def delete_document(db, document_id):
     db.commit()
 
 
+def delete_movements_for_request_items(db, request_item_ids):
+    """Remove movements owned by these request items, including returns on distributions."""
+    request_item_ids = {int(value) for value in request_item_ids}
+    if not request_item_ids:
+        return
+    distribution_lines = db.query(SparePartMovementItem).join(
+        SparePartMovementDocument
+    ).filter(
+        SparePartMovementDocument.document_type == "distribution",
+        or_(SparePartMovementItem.request_item_id.in_(request_item_ids),
+            SparePartMovementItem.received_request_item_id.in_(request_item_ids)),
+    ).all()
+    distribution_line_ids = {line.id for line in distribution_lines}
+    return_filters = [
+        SparePartMovementItem.request_item_id.in_(request_item_ids),
+        SparePartMovementItem.received_request_item_id.in_(request_item_ids),
+    ]
+    if distribution_line_ids:
+        return_filters.append(SparePartMovementItem.source_item_id.in_(distribution_line_ids))
+    return_lines = db.query(SparePartMovementItem).join(
+        SparePartMovementDocument
+    ).filter(
+        SparePartMovementDocument.document_type == "return",
+        or_(*return_filters),
+    ).all()
+    affected_document_ids = {line.document_id for line in distribution_lines + return_lines}
+    for line in return_lines:
+        db.delete(line)
+    for line in distribution_lines:
+        db.delete(line)
+    db.flush()
+    for document_id in affected_document_ids:
+        document = db.query(SparePartMovementDocument).filter(
+            SparePartMovementDocument.id == document_id
+        ).first()
+        if document is not None and not document.items:
+            db.delete(document)
+    db.flush()
+
+
 def history(db, request_item_id):
     item = db.query(SparePartRequestItem).options(
         joinedload(SparePartRequestItem.request).joinedload(SparePartRequest.fault),
