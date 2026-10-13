@@ -37,6 +37,7 @@
 .spr td{background:#fff;color:#4B5563;font-size:13px;padding:13px 12px;border-bottom:1px solid #E5E7EB;vertical-align:middle}
 .spr tbody tr.request-row{cursor:pointer}
 .spr tbody tr.request-row:hover td{background:#F9FAFB}
+.spr tbody tr.request-row.selected td{background:#EFF6FF}
 .spr tbody tr:last-child td{border-bottom:0}
 .spr .request-number{font-family:'Tajawal',sans-serif;font-weight:800;color:#111827}
 .spr .status{min-width:110px;padding:7px 9px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;color:#374151;font-size:12px}
@@ -48,9 +49,20 @@
 .spr .action-menu-items{display:none;position:absolute;z-index:50;left:0;top:38px;min-width:140px;padding:5px;background:#fff;border:1px solid #E5E7EB;border-radius:8px;box-shadow:0 8px 24px rgba(17,24,39,.12)}
 .spr .action-menu-items button{width:100%;text-align:right;background:#fff;color:#B91C1C;border:0;border-radius:5px;padding:8px 9px}
 .spr .action-menu-items button:hover{background:#FEF2F2}
-.spr .detail{display:none;background:#F9FAFB}
-.spr .detail.open{display:table-row}
-.spr .detail>td{background:#F9FAFB;padding:12px}
+.spr .request-workspace{width:100%}
+.spr .request-list-pane,.spr .request-detail-pane{min-width:0}
+.spr .request-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(17,24,39,.48)}
+.spr .request-modal[hidden]{display:none}
+.spr .request-dialog{width:min(1200px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 18px 60px rgba(17,24,39,.24);direction:rtl}
+.spr .request-dialog-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#fff;border-bottom:1px solid #E5E7EB}
+.spr .request-dialog-head h2{margin:0;color:#111827;font-family:'Cairo',sans-serif;font-size:17px}
+.spr .request-dialog-body{padding:16px}
+.spr .request-detail-pane{min-height:0}
+.spr .list-t{width:100%;min-width:480px;table-layout:fixed}
+.spr .list-t th:nth-child(1){width:24%}.spr .list-t th:nth-child(2){width:30%}.spr .list-t th:nth-child(3){width:18%}.spr .list-t th:nth-child(4){width:28%}
+.spr .list-t td{padding:10px 9px}
+.spr .list-t .row-actions{gap:4px}
+.spr .list-t button{padding:7px 9px}
 .spr .items{padding:0}
 .spr .req-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:8px}
 .spr .rf{border:1px solid #E5E7EB;border-radius:8px;padding:10px 12px;background:#fff;display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -62,7 +74,8 @@
 .spr .rf input:focus,.spr .rf select:focus,.spr .rf textarea:focus,.spr .items-t input:focus,.spr .items-t select:focus,.spr .items-t textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.08)}
 .spr .items-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 6px}
 .spr .items-head>b{font-family:'Cairo',sans-serif;color:#111827;font-size:14px}
-.spr .items-t{width:100%;min-width:760px;table-layout:fixed}
+.spr .items-head .msg{flex:1 1 100%;margin-top:2px}
+.spr .items-t{width:100%;min-width:600px;table-layout:fixed}
 .spr .items-t th:nth-child(1){width:18%}.spr .items-t th:nth-child(2){width:20%}.spr .items-t th:nth-child(3){width:11%}.spr .items-t th:nth-child(4){width:11%}.spr .items-t th:nth-child(5){width:24%}.spr .items-t th:nth-child(6){width:16%}
 .spr .items-t th{font-size:11px;padding:10px 8px}
 .spr .items-t td{font-size:12px;padding:8px}
@@ -81,8 +94,8 @@
 .spr .new-item input,.spr .new-item select{width:100%;padding:8px;border:1px solid #D1D5DB;border-radius:7px;background:#fff;font-size:12px}
 .spr .new-part-box{position:relative}
 @media(max-width:900px){.spr .summary-grid{grid-template-columns:1fr}.spr .req-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.spr .form{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}}
-</style><div class="spr">
+@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}.spr .list-t{min-width:430px}.spr .request-modal{padding:6px}.spr .request-dialog{width:100%;max-height:96vh}.spr .request-dialog-body{padding:10px}}
+</style><div class="spr" id="sparePartsRequestPage">
   <div class="top">
     <div>
       <h1>طلبات قطع الغيار</h1>
@@ -115,7 +128,17 @@
       <div class="wide"><b style="font-family:'Cairo',sans-serif;color:#111827">بنود الطلب</b><div id="newItems"></div><button type="button" class="secondary" id="addRequestItem" style="margin-top:8px">+ إضافة بند</button></div>
       <div class="wide"><button type="submit" id="saveRequest">حفظ الطلب</button><span id="formMsg"></span></div>
     </form>
-    <div class="table-scroll" data-mt-region><table><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>المصدر</th><th>العتاد</th><th>رقم التسجيل</th><th>رقم التقرير</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="request-workspace" id="requestWorkspace">
+      <section class="request-list-pane" aria-label="قائمة طلبات قطع الغيار">
+        <div class="table-scroll" data-mt-region><table class="list-t"><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+      </section>
+    </div>
+  </div>
+  <div class="request-modal" id="requestModal" hidden>
+    <section class="request-dialog" role="dialog" aria-modal="true" aria-labelledby="requestDialogTitle">
+      <header class="request-dialog-head"><h2 id="requestDialogTitle">محتويات طلب الغيار</h2><button type="button" class="secondary close-request-details" aria-label="إغلاق تفاصيل الطلب">إغلاق</button></header>
+      <div class="request-dialog-body"><section class="request-detail-pane" id="detailPane" aria-label="تفاصيل الطلب المحدد" aria-live="polite"></section></div>
+    </section>
   </div><script>
 const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
@@ -178,6 +201,7 @@ document.getElementById('requestForm').addEventListener('submit',async e=>{
 document.getElementById('newItems').addEventListener('click',e=>{if(e.target.classList.contains('remove-request-item'))e.target.parentElement.remove();});
 
 let requestsData=[];
+let activeRequestId=null;
 function matchesRequestSearch(item,q){
   if(!q)return true;
   const haystack=[
@@ -193,7 +217,10 @@ function renderRequests(){
   const status=document.getElementById('filterStatus').value;
   const source=document.getElementById('filterSource').value;
   const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||x.source_type===source)&&matchesRequestSearch(x,q));
-  document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="8" class="empty">لا توجد طلبات مطابقة.</td></tr>';
+  document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="4" class="empty">لا توجد طلبات مطابقة.</td></tr>';
+  if(activeRequestId!==null&&!rows.some(x=>Number(x.id)===Number(activeRequestId)))activeRequestId=null;
+  document.getElementById('rows').querySelectorAll('.request-row').forEach(tr=>tr.classList.toggle('selected',Number(tr.dataset.id)===Number(activeRequestId)));
+  renderActiveRequest();
   if(window.MaterielTables)MaterielTables.refresh();
   document.getElementById('resultCount').textContent='الطلبات: '+rows.length;
   const pending=requestsData.filter(x=>x.status==='pending').length;document.getElementById('pendingCount').textContent='قيد الانتظار: '+pending;document.getElementById('summaryTotal').textContent=requestsData.length;document.getElementById('summaryPending').textContent=pending;document.getElementById('summaryFiltered').textContent=rows.length;
@@ -212,21 +239,40 @@ function row(x){
   const statusOptions=[[x.status,STATUS[x.status]||x.status]];
   if(x.status!=='cancelled')statusOptions.push(['cancelled',STATUS.cancelled]);
   const status='<select class="status" data-id="'+x.id+'" aria-label="إلغاء الطلب يدوياً">'+statusOptions.map(([v,n])=>'<option value="'+v+'">'+n+'</option>').join('')+'</select>';
-  const actions='<button type="button" class="secondary open-request" data-id="'+x.id+'">فتح</button>'
-    +'<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>';
+  const actions='<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>';
   const parts=(x.items||[]).map(i=>i.part_name).filter(Boolean);
   const partLabel=parts.length?parts.join('، '):'—';
-  return '<tr class="request-row" data-id="'+x.id+'">'
+  return '<tr class="request-row" data-id="'+x.id+'" tabindex="0" aria-label="عرض تفاصيل الطلب '+esc(x.request_number)+'">'
     +'<td><b>'+esc(x.request_number)+'</b></td>'
     +'<td>'+esc(partLabel)+'</td>'
     +'<td>'+x.request_date+'</td>'
-    +'<td>'+esc(SOURCE[x.source_type]||x.source_type)+'</td>'
-    +'<td>'+esc(x.equipment_code||'—')+'</td>'
-    +'<td>'+esc(x.equipment_registration||'—')+'</td>'
-    +'<td>'+esc(x.report_number||'—')+'</td>'
     +'<td>'+status+actions+'</td>'
-    +'</tr>'
-    +'<tr class="detail" id="d'+x.id+'"><td colspan="8"><div class="items" id="i'+x.id+'" data-em-ignore>'+detailHtml(x)+'</div></td></tr>';
+    +'</tr>';
+}
+
+function renderActiveRequest(){
+  const request=requestsData.find(x=>Number(x.id)===Number(activeRequestId));
+  const pane=document.getElementById('detailPane');
+  const modal=document.getElementById('requestModal');
+  if(!request){pane.innerHTML='';modal.hidden=true;return;}
+  pane.innerHTML='<div class="items" id="i'+request.id+'" data-em-ignore>'+detailHtml(request)+'</div>';
+  document.getElementById('requestDialogTitle').textContent='طلب الغيار '+request.request_number;
+  modal.hidden=false;
+}
+
+function showRequestDetail(id){
+  activeRequestId=Number(id);
+  document.getElementById('rows').querySelectorAll('.request-row').forEach(tr=>tr.classList.toggle('selected',Number(tr.dataset.id)===activeRequestId));
+  renderActiveRequest();
+  document.querySelector('.close-request-details').focus();
+}
+
+function closeRequestDetail(){
+  const previousId=activeRequestId;
+  activeRequestId=null;
+  renderActiveRequest();
+  const row=document.querySelector('.request-row[data-id="'+previousId+'"]');
+  if(row)row.focus();
 }
 
 function detailHtml(x){
@@ -247,15 +293,15 @@ function detailHtml(x){
     +'</div>'
     +'<div class="rf rf-wide"><span class="rf-k">ملاحظات</span><textarea class="f-notes" rows="2" placeholder="ملاحظات الطلب">'+esc(x.notes||'')+'</textarea></div>'
     +'<div class="items-head"><b>بنود الطلب</b>'
+    +'<button type="button" class="save-request" data-id="'+x.id+'">حفظ التعديلات والاستلام</button>'
     +(canEditItems?'<button type="button" class="secondary add-line">+ إضافة بند</button>':'')
     +(canEditItems?'':'<span class="line-note">لا يمكن تعديل البنود إلا لطلب قيد الانتظار أو معتمد</span>')
+    +'<span class="msg" role="status" aria-live="polite"></span>'
     +'</div>'
     +itemsHtml(x)
     +'<div class="detail-foot">'
-    +'<button type="button" class="save-request" data-id="'+x.id+'">حفظ التعديلات</button>'
     +'<button type="button" class="secondary reload-detail">إلغاء التعديلات</button>'
     +'<button type="button" class="danger delete-request" data-id="'+x.id+'">حذف الطلب</button>'
-    +'<span class="msg"></span>'
     +'</div>';
 }
 
@@ -268,9 +314,9 @@ function itemsHtml(x){
 function itemRow(i,x){
   const received=Number(i.received_quantity||0);
   const locked=received>0||x.status!=='pending';
-  /* يمكن حذف سجل الاستلام لتصحيح الحالة، لكن لا تراجع بعد إلغاء الطلب. */
+  /* سجل الاستلام قابل للتراجع فقط ما دام الطلب قيد الانتظار. */
   const hasReceipt=received>0||Boolean(i.supplier_institution);
-  const canUndo=hasReceipt&&x.status!=='cancelled';
+  const canUndo=hasReceipt&&x.status==='pending';
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
   return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
     +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
@@ -436,8 +482,9 @@ async function saveRequest(id,btn){
     again.querySelector('.msg').textContent='تم حفظ التعديلات بنجاح';
   }
 }
-document.getElementById('rows').addEventListener('click',async e=>{
-  const open=e.target.closest('.open-request');if(open){e.stopPropagation();document.getElementById('d'+open.dataset.id).classList.toggle('open');return;}
+document.getElementById('sparePartsRequestPage').addEventListener('click',async e=>{
+  const close=e.target.closest('.close-request-details');if(close){closeRequestDetail();return;}
+  if(e.target.id==='requestModal'){closeRequestDetail();return;}
   const save=e.target.closest('.save-request');if(save){e.stopPropagation();try{await saveRequest(Number(save.dataset.id),save);}catch(err){console.error('saveRequest error:',err);alert('خطأ غير متوقع: '+err.message);}return;}
   const reload=e.target.closest('.reload-detail');if(reload){e.stopPropagation();await load();return;}
   const del=e.target.closest('.delete-request');if(del){e.stopPropagation();await deleteRequest(Number(del.dataset.id));return;}
@@ -445,8 +492,13 @@ document.getElementById('rows').addEventListener('click',async e=>{
   const ur=e.target.closest('.undo-receipt');if(ur){e.stopPropagation();await undoReceipt(ur.closest('tr'));return;}
   const rm=e.target.closest('.rm-line');if(rm){e.stopPropagation();rm.closest('tr').classList.add('gone');rm.closest('tr').querySelector('.undo-line').style.display='';return;}
   const undo=e.target.closest('.undo-line');if(undo){e.stopPropagation();undo.closest('tr').classList.remove('gone');undo.style.display='none';return;}
-  const tr=e.target.closest('.request-row');if(tr&&!e.target.classList.contains('status'))document.getElementById('d'+tr.dataset.id).classList.toggle('open');
+  const tr=e.target.closest('.request-row');if(tr&&!e.target.closest('button,select,input,a'))showRequestDetail(tr.dataset.id);
 });
+document.getElementById('rows').addEventListener('keydown',e=>{
+  const tr=e.target.closest('.request-row');
+  if(tr&&e.target===tr&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showRequestDetail(tr.dataset.id);}
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('requestModal').hidden)closeRequestDetail();});
 document.getElementById('rows').addEventListener('change',async e=>{
   if(!e.target.classList.contains('status'))return;
   const r=await fetch('/api/spare-parts-requests/'+e.target.dataset.id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({status:e.target.value})});if(!r.ok)alert(errText((await r.json()).detail,'تعذر تغيير الحالة'));else load();

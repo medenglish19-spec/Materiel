@@ -75,6 +75,14 @@ def _check_receipt_date(request_date, received_date):
         raise ValueError(RECEIPT_BEFORE_REQUEST)
 
 
+def _check_request_date(request_date, fault_date):
+    """A request may be dated after its source fault, but never before it."""
+    if request_date is None:
+        raise ValueError("تاريخ الطلب مطلوب")
+    if fault_date is not None and request_date < fault_date:
+        raise ValueError("تاريخ الطلب لا يمكن أن يكون قبل تاريخ العطل.")
+
+
 def _receipt_conflicts(request, received_date):
     """هل يخالف التاريخ المُرسل تاريخ استلام الطلب القائم؟"""
     if received_date is None or request.received_date is None:
@@ -124,7 +132,11 @@ def _source(db: Session, source_type: str, source_id: int):
     obj = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).filter(Repair.id == source_id).first()
     if not obj:
         raise ValueError("التصليح غير موجود")
-    return obj, obj.fault.equipment_id if obj.fault else None, obj.repair_date
+    return (
+        obj,
+        obj.fault.equipment_id if obj.fault else None,
+        obj.fault.reported_date if obj.fault else obj.repair_date,
+    )
 
 
 def _resolve_part(db: Session, part_id: int | None, name: str | None):
@@ -204,8 +216,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     ).first()
     if existing:
         raise ValueError("يوجد طلب غيار مرتبط بهذا المصدر بالفعل")
-    if data.request_date != source_date:
-        raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
+    _check_request_date(data.request_date, source_date)
 
     # تاريخ استلام واحد للطلب: إمّا على الطلب، أو على بنوده فكلها تتطابق.
     dates = {item.received_date for item in data.items if item.received_date}
@@ -283,19 +294,15 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
     shared_supplier = values.pop("supplier_institution", None)
     has_shared_recipient = "recipient" in data.model_fields_set
     has_shared_supplier = "supplier_institution" in data.model_fields_set
-    if obj.status == "approved" and (
-        values.get("request_number", obj.request_number) != obj.request_number
-        or values.get("request_date", obj.request_date) != obj.request_date
-    ):
-        raise ValueError("لا يمكن تعديل رقم الطلب أو تاريخه بعد تسجيل الاستلام")
+    if obj.status == "approved" and values.get("request_number", obj.request_number) != obj.request_number:
+        raise ValueError("لا يمكن تعديل رقم الطلب بعد تسجيل الاستلام")
     if "request_number" in values:
         number = _request_number(values["request_number"])
         _check_request_number_free(db, number, obj.id)
         values["request_number"] = number
     if "request_date" in values:
         _, _, source_date = _source(db, obj.source_type, obj.fault_id or obj.repair_id)
-        if values["request_date"] != source_date:
-            raise ValueError("تاريخ الطلب يجب أن يطابق تاريخ المصدر")
+        _check_request_date(values["request_date"], source_date)
     # فحص واحد يغطّي تغيير التاريخين معاً أو أحدهما: المقارنة دائماً بين
     # التاريخ الجديد وتاريخ الطلب المرجعي، فلا يُتحقَّق من نفس القارنة مرتين.
     if "request_date" in values or "received_date" in values:
@@ -462,7 +469,9 @@ def delete_item(db: Session, item: SparePartRequestItem):
 
 
 def undo_item_receipt(db: Session, item: SparePartRequestItem):
-    """Delete one receipt and its dependent distribution/return movements."""
+    """Undo a receipt only while its request is still pending."""
+    if item.request.status != "pending":
+        raise ValueError("لا يمكن التراجع عن الاستلام إلا لطلب قيد الانتظار؛ سجل الاستلام نهائي بعد تغيير الحالة")
     has_receipt = item.received_quantity > 0 or bool(item.supplier_institution)
     if not has_receipt:
         raise ValueError("لا يوجد استلام مسجل لهذا البند")

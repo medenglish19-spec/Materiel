@@ -128,7 +128,7 @@ def _seed(db):
     # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
     # واحد لكل عطل.
     spare_faults = []
-    for n in range(8):
+    for n in range(9):
         extra = Fault(
             equipment_id=equipment.id,
             reported_date=date.today(),
@@ -217,6 +217,8 @@ def test_the_save_button_lives_inside_the_request_area(client):
     assert '"save-request"' in html
     detail_block = html[html.index("function detailHtml"):html.index("function itemsHtml")]
     assert "حفظ التعديلات" in detail_block
+    assert "aria-live=\"polite\"" in detail_block
+    assert "save-request" in detail_block
     assert "حفظ التعديلات" not in html[: html.index("function detailHtml")]
 
 
@@ -494,52 +496,45 @@ def _row_source(html):
     return html[html.index("function row(x)") : html.index("function detailHtml")]
 
 
-def test_the_request_row_still_carries_its_action_buttons(client):
-    """Each request row must keep the buttons that open and delete it.
-
-    Commit 89b8efe ("revert(ui): restore previous button actions") dropped the
-    whole actions cell, so the "فتح" button and the "حذف الطلب" action-menu
-    button stopped existing on the page.
-    """
+def test_request_row_opens_the_dialog_and_keeps_delete_and_status_controls(client):
+    """Selecting a request row opens details without a separate open button."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
     row = _row_source(html)
 
-    assert "open-request" in row, "the open button is missing from the request row"
+    assert "open-request" not in row, "the redundant open button must be removed"
     assert "delete-request" in row, "the delete action is missing from the request row"
     assert 'class="status"' in row, "the status dropdown is missing from the request row"
+    assert "tabindex=\"0\"" in row
+    assert "showRequestDetail(tr.dataset.id)" in html
 
 
-def test_the_detail_row_gets_a_usable_id(client):
-    """The detail row must expose a real id, otherwise it can never be opened.
-
-    89b8efe emitted `<tr class="detail id="d123">`, which folds the id into the
-    class attribute, so `getElementById('d'+id)` returned null: clicking a
-    request did nothing and none of the in-place edit controls ever appeared.
-    """
+def test_the_detail_pane_is_separate_and_request_selection_renders_into_it(client):
+    """Selected request details render in the dedicated wide pane."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
-    row = _row_source(html)
 
-    assert 'class="detail" id="d' in row, (
-        "the detail <tr> must be <tr class=\"detail\" id=\"d{id}\">, got a merged "
-        "class/id attribute"
-    )
-    assert 'class="detail id=' not in row, "the class and id attributes got merged again"
+    assert 'id="detailPane"' in html
+    assert 'class="request-workspace"' in html
+    assert 'id="requestModal" hidden' in html
+    assert 'aria-modal="true"' in html
+    assert "close-request-details" in html
+    assert "function showRequestDetail(id)" in html
+    assert "function closeRequestDetail()" in html
+    assert "renderActiveRequest();" in html
 
 
-def test_the_request_row_cells_match_the_table_headers(client):
-    """The row must have exactly one cell per <th>, with no unclosed leftovers."""
+def test_the_request_list_rows_match_the_compact_table_headers(client):
+    """Compact request rows match the four visible list columns."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
     row = _row_source(html)
 
     thead = html[html.index("<thead>") : html.index("</thead>")]
     columns = thead.count("<th>")
-    assert columns == 8
+    assert columns == 4
 
     request_row = row[row.index('<tr class="request-row"') : row.index("</tr>")]
-    detail_row = row[row.index('<tr class="detail"') :]
 
     assert request_row.count("<td") == request_row.count("</td>"), (
         "unbalanced <td> tags in the request row"
@@ -549,11 +544,6 @@ def test_the_request_row_cells_match_the_table_headers(client):
     )
     assert "</td></td>" not in request_row, "there is a dangling </td> in the request row"
     assert request_row.count("<tr") == 1, "the row string must hold one <tr>"
-
-    # the detail row spans the full width of the table
-    span = re.search(r'<td colspan="(\d+)"', detail_row)
-    assert span, "the detail row has no colspan"
-    assert int(span.group(1)) == columns
 
     # and so does the "no requests" placeholder
     assert re.search(r'colspan="%d" class="empty"' % columns, html)
@@ -767,11 +757,20 @@ def test_item_edits_and_deletion_reconcile_status_after_receipt_undo(client):
     request_id = created.json()["id"]
     item_id = created.json()["items"][0]["id"]
     assert _record_receipt(page, item_id).status_code == 200
-    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 200, undone.text
-
+    # التراجع مسموح فقط ما دامت الحالة قيد الانتظار.
     from app.database import session as session_module
     from app.modules.spare_parts_requests.models import SparePartRequest
+
+    db_generator = page.app.dependency_overrides[session_module.get_db]()
+    db = next(db_generator)
+    try:
+        request = db.get(SparePartRequest, request_id)
+        request.status = "pending"
+        db.commit()
+    finally:
+        db.close()
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
 
     db_generator = page.app.dependency_overrides[session_module.get_db]()
     db = next(db_generator)
@@ -798,6 +797,7 @@ def test_item_edits_and_deletion_reconcile_status_after_receipt_undo(client):
         db.close()
     deleted = page.delete(f"/api/spare-parts-requests/items/{item_id}")
     assert deleted.status_code == 200, deleted.text
+
 
 def test_stale_received_request_is_reconciled_in_requests_and_faults_pages(client):
     page, ids = client
@@ -848,47 +848,53 @@ def test_stale_received_request_is_reconciled_in_requests_and_faults_pages(clien
         for request in page.get("/api/spare-parts-requests?status=pending").json()
     )
 
-def test_a_mistaken_receipt_can_be_undone(client):
-    """الاستلام الخاطئ كان يقفل الطلب للأبد: لا حذف ولا تصفير.
 
-    التصفير مرفوض في المخطّط، و null كان ينهار، وتغيير الحالة إلى «ملغى» لا
-    يفكّ الحارس لأنه ينظر إلى الكمية المستلمة لا إلى الحالة.
-    """
+def test_receiving_multiple_request_items_approves_request_and_lists_each_receipt(client):
+    page, ids = client
+    request_id, _ = _new_request(page, ids, "SR-MULTI-RECEIPT", slot=8)
+    added = page.post(
+        f"/api/spare-parts-requests/{request_id}/items",
+        json={"part_name": "بند استلام إضافي", "requested_quantity": 3},
+    )
+    assert added.status_code == 201, added.text
+    item_ids = [
+        item["id"]
+        for item in page.get(f"/api/spare-parts-requests/{request_id}").json()["items"]
+    ]
+
+    for item_id in item_ids:
+        receipt = _record_receipt(page, item_id)
+        assert receipt.status_code == 200, receipt.text
+
+    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert request["status"] == "approved"
+    received_rows = [
+        row
+        for row in page.get("/api/spare-parts-requests/received-register").json()
+        if row["request_number"] == "SR-MULTI-RECEIPT"
+    ]
+    assert len(received_rows) == 2
+    assert {row["request_item_id"] for row in received_rows} == set(item_ids)
+
+
+def test_a_mistaken_receipt_cannot_be_undone_after_approval(client):
+    """لا يمكن التراجع عن الاستلام بعد انتقال الطلب إلى مقبول."""
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-UNDO", slot=1)
     today = date.today().isoformat()
 
     assert _record_receipt(page, item_id).status_code == 200
 
-    # حذف الاستلام يصفر أثره مع بقاء الطلب وبنوده.
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 200, undone.text
-    body = undone.json()
-    assert float(body["received_quantity"]) == 0
-    assert body["received_date"] is None
-    assert body["recipient"] is None
-    assert body["supplier_institution"] is None
-
-    # البند خرج من سجل الاستلام
+    assert undone.status_code == 400, undone.text
+    assert "قيد الانتظار" in undone.text
+    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
     register = page.get("/api/spare-parts-requests/received-register").json()
-    assert not [r for r in register if r["request_number"] == "SR-UNDO"]
-
-    # والبند صار قابلاً للتعديل، والحذف صار مفتوحاً
-    edited = page.patch(
-        f"/api/spare-parts-requests/items/{item_id}",
-        json={"requested_quantity": 4, "part_name": "فلتر معدَّل"},
-    )
-    assert edited.status_code == 200, edited.text
-    assert page.delete(f"/api/spare-parts-requests/{request_id}").status_code == 200
+    assert [r for r in register if r["request_number"] == "SR-UNDO"]
 
 
-def test_the_shared_receipt_date_survives_until_the_last_receipt_is_undone(client):
-    """تاريخ الاستلام واحد للطلب كله، فيبقى ما دام فيه بند مستلَم.
-
-    البند الملغى يشارك بقية البنود التاريخ نفسه لأن التاريخ خاصية الطلب، لا
-    البند. وما يهمّ أن يصحّح هو الترويسة: عندما يُلغى آخر استلام لا يبقى تاريخ
-    بلا سند، وإلا ظلّ الطلب يعرض استلاماً بعد أن أُلغي كله.
-    """
+def test_receipt_date_and_register_are_preserved_after_approval(client):
+    """الاستلام المعتمد نهائي ويحافظ على تاريخه وسجله."""
     page, ids = client
     request_id, first = _new_request(page, ids, "SR-STALE-DATE", slot=2)
     today = date.today().isoformat()
@@ -905,21 +911,12 @@ def test_the_shared_receipt_date_survives_until_the_last_receipt_is_undone(clien
     assert _record_receipt(page, second).status_code == 200
     assert page.get(f"/api/spare-parts-requests/{request_id}").json()["received_date"] == today
 
-    # التراجع عن بند واحد: يبقى التاريخ لمصالح البند الآخر
-    assert page.delete(f"/api/spare-parts-requests/items/{first}/receipt").status_code == 200
-    still = page.get(f"/api/spare-parts-requests/{request_id}").json()
-    assert still["received_date"] == today, "التاريخ يبقى ما دام هناك بند مستلَم"
-    by_id = {i["id"]: i for i in still["items"]}
-    assert float(by_id[first]["received_quantity"]) == 0
-    assert by_id[second]["received_date"] == today
-
-    # التراجع عن آخر بند: يسقط التاريخ من الترويسة
-    assert page.delete(f"/api/spare-parts-requests/items/{second}/receipt").status_code == 200
-    cleared = page.get(f"/api/spare-parts-requests/{request_id}").json()
-    assert cleared["received_date"] is None, (
-        "لا يجوز أن يبقى تاريخ استلام بعد التراجع عن آخر استلام"
-    )
-    assert {i["received_date"] for i in cleared["items"]} == {None}
+    for item_id in (first, second):
+        undo = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+        assert undo.status_code == 400, undo.text
+    current = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert current["received_date"] == today
+    assert {i["received_date"] for i in current["items"]} == {today}
 
 
 def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
@@ -927,15 +924,13 @@ def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
     _, item_id = _new_request(page, ids, "SR-UNDO-TWICE", slot=3)
 
     assert _record_receipt(page, item_id).status_code == 200
-    assert page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt").status_code == 200
-
     again = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
     assert again.status_code == 400, again.text
-    assert "لا يوجد استلام" in again.text
+    assert "قيد الانتظار" in again.text
 
 
-def test_receipt_undo_removes_its_movement_chain_even_after_approval(client):
-    """يمكن حذف سجل الاستلام وسلسلة حركاته التابعة بعد اعتماد الطلب."""
+def test_receipt_undo_is_refused_after_approval(client):
+    """سجل الاستلام وسلسلة حركاته نهائية بعد اعتماد الطلب."""
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-APPROVED-FINAL", slot=4)
 
@@ -943,17 +938,18 @@ def test_receipt_undo_removes_its_movement_chain_even_after_approval(client):
     assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
 
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 200, undone.text
-    assert float(undone.json()["received_quantity"]) == 0
-    assert page.get(f"/api/spare-parts-requests/{request_id}").status_code == 200
+    assert undone.status_code == 400, undone.text
+    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert request["status"] == "approved"
+    assert float(request["items"][0]["received_quantity"]) > 0
 
 
-def test_the_undo_button_is_offered_for_receipts_unless_the_request_is_cancelled(client):
-    """يمكن حذف الاستلام المسجل، سواء كان موجباً أو صفراً، ما لم يُلغَ الطلب."""
+def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):
+    """واجهة التراجع تحصر الإجراء في الطلبات قيد الانتظار."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    assert "const canUndo=hasReceipt&&x.status!=='cancelled';" in html
+    assert "const canUndo=hasReceipt&&x.status==='pending';" in html
     assert html.count('class="secondary undo-receipt"') == 1, (
         "الزر يُرسم في خلية السطر المخزَّن فقط، لا في خلية الإضافة"
     )
