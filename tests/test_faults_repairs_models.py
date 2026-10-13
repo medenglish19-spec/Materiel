@@ -1,5 +1,10 @@
+from datetime import date
+
+import pytest
+from pydantic import ValidationError
 from sqlalchemy import CheckConstraint
 from app.modules.faults_repairs.models import Fault, Repair, RepairPart, SparePart, Technician, TechnicianIntervention
+from app.modules.faults_repairs.schemas import FaultStatusUpdate, RepairCreate
 
 
 def test_fault_repair_part_model_contracts():
@@ -46,3 +51,34 @@ def test_technician_contracts():
     assert "technician_id" in TechnicianIntervention.__table__.columns
     assert "hours" in TechnicianIntervention.__table__.columns
     assert "work_description" in TechnicianIntervention.__table__.columns
+
+
+def test_closed_fault_status_is_rejected():
+    with pytest.raises(ValidationError):
+        FaultStatusUpdate(status="closed")
+
+
+def test_repair_end_date_cannot_precede_start_date():
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            repair_start_date=date(2026, 1, 5),
+            repair_end_date=date(2026, 1, 4),
+            action_taken="اختبار",
+        )
+
+
+def test_repair_end_date_requires_start_date():
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            repair_end_date=date(2026, 1, 4),
+            action_taken="اختبار",
+        )
+
+
+def test_repair_model_has_start_and_end_dates():
+    assert "repair_start_date" in Repair.__table__.columns
+    assert "repair_end_date" in Repair.__table__.columns

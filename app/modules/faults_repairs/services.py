@@ -14,7 +14,7 @@ from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, Sp
 
 
 ACTIVE_FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts"}
-TERMINAL_FAULT_STATUSES = {"repaired", "closed"}
+TERMINAL_FAULT_STATUSES = {"repaired"}
 
 
 # Sources that can carry a meter observation for an equipment, ordered from the
@@ -225,8 +225,7 @@ FAULT_TRANSITIONS = {
     "diagnosing": {"repairing", "waiting_parts"},
     "repairing": {"waiting_parts", "repaired"},
     "waiting_parts": {"repairing", "repaired"},
-    "repaired": {"diagnosing", "closed"},
-    "closed": set(),
+    "repaired": {"diagnosing"},
 }
 
 
@@ -306,6 +305,10 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
         raise ValueError("العطل غير موجود")
     if data.repair_date > date.today():
         raise ValueError("لا يمكن تسجيل إصلاح بتاريخ مستقبلي")
+    if data.repair_start_date and data.repair_start_date > date.today():
+        raise ValueError("لا يمكن تسجيل بداية إصلاح بتاريخ مستقبلي")
+    if data.repair_end_date and data.repair_end_date > date.today():
+        raise ValueError("لا يمكن تسجيل نهاية إصلاح بتاريخ مستقبلي")
     equipment = db.query(Equipment).join(Fault, Fault.equipment_id == Equipment.id).filter(Fault.id == data.fault_id).first()
     if not equipment:
         raise ValueError("العتاد المرتبط بالعطل غير موجود")

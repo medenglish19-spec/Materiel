@@ -125,7 +125,14 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="التصليح غير موجود")
     technicians = db.query(Technician).filter(Technician.is_active == 1).order_by(Technician.full_name).all()
     parts = db.query(SparePart).order_by(SparePart.name).all()
-    return templates.TemplateResponse(request=request, name="repair_detail.html", context={"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts})
+    spare_requests = db.query(SparePartRequest).options(
+        joinedload(SparePartRequest.items),
+    ).filter(
+        SparePartRequest.source_type == "repair",
+        SparePartRequest.repair_id == repair.id,
+    ).order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc()).all()
+    spare_request_services.refresh_request_statuses(db, spare_requests)
+    return templates.TemplateResponse(request=request, name="repair_detail.html", context={"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts, "spare_requests": spare_requests})
 
 @router.get("/faults-repairs/analytics", response_class=HTMLResponse)
 def analytics_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
