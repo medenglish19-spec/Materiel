@@ -122,6 +122,35 @@ class RepairOut(RepairCreate):
     created_at: datetime
 
 
+class RepairUpdate(BaseModel):
+    repair_start_date: Optional[date] = None
+    repair_end_date: Optional[date] = None
+    meter_value: Optional[Decimal] = Field(default=None, ge=0)
+    diagnosis: Optional[str] = None
+    action_taken: str = Field(min_length=1)
+    workshop_type: str
+    workshop: Optional[str] = None
+    repair_document: Optional[str] = None
+    external_dispatch_document: Optional[str] = None
+    labor_hours: Optional[Decimal] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+
+    @field_validator("workshop_type")
+    @classmethod
+    def valid_workshop(cls, v):
+        if v not in WORKSHOP_TYPES:
+            raise ValueError("نوع الورشة غير صحيح")
+        return v
+
+    @model_validator(mode="after")
+    def validate_repair_dates(self):
+        if self.repair_end_date and not self.repair_start_date:
+            raise ValueError("يجب تحديد تاريخ بداية الإصلاح قبل تاريخ النهاية")
+        if self.repair_start_date and self.repair_end_date and self.repair_end_date < self.repair_start_date:
+            raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
+        return self
+
+
 class SparePartCreate(BaseModel):
     part_number: str = Field(min_length=1, max_length=80)
     name: str = Field(min_length=1, max_length=160)
@@ -174,6 +203,14 @@ class TechnicianOut(TechnicianCreate):
 
 class TechnicianInterventionCreate(BaseModel):
     repair_id: int
+    technician_id: int
+    intervention_date: date
+    hours: Decimal = Field(ge=0)
+    work_description: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TechnicianInterventionUpdate(BaseModel):
     technician_id: int
     intervention_date: date
     hours: Decimal = Field(ge=0)

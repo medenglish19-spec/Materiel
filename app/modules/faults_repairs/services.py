@@ -9,7 +9,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.meter_readings.models import MeterReading
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
-from .schemas import FaultCreate, FaultUpdate, RepairCreate, SparePartCreate, SparePartUpdate, RepairPartCreate
+from .schemas import FaultCreate, FaultUpdate, RepairCreate, RepairUpdate, TechnicianInterventionUpdate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
 
 
@@ -360,6 +360,26 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
     return obj
 
 
+def update_active_repair(db: Session, repair: Repair, data: RepairUpdate):
+    if repair.status != "in_progress":
+        raise ValueError("لا يمكن تعديل سجل إصلاح تاريخي")
+    today = date.today()
+    if data.repair_start_date and data.repair_start_date > today:
+        raise ValueError("لا يمكن تسجيل بداية إصلاح بتاريخ مستقبلي")
+    if data.repair_end_date and data.repair_end_date > today:
+        raise ValueError("لا يمكن تسجيل نهاية إصلاح بتاريخ مستقبلي")
+    if data.workshop_type == "external" and not data.external_dispatch_document:
+        raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
+    equipment = repair.fault.equipment
+    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_start_date or repair.repair_date,
+                             exclude=("repair", repair.id))
+    for field, value in data.model_dump().items():
+        setattr(repair, field, value)
+    db.commit()
+    db.refresh(repair)
+    return repair
+
+
 def create_spare_part(db: Session, data: SparePartCreate):
     obj = SparePart(**data.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
 
@@ -441,6 +461,23 @@ def add_technician_intervention(db: Session, data):
     if not tech.is_active: raise ValueError("الفني غير نشط")
     obj = TechnicianIntervention(**data.model_dump())
     db.add(obj); db.commit(); db.refresh(obj); return obj
+
+
+def update_technician_intervention(db: Session, intervention: TechnicianIntervention, data: TechnicianInterventionUpdate):
+    if intervention.repair.status != "in_progress":
+        raise ValueError("لا يمكن تعديل تدخل تابع لإصلاح تاريخي")
+    technician = db.query(Technician).filter(Technician.id == data.technician_id).first()
+    if not technician or not technician.is_active:
+        raise ValueError("الفني غير موجود أو غير نشط")
+    for field, value in data.model_dump().items():
+        setattr(intervention, field, value)
+    db.commit(); db.refresh(intervention); return intervention
+
+
+def delete_technician_intervention(db: Session, intervention: TechnicianIntervention):
+    if intervention.repair.status != "in_progress":
+        raise ValueError("لا يمكن حذف تدخل تابع لإصلاح تاريخي")
+    db.delete(intervention); db.commit()
 
 def technician_detail_stats(db: Session, technician_id: int):
     row = db.query(

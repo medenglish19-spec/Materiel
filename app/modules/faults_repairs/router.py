@@ -7,7 +7,7 @@ from app.database.session import get_db
 from app.modules.users.models import User
 from . import services
 from .models import SparePart, Technician, Repair, TechnicianIntervention
-from .schemas import (FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairOut, RepairStatusUpdate, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut, TechnicianCreate, TechnicianUpdate, TechnicianOut, TechnicianInterventionCreate, TechnicianInterventionOut)
+from .schemas import (FaultCreate, FaultUpdate, FaultStatusUpdate, FaultOut, RepairCreate, RepairUpdate, RepairOut, RepairStatusUpdate, SparePartCreate, SparePartUpdate, SparePartOut, RepairPartCreate, RepairPartOut, TechnicianCreate, TechnicianUpdate, TechnicianOut, TechnicianInterventionCreate, TechnicianInterventionUpdate, TechnicianInterventionOut)
 
 router = APIRouter(prefix="/api/faults-repairs")
 
@@ -43,6 +43,17 @@ def change_status(fault_id: int, data: FaultStatusUpdate, db: Session = Depends(
 def create_repair(data: RepairCreate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     try: return services.create_repair(db, data, user.id)
     except ValueError as e: raise HTTPException(400, str(e))
+
+
+@router.patch("/repairs/{repair_id}", response_model=RepairOut)
+def update_repair(repair_id: int, data: RepairUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(Repair).filter(Repair.id == repair_id).first()
+    if not obj:
+        raise HTTPException(404, "التصليح غير موجود")
+    try:
+        return services.update_active_repair(db, obj, data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/spare-parts", response_model=SparePartOut, status_code=201)
@@ -114,6 +125,28 @@ def update_technician(technician_id: int, data: TechnicianUpdate, db: Session = 
 def add_intervention(data: TechnicianInterventionCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     try:
         return services.add_technician_intervention(db, data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.patch("/technician-interventions/{intervention_id}", response_model=TechnicianInterventionOut)
+def update_intervention(intervention_id: int, data: TechnicianInterventionUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(TechnicianIntervention).filter(TechnicianIntervention.id == intervention_id).first()
+    if not obj:
+        raise HTTPException(404, "التدخل غير موجود")
+    try:
+        return services.update_technician_intervention(db, obj, data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.delete("/technician-interventions/{intervention_id}", status_code=204)
+def delete_intervention(intervention_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(TechnicianIntervention).filter(TechnicianIntervention.id == intervention_id).first()
+    if not obj:
+        raise HTTPException(404, "التدخل غير موجود")
+    try:
+        services.delete_technician_intervention(db, obj)
     except ValueError as e:
         raise HTTPException(400, str(e))
 

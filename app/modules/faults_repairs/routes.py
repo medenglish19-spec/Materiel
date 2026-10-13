@@ -1,3 +1,4 @@
+from datetime import date
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy import or_
@@ -9,6 +10,9 @@ from app.database.session import get_db
 from app.modules.users.models import User
 from app.modules.spare_parts_requests.models import SparePartRequest
 from app.modules.spare_parts_requests import services as spare_request_services
+from app.modules.spare_parts_requests.models import SparePartRequestItem
+from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
+from app.modules.spare_parts_movements import services as movement_services
 from .models import Fault, Repair, Technician, TechnicianIntervention, SparePart, RepairPart
 from app.modules.equipment.models import Equipment
 from .services import dashboard_stats, technician_stats, technician_detail_analysis, part_usage_stats, equipment_fault_stats, list_repairs
@@ -132,7 +136,42 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
         SparePartRequest.repair_id == repair.id,
     ).order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc()).all()
     spare_request_services.refresh_request_statuses(db, spare_requests)
-    return templates.TemplateResponse(request=request, name="repair_detail.html", context={"request": request, "user": user, "repair": repair, "technicians": technicians, "parts": parts, "spare_requests": spare_requests})
+    request_items = [item for req in spare_requests for item in req.items]
+    balances = {item.id: movement_services.history(db, item.id)["balances"] for item in request_items}
+    item_ids = [item.id for item in request_items]
+    distribution_lines = db.query(SparePartMovementItem).options(
+        joinedload(SparePartMovementItem.request_item).joinedload(SparePartRequestItem.spare_part),
+        joinedload(SparePartMovementItem.document),
+    ).join(SparePartMovementDocument).filter(
+        SparePartMovementItem.request_item_id.in_(item_ids),
+        SparePartMovementDocument.document_type == "distribution",
+    ).order_by(SparePartMovementDocument.document_date.desc(), SparePartMovementDocument.id.desc()).all() if item_ids else []
+    distribution_by_item = {}
+    for line in distribution_lines:
+        distribution_by_item.setdefault(line.request_item_id, {
+            "item": line.request_item,
+            "net_quantity": balances[line.request_item_id]["distributed"],
+            "documents": [],
+        })["documents"].append(f"{line.document.document_number} ({line.quantity})")
+    distribution_rows = list(distribution_by_item.values())
+    repair_history = db.query(Repair).filter(Repair.fault_id == repair.fault_id).order_by(
+        Repair.repair_start_date.asc(), Repair.repair_date.asc(), Repair.id.asc()
+    ).all()
+    current_repair = next((item for item in repair_history if item.status == "in_progress"), None)
+    if current_repair is None and repair_history:
+        current_repair = repair_history[-1]
+    return templates.TemplateResponse(request=request, name="repair_detail.html", context={
+        "request": request, "user": user, "repair": repair, "technicians": technicians,
+        "parts": parts, "spare_requests": spare_requests,
+        "repair_history": repair_history,
+        "current_repair_id": current_repair.id if current_repair else None,
+        "part_balances": balances, "distribution_lines": distribution_lines,
+        "distribution_rows": distribution_rows,
+        "today": date.today().isoformat(),
+        "waiting_for_parts": any(req.status in {"pending", "approved"} and any(
+            item.received_quantity < item.requested_quantity for item in req.items
+        ) for req in spare_requests),
+    })
 
 @router.get("/faults-repairs/analytics", response_class=HTMLResponse)
 def analytics_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

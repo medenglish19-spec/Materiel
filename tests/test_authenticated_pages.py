@@ -303,6 +303,81 @@ def test_detail_pages_render(pages):
     assert failures == [], "\n".join(failures)
 
 
+def test_repair_workspace_uses_live_repair_and_has_four_sections(pages):
+    client, ids = pages
+    response = client.get(f"/faults-repairs/repairs/{ids['repair']}")
+    assert response.status_code == 200
+    body = response.text
+    for heading in ("1. بيانات التصليح", "2. تدخلات الفنيين", "3. قطع الغيار", "4. سجل الإصلاحات السابقة"):
+        assert heading in body
+    assert f"العطل F-{ids['fault']:03d}" in body
+    assert f"R-{ids['repair']:03d}" in body
+    assert "R-002 · مثال لإصلاح سابق" not in body
+    assert 'حالة الإصلاح للقراءة فقط' in body
+    assert "تغيير حالة الإصلاح" not in body
+    assert "SPR-PAGE-1" in body
+
+
+def test_repair_workspace_saves_current_repair_and_rejects_reversed_dates(anonymous):
+    client, ids, TestingSession = anonymous
+    start = date.today() - timedelta(days=2)
+    end = date.today() - timedelta(days=1)
+    payload = {
+        "repair_start_date": start.isoformat(),
+        "repair_end_date": end.isoformat(),
+        "meter_value": None,
+        "diagnosis": "تشخيص محفوظ",
+        "action_taken": "إجراء محفوظ",
+        "workshop_type": "internal",
+        "workshop": "الورشة الرئيسية",
+        "repair_document": "DOC-TEST",
+        "external_dispatch_document": None,
+        "labor_hours": 3,
+        "notes": "ملاحظة محفوظة",
+    }
+    saved = client.patch(f"/api/faults-repairs/repairs/{ids['repair']}", json=payload)
+    assert saved.status_code == 200, saved.text
+    assert "إجراء محفوظ" in client.get(f"/faults-repairs/repairs/{ids['repair']}").text
+    reversed_payload = dict(payload, repair_start_date=end.isoformat(), repair_end_date=start.isoformat())
+    invalid = client.patch(f"/api/faults-repairs/repairs/{ids['repair']}", json=reversed_payload)
+    assert invalid.status_code == 422
+    db = TestingSession()
+    try:
+        from app.modules.faults_repairs.models import Repair
+        repair = db.query(Repair).filter(Repair.id == ids["repair"]).one()
+        assert repair.repair_start_date == start and repair.repair_end_date == end
+        assert repair.fault_id == ids["fault"]
+    finally:
+        db.close()
+
+
+def test_repair_workspace_adds_and_reopens_saved_technician_intervention(anonymous):
+    client, ids, _TestingSession = anonymous
+    technician = client.post("/api/faults-repairs/technicians", json={
+        "employee_number": "TECH-PAGE-1", "full_name": "فني الاختبار", "is_active": True,
+    })
+    assert technician.status_code == 201, technician.text
+    intervention = client.post("/api/faults-repairs/technician-interventions", json={
+        "repair_id": ids["repair"], "technician_id": technician.json()["id"],
+        "intervention_date": date.today().isoformat(), "hours": 2.5,
+        "work_description": "فحص مضخة التبريد", "notes": "تم الحفظ",
+    })
+    assert intervention.status_code == 201, intervention.text
+    body = client.get(f"/faults-repairs/repairs/{ids['repair']}").text
+    assert "فني الاختبار" in body
+    assert "فحص مضخة التبريد" in body
+    assert "1 تدخلات محفوظة" in body
+    edit = client.patch(f"/api/faults-repairs/technician-interventions/{intervention.json()['id']}", json={
+        "technician_id": technician.json()["id"], "intervention_date": date.today().isoformat(),
+        "hours": 3, "work_description": "اختبار الضغط", "notes": "محدث",
+    })
+    assert edit.status_code == 200, edit.text
+    assert "اختبار الضغط" in client.get(f"/faults-repairs/repairs/{ids['repair']}").text
+    deleted = client.delete(f"/api/faults-repairs/technician-interventions/{intervention.json()['id']}")
+    assert deleted.status_code == 204
+    assert "0 تدخلات محفوظة" in client.get(f"/faults-repairs/repairs/{ids['repair']}").text
+
+
 def test_dashboard_shows_the_seeded_equipment_with_arabic_labels(pages):
     """ربط الاختبارَين: بيانات البذور تظهر في اللوحة بتسميات عربية."""
     client, _ = pages
