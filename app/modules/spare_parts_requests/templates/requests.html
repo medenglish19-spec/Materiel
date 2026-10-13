@@ -332,9 +332,7 @@ function itemRow(i,x,showUndo){
 async function undoReceipt(tr){
   const id=tr&&tr.dataset.itemId;
   if(!id)return;
-  const name=(tr.querySelector('.i-name')||{}).value||'هذا البند';
-  if(!confirm('إلغاء الاستلام المسجّل عن البند: '+name
-    +'\n\nسيعاد الطلب كله إلى قيد الانتظار. إذا سبق توزيع أو إرجاع أي كمية فاحذف الطلب كاملًا. متابعة؟'))return;
+  if(!await window.MaterielDeleteImpact.confirmOne('/api/spare-parts-requests/items/'+id+'/receipt-impact','مراجعة أثر التراجع عن الاستلام'))return;
   const r=await fetch('/api/spare-parts-requests/items/'+id+'/receipt',
     {method:'DELETE',credentials:'same-origin'});
   if(r.ok){load();return;}
@@ -342,7 +340,7 @@ async function undoReceipt(tr){
 }
 
 async function deleteRequest(id){
-  if(!confirm('حذف طلب الغيار؟ لا يمكن التراجع عن هذا الإجراء.'))return;
+  if(!await window.MaterielDeleteImpact.confirmOne('/api/spare-parts-requests/'+id+'/delete-impact','مراجعة آثار حذف طلب الغيار'))return;
   const r=await fetch('/api/spare-parts-requests/'+id,{method:'DELETE',credentials:'same-origin'});
   if(r.ok)load();else alert(errText((await r.json()).detail,'تعذر حذف الطلب'));
 }
@@ -442,6 +440,8 @@ async function saveRequest(id,btn){
 
   payloads.sort((a,b)=>Number(a.receiptEntered)-Number(b.receiptEntered));
   try{
+    const deletePreviews=dropped.map(tr=>tr.dataset.itemId).filter(Boolean).map(itemId=>'/api/spare-parts-requests/items/'+itemId+'/delete-impact');
+    if(deletePreviews.length&&!await window.MaterielDeleteImpact.confirmMany(deletePreviews,'مراجعة أثر حذف بنود طلب الغيار'))return;
     const hr=await fetch('/api/spare-parts-requests/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({request_number:number,request_date:date,received_date:receipt||null,recipient:recipient||null,supplier_institution:supplier||null,notes:notes})});
     if(!hr.ok){const d=await hr.json().catch(()=>({}));setMsg(errText(d,'تعذر حفظ بيانات الطلب'),'err');return;}
 

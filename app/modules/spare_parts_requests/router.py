@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
@@ -6,6 +7,8 @@ from app.database.session import get_db
 from app.modules.users.models import User
 from . import services
 from .models import SparePartRequestItem
+from .models import SparePartRequest
+from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
 from .schemas import (
     SparePartRequestCreate,
     SparePartRequestItemCreate,
@@ -80,6 +83,57 @@ def delete(request_id: int, db: Session = Depends(get_db), _: User = Depends(get
         raise HTTPException(400, str(exc))
 
 
+@router.get("/{request_id}/delete-impact")
+def delete_impact(request_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = services.get_request(db, request_id)
+    if not obj:
+        raise HTTPException(404, "طلب الغيار غير موجود")
+    item_ids = {item.id for item in obj.items}
+    distributions = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "distribution",
+        or_(SparePartMovementItem.request_item_id.in_(item_ids), SparePartMovementItem.received_request_item_id.in_(item_ids)),
+    ).all() if item_ids else []
+    distribution_ids = {line.id for line in distributions}
+    return_filters = [SparePartMovementItem.request_item_id.in_(item_ids), SparePartMovementItem.received_request_item_id.in_(item_ids)] if item_ids else []
+    if distribution_ids:
+        return_filters.append(SparePartMovementItem.source_item_id.in_(distribution_ids))
+    distribution_lines_per_doc = {}
+    for line in distributions:
+        distribution_lines_per_doc[line.document_id] = distribution_lines_per_doc.get(line.document_id, 0) + 1
+    fully_removed_distribution_docs = [
+        document_id for document_id, selected_count in distribution_lines_per_doc.items()
+        if db.query(SparePartMovementItem.id).filter(SparePartMovementItem.document_id == document_id).count() == selected_count
+    ]
+    if fully_removed_distribution_docs:
+        legacy_return_doc_ids = [row[0] for row in db.query(SparePartMovementDocument.id).filter(
+            SparePartMovementDocument.document_type == "return",
+            SparePartMovementDocument.source_document_id.in_(fully_removed_distribution_docs),
+        ).all()]
+        if legacy_return_doc_ids:
+            return_filters.append(SparePartMovementItem.document_id.in_(legacy_return_doc_ids))
+    returns = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return", or_(*return_filters)
+    ).all() if return_filters else []
+    matching_by_doc = {}
+    for line in distributions + returns:
+        matching_by_doc.setdefault(line.document_id, set()).add(line.id)
+    affected_documents = db.query(SparePartMovementDocument).filter(SparePartMovementDocument.id.in_(matching_by_doc)).all() if matching_by_doc else []
+    deleted_lines = sum(len(line_ids) for line_ids in matching_by_doc.values())
+    deleted_documents = sum(1 for doc in affected_documents if len(matching_by_doc[doc.id]) == len(doc.items))
+    affected_docs = [doc.document_number for doc in affected_documents]
+    return {
+        "label": obj.request_number,
+        "effects": [
+            {"label": "بنود الطلب التي ستحذف", "count": len(obj.items)},
+            {"label": "سطور حركات الغيار التي ستحذف", "count": deleted_lines},
+            {"label": "وثائق الحركة التي ستحذف بالكامل", "count": deleted_documents},
+            {"label": "وثائق الحركة التي ستبقى مع تعديل بنودها", "count": len(affected_docs) - deleted_documents, "kind": "remain"},
+            {"label": "ارتباطات العطل/الإصلاح/العتاد التي ستنفصل عن الطلب", "count": sum(bool(value) for value in (obj.fault_id, obj.repair_id, obj.equipment_id)), "kind": "unlink"},
+        ],
+        "documents": affected_docs,
+    }
+
+
 @router.patch("/{request_id}/status", response_model=SparePartRequestOut)
 def status(request_id: int, data: SparePartRequestStatusUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = services.get_request(db, request_id)
@@ -129,6 +183,28 @@ def undo_receipt(item_id: int, db: Session = Depends(get_db), _: User = Depends(
         raise HTTPException(400, str(exc))
 
 
+@router.get("/items/{item_id}/receipt-impact")
+def receipt_impact(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    request = obj.request
+    receipt_items = [row for row in request.items if row.received_quantity > 0 or row.supplier_institution]
+    ids = [row.id for row in request.items]
+    movement_count = db.query(SparePartMovementItem.id).filter(or_(
+        SparePartMovementItem.request_item_id.in_(ids), SparePartMovementItem.received_request_item_id.in_(ids)
+    )).count() if ids else 0
+    blocked = None
+    if not receipt_items:
+        blocked = "لا يوجد استلام مسجل لهذا الطلب."
+    return {"label": request.request_number, "effects": [
+        {"label": "بنود الطلب التي سيعاد استلامها إلى حالة قيد الانتظار", "count": len(receipt_items)},
+        {"label": "إجمالي الكمية المستلمة التي ستعاد إلى غير مستلمة", "count": sum((row.received_quantity or 0) for row in receipt_items)},
+        {"label": "تاريخ وبيانات جهة الاستلام التي ستزال", "count": 1},
+        {"label": "سطور حركات التوزيع والإرجاع التابعة التي ستحذف", "count": movement_count},
+    ], "blocked": blocked}
+
+
 @router.delete("/items/{item_id}")
 def delete_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
@@ -139,3 +215,55 @@ def delete_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(g
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+
+
+@router.get("/items/{item_id}/delete-impact")
+def delete_item_impact(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+    if not obj:
+        raise HTTPException(404, "بند طلب الغيار غير موجود")
+    distributions = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "distribution",
+        or_(SparePartMovementItem.request_item_id == obj.id, SparePartMovementItem.received_request_item_id == obj.id),
+    ).all()
+    distribution_ids = [line.id for line in distributions]
+    movement_lines = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(or_(
+        SparePartMovementItem.request_item_id == obj.id, SparePartMovementItem.received_request_item_id == obj.id
+    )).all()
+    return_lines = db.query(SparePartMovementItem).join(SparePartMovementDocument).filter(
+        SparePartMovementDocument.document_type == "return",
+        or_(
+            SparePartMovementItem.request_item_id == obj.id,
+            SparePartMovementItem.received_request_item_id == obj.id,
+            SparePartMovementItem.source_item_id.in_(distribution_ids) if distribution_ids else False,
+        ),
+    ).all()
+    fully_removed_distribution_docs = [
+        document_id for document_id in {line.document_id for line in distributions}
+        if db.query(SparePartMovementItem.id).filter(SparePartMovementItem.document_id == document_id).count()
+        == sum(line.document_id == document_id for line in distributions)
+    ]
+    if fully_removed_distribution_docs:
+        legacy_return_doc_ids = [row[0] for row in db.query(SparePartMovementDocument.id).filter(
+            SparePartMovementDocument.document_type == "return",
+            SparePartMovementDocument.source_document_id.in_(fully_removed_distribution_docs),
+        ).all()]
+        if legacy_return_doc_ids:
+            legacy_lines = db.query(SparePartMovementItem).filter(
+                SparePartMovementItem.document_id.in_(legacy_return_doc_ids)
+            ).all()
+            return_lines.extend(line for line in legacy_lines if line.id not in {x.id for x in return_lines})
+    affected = movement_lines + [line for line in return_lines if line.id not in {x.id for x in movement_lines}]
+    doc_ids = {line.document_id for line in affected}
+    docs = db.query(SparePartMovementDocument).filter(SparePartMovementDocument.id.in_(doc_ids)).all() if doc_ids else []
+    lines_per_doc = {}
+    for line in affected:
+        lines_per_doc[line.document_id] = lines_per_doc.get(line.document_id, 0) + 1
+    deleted_docs = sum(lines_per_doc.get(doc.id, 0) == len(doc.items) for doc in docs)
+    return {"label": obj.part_name or f"بند #{obj.id}", "effects": [
+        {"label": "البند الذي سيحذف من الطلب", "count": 1},
+        {"label": "الكمية المطلوبة التي ستزال", "count": obj.requested_quantity},
+        {"label": "سطور التوزيع والإرجاع التابعة التي ستحذف", "count": len(affected)},
+        {"label": "وثائق الحركة التي ستحذف بالكامل", "count": deleted_docs},
+        {"label": "وثائق الحركة المشتركة التي ستبقى ببنودها الأخرى", "count": len(doc_ids) - deleted_docs, "kind": "remain"},
+    ], "blocked": None}

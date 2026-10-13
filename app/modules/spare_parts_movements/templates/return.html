@@ -256,7 +256,7 @@ async function editDoc(id){
 }
 
 async function delDoc(id){
-    if(!confirm('حذف وثيقة الإرجاع؟'))return;
+    try{if(!await window.MaterielDeleteImpact.confirmOne('/api/spare-parts-movements/'+id+'/delete-impact','مراجعة أثر حذف وثيقة الإرجاع'))return;}catch(error){alert(error.message||'تعذر تحميل أثر الحذف');return}
     try{
         const response=await fetch('/api/spare-parts-movements/'+id,{method:'DELETE'});
         if(!response.ok){

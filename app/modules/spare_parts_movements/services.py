@@ -753,37 +753,92 @@ def update_document(db, document_id, data: MovementDocumentUpdate, user_id=None)
     return get_document(db, obj.id)
 
 
+def _document_deletion_lines(db, obj):
+    """Return the selected document lines and return lines owned by it."""
+    lines = list(obj.items)
+    dependent_returns = []
+    if obj.document_type == "distribution" and lines:
+        distribution_line_ids = [line.id for line in lines]
+        dependent_returns = db.query(SparePartMovementItem).join(
+            SparePartMovementDocument
+        ).filter(
+            SparePartMovementDocument.document_type == "return",
+            or_(
+                SparePartMovementItem.source_item_id.in_(distribution_line_ids),
+                SparePartMovementDocument.source_document_id == obj.id,
+            ),
+        ).all()
+    return lines, dependent_returns
+
+
+def delete_document_impact(db, document_id):
+    """Describe the selected document and dependent movements that will be removed."""
+    obj = get_document(db, document_id)
+    if not obj:
+        raise ValueError("وثيقة الغيار غير موجودة")
+    lines, dependent_returns = _document_deletion_lines(db, obj)
+    effects = []
+    for line in lines:
+        name = line.request_item.part_name if line.request_item else f"بند الطلب #{line.request_item_id}"
+        effects.append({"label": f"{name}: الكمية {line.quantity}", "count": 1})
+    dependent_doc_ids = {line.document_id for line in dependent_returns}
+    dependent_docs = db.query(SparePartMovementDocument).filter(
+        SparePartMovementDocument.id.in_(dependent_doc_ids)
+    ).all() if dependent_doc_ids else []
+    docs_by_id = {doc.id: doc for doc in dependent_docs}
+    full_docs = sum(
+        sum(line.document_id == doc_id for line in dependent_returns) == len(docs_by_id[doc_id].items)
+        for doc_id in dependent_doc_ids
+    )
+    if dependent_returns:
+        effects.append({"label": "بنود الإرجاع التابعة التي ستحذف", "count": len(dependent_returns)})
+        effects.append({"label": "وثائق الإرجاع التي ستحذف بالكامل", "count": full_docs})
+        effects.append({"label": "وثائق الإرجاع المشتركة التي ستبقى ببنودها الأخرى", "count": len(dependent_doc_ids) - full_docs, "kind": "remain"})
+    if obj.document_type == "distribution":
+        effects.append({"label": "إجمالي الكمية التي ستعود إلى الرصيد المتاح", "count": _sum(line.quantity for line in obj.items)})
+    else:
+        effects.append({"label": "إجمالي الكمية المرتجعة التي ستلغى", "count": _sum(line.quantity for line in obj.items)})
+        affected_item_ids = {line.received_request_item_id or line.request_item_id for line in lines}
+        for item_id in affected_item_ids:
+            item = db.query(SparePartRequestItem).filter(SparePartRequestItem.id == item_id).first()
+            if item is None:
+                continue
+            balance = _compute_balances(db, item, exclude=obj.id)
+            if balance["status"].startswith("invalid_"):
+                effects.append({
+                    "label": "تنبيه: بعد حذف هذا الإرجاع سيظهر رصيد غير صالح؛ راجع سجل الحركات قبل أي توزيع جديد",
+                    "count": 1,
+                    "kind": "warning",
+                })
+    return {"label": obj.document_number, "effects": effects, "blocked": None}
+
+
 def delete_document(db, document_id):
     obj = get_document(db, document_id)
     if not obj:
         raise ValueError("وثيقة الغيار غير موجودة")
-    if obj.document_type == "distribution" and obj.return_documents:
-        raise ValueError("لا يمكن حذف توزيع له إرجاع مرتبط؛ احذف أو صحح الإرجاع أولاً")
-
-    if obj.document_type == "return":
-        # حذف الإرجاع قد يعيد رصيداً تاريخياً إلى حالة غير صالحة:
-        # استلام 3، توزيع 4، إرجاع 1 صالح كصافي، لكن حذف الإرجاع
-        # يجعل التوزيع 4 أكبر من الاستلام 3.
-        affected_item_ids = {
-            line.received_request_item_id or line.request_item_id
-            for line in obj.items
-        }
-        for item_id in affected_item_ids:
-            item = db.query(SparePartRequestItem).filter(
-                SparePartRequestItem.id == item_id
-            ).first()
-            if item is None:
-                continue
-            balance = _compute_balances(db, item, exclude=obj.id)
-            if balance["status"] == "invalid_distribution_over_received":
-                raise ValueError(
-                    "لا يمكن حذف الإرجاع لأن حذفه سيجعل التوزيع يتجاوز الكمية المستلمة"
-                )
-            if balance["status"] == "invalid_movement_balance":
-                raise ValueError(
-                    "لا يمكن حذف الإرجاع لأن حذفه سيجعل رصيد الحركة غير صالح"
-                )
-
+    _, dependent_returns = _document_deletion_lines(db, obj)
+    affected_document_ids = {line.document_id for line in dependent_returns}
+    dependent_doc_ids = db.query(SparePartMovementDocument.id).filter(
+        SparePartMovementDocument.document_type == "return",
+        SparePartMovementDocument.source_document_id == obj.id,
+    ).all() if obj.document_type == "distribution" else []
+    affected_document_ids.update(row[0] for row in dependent_doc_ids)
+    for line in dependent_returns:
+        if line in line.document.items:
+            line.document.items.remove(line)
+        else:
+            db.delete(line)
+    db.flush()
+    for dependent_document_id in affected_document_ids:
+        dependent_document = db.query(SparePartMovementDocument).filter(
+            SparePartMovementDocument.id == dependent_document_id
+        ).first()
+        has_remaining_items = db.query(SparePartMovementItem.id).filter(
+            SparePartMovementItem.document_id == dependent_document_id
+        ).first()
+        if dependent_document is not None and not has_remaining_items:
+            db.delete(dependent_document)
     db.delete(obj)
     db.commit()
 
@@ -807,6 +862,22 @@ def delete_movements_for_request_items(db, request_item_ids):
     ]
     if distribution_line_ids:
         return_filters.append(SparePartMovementItem.source_item_id.in_(distribution_line_ids))
+    distribution_lines_per_document = {}
+    for line in distribution_lines:
+        distribution_lines_per_document[line.document_id] = distribution_lines_per_document.get(line.document_id, 0) + 1
+    fully_removed_distribution_document_ids = set()
+    for document_id, selected_line_count in distribution_lines_per_document.items():
+        total_line_count = db.query(SparePartMovementItem.id).filter(
+            SparePartMovementItem.document_id == document_id
+        ).count()
+        if total_line_count == selected_line_count:
+            fully_removed_distribution_document_ids.add(document_id)
+    if fully_removed_distribution_document_ids:
+        legacy_return_document_ids = db.query(SparePartMovementDocument.id).filter(
+            SparePartMovementDocument.document_type == "return",
+            SparePartMovementDocument.source_document_id.in_(fully_removed_distribution_document_ids),
+        ).all()
+        return_filters.append(SparePartMovementItem.document_id.in_([row[0] for row in legacy_return_document_ids]))
     return_lines = db.query(SparePartMovementItem).join(
         SparePartMovementDocument
     ).filter(

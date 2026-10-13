@@ -416,7 +416,7 @@ def test_a_direct_return_does_not_settle_a_historical_over_distribution(db):
     assert row["balance_status"] == "invalid_distribution_over_received"
 
 
-def test_undoing_receipt_after_distribution_or_return_directs_to_delete_request(db):
+def test_undoing_receipt_after_distribution_or_return_removes_only_its_movement_chain(db):
     from app.modules.spare_parts_requests import services as request_services
     from app.modules.spare_parts_movements.models import SparePartMovementDocument
 
@@ -426,20 +426,19 @@ def test_undoing_receipt_after_distribution_or_return_directs_to_delete_request(
     returned = _return(db, item, 2, distribution.items[0].id)
     _distribute(db, unrelated, 1)
 
-    with pytest.raises(ValueError, match="احذف الطلب كاملًا"):
-        request_services.undo_item_receipt(db, item)
+    request_services.undo_item_receipt(db, item)
 
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.id == distribution.id
-    ).first() is not None
+    ).first() is None
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.id == returned.id
-    ).first() is not None
+    ).first() is None
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "distribution"
-    ).count() == 2
-    assert item.request.received_date is not None
-    assert item.received_quantity == 10
+    ).count() == 1
+    assert item.request.received_date is None
+    assert item.received_quantity == 0
     assert unrelated.received_quantity == 5
 
 
@@ -902,7 +901,7 @@ def test_balance_has_only_received_distributed_remaining_and_returned(db):
     )
 
 
-def test_deleting_a_return_cannot_create_over_distribution_history(db):
+def test_deleting_a_return_that_exposes_bad_history_warns_and_keeps_balance_invalid(db):
     item = _received_item(db, 3)
 
     _COUNTER["n"] += 1
@@ -954,10 +953,76 @@ def test_deleting_a_return_cannot_create_over_distribution_history(db):
     assert balances["returned"] == 0
     assert balances["returned_from_distributed"] == 1
 
-    with pytest.raises(ValueError, match="حذف الإرجاع"):
-        movements.delete_document(db, return_document.id)
+    impact = movements.delete_document_impact(db, return_document.id)
+    assert impact["blocked"] is None
+    assert impact["label"] == return_document.document_number
+    assert any(row.get("kind") == "warning" for row in impact["effects"])
 
-    assert _balances(db, item)["returned_from_distributed"] == 1
+    movements.delete_document(db, return_document.id)
+
+    assert _balances(db, item)["status"] == "invalid_distribution_over_received"
+
+
+def test_deleting_distribution_also_deletes_its_dependent_return(db):
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    item = _received_item(db, 10)
+    distribution = _distribute(db, item, 6)
+    returned = _return(db, item, 2, distribution.items[0].id)
+
+    impact = movements.delete_document_impact(db, distribution.id)
+    assert impact["blocked"] is None
+    assert any("بنود الإرجاع التابعة" in row["label"] for row in impact["effects"])
+    movements.delete_document(db, distribution.id)
+
+    assert db.get(SparePartMovementDocument, distribution.id) is None
+    assert db.get(SparePartMovementDocument, returned.id) is None
+    assert _balances(db, item)["distributed"] == 0
+
+
+def test_deleting_distribution_keeps_shared_return_document_other_lines(db):
+    from app.modules.spare_parts_movements.models import SparePartMovementDocument
+
+    first = _received_item(db, 10)
+    second = _received_item(db, 10)
+    first_distribution = _distribute(db, first, 3)
+    second_distribution = _distribute(db, second, 4)
+    _COUNTER["n"] += 1
+    shared_return = SparePartMovementDocument(
+        document_number=f"R-SHARED-{_COUNTER['n']}",
+        document_type="return",
+        document_date=RECEIVED + timedelta(days=3),
+        issuer="المخزن",
+        recipient="مؤسسة التوريد",
+        beneficiary="مؤسسة التوريد",
+    )
+    db.add(shared_return)
+    db.flush()
+    shared_return.items.extend([
+        SparePartMovementItem(
+            request_item_id=first.id,
+            received_request_item_id=first.id,
+            source_item_id=first_distribution.items[0].id,
+            quantity=Decimal("1"),
+        ),
+        SparePartMovementItem(
+            request_item_id=second.id,
+            received_request_item_id=second.id,
+            source_item_id=second_distribution.items[0].id,
+            quantity=Decimal("1"),
+        ),
+    ])
+    db.commit()
+
+    impact = movements.delete_document_impact(db, first_distribution.id)
+    assert any(row.get("kind") == "remain" for row in impact["effects"])
+    movements.delete_document(db, first_distribution.id)
+
+    retained_return = movements.get_document(db, shared_return.id)
+    assert retained_return is not None
+    assert len(retained_return.items) == 1
+    assert retained_return.items[0].source_item_id == second_distribution.items[0].id
+    assert movements.get_document(db, second_distribution.id) is not None
 
 
 def test_deleting_direct_return_restores_received_return_balance(db):
@@ -966,6 +1031,9 @@ def test_deleting_direct_return_restores_received_return_balance(db):
     document = _return_received(db, item, 2)
 
     assert movements.return_register(db)[0]["remaining_quantity"] == 4
+    impact = movements.delete_document_impact(db, document.id)
+    assert impact["blocked"] is None
+    assert any("الكمية المرتجعة" in row["label"] for row in impact["effects"])
     movements.delete_document(db, document.id)
 
     row = movements.return_register(db)[0]

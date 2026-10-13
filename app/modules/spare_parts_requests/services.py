@@ -294,6 +294,17 @@ def update_request(db: Session, obj: SparePartRequest, data: SparePartRequestUpd
     shared_supplier = values.pop("supplier_institution", None)
     has_shared_recipient = "recipient" in data.model_fields_set
     has_shared_supplier = "supplier_institution" in data.model_fields_set
+    receipt_fields_changed = (
+        "received_date" in values or has_shared_recipient or has_shared_supplier
+    )
+    if receipt_fields_changed and obj.items:
+        item_ids = [item.id for item in obj.items]
+        has_movements = db.query(SparePartMovementItem.id).filter(or_(
+            SparePartMovementItem.request_item_id.in_(item_ids),
+            SparePartMovementItem.received_request_item_id.in_(item_ids),
+        )).first()
+        if has_movements:
+            raise ValueError("لا يمكن تعديل بيانات الاستلام لوجود حركات مرتبطة؛ احذف أو صحح الحركات أولًا")
     if obj.status == "approved" and values.get("request_number", obj.request_number) != obj.request_number:
         raise ValueError("لا يمكن تعديل رقم الطلب بعد تسجيل الاستلام")
     if "request_number" in values:
@@ -433,6 +444,14 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         _check_receipt_date(item.request.request_date, values["received_date"])
         if _receipt_conflicts(item.request, values["received_date"]):
             raise ValueError(RECEIPT_CONFLICT)
+    receipt_changed = any(k in values for k in ("received_quantity", "received_date")) or has_recipient_update or has_supplier_update
+    if receipt_changed:
+        has_movements = db.query(SparePartMovementItem.id).filter(or_(
+            SparePartMovementItem.request_item_id == item.id,
+            SparePartMovementItem.received_request_item_id == item.id,
+        )).first()
+        if has_movements:
+            raise ValueError("لا يمكن تعديل بيانات الاستلام لوجود حركات مرتبطة؛ احذف أو صحح الحركات أولًا")
     if has_recipient_update:
         for sibling in item.request.items:
             sibling.recipient = shared_recipient
@@ -442,7 +461,6 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         setattr(item, key, value)
     if "received_date" in values and values["received_date"] != item.request.received_date:
         _store_receipt_date(item.request, values["received_date"])
-    receipt_changed = any(k in values for k in ("received_quantity", "received_date")) or has_recipient_update or has_supplier_update
     if receipt_changed and (item.received_quantity > 0 or item.recipient or item.supplier_institution):
         if not item.received_date or not item.recipient or not item.supplier_institution:
             raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
@@ -457,14 +475,16 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
 
 def delete_item(db: Session, item: SparePartRequestItem):
     refresh_request_statuses(db, [item.request])
-    if item.received_quantity > 0:
-        raise ValueError(
-            "لا يمكن حذف بند تم تسجيل استلام له. إن كان الاستلام خطأً فاستخدم "
-            "«تراجع عن الاستلام» على البند."
-        )
-    if item.request.status != "pending":
-        raise ValueError("لا يمكن حذف بند إلا من طلب قيد الانتظار")
-    db.delete(item)
+    from app.modules.spare_parts_movements.services import delete_movements_for_request_items
+
+    request = item.request
+    delete_movements_for_request_items(db, [item.id])
+    if item in request.items:
+        request.items.remove(item)
+    else:
+        db.delete(item)
+    db.flush()
+    _refresh_request_status(request)
     db.commit()
 
 
@@ -478,19 +498,9 @@ def undo_item_receipt(db: Session, item: SparePartRequestItem):
     if not receipt_items:
         raise ValueError("لا يوجد استلام مسجل لهذا البند")
     request_item_ids = [row.id for row in request.items]
-    has_movements = db.query(SparePartMovementItem.id).join(
-        SparePartMovementDocument
-    ).filter(
-        or_(
-            SparePartMovementItem.request_item_id.in_(request_item_ids),
-            SparePartMovementItem.received_request_item_id.in_(request_item_ids),
-        )
-    ).first()
-    if has_movements:
-        raise ValueError(
-            "لا يمكن التراجع عن الاستلام بعد تنفيذ توزيع أو إرجاع؛ "
-            "احذف الطلب كاملًا لإزالة السجلات التابعة له."
-        )
+    from app.modules.spare_parts_movements.services import delete_movements_for_request_items
+
+    delete_movements_for_request_items(db, request_item_ids)
     # الاستلام سجل واحد على مستوى الطلب؛ تراجعه يعيد كل بنوده إلى قيد الانتظار.
     for row in request.items:
         row.received_quantity = 0

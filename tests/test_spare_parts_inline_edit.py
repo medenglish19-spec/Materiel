@@ -415,7 +415,7 @@ def test_a_zero_receipt_is_recorded_as_rejected(client):
     assert float(response.json()["received_quantity"]) == 0
 
 
-def test_a_received_item_cannot_be_deleted(client):
+def test_deleting_a_received_item_removes_the_item_after_confirmation_flow(client):
     page, ids = client
 
     recorded = page.patch(
@@ -430,8 +430,11 @@ def test_a_received_item_cannot_be_deleted(client):
     assert recorded.status_code == 200, recorded.text
 
     response = page.delete(f"/api/spare-parts-requests/items/{ids['item']}")
-    assert response.status_code == 400
-    assert "تم تسجيل استلام" in response.text
+    assert response.status_code == 200
+    assert page.get(f"/api/spare-parts-requests/items/{ids['item']}").status_code == 404
+    request = page.get(f"/api/spare-parts-requests/{ids['request']}").json()
+    assert request["items"] == []
+    assert request["status"] == "pending"
 
 
 def test_the_whole_page_still_renders_for_a_logged_in_user(client):
@@ -991,7 +994,7 @@ def test_receipt_undo_resets_approved_request_to_pending(client):
     assert float(request["items"][0]["received_quantity"]) == 0
 
 
-def test_receipt_undo_after_distribution_directs_user_to_delete_request(client):
+def test_receipt_undo_after_distribution_removes_dependent_movements(client):
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-UNDO-DISTRIBUTED", slot=9)
     assert _record_receipt(page, item_id).status_code == 200
@@ -1009,13 +1012,11 @@ def test_receipt_undo_after_distribution_directs_user_to_delete_request(client):
     assert distributed.status_code == 201, distributed.text
 
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 400, undone.text
-    assert "توزيع أو إرجاع" in undone.text
-    assert "احذف الطلب كاملًا" in undone.text
+    assert undone.status_code == 200, undone.text
     request = page.get(f"/api/spare-parts-requests/{request_id}").json()
-    assert request["status"] == "approved"
-    assert float(request["items"][0]["received_quantity"]) > 0
-    assert page.get(f"/api/spare-parts-movements/{distributed.json()['id']}").status_code == 200
+    assert request["status"] == "pending"
+    assert float(request["items"][0]["received_quantity"]) == 0
+    assert page.get(f"/api/spare-parts-movements/{distributed.json()['id']}").status_code == 404
 
 
 def test_the_undo_button_is_shown_for_the_shared_receipt_once(client):
@@ -1031,8 +1032,8 @@ def test_the_undo_button_is_shown_for_the_shared_receipt_once(client):
     assert "await undoReceipt(ur.closest('tr'));" in html
     assert "/receipt'," in html, "الزر لا يستدعي مسار التراجع عن الاستلام"
 
-    # والتأكيد يذكر حدود التراجع وحذف الطلب عند وجود حركة لاحقة
-    assert "إذا سبق توزيع أو إرجاع أي كمية فاحذف الطلب كاملًا" in html
+    # معاينة الخادم تشرح حدود التراجع وتمنع الإجراء عندما توجد حركة لاحقة.
+    assert "receipt-impact" in html
 
 
 def test_the_router_declares_no_duplicate_endpoint(client):

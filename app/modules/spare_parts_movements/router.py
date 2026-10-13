@@ -58,3 +58,11 @@ def delete(document_id: int, db=Depends(get_db), _: User = Depends(get_current_u
         return {"ok": True}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+
+
+@router.get("/{document_id}/delete-impact")
+def delete_impact(document_id: int, db=Depends(get_db), _: User = Depends(get_current_user)):
+    try:
+        return services.delete_document_impact(db, document_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
