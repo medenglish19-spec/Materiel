@@ -609,7 +609,13 @@
   $('search').oninput=render;
   $('modelFilter').onchange=async()=>{state.selectedPlans.clear();state.selectedStandalone.clear();await loadPlanOps();render()};
   $('model').onchange=()=>{if(!$('planId').value&&$('modelFilter').value!==$('model').value)$('modelFilter').value=$('model').value};
-  fillModels();load();
+  fillModels();
+  const startupParams=new URLSearchParams(window.location.search);
+  const startupModelId=startupParams.get('model_id');
+  if(startupModelId&&models.some(model=>String(model.id)===startupModelId))$('modelFilter').value=startupModelId;
+  load().then(()=>{
+    if(startupModelId&&startupParams.get('new')==='1'&&$('modelFilter').value===startupModelId)newPlan();
+  });
 })();
 </script>
 {% endblock %}

@@ -43,6 +43,30 @@ router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
 
 
+def _maintenance_due_count(db: Session, equipment: list[Equipment]) -> int:
+    """Count the same maintenance states displayed by the due-maintenance page."""
+    readings = latest_readings(db)
+    records = latest_records(db)
+    tasks_by_model = {}
+    due_states = {"مستحقة الآن", "تقترب", "بلا سجل"}
+    count = 0
+    for eq in equipment:
+        model_id = eq.equipment_model_id
+        if model_id is None:
+            continue
+        if model_id not in tasks_by_model:
+            tasks_by_model[model_id] = operation_tasks_for_model(db, model_id)
+        current_value = current_meter_value(eq, readings.get(eq.id))
+        for task in tasks_by_model[model_id]:
+            operation = task.operation
+            state, _, _, _ = status_for(
+                operation, eq, records.get((eq.id, operation.id)), current_value,
+                condition=task.condition,
+            )
+            count += state in due_states
+    return count
+
+
 def _sync_operation_model_conditions(db: Session, operation, submitted: list) -> None:
     """Write the submitted per-model conditions of one operation.
 
@@ -202,6 +226,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         joinedload(Equipment.equipment_type),
         joinedload(Equipment.equipment_model),
     ).order_by(Equipment.registration_number, Equipment.asset_code).all()
+    due_count = _maintenance_due_count(db, equipment)
 
     operations = db.query(MaintenanceOperation).filter(
         MaintenanceOperation.is_active.is_(True)
@@ -261,6 +286,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "user": current_user,
             "records": records,
             "equipment": equipment,
+            "due_count": due_count,
             "operations": operations,
             "plans": plans,
             "technicians": technicians,
@@ -639,6 +665,13 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
         and eq.equipment_model is not None
         and eq.equipment_model_id not in approved_model_ids
     })
+    unapproved_model_rows = sorted({
+        (eq.equipment_model_id, eq.equipment_model.name)
+        for eq in equipment
+        if eq.equipment_model_id is not None
+        and eq.equipment_model is not None
+        and eq.equipment_model_id not in approved_model_ids
+    }, key=lambda item: (item[1], item[0]))
     readings = latest_readings(db)
     records = latest_records(db)
     due_rows = []
@@ -699,6 +732,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             "plan_groups": plan_groups,
             "standalone_rows": standalone_rows,
             "unapproved_models": unapproved_models,
+            "unapproved_model_rows": unapproved_model_rows,
         },
     )
 

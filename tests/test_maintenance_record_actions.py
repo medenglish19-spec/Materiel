@@ -349,7 +349,7 @@ def test_bulk_delete_rejects_invalid_requests_without_changing_records(api):
     assert any(row["id"] == scheduled["id"] for row in client.get("/api/maintenance/execution").json())
 
 
-def test_viewer_cannot_edit_or_delete_records_and_sees_no_row_actions(api, monkeypatch):
+def test_viewer_can_view_record_details_but_cannot_edit_or_delete(api, monkeypatch):
     client, ids = api
     _, operation = _approve_plan_with_operation(client, ids["model_a"])
     record = _create_record(
@@ -372,7 +372,10 @@ def test_viewer_cannot_edit_or_delete_records_and_sees_no_row_actions(api, monke
 
     page = client.get("/maintenance/records")
     assert page.status_code == 200
-    assert 'data-action-toggle="record-menu-' not in page.text
+    assert 'data-action-toggle="record-menu-' in page.text
+    assert 'data-menu-action="record-details"' in page.text
+    assert 'data-menu-action="record-edit"' not in page.text
+    assert 'data-menu-action="record-delete"' not in page.text
     assert 'id="selectAllRecords"' not in page.text
     assert 'id="bulkDeleteRecords"' not in page.text
 
@@ -444,7 +447,7 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert "{% if can_manage_records %}" in template
     assert "{% if edit_record and can_manage_records %}" in template
     assert 'data-menu-action="record-edit"' in template
-    assert "{% if r.is_scheduled and r.status == 'scheduled' %}" in template
+    assert "can_manage_records and r.is_scheduled and r.status == 'scheduled'" in template
     assert 'data-menu-action="record-delete"' in template
     assert "visibleRecordRows()" in template
     assert "result.success" in template
@@ -452,6 +455,52 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert "response.ok" in template
     assert "finally{" in template
     assert "سيتم حذف الموعد المجدول غير المنفذ فقط" in template
+    assert 'data-menu-action="record-details"' in template
+    assert 'class="record-operation-cell"' in template
+    assert '<th>الإجراءات</th>' not in template
+    assert 'class="record-details-row" data-mt-filter-auxiliary hidden' in template
+    assert '"record-details":()=>{' in template
+    assert "can_manage_records and r.operation_id" in template
+    assert "can_manage_records and r.is_scheduled and r.status == 'scheduled'" in template
+    assert 'class="record-check"' in template  # Per-row and bulk selection stays available.
+
+
+def test_new_record_form_is_available_from_a_dialog_triggered_by_toolbar():
+    template = Path("app/modules/maintenance/templates/maintenance_records.html").read_text(encoding="utf-8")
+    assert 'data-open-record-dialog' in template
+    assert 'id="newRecordDialog"' in template
+    assert 'id="maintenanceRecordForm"' in template
+    assert 'data-close-record-dialog' in template
+    assert 'recordDialog?.showModal()' in template
+
+
+def test_unapproved_models_open_a_list_linking_to_plan_setup(api):
+    client, ids = api
+    response = client.get("/maintenance/due")
+
+    assert response.status_code == 200
+    assert 'id="unapprovedModelsDialog"' in response.text
+    assert 'id="openUnapprovedModels"' in response.text
+    assert "طراز سجلات" in response.text
+    assert f"/maintenance/plans?model_id={ids['model_a']}&amp;new=1" in response.text
+    assert "dialog.showModal();document.getElementById('openUnapprovedModels')" not in response.text
+    assert "addEventListener('click',()=>dialog.showModal())" in response.text
+    assert "لا توجد صيانة مستحقة لأن الصيانة لم تُبرمج لهذه الطرازات بعد" in response.text
+    plans = client.get(f"/maintenance/plans?model_id={ids['model_a']}&new=1")
+    assert plans.status_code == 200
+    assert "startupParams.get('model_id')" in plans.text
+    assert "startupParams.get('new')==='1'" in plans.text
+
+
+def test_records_page_shows_due_maintenance_count(api):
+    client, ids = api
+    _create_operation(client, ids["model_a"], name="عملية مستحقة")
+
+    response = client.get("/maintenance/records")
+
+    assert response.status_code == 200
+    assert "الصيانة المستحقة (1)" in response.text
+    assert 'id="selectAllRecords"' in response.text
 
 
 def test_record_bulk_delete_route_is_registered():

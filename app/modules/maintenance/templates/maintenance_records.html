@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}سجل الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=record-dialog-20261013">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading"><h2>سجل الصيانة</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div></div>
-    <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="#newRecord">＋ &nbsp;تسجيل صيانة جديدة</a></div>
+    <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button></div>
   </div>
   <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
 
@@ -35,7 +35,7 @@
 
   <section class="panel">
     <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>سجلات التنفيذ الفعلية محفوظة للتاريخ التشغيلي؛ يمكن حذف الموعد المجدول غير المنفذ فقط.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
-    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة ({{ due_count }})</a></div></div>
     <div id="recordsActionAlert" class="alert" role="status" aria-live="polite" hidden style="display:none;margin:0 8px 10px;white-space:pre-line"></div>
     {% if can_manage_records %}
     <div id="recordsBulkBar" class="toolbar-card" hidden style="display:none">
@@ -45,40 +45,43 @@
       </div>
     </div>
     {% endif %}
-    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr>{% if can_manage_records %}<th><input type="checkbox" id="selectAllRecords" aria-label="تحديد كل السجلات الظاهرة"></th>{% endif %}<th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>{% if can_manage_records %}<th>الإجراءات</th>{% endif %}</tr></thead><tbody>
+    <div class="table-wrap" data-mt-region><table class="m-table" id="recordsTable"><thead><tr>{% if can_manage_records %}<th><input type="checkbox" id="selectAllRecords" aria-label="تحديد كل السجلات الظاهرة"></th>{% endif %}<th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th></tr></thead><tbody>
       {% for r in records %}
       <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}" data-can-delete="{{ 'true' if r.is_scheduled and r.status == 'scheduled' else 'false' }}">
         {% if can_manage_records %}
         <td><input type="checkbox" class="record-check" value="{{ r.id }}" aria-label="تحديد سجل الصيانة {{ r.id }}"></td>
         {% endif %}
-        <td>{{ loop.index }}</td>
+        <td class="record-number">{{ loop.index }}</td>
         <td>{{ r.equipment.equipment_model.name if r.equipment.equipment_model and r.equipment.equipment_model.name is defined else '—' }}</td>
         <td class="vehicle">{{ r.equipment.registration_number or r.equipment.vin }}</td>
-        <td>{{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</td>
+        <td class="record-operation-cell">
+          <span class="row-action-menu">
+            <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="record-menu-{{ r.id }}">⋯</button>
+            <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
+              <button type="button" role="menuitem" data-menu-action="record-details" data-id="{{ r.id }}">◉ عرض التفاصيل</button>
+              {% if can_manage_records and r.operation_id %}<button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>{% endif %}
+              {% if can_manage_records and r.is_scheduled and r.status == 'scheduled' %}<button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف الموعد المجدول</button>{% endif %}
+            </div>
+          </span>
+          <span class="record-operation-name">{{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</span>
+        </td>
         <td>{{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</td>
         <td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td>
         <td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td>
         <td>{{ r.work_order or '—' }}</td><td>{{ r.technician.full_name if r.technician else '—' }}</td><td>{{ r.workshop or '—' }}</td>
         <td>{{ r.description or '—' }}</td><td>{{ r.note or '—' }}</td>
-        {% if can_manage_records %}
-        <td style="white-space:nowrap">
-          {% if can_manage_records %}
-          <span class="row-action-menu">
-            <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="record-menu-{{ r.id }}">⋯</button>
-            <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
-              {% if r.operation_id %}
-              <button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>
-              {% endif %}
-              {% if r.is_scheduled and r.status == 'scheduled' %}
-              <button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف الموعد المجدول</button>
-              {% endif %}
-            </div>
-          </span>
-          {% endif %}
-        </td>
-        {% endif %}
       </tr>
-      {% else %}<tr><td colspan="{{ 14 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
+      <tr id="record-details-{{ r.id }}" class="record-details-row" data-mt-filter-auxiliary hidden>
+        <td colspan="{{ 13 if can_manage_records else 12 }}">
+          <strong>تفاصيل سجل الصيانة #{{ r.id }}</strong>
+          <span>العملية: {{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</span>
+          <span>الخطة: {{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</span>
+          <span>الحالة: {{ 'موعد مجدول غير منفذ' if r.is_scheduled and r.status == 'scheduled' else 'تنفيذ فعلي محفوظ' }}</span>
+          <span>الأعمال المنجزة: {{ r.description or '—' }}</span>
+          <span>الملاحظة: {{ r.note or '—' }}</span>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="{{ 13 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 
@@ -105,8 +108,9 @@
     {% endif %}
   {% endif %}
 
-  <section class="panel" id="newRecord" style="margin-top:16px">
-    <div class="panel-head"><div><h3>تسجيل صيانة جديدة</h3><p>التنفيذ يكون لعملية صيانة محددة. الخطة اختيارية؛ وإذا اختيرت فلا بد أن تكون العملية منضوية تحتها.</p></div></div>
+  <dialog id="newRecordDialog" class="maintenance-record-dialog" aria-labelledby="newRecordTitle">
+  <section class="panel" id="newRecord">
+    <div class="panel-head"><div><h3 id="newRecordTitle">تسجيل صيانة جديدة</h3><p>التنفيذ يكون لعملية صيانة محددة. الخطة اختيارية؛ وإذا اختيرت فلا بد أن تكون العملية منضوية تحتها.</p></div><button class="m-btn dialog-close" type="button" data-close-record-dialog aria-label="إغلاق">×</button></div>
     <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required disabled><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
@@ -122,11 +126,16 @@
       <button class="m-btn primary" type="submit">حفظ الصيانة</button>
     </form>
   </section>
+  </dialog>
 </div>
 
 <script>
 (function(){
   const search=document.getElementById('recordsSearch');
+  const recordDialog=document.getElementById('newRecordDialog');
+  document.querySelectorAll('[data-open-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.showModal()));
+  document.querySelectorAll('[data-close-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.close()));
+  if(recordDialog)recordDialog.addEventListener('click',event=>{if(event.target===recordDialog)recordDialog.close()});
   const recordsTable=document.getElementById('recordsTable');
   const selectedRecordIds=new Set();
   const selectAllRecords=document.getElementById('selectAllRecords');
@@ -135,13 +144,13 @@
   const recordsSelectedCount=document.getElementById('recordsSelectedCount');
   const recordsActionAlert=document.getElementById('recordsActionAlert');
   function recordRows(){return [...recordsTable.querySelectorAll('tbody tr[data-record-id]')]}
-  function visibleRecordRows(){return recordRows().filter(row=>row.style.display!=='none')}
+  function visibleRecordRows(){return recordRows().filter(row=>row.style.display!=='none'&&getComputedStyle(row).display!=='none')}
   function updateRecordCount(){
     const count=recordRows().length;
     const badge=document.getElementById('recordCount');
     if(badge)badge.textContent=count+' سجل';
-    recordRows().forEach((row,index)=>{row.querySelector('td:nth-child(2)').textContent=String(index+1)});
-    if(!count)recordsTable.querySelector('tbody').innerHTML='<tr><td colspan="{{ 14 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>';
+    recordRows().forEach((row,index)=>{row.querySelector('.record-number').textContent=String(index+1)});
+    if(!count)recordsTable.querySelector('tbody').innerHTML='<tr><td colspan="{{ 13 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>';
   }
   function updateRecordSelection(){
     if(!selectAllRecords||!recordsBulkBar||!bulkDeleteRecords)return;
@@ -157,6 +166,7 @@
     bulkDeleteRecords.disabled=selectedRecordIds.size===0;
     checks.forEach(check=>{check.checked=selectedRecordIds.has(Number(check.value))});
   }
+  recordsTable.addEventListener('mt:filters-applied',updateRecordSelection);
   function showRecordActionResult(message,bad=false){
     recordsActionAlert.textContent=message;
     recordsActionAlert.className='alert '+(bad?'danger':'success');
@@ -167,6 +177,7 @@
     ids.forEach(id=>{
       const row=recordsTable.querySelector('tr[data-record-id="'+id+'"]');
       if(row)row.remove();
+      document.getElementById('record-details-'+id)?.remove();
       selectedRecordIds.delete(Number(id));
     });
     updateRecordCount();
@@ -346,6 +357,10 @@
       if(action.disabled)return;
       const id=Number(action.dataset.id);
       const handlers={
+        "record-details":()=>{
+          const details=document.getElementById("record-details-"+id);
+          if(details)details.hidden=!details.hidden;
+        },
         "record-edit":()=>{window.location.href="/maintenance/records?edit="+id+"#editRecord";},
         "record-delete":async()=>{
           if(!confirm('سيتم حذف الموعد المجدول غير المنفذ فقط. هل أنت متأكد؟'))return;

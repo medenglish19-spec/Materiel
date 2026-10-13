@@ -251,6 +251,7 @@
       Array.prototype.forEach.call(body.rows, function (row) {
         if (row === headRow) return;
         if (row.querySelector('th')) return;
+        if (row.hasAttribute('data-mt-filter-auxiliary')) return;
         rows.push(row);
       });
     });
@@ -274,7 +275,7 @@
       var cell = row.cells[index];
       if (!cell) return;
       total++;
-      if (cell.querySelector('a,button')) links++;
+      if (cell.querySelector('a,button:not(.row-action-toggle):not([data-menu-action])')) links++;
     });
     return total > 0 && links / total > 0.6;
   }
@@ -312,7 +313,7 @@
   }
 
   function isEditorTable(table) {
-    return !!table.querySelector('tbody input, tbody select, tbody textarea');
+    return !!table.querySelector('tbody input:not([type="checkbox"]):not([type="radio"]), tbody select, tbody textarea');
   }
 
   function isHierarchicalTable(table) {
@@ -394,6 +395,9 @@
       }
       row.classList.toggle('mt-col-hidden', !ok);
     });
+    if (typeof CustomEvent === 'function') {
+      table.dispatchEvent(new CustomEvent('mt:filters-applied', { bubbles: true }));
+    }
   }
 
   function closeFilterMenu() {

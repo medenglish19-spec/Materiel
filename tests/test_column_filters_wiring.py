@@ -40,6 +40,7 @@ def test_filter_core_is_loaded_before_the_shared_table_engine():
     core_at = base.index("/static/js/mt-filters-core.js")
     tables_at = base.index("/static/js/mt-tables.js")
     assert core_at < tables_at, "يجب تحميل نواة التصفية قبل محرك الجداول"
+    assert "?v=maintenance-record-filters" in base
 
 
 def test_core_and_engine_exist_as_tracked_static_assets():
@@ -77,11 +78,13 @@ def test_engine_skips_action_editor_hierarchical_and_self_filtered_tables():
     source = _engine()
     assert "table.querySelector('.col-filter')" in source
     assert "function isEditorTable(table)" in source
-    assert "tbody input, tbody select, tbody textarea" in source
+    assert 'tbody input:not([type="checkbox"]):not([type="radio"]), tbody select, tbody textarea' in source
     assert "function isHierarchicalTable(table)" in source
     assert "tbody tr[data-level]" in source
     assert "FILTER_SKIP_HEADERS" in source
     assert "looksLikeLinkColumn" in source
+    assert "data-mt-filter-auxiliary" in source
+    assert "mt:filters-applied" in source
     assert "data-mt-no-filter" in source
 
 
@@ -137,6 +140,15 @@ def test_maintenance_library_keeps_its_own_filter_implementation():
     assert 'class="col-filter"' in template
     assert "mt-col-filter" not in template
     assert "mt-filters-core.js" not in template
+
+
+def test_maintenance_records_use_shared_filters_with_row_selection_and_action_menu():
+    records = ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_records.html"
+    template = records.read_text(encoding="utf-8")
+    assert 'data-mt-region' in template
+    assert 'class="record-check"' in template
+    assert 'class="record-operation-cell"' in template
+    assert 'data-mt-filter-auxiliary' in template
 
 
 def test_engine_recognises_the_library_self_filter_class():
