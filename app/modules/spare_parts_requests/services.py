@@ -165,8 +165,8 @@ def _item_identity(part_id: int | None, part_name: str | None):
 
 def serialize_item(item):
     # تاريخ الاستلام واحد للطلب كله، فهو خاصية الطلب لا البند: لذلك يُعرض على
-    # كل بنوده حتى الذي لم يُستلم بعد. ولا حاجة لعمَل موازٍ هنا: التاريخ يُمسح
-    # من الترويسة عند التراجع عن آخر استلام.
+    # كل بنوده حتى الذي لم يُستلم بعد. والتاريخ يُمسح من الترويسة عند التراجع
+    # عن استلام الطلب.
     return {
         "id": item.id,
         "spare_part_id": item.spare_part_id,
@@ -469,30 +469,36 @@ def delete_item(db: Session, item: SparePartRequestItem):
 
 
 def undo_item_receipt(db: Session, item: SparePartRequestItem):
-    """Undo a receipt only while its request is still pending."""
-    if item.request.status != "pending":
-        raise ValueError("لا يمكن التراجع عن الاستلام إلا لطلب قيد الانتظار؛ سجل الاستلام نهائي بعد تغيير الحالة")
-    has_receipt = item.received_quantity > 0 or bool(item.supplier_institution)
-    if not has_receipt:
+    """Undo the request's shared receipt and return the request to pending."""
+    request = item.request
+    receipt_items = [
+        row for row in request.items
+        if row.received_quantity > 0 or row.supplier_institution
+    ]
+    if not receipt_items:
         raise ValueError("لا يوجد استلام مسجل لهذا البند")
-    from app.modules.spare_parts_movements.services import delete_movements_for_request_items
-
-    delete_movements_for_request_items(db, [item.id])
-    item.received_quantity = 0
-    item.received_date = None
-    item.supplier_institution = None
-    # تاريخ الاستلام في الترويسة مشترك بين البنود، فلا يبقى بلا معنى بعد آخر بند
-    if not any(
-        other.id != item.id and (
-            other.received_quantity > 0 or other.supplier_institution
+    request_item_ids = [row.id for row in request.items]
+    has_movements = db.query(SparePartMovementItem.id).join(
+        SparePartMovementDocument
+    ).filter(
+        or_(
+            SparePartMovementItem.request_item_id.in_(request_item_ids),
+            SparePartMovementItem.received_request_item_id.in_(request_item_ids),
         )
-        for other in item.request.items
-    ):
-        item.request.received_date = None
-        for other in item.request.items:
-            other.recipient = None
-            other.supplier_institution = None
-    _refresh_request_status(item.request)
+    ).first()
+    if has_movements:
+        raise ValueError(
+            "لا يمكن التراجع عن الاستلام بعد تنفيذ توزيع أو إرجاع؛ "
+            "احذف الطلب كاملًا لإزالة السجلات التابعة له."
+        )
+    # الاستلام سجل واحد على مستوى الطلب؛ تراجعه يعيد كل بنوده إلى قيد الانتظار.
+    for row in request.items:
+        row.received_quantity = 0
+        row.received_date = None
+        row.recipient = None
+        row.supplier_institution = None
+    request.received_date = None
+    request.status = "pending"
     db.commit()
     db.refresh(item)
     return item

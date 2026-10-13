@@ -128,7 +128,7 @@ def _seed(db):
     # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
     # واحد لكل عطل.
     spare_faults = []
-    for n in range(9):
+    for n in range(11):
         extra = Fault(
             equipment_id=equipment.id,
             reported_date=date.today(),
@@ -877,24 +877,24 @@ def test_receiving_multiple_request_items_approves_request_and_lists_each_receip
     assert {row["request_item_id"] for row in received_rows} == set(item_ids)
 
 
-def test_a_mistaken_receipt_cannot_be_undone_after_approval(client):
-    """لا يمكن التراجع عن الاستلام بعد انتقال الطلب إلى مقبول."""
+def test_a_mistaken_receipt_can_be_undone_after_approval(client):
+    """التراجع عن استلام طلب مقبول يعيده إلى قيد الانتظار."""
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-UNDO", slot=1)
-    today = date.today().isoformat()
-
     assert _record_receipt(page, item_id).status_code == 200
 
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-    assert undone.status_code == 400, undone.text
-    assert "قيد الانتظار" in undone.text
-    assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
+    assert undone.status_code == 200, undone.text
+    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert request["status"] == "pending"
+    assert request["received_date"] is None
+    assert float(request["items"][0]["received_quantity"]) == 0
     register = page.get("/api/spare-parts-requests/received-register").json()
-    assert [r for r in register if r["request_number"] == "SR-UNDO"]
+    assert not [r for r in register if r["request_number"] == "SR-UNDO"]
 
 
-def test_receipt_date_and_register_are_preserved_after_approval(client):
-    """الاستلام المعتمد نهائي ويحافظ على تاريخه وسجله."""
+def test_undoing_shared_receipt_resets_all_request_items(client):
+    """التراجع عن الاستلام المشترك يعيد الطلب وكل بنوده إلى قيد الانتظار."""
     page, ids = client
     request_id, first = _new_request(page, ids, "SR-STALE-DATE", slot=2)
     today = date.today().isoformat()
@@ -911,12 +911,15 @@ def test_receipt_date_and_register_are_preserved_after_approval(client):
     assert _record_receipt(page, second).status_code == 200
     assert page.get(f"/api/spare-parts-requests/{request_id}").json()["received_date"] == today
 
-    for item_id in (first, second):
-        undo = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
-        assert undo.status_code == 400, undo.text
+    undo = page.delete(f"/api/spare-parts-requests/items/{first}/receipt")
+    assert undo.status_code == 200, undo.text
     current = page.get(f"/api/spare-parts-requests/{request_id}").json()
-    assert current["received_date"] == today
-    assert {i["received_date"] for i in current["items"]} == {today}
+    assert current["status"] == "pending"
+    assert current["received_date"] is None
+    assert {i["received_date"] for i in current["items"]} == {None}
+    assert {float(i["received_quantity"]) for i in current["items"]} == {0}
+    register = page.get("/api/spare-parts-requests/received-register").json()
+    assert not [r for r in register if r["request_number"] == "SR-STALE-DATE"]
 
 
 def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
@@ -924,13 +927,15 @@ def test_undoing_a_receipt_twice_is_refused_not_crashed(client):
     _, item_id = _new_request(page, ids, "SR-UNDO-TWICE", slot=3)
 
     assert _record_receipt(page, item_id).status_code == 200
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
     again = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
     assert again.status_code == 400, again.text
-    assert "قيد الانتظار" in again.text
+    assert "لا يوجد استلام" in again.text
 
 
-def test_receipt_undo_is_refused_after_approval(client):
-    """سجل الاستلام وسلسلة حركاته نهائية بعد اعتماد الطلب."""
+def test_receipt_undo_resets_approved_request_to_pending(client):
+    """التراجع مسموح بعد الاعتماد ويعيد الحالة إلى قيد الانتظار."""
     page, ids = client
     request_id, item_id = _new_request(page, ids, "SR-APPROVED-FINAL", slot=4)
 
@@ -938,26 +943,70 @@ def test_receipt_undo_is_refused_after_approval(client):
     assert page.get(f"/api/spare-parts-requests/{request_id}").json()["status"] == "approved"
 
     undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
+    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert request["status"] == "pending"
+    assert float(request["items"][0]["received_quantity"]) == 0
+
+
+def test_receipt_undo_resets_cancelled_request_to_pending_when_no_movements_exist(client):
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-UNDO-CANCELLED", slot=10)
+    assert _record_receipt(page, item_id).status_code == 200
+    cancelled = page.patch(
+        f"/api/spare-parts-requests/{request_id}/status",
+        json={"status": "cancelled"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
+    assert undone.status_code == 200, undone.text
+    request = page.get(f"/api/spare-parts-requests/{request_id}").json()
+    assert request["status"] == "pending"
+
+
+def test_receipt_undo_after_distribution_directs_user_to_delete_request(client):
+    page, ids = client
+    request_id, item_id = _new_request(page, ids, "SR-UNDO-DISTRIBUTED", slot=9)
+    assert _record_receipt(page, item_id).status_code == 200
+    distributed = page.post(
+        "/api/spare-parts-movements",
+        json={
+            "document_number": "DIST-UNDO-BLOCK",
+            "document_type": "distribution",
+            "document_date": date.today().isoformat(),
+            "issuer": "المخزن",
+            "recipient": "مستفيد",
+            "items": [{"request_item_id": item_id, "quantity": 1}],
+        },
+    )
+    assert distributed.status_code == 201, distributed.text
+
+    undone = page.delete(f"/api/spare-parts-requests/items/{item_id}/receipt")
     assert undone.status_code == 400, undone.text
+    assert "توزيع أو إرجاع" in undone.text
+    assert "احذف الطلب كاملًا" in undone.text
     request = page.get(f"/api/spare-parts-requests/{request_id}").json()
     assert request["status"] == "approved"
     assert float(request["items"][0]["received_quantity"]) > 0
+    assert page.get(f"/api/spare-parts-movements/{distributed.json()['id']}").status_code == 200
 
 
-def test_the_undo_button_is_offered_only_while_the_request_is_pending(client):
-    """واجهة التراجع تحصر الإجراء في الطلبات قيد الانتظار."""
+def test_the_undo_button_is_shown_for_the_shared_receipt_once(client):
+    """الواجهة تعرض زرًا واحدًا للاستلام المشترك وتزيله بعد التراجع."""
     page, _ = client
     html = page.get("/spare-parts-requests").text
 
-    assert "const canUndo=hasReceipt&&x.status==='pending';" in html
+    assert "const undoItem=x.items.find(i=>Number(i.received_quantity||0)>0||Boolean(i.supplier_institution));" in html
+    assert "itemRow(i,x,undoItem&&undoItem.id===i.id)" in html
     assert html.count('class="secondary undo-receipt"') == 1, (
         "الزر يُرسم في خلية السطر المخزَّن فقط، لا في خلية الإضافة"
     )
     assert "await undoReceipt(ur.closest('tr'));" in html
     assert "/receipt'," in html, "الزر لا يستدعي مسار التراجع عن الاستلام"
 
-    # والتأكيد يشرح أن السجل سيُحذف قبل التنفيذ
-    assert "سيحذف البند من سجل الاستلام" in html
+    # والتأكيد يذكر حدود التراجع وحذف الطلب عند وجود حركة لاحقة
+    assert "إذا سبق توزيع أو إرجاع أي كمية فاحذف الطلب كاملًا" in html
 
 
 def test_the_router_declares_no_duplicate_endpoint(client):

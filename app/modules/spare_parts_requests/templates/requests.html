@@ -308,15 +308,14 @@ function detailHtml(x){
 function itemsHtml(x){
   const head='<thead><tr><th>اسم قطعة الغيار</th><th>من المخزون (اختياري)</th><th>المطلوب</th><th>المستلم كمية</th><th>ملاحظات</th><th>الإجراء</th></tr></thead>';
   if(!x.items.length)return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
-  return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x)).join('')+'</tbody></table></div>';
+  const undoItem=x.items.find(i=>Number(i.received_quantity||0)>0||Boolean(i.supplier_institution));
+  return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x,undoItem&&undoItem.id===i.id)).join('')+'</tbody></table></div>';
 }
 
-function itemRow(i,x){
+function itemRow(i,x,showUndo){
   const received=Number(i.received_quantity||0);
   const locked=received>0||x.status!=='pending';
-  /* سجل الاستلام قابل للتراجع فقط ما دام الطلب قيد الانتظار. */
   const hasReceipt=received>0||Boolean(i.supplier_institution);
-  const canUndo=hasReceipt&&x.status==='pending';
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
   return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
     +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
@@ -324,7 +323,7 @@ function itemRow(i,x){
     +'<td><input class="i-qty" type="number" min="1" step="1" value="'+esc(i.requested_quantity)+'"'+(locked?' disabled':'')+'></td>'
     +'<td><input class="received" type="number" min="0" step="1" value="'+(hasReceipt?received:'')+'" placeholder="لم يُستلم بعد"></td>'
     +'<td><textarea class="i-note" rows="1" placeholder="ملاحظات">'+esc(i.notes||'')+'</textarea></td>'
-    +'<td>'+(canUndo?'<button type="button" class="secondary undo-receipt" title="تراجع عن الاستلام">تراجع عن الاستلام</button> ':'')+'<button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
+    +'<td>'+(showUndo&&hasReceipt?'<button type="button" class="secondary undo-receipt" title="تراجع عن استلام الطلب">تراجع عن الاستلام</button> ':'')+'<button type="button" class="secondary rm-line">حذف</button> <button type="button" class="secondary undo-line" style="display:none">تراجع</button></td>'
     +'</tr>';
 }
 
@@ -333,7 +332,7 @@ async function undoReceipt(tr){
   if(!id)return;
   const name=(tr.querySelector('.i-name')||{}).value||'هذا البند';
   if(!confirm('إلغاء الاستلام المسجّل عن البند: '+name
-    +'\n\nسيحذف البند من سجل الاستلام ويصبح قابلاً للحذف أو التعديل. متابعة؟'))return;
+    +'\n\nسيعاد الطلب كله إلى قيد الانتظار. إذا سبق توزيع أو إرجاع أي كمية فاحذف الطلب كاملًا. متابعة؟'))return;
   const r=await fetch('/api/spare-parts-requests/items/'+id+'/receipt',
     {method:'DELETE',credentials:'same-origin'});
   if(r.ok){load();return;}
