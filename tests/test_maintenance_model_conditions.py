@@ -1251,3 +1251,47 @@ def test_revision_drops_the_operation_interval_constraint_and_keeps_rows(tmp_pat
         count = connection.execute(text("SELECT COUNT(*) FROM maintenance_operations")).scalar()
         assert count == 2
     engine_local.dispose()
+
+def test_removing_operation_model_link_invalidates_approved_plans_for_that_model(api):
+    """تغيير توافق العملية مع الطراز يُبطل اعتماد الخطط التي تستخدمها لذلك الطراز."""
+    client, ids = api
+    created = client.post(
+        "/api/maintenance/operations",
+        json=_operation_payload(
+            "عملية يتغير توافقها",
+            [{"model_id": ids["model_a"], "interval_km": 5000}],
+        ),
+    )
+    assert created.status_code == 201, created.text
+    operation_id = created.json()["id"]
+
+    plan_response = client.post(
+        "/api/maintenance/plans",
+        json={
+            "name": "خطة تتأثر بإزالة التوافق",
+            "equipment_model_id": ids["model_a"],
+            "interval_km": 5000,
+        },
+    )
+    assert plan_response.status_code == 201, plan_response.text
+    plan_id = plan_response.json()["id"]
+
+    added = client.post(
+        f"/api/maintenance/plans/{plan_id}/operations",
+        json={"plan_id": plan_id, "operation_id": operation_id, "sort_order": 1},
+    )
+    assert added.status_code == 201, added.text
+
+    approved = client.post(f"/api/maintenance/plans/{plan_id}/approve")
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["is_approved"] is True
+
+    removed = client.delete(
+        f"/api/maintenance/operations/{operation_id}/models/{ids['model_a']}"
+    )
+    assert removed.status_code == 204, removed.text
+
+    plans = client.get("/api/maintenance/plans").json()
+    plan = next(item for item in plans if item["id"] == plan_id)
+    assert plan["is_approved"] is False
+
