@@ -69,6 +69,16 @@ def test_repair_end_date_cannot_precede_start_date():
         )
 
 
+def test_repair_end_date_requires_start_date():
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            repair_end_date=date(2026, 1, 4),
+            action_taken="اختبار",
+        )
+
+
 def test_repair_model_has_start_and_end_dates():
     assert "repair_start_date" in Repair.__table__.columns
     assert "repair_end_date" in Repair.__table__.columns
