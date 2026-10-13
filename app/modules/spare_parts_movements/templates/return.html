@@ -149,10 +149,7 @@ function closeForm(){
 
 async function saveDoc(){
     if(saving)return;
-    saving=true;
     const saveButton=document.getElementById('save');
-    saveButton.disabled=true;
-    saveButton.textContent='جارٍ الحفظ...';
     const number=document.getElementById('number').value.trim();
     const date=document.getElementById('date').value;
     const receiptId=Number(document.getElementById('receipt').value||0);
@@ -185,6 +182,9 @@ async function saveDoc(){
         document.getElementById('returnQuantity').focus();
         return;
     }
+    saving=true;
+    saveButton.disabled=true;
+    saveButton.textContent='جارٍ الحفظ...';
     const selectedItems=[{
         request_item_id:receiptId,
         received_request_item_id:receiptId,
