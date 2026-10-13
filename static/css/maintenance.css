@@ -23,4 +23,5 @@
 .maintenance-page .add-menu.align-end{right:auto;left:0}
 .maintenance-page .add-menu-item{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;background:transparent;border-radius:6px;font:inherit;font-size:12px;font-weight:700;color:var(--text);text-align:right;cursor:pointer}
 .maintenance-page .add-menu-item:hover,.maintenance-page .add-menu-item:focus-visible{background:#eef5fc;outline:none}
+.maintenance-page .toolbar .add-split,.maintenance-page .toolbar .add-split>.m-btn{width:100%}
 @media(max-width:680px){.maintenance-page .add-split{width:100%}.maintenance-page .add-split>.m-btn{width:100%}.maintenance-page .add-menu{right:0;left:0;min-width:0}}

@@ -8,15 +8,6 @@
       <h2>خطط الصيانة</h2>
       <div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">خطط الصيانة</span></div>
     </div>
-    <div class="hero-actions">
-      <div class="add-split" id="addSplit">
-        <button class="m-btn primary" id="btnAdd" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="addMenu">＋ إضافة <span aria-hidden="true">▾</span></button>
-        <div class="add-menu" id="addMenu" role="menu" aria-labelledby="btnAdd" hidden>
-          <button class="add-menu-item" id="menuNewPlan" role="menuitem" type="button" data-action="new-plan">📋 إضافة خطة صيانة</button>
-          <button class="add-menu-item" id="menuNewStandalone" role="menuitem" type="button" data-action="new-standalone">🔧 إضافة عملية مستقلة</button>
-        </div>
-      </div>
-    </div>
   </div>
   <nav class="module-tabs" aria-label="وحدة الصيانة">
     <a href="/maintenance/periodic">1. الصيانة الدورية</a>
@@ -38,9 +29,71 @@
     </div>
     <div class="toolbar-card"><div class="toolbar">
       <select id="modelFilter" class="m-select"><option value="">اختر الطراز لعرض خططه وعملياته</option></select>
+      <div class="add-split" id="addSplit">
+        <button class="m-btn primary" id="btnAdd" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="addMenu">＋ إضافة <span aria-hidden="true">▾</span></button>
+        <div class="add-menu" id="addMenu" role="menu" aria-labelledby="btnAdd" hidden>
+          <button class="add-menu-item" id="menuNewPlan" role="menuitem" type="button" data-action="new-plan">📋 إضافة خطة صيانة</button>
+          <button class="add-menu-item" id="menuNewStandalone" role="menuitem" type="button" data-action="new-standalone">🔧 إضافة عملية مستقلة</button>
+        </div>
+      </div>
       <input id="search" class="m-input" placeholder="بحث في الخطط والعمليات...">
       <button id="refresh" class="m-btn" type="button">↻ تحديث</button>
     </div></div>
+    <section class="panel" id="editor" style="display:none;margin-top:16px">
+      <div class="panel-head"><div><h3 id="editorTitle">إضافة خطة صيانة</h3><p>أنشئ الخطة أولًا، ثم استخدم «إدارة العمليات» لإضافة العمليات الموجودة في مكتبة عمليات الصيانة. شرط الخطة هو شرط عملياتها.</p></div></div>
+      <form id="form" class="toolbar" style="padding:18px;flex-wrap:wrap">
+        <input type="hidden" id="planId">
+        <input id="name" class="m-input" required placeholder="اسم الخطة">
+        <select id="model" class="m-select" required></select>
+        <input id="km" class="m-input" type="number" min="0.01" step="any" placeholder="شرط الخطة: كل كم">
+        <input id="hours" class="m-input" type="number" min="0.01" step="any" placeholder="شرط الخطة: كل ساعة">
+        <input id="days" class="m-input" type="number" min="1" step="1" placeholder="شرط الخطة: كل يوم">
+        <input id="description" class="m-input" placeholder="وصف الخطة">
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input id="active" type="checkbox" checked> مفعلة</label>
+        <div class="muted" id="planConditionHint" style="min-width:220px;align-self:center">حدّد فاصلًا واحدًا على الأقل (كم أو ساعة أو يوم).</div>
+        <button class="m-btn primary" type="submit">حفظ الخطة</button><button class="m-btn" id="cancel" type="button">إلغاء</button>
+      </form>
+    </section>
+
+    <section class="panel" id="operationsPanel" style="display:none;margin-top:16px">
+      <div class="panel-head"><div><h3 id="operationsTitle">عمليات الخطة</h3><p>اختر العمليات التي تنفذ عند تنفيذ الخطة. لا يتم تعديل شروط العمليات من هنا. فكل عملية هنا تتبع شرط الخطة.</p></div></div>
+      <div class="toolbar" style="padding:18px;flex-wrap:wrap">
+        <button id="openOperationLibrary" class="m-btn" type="button">📚 إضافة من مكتبة العمليات</button>
+      </div>
+      <div class="table-wrap" data-mt-region><table class="m-table"><thead><tr><th>العملية</th><th>شرط الاستحقاق</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
+    </section>
+
+    <section class="panel" id="standalonePanel" style="display:none;margin-top:16px">
+      <div class="panel-head"><div><h3 id="standaloneTitle">عملية مستقلة</h3><p>اربط عملية من المكتبة بهذا الطراز وحدد شرط استحقاقها الخاص. شرط العملية المستقلة مستقل تمامًا عن أي خطة ولا يتغير بتغيرها.</p></div></div>
+      <form id="standaloneForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+        <input type="hidden" id="standaloneOpId">
+        <select id="standaloneOperation" class="m-select" style="min-width:220px"></select>
+        <input id="standaloneKm" class="m-input" type="number" min="0.01" step="any" placeholder="كل كم">
+        <input id="standaloneHours" class="m-input" type="number" min="0.01" step="any" placeholder="كل ساعة">
+        <input id="standaloneDays" class="m-input" type="number" min="1" step="1" placeholder="كل يوم">
+        <div class="muted" id="standaloneHint" style="min-width:240px;align-self:center">حدد فاصلًا واحدًا على الأقل لشرط الاستحقاق.</div>
+        <button class="m-btn primary" type="submit">حفظ العملية المستقلة</button>
+        <button class="m-btn" id="cancelStandalone" type="button">إلغاء</button>
+      </form>
+    </section>
+
+    <section class="panel" id="executionPanel" style="display:none;margin-top:16px">
+      <div class="panel-head"><div><h3 id="executionTitle">تنفيذ خطة الصيانة</h3><p>تنفيذ الخطة يضيف إلى سجل الصيانة سجلًا لكل عملية يتم تحديدها وتنفيذها فعليًا. كل العمليات المنفذة تتبع شرط الخطة نفسه.</p></div></div>
+      <form id="executionForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+        <input type="hidden" id="executionPlanId">
+        <select id="executionEquipment" class="m-select" required><option value="">اختر العتاد</option></select>
+        <input id="executionDate" class="m-input" type="date" required>
+        <input id="executionMeter" class="m-input" type="number" min="0" step="0.1" placeholder="العداد عند التنفيذ">
+        <input id="executionWorkOrder" class="m-input" placeholder="أمر العمل">
+        <input id="executionWorkshop" class="m-input" placeholder="الورشة / الجهة">
+        <input id="executionDescription" class="m-input" placeholder="ملاحظات التنفيذ">
+        <div id="executionHint" class="muted" style="min-width:240px;align-self:center">اختر العتاد لبدء التنفيذ.</div>
+        <div id="executionOperations" style="width:100%;display:grid;gap:8px;margin-top:4px"></div>
+        <div id="executionProgress" class="muted" style="width:100%">لم يتم تحديد عمليات بعد.</div>
+        <button class="m-btn primary" type="submit">✓ تسجيل العمليات المنفذة</button>
+        <button class="m-btn" id="cancelExecution" type="button">إلغاء</button>
+      </form>
+    </section>
     <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 13px 12px">
       <span class="badge info" id="summaryPlans">0 خطة صيانة</span>
       <span class="badge neutral" id="summaryPlanOps">0 عملية ضمن خطط</span>
@@ -62,61 +115,6 @@
     </div>
   </section>
 
-  <section class="panel" id="editor" style="display:none;margin-top:16px">
-    <div class="panel-head"><div><h3 id="editorTitle">إضافة خطة صيانة</h3><p>أنشئ الخطة أولًا، ثم استخدم «إدارة العمليات» لإضافة العمليات الموجودة في مكتبة عمليات الصيانة. شرط الخطة هو شرط عملياتها.</p></div></div>
-    <form id="form" class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <input type="hidden" id="planId">
-      <input id="name" class="m-input" required placeholder="اسم الخطة">
-      <select id="model" class="m-select" required></select>
-      <input id="km" class="m-input" type="number" min="0.01" step="any" placeholder="شرط الخطة: كل كم">
-      <input id="hours" class="m-input" type="number" min="0.01" step="any" placeholder="شرط الخطة: كل ساعة">
-      <input id="days" class="m-input" type="number" min="1" step="1" placeholder="شرط الخطة: كل يوم">
-      <input id="description" class="m-input" placeholder="وصف الخطة">
-      <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input id="active" type="checkbox" checked> مفعلة</label>
-      <div class="muted" id="planConditionHint" style="min-width:220px;align-self:center">حدّد فاصلًا واحدًا على الأقل (كم أو ساعة أو يوم).</div>
-      <button class="m-btn primary" type="submit">حفظ الخطة</button><button class="m-btn" id="cancel" type="button">إلغاء</button>
-    </form>
-  </section>
-
-  <section class="panel" id="operationsPanel" style="display:none;margin-top:16px">
-    <div class="panel-head"><div><h3 id="operationsTitle">عمليات الخطة</h3><p>اختر العمليات التي تنفذ عند تنفيذ الخطة. لا يتم تعديل شروط العمليات من هنا. فكل عملية هنا تتبع شرط الخطة.</p></div></div>
-    <div class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <button id="openOperationLibrary" class="m-btn" type="button">📚 إضافة من مكتبة العمليات</button>
-    </div>
-    <div class="table-wrap" data-mt-region><table class="m-table"><thead><tr><th>العملية</th><th>شرط الاستحقاق</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
-  </section>
-
-  <section class="panel" id="standalonePanel" style="display:none;margin-top:16px">
-    <div class="panel-head"><div><h3 id="standaloneTitle">عملية مستقلة</h3><p>اربط عملية من المكتبة بهذا الطراز وحدد شرط استحقاقها الخاص. شرط العملية المستقلة مستقل تمامًا عن أي خطة ولا يتغير بتغيرها.</p></div></div>
-    <form id="standaloneForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <input type="hidden" id="standaloneOpId">
-      <select id="standaloneOperation" class="m-select" style="min-width:220px"></select>
-      <input id="standaloneKm" class="m-input" type="number" min="0.01" step="any" placeholder="كل كم">
-      <input id="standaloneHours" class="m-input" type="number" min="0.01" step="any" placeholder="كل ساعة">
-      <input id="standaloneDays" class="m-input" type="number" min="1" step="1" placeholder="كل يوم">
-      <div class="muted" id="standaloneHint" style="min-width:240px;align-self:center">حدد فاصلًا واحدًا على الأقل لشرط الاستحقاق.</div>
-      <button class="m-btn primary" type="submit">حفظ العملية المستقلة</button>
-      <button class="m-btn" id="cancelStandalone" type="button">إلغاء</button>
-    </form>
-  </section>
-
-  <section class="panel" id="executionPanel" style="display:none;margin-top:16px">
-    <div class="panel-head"><div><h3 id="executionTitle">تنفيذ خطة الصيانة</h3><p>تنفيذ الخطة يضيف إلى سجل الصيانة سجلًا لكل عملية يتم تحديدها وتنفيذها فعليًا. كل العمليات المنفذة تتبع شرط الخطة نفسه.</p></div></div>
-    <form id="executionForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
-      <input type="hidden" id="executionPlanId">
-      <select id="executionEquipment" class="m-select" required><option value="">اختر العتاد</option></select>
-      <input id="executionDate" class="m-input" type="date" required>
-      <input id="executionMeter" class="m-input" type="number" min="0" step="0.1" placeholder="العداد عند التنفيذ">
-      <input id="executionWorkOrder" class="m-input" placeholder="أمر العمل">
-      <input id="executionWorkshop" class="m-input" placeholder="الورشة / الجهة">
-      <input id="executionDescription" class="m-input" placeholder="ملاحظات التنفيذ">
-      <div id="executionHint" class="muted" style="min-width:240px;align-self:center">اختر العتاد لبدء التنفيذ.</div>
-      <div id="executionOperations" style="width:100%;display:grid;gap:8px;margin-top:4px"></div>
-      <div id="executionProgress" class="muted" style="width:100%">لم يتم تحديد عمليات بعد.</div>
-      <button class="m-btn primary" type="submit">✓ تسجيل العمليات المنفذة</button>
-      <button class="m-btn" id="cancelExecution" type="button">إلغاء</button>
-    </form>
-  </section>
 </div>
 <script>
 (function(){

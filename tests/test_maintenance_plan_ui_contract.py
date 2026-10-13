@@ -34,6 +34,11 @@ def test_maintenance_plan_ui_exposes_complete_controls():
     assert 'id="addMenu"' in html and 'hidden>' in html
     assert 'id="menuNewPlan"' in html and 'data-action="new-plan"' in html
     assert 'id="menuNewStandalone"' in html and 'data-action="new-standalone"' in html
+    assert html.index('id="modelFilter"') < html.index('id="addSplit"') < html.index('id="search"')
+    assert all(
+        html.index(f'id="{section}"') < html.index('id="summaryPlans"')
+        for section in ("editor", "operationsPanel", "standalonePanel", "executionPanel")
+    )
     assert 'data-edit="' in html
     assert 'data-approve="' in html
     assert "is_approved" in html
