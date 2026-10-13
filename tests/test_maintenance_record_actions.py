@@ -485,27 +485,37 @@ def test_unapproved_models_open_a_list_linking_to_plan_setup(api):
     assert f"/maintenance/plans?model_id={ids['model_a']}&amp;new=1" in response.text
     assert "dialog.showModal();document.getElementById('openUnapprovedModels')" not in response.text
     assert "addEventListener('click',()=>dialog.showModal())" in response.text
-    assert "لا توجد صيانة مستحقة لأن الصيانة لم تُبرمج لهذه الطرازات بعد" in response.text
+    assert "لا توجد صيانة مستحقة أو قريبة؛ يلزم إعداد واعتماد خطط الصيانة" in response.text
     plans = client.get(f"/maintenance/plans?model_id={ids['model_a']}&new=1")
     assert plans.status_code == 200
     assert "startupParams.get('model_id')" in plans.text
     assert "startupParams.get('new')==='1'" in plans.text
 
 
-def test_records_page_shows_due_maintenance_count(api):
+def test_records_page_separates_due_count_from_unrecorded_count(api):
     client, ids = api
     _create_operation(client, ids["model_a"], name="عملية مستحقة")
 
     response = client.get("/maintenance/records")
 
     assert response.status_code == 200
-    assert "الصيانة المستحقة (1)" in response.text
+    assert "الصيانة المستحقة والقريبة (0)" in response.text
+    assert "بلا سجل (1)" in response.text
     assert 'id="openUnapprovedModels"' in response.text
     assert 'id="unapprovedModelsDialog"' in response.text
     assert "openUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.showModal())" in response.text
     assert f"/maintenance/plans?model_id={ids['model_a']}&amp;new=1" in response.text
     assert 'href="/maintenance/due"' in response.text
+    assert 'href="/maintenance/due?status=unrecorded"' in response.text
     assert 'id="selectAllRecords"' in response.text
+
+    due_page = client.get("/maintenance/due")
+    assert due_page.status_code == 200
+    assert "عملية مستحقة" not in due_page.text
+    unrecorded_page = client.get("/maintenance/due?status=unrecorded")
+    assert unrecorded_page.status_code == 200
+    assert "عمليات بلا سجل" in unrecorded_page.text
+    assert "عملية مستحقة" in unrecorded_page.text
 
 
 def test_record_bulk_delete_route_is_registered():

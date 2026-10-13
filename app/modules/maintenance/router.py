@@ -43,13 +43,12 @@ router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
 
 
-def _maintenance_due_count(db: Session, equipment: list[Equipment]) -> int:
-    """Count the same maintenance states displayed by the due-maintenance page."""
+def _maintenance_status_counts(db: Session, equipment: list[Equipment]) -> dict[str, int]:
+    """Count due/near maintenance separately from operations without a record."""
     readings = latest_readings(db)
     records = latest_records(db)
     tasks_by_model = {}
-    due_states = {"مستحقة الآن", "تقترب", "بلا سجل"}
-    count = 0
+    counts = {"due": 0, "unrecorded": 0}
     for eq in equipment:
         model_id = eq.equipment_model_id
         if model_id is None:
@@ -63,8 +62,11 @@ def _maintenance_due_count(db: Session, equipment: list[Equipment]) -> int:
                 operation, eq, records.get((eq.id, operation.id)), current_value,
                 condition=task.condition,
             )
-            count += state in due_states
-    return count
+            if state in {"مستحقة الآن", "تقترب"}:
+                counts["due"] += 1
+            elif state == "بلا سجل":
+                counts["unrecorded"] += 1
+    return counts
 
 
 def _sync_operation_model_conditions(db: Session, operation, submitted: list) -> None:
@@ -226,7 +228,7 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
         joinedload(Equipment.equipment_type),
         joinedload(Equipment.equipment_model),
     ).order_by(Equipment.registration_number, Equipment.asset_code).all()
-    due_count = _maintenance_due_count(db, equipment)
+    maintenance_counts = _maintenance_status_counts(db, equipment)
     model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
     approved_model_ids = {
         model_id for (model_id,) in db.query(MaintenancePlan.equipment_model_id).filter(
@@ -301,7 +303,8 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
             "user": current_user,
             "records": records,
             "equipment": equipment,
-            "due_count": due_count,
+            "due_count": maintenance_counts["due"],
+            "unrecorded_count": maintenance_counts["unrecorded"],
             "unapproved_model_rows": unapproved_model_rows,
             "operations": operations,
             "plans": plans,
@@ -665,6 +668,8 @@ def api_bulk_delete_operations(
 
 @router.get("/maintenance/due", response_class=HTMLResponse)
 def maintenance_due_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    unrecorded_only = request.query_params.get("status") == "unrecorded"
+    displayed_states = {"بلا سجل"} if unrecorded_only else {"مستحقة الآن", "تقترب"}
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).all()
     model_ids = {eq.equipment_model_id for eq in equipment if eq.equipment_model_id is not None}
     approved_model_ids = {
@@ -706,7 +711,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             operation = task.operation
             rec = records.get((eq.id, operation.id))
             state, css, remaining, meta = status_for(operation, eq, rec, current_value, condition=task.condition)
-            if state not in ("مستحقة الآن", "تقترب", "بلا سجل"):
+            if state not in displayed_states:
                 continue
             row = {
                 "equipment": eq,
@@ -749,6 +754,7 @@ def maintenance_due_page(request: Request, db: Session = Depends(get_db), curren
             "standalone_rows": standalone_rows,
             "unapproved_models": unapproved_models,
             "unapproved_model_rows": unapproved_model_rows,
+            "unrecorded_only": unrecorded_only,
         },
     )
 
