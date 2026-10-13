@@ -416,7 +416,7 @@ def test_a_direct_return_does_not_settle_a_historical_over_distribution(db):
     assert row["balance_status"] == "invalid_distribution_over_received"
 
 
-def test_undoing_receipt_deletes_only_its_distribution_and_return_chain(db):
+def test_undoing_receipt_after_distribution_or_return_directs_to_delete_request(db):
     from app.modules.spare_parts_requests import services as request_services
     from app.modules.spare_parts_movements.models import SparePartMovementDocument
 
@@ -426,18 +426,20 @@ def test_undoing_receipt_deletes_only_its_distribution_and_return_chain(db):
     returned = _return(db, item, 2, distribution.items[0].id)
     _distribute(db, unrelated, 1)
 
-    request_services.undo_item_receipt(db, item)
+    with pytest.raises(ValueError, match="احذف الطلب كاملًا"):
+        request_services.undo_item_receipt(db, item)
 
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.id == distribution.id
-    ).first() is None
+    ).first() is not None
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.id == returned.id
-    ).first() is None
+    ).first() is not None
     assert db.query(SparePartMovementDocument).filter(
         SparePartMovementDocument.document_type == "distribution"
-    ).count() == 1
-    assert item.request.received_date is None
+    ).count() == 2
+    assert item.request.received_date is not None
+    assert item.received_quantity == 10
     assert unrelated.received_quantity == 5
 
 
