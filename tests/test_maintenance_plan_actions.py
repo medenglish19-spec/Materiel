@@ -155,6 +155,41 @@ def test_delete_plan_with_execution_is_rejected_and_history_context_is_preserved
     assert any(item["id"] == operation["id"] for item in operations)
 
 
+def test_delete_plan_with_only_scheduled_placeholder_is_allowed(api):
+    client, ids = api
+    plan, operation = _approve_plan_with_operation(
+        client, ids["model_a"], plan_name="خطة بموعد غير منفذ"
+    )
+    scheduled = client.post(
+        "/api/maintenance/execution",
+        json={
+            "equipment_id": ids["equipment_a"],
+            "operation_id": operation["id"],
+            "plan_id": plan["id"],
+            "maintenance_date": "2026-10-12",
+            "meter_value": 1000,
+            "is_scheduled": True,
+            "status": "scheduled",
+        },
+    )
+    assert scheduled.status_code in (200, 201), scheduled.text
+    record_id = scheduled.json()["id"]
+
+    deleted = client.delete(f"/api/maintenance/plans/{plan['id']}")
+    assert deleted.status_code == 204, deleted.text
+    assert all(item["id"] != plan["id"] for item in client.get("/api/maintenance/plans").json())
+
+    # The placeholder is not execution history and is preserved as a standalone schedule.
+    record = next(
+        row for row in client.get("/api/maintenance/execution").json()
+        if row["id"] == record_id
+    )
+    assert record["is_scheduled"] is True
+    assert record["status"] == "scheduled"
+    assert record["plan_id"] is None
+    assert record["operation_id"] == operation["id"]
+
+
 def test_delete_missing_plan_returns_404(api):
     client, _ = api
     response = client.delete("/api/maintenance/plans/999999")
@@ -204,6 +239,42 @@ def test_bulk_delete_rejects_historical_plan_and_preserves_context(api):
     assert any(item["id"] == plan["id"] for item in client.get("/api/maintenance/plans").json())
     operations = client.get("/api/maintenance/operations").json()
     assert any(item["id"] == operation["id"] for item in operations)
+
+
+def test_bulk_delete_allows_plan_with_only_scheduled_placeholder(api):
+    client, ids = api
+    plan, operation = _approve_plan_with_operation(
+        client, ids["model_a"], plan_name="خطة جماعية بموعد"
+    )
+    scheduled = client.post(
+        "/api/maintenance/execution",
+        json={
+            "equipment_id": ids["equipment_a"],
+            "operation_id": operation["id"],
+            "plan_id": plan["id"],
+            "maintenance_date": "2026-10-12",
+            "meter_value": 1000,
+            "is_scheduled": True,
+            "status": "scheduled",
+        },
+    )
+    assert scheduled.status_code in (200, 201), scheduled.text
+    record_id = scheduled.json()["id"]
+
+    response = client.post(
+        "/api/maintenance/plans/bulk-delete",
+        json={"plan_ids": [plan["id"]]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["success"] == 1
+    assert response.json()["rejected"] == []
+
+    record = next(
+        row for row in client.get("/api/maintenance/execution").json()
+        if row["id"] == record_id
+    )
+    assert record["is_scheduled"] is True
+    assert record["plan_id"] is None
 
 
 def test_bulk_delete_rejects_empty_list(api):

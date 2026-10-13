@@ -29,9 +29,14 @@ NO_WARNING_LABEL = "بدون إنذار مفعّل"
 NO_MODELS_LABEL = "لا توجد طرازات مرتبطة"
 
 
+def maintenance_record_has_execution_data(record: MaintenanceRecord) -> bool:
+    """Distinguish actual maintenance data from a scheduled placeholder."""
+    return not record.is_scheduled or record.status != "scheduled"
+
+
 def maintenance_record_delete_reason(record: MaintenanceRecord) -> str | None:
     """Only an unexecuted scheduled placeholder may be deleted."""
-    if not record.is_scheduled or record.status != "scheduled":
+    if maintenance_record_has_execution_data(record):
         return "لا يمكن حذف سجل تنفيذ فعلي حفاظًا على التاريخ التشغيلي."
     return None
 

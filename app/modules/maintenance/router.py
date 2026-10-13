@@ -16,6 +16,7 @@ from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
 from app.modules.maintenance.schemas import (MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
+    maintenance_record_has_execution_data,
     maintenance_record_delete_reason,
     chronology_error,
     contradiction_for,
@@ -100,10 +101,11 @@ def _sync_operation_model_conditions(db: Session, operation, submitted: list) ->
 
 
 def _delete_plan(db: Session, plan: MaintenancePlan) -> None:
-    """Delete a plan only when no execution history depends on its context."""
-    if db.query(MaintenanceRecord.id).filter(
+    """Delete a plan only when it has no records with actual execution data."""
+    plan_records = db.query(MaintenanceRecord).filter(
         MaintenanceRecord.plan_id == plan.id
-    ).first():
+    ).all()
+    if any(maintenance_record_has_execution_data(record) for record in plan_records):
         raise ValueError("لا يمكن حذف الخطة لارتباطها بسجلات تنفيذ تاريخية.")
     db.query(MaintenancePlanOperation).filter(
         MaintenancePlanOperation.plan_id == plan.id
