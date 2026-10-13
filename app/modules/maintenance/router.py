@@ -843,6 +843,20 @@ def api_operation_remove_model(operation_id: int, equipment_model_id: int, db: S
         raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
     if model not in operation.equipment_models:
         raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذا الطراز.")
+
+    # Removing a model compatibility link changes which operations are valid
+    # for plans of that model. Require explicit re-approval for affected plans.
+    affected_plans = db.query(MaintenancePlan).join(
+        MaintenancePlanOperation,
+        MaintenancePlanOperation.plan_id == MaintenancePlan.id,
+    ).filter(
+        MaintenancePlan.equipment_model_id == model.id,
+        MaintenancePlanOperation.operation_id == operation.id,
+        MaintenancePlan.is_approved.is_(True),
+    ).all()
+    for plan in affected_plans:
+        plan.is_approved = False
+
     operation.equipment_models.remove(model)
     try:
         db.commit()
