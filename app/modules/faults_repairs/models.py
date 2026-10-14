@@ -45,10 +45,6 @@ class Fault(Base):
             "exploitation_impact IN ('none', 'limited', 'prohibited')",
             name="ck_fault_exploitation_impact",
         ),
-        CheckConstraint(
-            "meter_value IS NULL OR meter_value >= 0",
-            name="ck_fault_meter_nonnegative",
-        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -63,7 +59,6 @@ class Fault(Base):
     reported_date = Column(Date, nullable=False)
     report_number = Column(String(80), nullable=True, index=True)
     note = Column(Text, nullable=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     fault_type = Column(String(80), nullable=True)
     description = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False, default="medium", server_default="medium")
@@ -82,6 +77,16 @@ class Fault(Base):
         cascade="all, delete-orphan",
         order_by="Repair.repair_date.desc(), Repair.id.desc()",
     )
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
 
 
 class Repair(Base):
@@ -103,10 +108,6 @@ class Repair(Base):
             "labor_hours IS NULL OR labor_hours >= 0",
             name="ck_repair_labor_hours_nonnegative",
         ),
-        CheckConstraint(
-            "meter_value IS NULL OR meter_value >= 0",
-            name="ck_repair_meter_nonnegative",
-        ),
         Index(
             "uq_repairs_one_active_per_fault",
             "fault_id",
@@ -124,7 +125,6 @@ class Repair(Base):
     repair_date = Column(Date, nullable=False)
     repair_start_date = Column(Date, nullable=True)
     repair_end_date = Column(Date, nullable=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     diagnosis = Column(Text, nullable=True)
     action_taken = Column(Text, nullable=False)
     technician = Column(String(120), nullable=True)  # legacy/display field; detailed work is in technician_interventions
@@ -136,6 +136,7 @@ class Repair(Base):
     status = Column(String(20), nullable=False, default="completed", server_default="completed")
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     fault = relationship("Fault", back_populates="repairs")
@@ -145,6 +146,16 @@ class Repair(Base):
         cascade="all, delete-orphan",
         order_by="RepairPart.id",
     )
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
     created_by = relationship("User", foreign_keys=[created_by_id])
     technician_interventions = relationship("TechnicianIntervention", back_populates="repair", cascade="all, delete-orphan", order_by="TechnicianIntervention.intervention_date.desc(), TechnicianIntervention.id.desc()")
 

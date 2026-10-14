@@ -159,7 +159,6 @@ class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
     __table_args__ = (
         Index("uq_maintenance_record_equipment_operation_date", "equipment_id", "operation_id", "maintenance_date", unique=True),
-        CheckConstraint("meter_value IS NULL OR meter_value >= 0", name="ck_maintenance_record_meter_nonnegative"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -178,7 +177,6 @@ class MaintenanceRecord(Base):
     )
     maintenance_date = Column(Date, nullable=False)
     reported_date = Column(Date, nullable=False)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     work_order = Column(String(80), nullable=True)
     workshop = Column(String(120), nullable=True)
     # الفني المنفذ: مرجع إلى الفنيين الفعليين في الورشة الداخلية (`workshop_technicians`).
@@ -196,6 +194,7 @@ class MaintenanceRecord(Base):
     # الملاحظة: ملاحظات إضافية مستقلة عن الأعمال المنجزة.
     note = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
@@ -203,6 +202,16 @@ class MaintenanceRecord(Base):
     plan = relationship("MaintenancePlan", back_populates="records")
     technician = relationship("Technician", foreign_keys=[technician_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
 
 
 def _validate_record(connection, target, exclude_id=None):
@@ -297,53 +306,15 @@ def _validate_record(connection, target, exclude_id=None):
     if target.meter_value is None:
         return
 
-    maintenance_query = select(
-        MaintenanceRecord.maintenance_date,
-        MaintenanceRecord.meter_value,
-        MaintenanceRecord.id,
-    ).where(
-        MaintenanceRecord.equipment_id == target.equipment_id,
-        MaintenanceRecord.meter_value.is_not(None),
-    ).order_by(MaintenanceRecord.maintenance_date, MaintenanceRecord.id)
-    for previous_date, previous_meter, previous_id in connection.execute(maintenance_query).all():
-        if exclude_id is not None and previous_id == exclude_id:
-            continue
-        if previous_date < target.maintenance_date and target.meter_value < previous_meter:
-            raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أقل من قراءة أحدث زمنيًا قبلها ({previous_meter:g}).")
-        if previous_date > target.maintenance_date and target.meter_value > previous_meter:
-            raise ValueError(f"⚠ تناقض بين التاريخ وقراءة العداد: القراءة ({target.meter_value:g}) أكبر من قراءة سجل أحدث ({previous_meter:g}).")
-        if previous_date == target.maintenance_date:
-            if exclude_id is None:
-                # A new record is appended after existing same-day records.
-                if target.meter_value < previous_meter:
-                    raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أقل من قراءة سجل سابق في اليوم نفسه ({previous_meter:g}).")
-            elif previous_id < target.id and target.meter_value < previous_meter:
-                raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أقل من سجل سابق ({previous_meter:g}).")
-            elif previous_id > target.id and target.meter_value > previous_meter:
-                raise ValueError(f"⚠ تناقض في نفس يوم الصيانة: القراءة ({target.meter_value:g}) أكبر من سجل لاحق ({previous_meter:g}).")
-
-    reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
-    reading_query = select(MeterReading.reading_date, reading_column).where(
-        MeterReading.equipment_id == target.equipment_id,
-        reading_column.is_not(None),
-    ).order_by(MeterReading.reading_date, MeterReading.id)
-    for reading_date, reading_meter in connection.execute(reading_query).all():
-        reading_day = reading_date.date() if hasattr(reading_date, "date") else reading_date
-        reading_meter = Decimal(str(reading_meter))
-        if reading_day < target.maintenance_date and target.meter_value < reading_meter:
-            raise ValueError(f"⚠ تناقض بين الصيانة وقراءة العداد: قراءة الصيانة ({target.meter_value:g}) أقل من قراءة عداد أقدم ({reading_meter:g}).")
-        if reading_day > target.maintenance_date and target.meter_value > reading_meter:
-            raise ValueError(f"⚠ تناقض بين الصيانة وقراءة العداد: قراءة الصيانة ({target.meter_value:g}) أكبر من قراءة عداد أحدث ({reading_meter:g}).")
+    # Chronology is validated and recorded atomically by the central meter
+    # ledger listener after this source row is inserted or updated.
 
 
 def _sync_equipment_current(connection, equipment_id):
-    """Keep Equipment.current_* synchronized with the latest trusted meter observation."""
+    """Keep Equipment.current_* synchronized only with the central meter ledger."""
     from app.modules.equipment.models import Equipment
     from app.modules.equipment_types.models import EquipmentType
     from app.modules.meter_readings.models import MeterReading
-    from app.modules.faults_repairs.models import Fault, Repair
-    from app.modules.fuel.models import FuelRecord
-    from app.modules.missions.models import Mission
 
     unit = connection.execute(
         select(EquipmentType.measurement_unit)
@@ -355,51 +326,16 @@ def _sync_equipment_current(connection, equipment_id):
         return
 
     reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
-    observations = connection.execute(
-        select(MeterReading.reading_date, reading_column)
-        .where(MeterReading.equipment_id == equipment_id, reading_column.is_not(None))
-    ).all()
-    observations += connection.execute(
-        select(MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value)
+    current_value = connection.execute(
+        select(reading_column)
         .where(
-            MaintenanceRecord.equipment_id == equipment_id,
-            MaintenanceRecord.is_scheduled.is_(False),
-            MaintenanceRecord.meter_value.is_not(None),
+            MeterReading.equipment_id == equipment_id,
+            reading_column.is_not(None),
+            MeterReading.reading_date <= datetime.combine(datetime.now(timezone.utc).date(), datetime.max.time()),
         )
-    ).all()
-    observations += connection.execute(
-        select(Fault.reported_date, Fault.meter_value).where(
-            Fault.equipment_id == equipment_id, Fault.meter_value.is_not(None)
-        )
-    ).all()
-    observations += connection.execute(
-        select(Repair.repair_date, Repair.meter_value)
-        .join(Fault, Repair.fault_id == Fault.id)
-        .where(Fault.equipment_id == equipment_id, Repair.meter_value.is_not(None))
-    ).all()
-    observations += connection.execute(
-        select(FuelRecord.fueling_date, FuelRecord.meter_value).where(
-            FuelRecord.equipment_id == equipment_id, FuelRecord.meter_value.is_not(None)
-        )
-    ).all()
-    mission_observations = connection.execute(
-        select(Mission.start_date, Mission.departure_meter, Mission.end_date, Mission.return_meter)
-        .where(Mission.equipment_id == equipment_id)
-    ).all()
-    candidates = []
-    for observation_date, meter_value in observations:
-        observation_date = observation_date.date() if hasattr(observation_date, "date") else observation_date
-        if observation_date <= datetime.now(timezone.utc).date():
-            candidates.append((observation_date, Decimal(str(meter_value))))
-    for start_date, departure_meter, end_date, return_meter in mission_observations:
-        if departure_meter is not None and start_date <= datetime.now(timezone.utc).date():
-            candidates.append((start_date, Decimal(str(departure_meter))))
-        if end_date is not None and end_date <= datetime.now(timezone.utc).date() and return_meter is not None:
-            candidates.append((end_date, Decimal(str(return_meter))))
-    if not candidates:
-        return
-    latest_date = max(item[0] for item in candidates)
-    current_value = max(value for item_date, value in candidates if item_date == latest_date)
+        .order_by(MeterReading.reading_date.desc(), MeterReading.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
     values = {"current_odometer": current_value} if unit == "km" else {"current_hours": current_value}
     connection.execute(
         Equipment.__table__.update().where(Equipment.id == equipment_id).values(**values)
@@ -421,7 +357,7 @@ def _sync_maintenance_record_insert(mapper, connection, target):
 def _validate_maintenance_record_update(mapper, connection, target):
     target.reported_date = target.maintenance_date
     state = inspect(target)
-    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "operation_id", "maintenance_date", "meter_value")):
+    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "operation_id", "maintenance_date")):
         _validate_record(connection, target, exclude_id=target.id)
 
 

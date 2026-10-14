@@ -18,8 +18,8 @@ def test_equipment_pages_use_only_the_configured_meter_unit():
     assert "class=\"col-meter\"" in listing
     assert "class=\"col-odo\"" not in listing
     assert "class=\"col-hours\"" not in listing
-    assert "item.current_hours or 0" in listing
-    assert "item.current_odometer or 0" in listing
+    assert "item.current_hours if item.current_hours is not none else '—'" in listing
+    assert "item.current_odometer if item.current_odometer is not none else '—'" in listing
     assert "measurement_unit == 'hours'" in meters
     assert "<th>الكيلومترات</th>" not in meters
     assert "<th>الساعات</th>" not in meters

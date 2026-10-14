@@ -193,30 +193,9 @@ def _equipment_measurement_unit(db: Session, equipment_id: int) -> str:
 def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
     if meter_value is None:
         return
-    meter_value = Decimal(str(meter_value))
-    if meter_value < 0:
-        raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
     unit = _equipment_measurement_unit(db, equipment_id)
-    readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
-    values = []
-    for reading in readings:
-        value = getattr(reading, "odometer", None) if unit == "km" else getattr(reading, "hours", None)
-        if value is not None:
-            reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
-            values.append((reading_date, Decimal(str(value))))
-    before = [value for d, value in values if d < movement_date]
-    same_day = [value for d, value in values if d == movement_date]
-    after = [value for d, value in values if d > movement_date]
-    if same_day and any(meter_value != value for value in same_day):
-        raise ValueError(f"قراءة {unit} في نفس تاريخ الحركة لا تطابق القراءة المسجلة للعتاد")
-    if before and meter_value < before[-1]:
-        raise ValueError(f"قراءة {unit} للحركة أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
-    if after and meter_value > after[0]:
-        raise ValueError(f"قراءة {unit} للحركة أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    current_value = equipment.current_odometer if unit == "km" else equipment.current_hours
-    if current_value is not None and meter_value > Decimal(str(current_value)):
-        raise ValueError(f"قراءة {unit} للحركة أعلى من القراءة الحالية المسجلة للعتاد")
+    from app.modules.meter_readings.services import validate_meter_observation
+    validate_meter_observation(db, equipment_id, movement_date, meter_value, unit, "حركة إطار")
 
 
 def _validate_tire_meter_history(movements):
@@ -264,7 +243,6 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_datetime=movement_datetime, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value, removal_disposition=removal_disposition)
     timeline = sorted(existing + [candidate], key=_movement_datetime)
-    _validate_tire_meter_history(timeline)
     initial_state = current_state(db, tire.id) if not existing else None
     state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": "stock"}
     if initial_state and not initial_state.get("installed") and initial_state.get("disposition") in {"damaged", "expired"}:

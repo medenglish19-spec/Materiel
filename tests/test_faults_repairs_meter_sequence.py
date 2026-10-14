@@ -16,6 +16,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
+from app.database import model_registry  # noqa: F401 - installs cross-module meter ledger listeners
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.faults_repairs import services as fault_services
@@ -48,7 +49,9 @@ def db():
     try:
         yield session
     finally:
+        session.rollback()
         session.close()
+        engine.dispose()
 
 
 def seed_equipment(db, registration, unit="km"):
@@ -203,7 +206,8 @@ def test_hours_equipment_reads_the_hours_column_only(db):
     assert fault.meter_value == Decimal("120.0")
 
     stored = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).all()
-    assert len(stored) == 1
+    assert len(stored) == 2
+    assert any(row.source == "fault" and row.hours == Decimal("120.0") for row in stored)
     assert all(row.odometer is None for row in stored)
 
 
@@ -246,10 +250,10 @@ def test_latest_before_uses_chronology_not_maximum_value(db):
     with pytest.raises(ValueError, match="أقل من قراءة سابقة"):
         create_fault(db, equipment, TODAY - timedelta(days=4), 40)
 
-    # 60 is above the latest earlier reading and must not be blocked by the
-    # older, higher 100 reading.
-    fault = create_fault(db, equipment, TODAY - timedelta(days=4), 60)
-    assert fault.id is not None
+    # The central ledger rejects a value below any older observation, even if
+    # a contradictory intermediate record made the immediately previous one lower.
+    with pytest.raises(ValueError, match="أقل من قراءة سابقة"):
+        create_fault(db, equipment, TODAY - timedelta(days=4), 60)
 
 
 def test_all_sources_participate_in_the_comparison(db):
@@ -274,9 +278,9 @@ def test_same_day_value_must_match(db):
     day = TODAY - timedelta(days=5)
     add_reading(db, equipment, day, 20)
 
-    # The same value on the same day is consistent.
-    fault = create_fault(db, equipment, day, 20)
-    assert fault.id is not None
+    # The ledger allows only one entry per equipment and date.
+    with pytest.raises(ValueError, match="مسجلة مسبقًا"):
+        create_fault(db, equipment, day, 20)
 
     # A different value on the same day is a conflict.
     with pytest.raises(ValueError, match="نفس التاريخ"):
@@ -297,6 +301,8 @@ def test_update_fault_excludes_itself_and_keeps_no_partial_change(db):
     # Lowering to 25 is valid: the row must not be compared with its own old 30.
     updated = fault_services.update_fault(db, fault, FaultUpdate(meter_value=Decimal("25")))
     assert updated.meter_value == Decimal("25.0")
+    central = db.query(MeterReading).filter(MeterReading.source_reference == f"fault:{fault.id}:meter").one()
+    assert central.odometer == Decimal("25.0")
 
     # 15 is below the central reading (20), so the edit is rejected...
     with pytest.raises(ValueError, match="أقل من قراءة سابقة"):
@@ -307,6 +313,7 @@ def test_update_fault_excludes_itself_and_keeps_no_partial_change(db):
     db.expire_all()
     stored = db.query(Fault).filter(Fault.id == fault.id).one()
     assert stored.meter_value == Decimal("25.0")
+    assert central.odometer == Decimal("25.0")
 
 
 def test_update_fault_rejects_conflict_with_a_later_reading(db):
@@ -374,7 +381,17 @@ def test_completed_repair_stays_in_history_when_a_new_repair_starts(db):
     previous_id = previous.id
 
     fault_services.change_fault_status(db, fault, "diagnosing")
-    current = create_repair(db, fault, TODAY, 25)
+    current = fault_services.create_repair(
+        db,
+        RepairCreate(
+            fault_id=fault.id,
+            repair_date=TODAY,
+            meter_value=None,
+            action_taken="إصلاح ثانٍ بلا قراءة عداد جديدة",
+            workshop_type="internal",
+            status="in_progress",
+        ),
+    )
 
     assert current.id != previous_id
     assert current.status == "in_progress"

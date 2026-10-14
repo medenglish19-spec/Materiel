@@ -72,7 +72,7 @@
             <div><span>الوثيقة</span><b>{{ item.acquisition_document or '-' }}</b></div>
             <div><span>تاريخ الاقتناء</span><b>{{ item.acquisition_date.strftime('%d/%m/%Y') if item.acquisition_date else '-' }}</b></div>
             <div><span>أول سير / بدء الاستغلال</span><b>{{ item.first_service_date.strftime('%d/%m/%Y') if item.first_service_date else '-' }}</b></div>
-            <div><span>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</span><b>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours or 0 }} س{% else %}{{ item.current_odometer or 0 }} كم{% endif %}</b></div>
+            <div><span>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}عداد الساعات{% else %}عداد الكيلومترات{% endif %}</span><b>{% if item.equipment_type and item.equipment_type.measurement_unit == 'hours' %}{{ item.current_hours if item.current_hours is not none else '—' }} س{% else %}{{ item.current_odometer if item.current_odometer is not none else '—' }} كم{% endif %}</b></div>
             {% if item.notes %}<div><span>ملاحظات</span><b>{{ item.notes }}</b></div>{% endif %}
           </div>
         </div>

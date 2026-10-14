@@ -34,12 +34,21 @@ class BatteryMovement(Base, AuditMixin):
     movement_date = Column(Date, nullable=False, default=date.today, index=True)
     movement_type = Column(String(20), nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     document_number = Column(String(100), nullable=True)
     reason = Column(String(250), nullable=True)
     notes = Column(Text, nullable=True)
     battery = relationship("Battery", back_populates="movements")
     equipment = relationship("Equipment")
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
 
 
 @event.listens_for(BatteryMovement, "before_insert")

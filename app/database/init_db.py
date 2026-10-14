@@ -113,17 +113,10 @@ def _repair_equipment_current_meters() -> None:
                     MeterReading.equipment_id == equipment.id,
                     MeterReading.hours.is_not(None),
                 ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
-            latest_maintenance = db.query(MaintenanceRecord).filter(
-                MaintenanceRecord.equipment_id == equipment.id,
-                MaintenanceRecord.meter_value.is_not(None),
-            ).order_by(MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()).first()
-
             candidates = []
             if latest_reading is not None:
                 value = latest_reading.odometer if unit == "km" else latest_reading.hours
                 candidates.append((latest_reading.reading_date.date(), value) if hasattr(latest_reading.reading_date, "date") else (latest_reading.reading_date, value))
-            if latest_maintenance is not None:
-                candidates.append((latest_maintenance.maintenance_date, latest_maintenance.meter_value))
             if not candidates:
                 continue
             latest_date = max(item[0] for item in candidates)

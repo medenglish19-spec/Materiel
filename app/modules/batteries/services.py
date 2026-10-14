@@ -145,23 +145,10 @@ def _validate_meter_history(movements):
 def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
     if meter_value is None:
         return
-    readings = []
-    from app.modules.meter_readings.models import MeterReading
-    rows = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
-    for reading in rows:
-        value = reading.odometer if reading.odometer is not None else reading.hours
-        if value is not None:
-            reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
-            readings.append((reading_date, Decimal(str(value))))
-    before = [value for d, value in readings if d <= movement_date]
-    after = [value for d, value in readings if d >= movement_date]
-    if before and meter_value < before[-1]:
-        raise ValueError("قراءة العداد أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
-    if after and meter_value > after[0]:
-        raise ValueError("قراءة العداد أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    if equipment and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-        raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
+    unit = equipment.equipment_type.measurement_unit if equipment and equipment.equipment_type else "hours"
+    from app.modules.meter_readings.services import validate_meter_observation
+    validate_meter_observation(db, equipment_id, movement_date, meter_value, unit, "حركة بطارية")
 
 
 def _equipment_age_below_limit(equipment: Equipment | None, when: date, years: int) -> bool:

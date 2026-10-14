@@ -86,17 +86,17 @@ def current_meter_value(equipment, reading):
 def chronology_error(db: Session, equipment_id: int, maintenance_date: date, meter: Decimal | None, exclude_id=None):
     if meter is None:
         return None
-    records = db.query(MaintenanceRecord).filter(
-        MaintenanceRecord.equipment_id == equipment_id,
-        MaintenanceRecord.meter_value.is_not(None),
-    ).order_by(MaintenanceRecord.maintenance_date, MaintenanceRecord.id).all()
-    for row in records:
-        if exclude_id is not None and row.id == exclude_id:
-            continue
-        if row.maintenance_date < maintenance_date and meter < Decimal(str(row.meter_value)):
-            return "قراءة العداد أقل من قراءة سجل صيانة أقدم"
-        if row.maintenance_date > maintenance_date and meter > Decimal(str(row.meter_value)):
-            return "قراءة العداد أكبر من قراءة سجل صيانة أحدث"
+    from app.modules.equipment.models import Equipment
+    from app.modules.meter_readings.services import validate_meter_observation
+    equipment = db.get(Equipment, equipment_id)
+    if equipment is None:
+        return "العتاد غير موجود"
+    unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
+    reference = f"maintenance:{exclude_id}:meter" if exclude_id is not None else None
+    try:
+        validate_meter_observation(db, equipment_id, maintenance_date, meter, unit, "الصيانة", source_reference=reference)
+    except ValueError as exc:
+        return str(exc)
     return None
 
 

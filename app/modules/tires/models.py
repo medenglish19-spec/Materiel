@@ -72,7 +72,6 @@ class TireMovement(Base, AuditMixin):
     movement_type = Column(String(20), nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
     position_id = Column(Integer, ForeignKey("tire_positions.id", ondelete="SET NULL"), nullable=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     document_number = Column(String(100), nullable=True)
     reason = Column(String(250), nullable=True)
     removal_disposition = Column(String(20), nullable=True)
@@ -81,6 +80,16 @@ class TireMovement(Base, AuditMixin):
     equipment = relationship("Equipment")
     position = relationship("TirePosition", back_populates="movements")
     __table_args__ = (UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),)
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
 
 
 @event.listens_for(TireMovement, "before_insert")

@@ -169,8 +169,8 @@ def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
 @router.post("/equipment/create")
-def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),current_odometer:str=Form("0"),current_hours:str=Form("0"),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
-    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,current_odometer=current_odometer or 0,current_hours=current_hours or 0,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
+def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
     except ValueError: pass
     return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
 @router.post("/equipment/{equipment_id}/edit")

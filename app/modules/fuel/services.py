@@ -19,7 +19,7 @@ def _previous(db: Session, equipment_id: int, fueling_date: date, record_id: int
     q = db.query(FuelRecord).filter(FuelRecord.equipment_id == equipment_id)
     if record_id:
         q = q.filter(FuelRecord.id != record_id)
-    return q.order_by(FuelRecord.fueling_date.desc(), FuelRecord.meter_value.desc(), FuelRecord.id.desc()).first()
+    return q.order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).first()
 
 
 def validate_record(db: Session, equipment_id: int, fueling_date: date, meter_value: Decimal, quantity: Decimal, record_id: int | None = None):
@@ -32,13 +32,7 @@ def validate_record(db: Session, equipment_id: int, fueling_date: date, meter_va
         raise ValueError("العتاد غير موجود")
     unit = (equipment.equipment_type.measurement_unit if equipment.equipment_type else "km")
     validate_meter_observation(db, equipment_id, fueling_date, meter_value, unit, "الوقود")
-    previous = _previous(db, equipment_id, fueling_date, record_id)
-    if previous:
-        if fueling_date < previous.fueling_date:
-            raise ValueError("تاريخ التعبئة لا يمكن أن يسبق آخر تعبئة")
-        if meter_value < previous.meter_value:
-            raise ValueError("قراءة العداد لا يمكن أن تقل عن القراءة السابقة")
-    return previous
+    return _previous(db, equipment_id, fueling_date, record_id)
 
 
 def add_record(db: Session, data: dict):

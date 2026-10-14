@@ -25,7 +25,13 @@ def _fmt_difference(value) -> str:
     if value == value.to_integral_value(): return f"+{int(value):,}"
     return f"+{value:,.1f}"
 def _source_label(value: str | None) -> str:
-    return {"manual": "إدخال يدوي", "import": "استيراد Excel", "paste": "لصق جماعي"}.get(value or "", value or "غير محدد")
+    return {
+        "manual": "إدخال يدوي", "import": "استيراد Excel", "paste": "لصق جماعي",
+        "fuel": "الوقود", "fault": "العطل", "repair": "الإصلاح",
+        "maintenance": "الصيانة", "mission_departure": "المهمة — الانطلاق",
+        "mission_return": "المهمة — العودة", "tire_movement": "حركة إطار",
+        "battery_movement": "حركة بطارية", "equipment_create": "إضافة العتاد",
+    }.get(value or "", value or "غير محدد")
 def _difference(current: MeterReading, previous: MeterReading | None, unit: str):
     current_value = _value(current, unit); previous_value = _value(previous, unit)
     if current_value is None or previous_value is None: return None
@@ -73,52 +79,24 @@ def _validate_reading_position(db: Session, equipment_id: int, reading_date: dat
             raise ValueError(f"لا يمكن إدخال قراءة بتاريخ {day:%d/%m/%Y}: قيمتها ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other_day:%d/%m/%Y} ({other_value:g}) من مصدر «{source}».")
 
 
-def _meter_observations(db: Session, equipment_id: int, unit: str, exclude_reading_id: int | None = None):
-    """Read dated meter observations from every module without changing their records."""
+def _meter_observations(db: Session, equipment_id: int, unit: str, exclude_reading_id: int | None = None, exclude_reference: str | None = None):
+    """Read the central meter ledger; domain modules are never chronology sources."""
     observations = []
     column = MeterReading.odometer if unit == "km" else MeterReading.hours
-    query = db.query(MeterReading.id, MeterReading.reading_date, column).filter(
+    query = db.query(MeterReading.id, MeterReading.reading_date, column, MeterReading.source).filter(
         MeterReading.equipment_id == equipment_id, column.isnot(None)
     )
     if exclude_reading_id is not None:
         query = query.filter(MeterReading.id != exclude_reading_id)
-    for _identifier, day, value in query:
-        observations.append((day.date(), Decimal(str(value)), "القراءات المركزية"))
+    if exclude_reference is not None:
+        query = query.filter(or_(MeterReading.source_reference.is_(None), MeterReading.source_reference != exclude_reference))
+    for _identifier, day, value, source in query:
+        observations.append((day.date(), Decimal(str(value)), _source_label(source)))
 
-    from app.modules.maintenance.models import MaintenanceRecord
-    from app.modules.faults_repairs.models import Fault, Repair
-    from app.modules.fuel.models import FuelRecord
-    from app.modules.missions.models import Mission
-
-    sources = (
-        (MaintenanceRecord, MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value, "الصيانة", MaintenanceRecord.is_scheduled.is_(False)),
-        (Fault, Fault.reported_date, Fault.meter_value, "الأعطال", None),
-        (Repair, Repair.repair_date, Repair.meter_value, "التصليحات", None),
-        (FuelRecord, FuelRecord.fueling_date, FuelRecord.meter_value, "الوقود", None),
-    )
-    for model, date_column, value_column, source, condition in sources:
-        query = db.query(date_column, value_column)
-        if model is Repair:
-            query = query.join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id == equipment_id)
-        else:
-            query = query.filter(model.equipment_id == equipment_id)
-        query = query.filter(value_column.isnot(None))
-        if condition is not None:
-            query = query.filter(condition)
-        for day, value in query:
-            observations.append((day.date() if hasattr(day, "date") else day, Decimal(str(value)), source))
-
-    for departure, start, returned, end in db.query(
-        Mission.departure_meter, Mission.start_date, Mission.return_meter, Mission.end_date
-    ).filter(Mission.equipment_id == equipment_id):
-        if departure is not None:
-            observations.append((start, Decimal(str(departure)), "المهمات/الانطلاق"))
-        if returned is not None and end is not None:
-            observations.append((end, Decimal(str(returned)), "المهمات/العودة"))
     return observations
 
 
-def validate_meter_observation(db: Session, equipment_id: int, event_date, value, unit: str, source: str):
+def validate_meter_observation(db: Session, equipment_id: int, event_date, value, unit: str, source: str, source_reference: str | None = None):
     """Apply central meter chronology rules to observations entered by another module."""
     if value is None:
         return
@@ -126,18 +104,23 @@ def validate_meter_observation(db: Session, equipment_id: int, event_date, value
     if value < 0:
         raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
     day = event_date.date() if hasattr(event_date, "date") else event_date
-    for other_day, other_value, other_source in _meter_observations(db, equipment_id, unit):
-        if other_day == day and other_value != value:
-            raise ValueError(f"تعارض قراءة العداد بتاريخ {day:%d/%m/%Y}: قيمة «{source}» ({value:g}) تختلف عن ({other_value:g}) من مصدر «{other_source}».")
+    for other_day, other_value, other_source in _meter_observations(db, equipment_id, unit, exclude_reference=source_reference):
+        if other_day == day:
+            if other_value == value:
+                raise ValueError(f"قراءة العداد ({value:g}) مسجلة مسبقًا بتاريخ {day:%d/%m/%Y} من مصدر «{other_source}».")
+            raise ValueError(f"تعارض قراءة العداد في نفس التاريخ ({day:%d/%m/%Y}): قيمة «{source}» ({value:g}) تختلف عن ({other_value:g}) من مصدر «{other_source}».")
         if other_day < day and other_value > value:
             raise ValueError(f"قراءة «{source}» ({value:g}) أقل من القراءة الأقدم ({other_value:g}) من مصدر «{other_source}».")
         if other_day > day and other_value < value:
-            raise ValueError(f"قراءة «{source}» ({value:g}) أكبر من القراءة اللاحقة ({other_value:g}) من مصدر «{other_source}».")
+            raise ValueError(f"قراءة «{source}» ({value:g}) أكبر من قراءة لاحقة ({other_value:g}) من مصدر «{other_source}».")
 def _refresh_equipment_current(db: Session, equipment: Equipment, unit: str):
     db.flush()
-    observations = _meter_observations(db, equipment.id, unit)
-    observations = [row for row in observations if row[0] <= date.today()]
-    latest_value = max(observations, key=lambda row: (row[0], row[1]))[1] if observations else None
+    value_column = MeterReading.odometer if unit == "km" else MeterReading.hours
+    latest_value = db.query(value_column).filter(
+        MeterReading.equipment_id == equipment.id,
+        value_column.isnot(None),
+        MeterReading.reading_date <= datetime.combine(date.today(), datetime.max.time()),
+    ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).limit(1).scalar()
     if unit == "km": equipment.current_odometer = latest_value
     else: equipment.current_hours = latest_value
 
@@ -145,9 +128,7 @@ def _refresh_equipment_current(db: Session, equipment: Equipment, unit: str):
 def sync_current_meter(db: Session, equipment_id: int):
     equipment = get_equipment_with_readings(db, equipment_id)
     if equipment:
-        unit = _unit(equipment)
-        if _meter_observations(db, equipment_id, unit):
-            _refresh_equipment_current(db, equipment, unit)
+        _refresh_equipment_current(db, equipment, _unit(equipment))
 def cleanup_invalid_readings(db: Session):
     today = datetime.now(timezone.utc).date(); cutoff = datetime.combine(today, datetime.max.time())
     invalid = db.query(MeterReading).filter(MeterReading.reading_date > cutoff).all(); invalid += db.query(MeterReading).filter((MeterReading.odometer < 0) | (MeterReading.hours < 0)).all()
@@ -181,7 +162,7 @@ def list_latest_rows(db: Session, page: int = 1, page_size: int = 10, search: st
     rows = []
     for number, (equipment, _) in enumerate(selected, start=(page - 1) * page_size + 1):
         unit_code = _unit(equipment); latest = history[equipment.id][0] if history[equipment.id] else None; previous = history[equipment.id][1] if len(history[equipment.id]) > 1 else None; difference = _difference(latest, previous, unit_code) if latest else None; equipment_status, status_class = _reading_status_label(latest, equipment)
-        rows.append({"number": number, "equipment_id": equipment.id, "model": equipment.equipment_model.name if equipment.equipment_model else "—", "type_name": equipment.equipment_type.name if equipment.equipment_type else "—", "registration": equipment.registration_number or equipment.asset_code or "—", "location": "—", "unit": "كم" if unit_code == "km" else "ساعة عمل", "unit_code": unit_code, "date": latest.reading_date.strftime("%d/%m/%Y") if latest else "—", "reading": _fmt(_value(latest, unit_code)), "difference": _fmt_difference(difference), "note": latest.notes if latest and latest.notes else "—", "status": equipment_status, "status_class": status_class})
+        rows.append({"number": number, "equipment_id": equipment.id, "model": equipment.equipment_model.name if equipment.equipment_model else "—", "type_name": equipment.equipment_type.name if equipment.equipment_type else "—", "registration": equipment.registration_number or equipment.asset_code or "—", "location": "—", "unit": "كم" if unit_code == "km" else "ساعة عمل", "unit_code": unit_code, "date": latest.reading_date.strftime("%d/%m/%Y") if latest else "—", "reading": _fmt(_value(latest, unit_code)), "difference": _fmt_difference(difference), "note": latest.notes if latest and latest.notes else "—", "status": equipment_status, "status_class": status_class, "source": _source_label(latest.source) if latest else "—"})
     last_update = db.query(func.max(MeterReading.reading_date)).scalar(); last_update_text = last_update.strftime("%d/%m/%Y") if last_update else "—"; pages = (total + page_size - 1) // page_size if total else 1
     return rows, total, pages, last_update_text
 def get_equipment_with_readings(db: Session, equipment_id: int):

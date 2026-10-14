@@ -37,6 +37,8 @@ def validate(db: Session, equipment_id: int, start_date: date, end_date: date | 
         raise ValueError("عداد الانطلاق غير صالح")
     if return_meter is not None and departure_meter is not None and return_meter < departure_meter:
         raise ValueError("عداد العودة لا يمكن أن يقل عن عداد الانطلاق")
+    if return_meter is not None and departure_meter is not None and end_date == start_date:
+        raise ValueError("لا يمكن تسجيل قراءتي انطلاق وعودة للعداد في اليوم نفسه")
     unit = (equipment.equipment_type.measurement_unit if equipment.equipment_type else "km")
     if departure_meter is not None:
         validate_meter_observation(db, equipment_id, start_date, departure_meter, unit, "المهمة/الانطلاق")

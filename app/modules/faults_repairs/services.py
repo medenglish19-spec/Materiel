@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
 
@@ -6,8 +6,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
-from app.modules.maintenance.models import MaintenanceRecord
 from app.modules.meter_readings.models import MeterReading
+from app.modules.maintenance.models import MaintenanceRecord
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
 from .schemas import FaultCreate, FaultUpdate, RepairCreate, RepairUpdate, TechnicianInterventionUpdate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
@@ -17,157 +17,34 @@ ACTIVE_FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts"}
 TERMINAL_FAULT_STATUSES = {"repaired"}
 
 
-# Sources that can carry a meter observation for an equipment, ordered from the
-# most authoritative to the least. The order is only a deterministic tie-break
-# when several sources disagree on the very same day; it never replaces a value.
-_METER_SOURCE_PRIORITY = {
-    "meter_reading": 0,
-    "maintenance": 1,
-    "fault": 2,
-    "repair": 3,
-}
-
-
-def _equipment_unit(equipment: Equipment) -> str:
-    """Return the equipment measurement unit ("km" or "hours")."""
-    unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else None
-    unit = (unit or "").strip().lower()
-    if unit not in ("km", "hours"):
-        raise ValueError("وحدة قياس العتاد غير معرفة بشكل صحيح (km أو hours).")
-    return unit
-
-
-def _as_day(value):
-    """Normalize a Date/DateTime value to a plain date for chronological comparisons."""
-    return value.date() if hasattr(value, "date") else value
-
-
-def _observation_sort_key(observation):
-    """Deterministic ordering for observations that share the same day."""
-    day, _value, source, identifier = observation
-    return (day, _METER_SOURCE_PRIORITY.get(source, len(_METER_SOURCE_PRIORITY)), identifier)
-
-
-def _meter_observations(db: Session, equipment_id: int, unit: str, exclude=None):
-    """Collect every meter observation of an equipment as (day, value, source, id).
-
-    Sources are the central MeterReading (odometer for km equipment, hours for
-    hours equipment), MaintenanceRecord, Fault, and Repair. ``exclude`` is a
-    ``(source, id)`` tuple naming the record currently being edited so it is
-    never compared with itself.
-    """
-    observations = []
-
+def _latest_meter_before(db: Session, equipment_id: int, before_date: date, unit: str):
+    """Return the chronologically latest central reading before a given date."""
     reading_column = MeterReading.odometer if unit == "km" else MeterReading.hours
-    readings = (
-        db.query(MeterReading.id, MeterReading.reading_date, reading_column)
-        .filter(
-            MeterReading.equipment_id == equipment_id,
-            reading_column.isnot(None),
-        )
-        .all()
-    )
-    for identifier, reading_date, value in readings:
-        if value is not None:
-            observations.append((_as_day(reading_date), Decimal(str(value)), "meter_reading", identifier))
-
-    records = (
-        db.query(MaintenanceRecord.id, MaintenanceRecord.maintenance_date, MaintenanceRecord.meter_value)
-        .filter(
-            MaintenanceRecord.equipment_id == equipment_id,
-            MaintenanceRecord.meter_value.isnot(None),
-        )
-        .all()
-    )
-    for identifier, record_date, value in records:
-        if value is not None:
-            observations.append((_as_day(record_date), Decimal(str(value)), "maintenance", identifier))
-
-    faults = (
-        db.query(Fault.id, Fault.reported_date, Fault.meter_value)
-        .filter(
-            Fault.equipment_id == equipment_id,
-            Fault.meter_value.isnot(None),
-        )
-        .all()
-    )
-    for identifier, fault_date, value in faults:
-        if value is not None and exclude != ("fault", identifier):
-            observations.append((_as_day(fault_date), Decimal(str(value)), "fault", identifier))
-
-    repairs = (
-        db.query(Repair.id, Repair.repair_date, Repair.meter_value)
-        .join(Fault, Repair.fault_id == Fault.id)
-        .filter(
-            Fault.equipment_id == equipment_id,
-            Repair.meter_value.isnot(None),
-        )
-        .all()
-    )
-    for identifier, repair_date, value in repairs:
-        if value is not None and exclude != ("repair", identifier):
-            observations.append((_as_day(repair_date), Decimal(str(value)), "repair", identifier))
-
-    return observations
+    return db.query(reading_column).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.reading_date < datetime.combine(before_date, time.min),
+        reading_column.isnot(None),
+    ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).limit(1).scalar()
 
 
-def _latest_meter_before(db: Session, equipment_id: int, before_date: date, unit: str, exclude=None, observations=None):
-    """Return the value of the chronologically latest observation before ``before_date``.
-
-    The latest *date* wins, not the largest meter value: a corrected or
-    contradictory history must be read in its real chronological order. Ties on
-    the same day fall back to ``_METER_SOURCE_PRIORITY`` then the row id, which
-    is deterministic. ``observations`` may be passed to reuse an already
-    fetched set instead of querying again.
-    """
-    if observations is None:
-        observations = _meter_observations(db, equipment_id, unit, exclude)
-    earlier = [item for item in observations if item[0] < before_date]
-    if not earlier:
-        return None
-    return max(earlier, key=_observation_sort_key)[1]
-
-
-def _earliest_meter_after(db: Session, equipment_id: int, after_date: date, unit: str, exclude=None, observations=None):
-    """Return the value of the chronologically earliest observation after ``after_date``."""
-    if observations is None:
-        observations = _meter_observations(db, equipment_id, unit, exclude)
-    later = [item for item in observations if item[0] > after_date]
-    if not later:
-        return None
-    return min(later, key=_observation_sort_key)[1]
-
-
-def _validate_meter_sequence(db: Session, equipment: Equipment, meter_value, event_date: date, exclude=None):
+def _validate_meter_sequence(db: Session, equipment: Equipment, meter_value, event_date: date, exclude=None, source="fault"):
     if meter_value is None:
         return
-    meter_value = Decimal(str(meter_value))
-    if meter_value < 0:
-        raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
-    unit = _equipment_unit(equipment)
+    from app.modules.meter_readings.services import validate_meter_observation
 
-    observations = _meter_observations(db, equipment.id, unit, exclude)
-
-    # The meter must not show two different values on the same day.
-    same_day_values = [item[1] for item in observations if item[0] == event_date]
-    if same_day_values and any(value != meter_value for value in same_day_values):
-        raise ValueError(
-            f"لا يمكن تسجيل قراءتين مختلفتين لنفس المعدة في نفس التاريخ ({event_date:%d/%m/%Y})."
+    unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else ""
+    reference = f"{exclude[0]}:{exclude[1]}:meter" if exclude else None
+    source_label = "العطل" if source == "fault" else "الإصلاح"
+    try:
+        validate_meter_observation(
+            db, equipment.id, event_date, meter_value, unit, source_label,
+            source_reference=reference,
         )
-
-    # Going backwards relative to the latest earlier observation.
-    latest_before = _latest_meter_before(db, equipment.id, event_date, unit, exclude, observations)
-    if latest_before is not None and meter_value < latest_before:
-        raise ValueError(
-            f"قراءة العداد الجديدة ({meter_value:g}) أقل من قراءة سابقة ({latest_before:g})؛ لا يمكن أن يعود العداد إلى الخلف."
-        )
-
-    # Going forward beyond the earliest later observation.
-    earliest_after = _earliest_meter_after(db, equipment.id, event_date, unit, exclude, observations)
-    if earliest_after is not None and meter_value > earliest_after:
-        raise ValueError(
-            f"قراءة العداد الجديدة ({meter_value:g}) أكبر من قراءة لاحقة ({earliest_after:g})؛ القراءة غير منطقية ولم يتم حفظها."
-        )
+    except ValueError as exc:
+        # Preserve established wording on this form while using the shared
+        # central chronology decision for every input path.
+        message = str(exc).replace("أقل من القراءة الأقدم", "أقل من قراءة سابقة")
+        raise ValueError(message) from exc
 
 
 def _sync_equipment_from_faults(db: Session, equipment_id: int):
@@ -327,7 +204,7 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
         # creating duplicate repair history for the same fault.
         _validate_meter_sequence(
             db, equipment, data.meter_value, data.repair_date,
-            exclude=("repair", active.id),
+            exclude=("repair", active.id), source="repair",
         )
         for field, value in data.model_dump(exclude={"fault_id", "status"}).items():
             setattr(active, field, value)
@@ -346,7 +223,7 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
 
     if fault.status not in {"diagnosing", "repairing", "waiting_parts"}:
         raise ValueError("يجب تحويل العطل إلى قيد التشخيص قبل بدء سجل تصليح جديد")
-    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_date)
+    _validate_meter_sequence(db, equipment, data.meter_value, data.repair_date, source="repair")
     obj = Repair(**data.model_dump(), created_by_id=user_id)
     db.add(obj)
     db.flush()
@@ -375,7 +252,7 @@ def update_active_repair(db: Session, repair: Repair, data: RepairUpdate):
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
     equipment = repair.fault.equipment
     _validate_meter_sequence(db, equipment, data.meter_value, effective_start_date,
-                             exclude=("repair", repair.id))
+                             exclude=("repair", repair.id), source="repair")
     for field, value in data.model_dump().items():
         setattr(repair, field, value)
     repair.status = "completed" if repair.repair_end_date else "in_progress"
@@ -404,7 +281,7 @@ def update_repair_record(db: Session, repair: Repair, data: RepairUpdate):
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
     _validate_meter_sequence(db, repair.fault.equipment, data.meter_value, effective_start_date,
-                             exclude=("repair", repair.id))
+                             exclude=("repair", repair.id), source="repair")
 
     next_status = repair.status
     if repair.status != "cancelled":

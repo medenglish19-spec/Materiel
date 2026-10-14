@@ -22,5 +22,7 @@ from app.modules.meter_readings import models as meter_models  # noqa: F401
 from app.modules.meter_readings import batches as meter_batches  # noqa: F401
 from app.modules.meter_readings import audit as meter_audit  # noqa: F401
 from app.modules.meter_readings import audit_events as meter_audit_events  # noqa: F401
+from app.modules.meter_readings.source_events import register_domain_meter_listeners
 
 configure_mappers()
+register_domain_meter_listeners()
