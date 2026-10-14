@@ -372,7 +372,7 @@ def test_repair_workspace_saves_current_repair_and_rejects_reversed_dates(anonym
     end = date.today() - timedelta(days=1)
     payload = {
         "repair_start_date": start.isoformat(),
-        "repair_end_date": end.isoformat(),
+        "repair_end_date": None,
         "meter_value": None,
         "diagnosis": "تشخيص محفوظ",
         "action_taken": "إجراء محفوظ",
@@ -385,6 +385,7 @@ def test_repair_workspace_saves_current_repair_and_rejects_reversed_dates(anonym
     }
     saved = client.patch(f"/api/faults-repairs/repairs/{ids['repair']}", json=payload)
     assert saved.status_code == 200, saved.text
+    assert saved.json()["status"] == "in_progress"
     assert "إجراء محفوظ" in client.get(f"/faults-repairs/repairs/{ids['repair']}").text
     reversed_payload = dict(payload, repair_start_date=end.isoformat(), repair_end_date=start.isoformat())
     invalid = client.patch(f"/api/faults-repairs/repairs/{ids['repair']}", json=reversed_payload)
@@ -393,7 +394,9 @@ def test_repair_workspace_saves_current_repair_and_rejects_reversed_dates(anonym
     try:
         from app.modules.faults_repairs.models import Repair
         repair = db.query(Repair).filter(Repair.id == ids["repair"]).one()
-        assert repair.repair_start_date == start and repair.repair_end_date == end
+        assert repair.repair_start_date == start and repair.repair_end_date is None
+        assert repair.status == "in_progress"
+        assert repair.fault.status == "repairing"
         assert repair.fault_id == ids["fault"]
     finally:
         db.close()

@@ -20,7 +20,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.faults_repairs import services as fault_services
 from app.modules.faults_repairs.models import Fault, Repair
-from app.modules.faults_repairs.schemas import FaultCreate, FaultUpdate, RepairCreate
+from app.modules.faults_repairs.schemas import FaultCreate, FaultUpdate, RepairCreate, RepairUpdate
 from app.modules.maintenance.models import (
     MaintenanceOperation,
     MaintenanceRecord,
@@ -29,6 +29,7 @@ from app.modules.maintenance.models import (
 from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.users.models import User  # noqa: F401  (registers the users table for FKs)
+from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
 
 engine = create_engine(
     "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -128,6 +129,15 @@ def create_repair(db, fault, day, value):
             workshop_type="internal",
             status="in_progress",
         ),
+    )
+
+
+def repair_update(*, start_date, end_date):
+    return RepairUpdate(
+        repair_start_date=start_date,
+        repair_end_date=end_date,
+        action_taken="إصلاح اختبار",
+        workshop_type="internal",
     )
 
 
@@ -429,4 +439,97 @@ def test_database_rejects_two_active_repairs_for_the_same_fault(db):
         Repair.status == "in_progress",
     ).count()
     assert active_count == 1
+
+
+def test_saving_repair_end_date_completes_repair_and_fault_without_touching_parts(db):
+    equipment = seed_equipment(db, "COMPLETE-1", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = create_repair(db, fault, TODAY, 25)
+    request = SparePartRequest(
+        request_number="SPR-COMPLETE-1",
+        request_date=TODAY,
+        source_type="repair",
+        repair_id=repair.id,
+        equipment_id=equipment.id,
+        status="pending",
+    )
+    db.add(request)
+    db.flush()
+    item = SparePartRequestItem(
+        request_id=request.id,
+        part_name="فلتر اختبار",
+        requested_quantity=Decimal("3"),
+        received_quantity=Decimal("1"),
+    )
+    db.add(item)
+    db.commit()
+
+    updated = fault_services.update_active_repair(
+        db, repair, repair_update(start_date=TODAY, end_date=TODAY)
+    )
+
+    assert updated.repair_end_date == TODAY
+    assert updated.status == "completed"
+    assert updated.fault.status == "repaired"
+    db.refresh(request)
+    db.refresh(item)
+    assert (request.status, item.requested_quantity, item.received_quantity) == (
+        "pending", Decimal("3.00"), Decimal("1.00")
+    )
+
+
+def test_saving_active_repair_without_end_date_keeps_both_in_progress(db):
+    equipment = seed_equipment(db, "COMPLETE-2", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = create_repair(db, fault, TODAY, 25)
+
+    updated = fault_services.update_active_repair(
+        db, repair, repair_update(start_date=TODAY, end_date=None)
+    )
+
+    assert updated.repair_end_date is None
+    assert updated.status == "in_progress"
+    assert updated.fault.status == "repairing"
+
+
+def test_repair_update_rejects_end_date_before_start_date(db):
+    equipment = seed_equipment(db, "COMPLETE-3", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=2), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = create_repair(db, fault, TODAY - timedelta(days=1), 25)
+
+    invalid_data = RepairUpdate.model_construct(
+        repair_start_date=TODAY,
+        repair_end_date=TODAY - timedelta(days=1),
+        action_taken="إصلاح اختبار",
+        workshop_type="internal",
+    )
+    with pytest.raises(ValueError, match="لا يمكن أن يسبق"):
+        fault_services.update_active_repair(db, repair, invalid_data)
+
+    db.refresh(repair)
+    db.refresh(fault)
+    assert repair.status == "in_progress"
+    assert repair.repair_end_date is None
+    assert fault.status == "repairing"
+
+
+@pytest.mark.parametrize("terminal_status", ["completed", "cancelled"])
+def test_terminal_repair_cannot_change_fault_when_updated(terminal_status, db):
+    equipment = seed_equipment(db, f"COMPLETE-OLD-{terminal_status}", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = create_repair(db, fault, TODAY, 25)
+    fault_services.change_repair_status(db, repair, terminal_status)
+    status_before = fault.status
+
+    with pytest.raises(ValueError, match="تاريخي"):
+        fault_services.update_active_repair(
+            db, repair, repair_update(start_date=TODAY, end_date=TODAY)
+        )
+
+    db.refresh(fault)
+    assert fault.status == status_before
 
