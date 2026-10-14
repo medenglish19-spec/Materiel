@@ -28,8 +28,27 @@
 }
 [data-mt-region] table{
   table-layout:auto !important;
-  width:100% !important;
-  min-width:0 !important;
+  /* Let intrinsic column widths request horizontal scrolling instead of
+     squeezing identifiers, dates, and action controls into narrow columns. */
+  width:max-content !important;
+  min-width:100% !important;
+  max-width:none !important;
+}
+
+/* Shared baseline for tables that opt into the common region. `:where()` keeps
+   these defaults easy for a page's intentional, scoped table styling to win. */
+:where([data-mt-region] table){
+  border-collapse:separate;
+  border-spacing:0;
+  font-family:'Tajawal',sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+:where([data-mt-region] th),
+:where([data-mt-region] td){
+  vertical-align:middle;
+}
+:where([data-mt-region] td){
+  overflow-wrap:normal;
 }
 
 [data-mt-region]:focus{outline:none}
