@@ -169,7 +169,9 @@ def test_dashboard_renders_the_broken_equipment_count_it_queries():
     assert "broken_count = sum(" in source
     assert '"broken_count": broken_count' in source
     assert '"readiness_percentage": readiness_percentage' in source
-    assert '<div class="stat-number">{{ broken_count }}</div>' in template
+    assert '<div class="stat-number" data-dashboard-metric="broken">{{ broken_count }}</div>' in template
+    assert 'data-dashboard-metric="internal-repairs">{{ internal_repair_count }}' in template
+    assert 'data-dashboard-metric="external-repairs">{{ external_repair_count }}' in template
     assert '<div class="stat-label">العتاد العاطل</div>' in template
 
 

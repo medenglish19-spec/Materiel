@@ -38,6 +38,15 @@ def dashboard_page(
     status_counts = {}
     for status in effective_statuses.values():
         status_counts[status] = status_counts.get(status, 0) + 1
+    active_repairs = equipment_services.active_repair_workshops(
+        db, [item.id for item in equipment]
+    )
+    internal_repair_count = sum(
+        workshop == "in_maintenance" for workshop in active_repairs.values()
+    )
+    external_repair_count = sum(
+        workshop == "in_external_workshop" for workshop in active_repairs.values()
+    )
     total_equipment = len(equipment)
     technically_ready_count = sum(1 for item in equipment if item.technical_condition == "ready")
     broken_count = sum(1 for item in equipment if item.technical_condition == "broken")
@@ -92,6 +101,8 @@ def dashboard_page(
             "user": current_user,
             "total_equipment": total_equipment,
             "status_counts": status_counts,
+            "internal_repair_count": internal_repair_count,
+            "external_repair_count": external_repair_count,
             "broken_count": broken_count,
             "technically_ready_count": technically_ready_count,
             "readiness_percentage": readiness_percentage,
