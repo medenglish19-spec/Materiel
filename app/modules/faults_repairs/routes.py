@@ -168,6 +168,7 @@ def repair_detail_page(repair_id: int, request: Request, db: Session = Depends(g
         "part_balances": balances, "distribution_lines": distribution_lines,
         "distribution_rows": distribution_rows,
         "today": date.today().isoformat(),
+        "repair_saved": request.query_params.get("saved") == "1",
         "waiting_for_parts": any(req.status in {"pending", "approved"} and any(
             item.received_quantity < item.requested_quantity for item in req.items
         ) for req in spare_requests),

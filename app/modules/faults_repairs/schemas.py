@@ -128,6 +128,7 @@ class RepairUpdate(BaseModel):
     meter_value: Optional[Decimal] = Field(default=None, ge=0)
     diagnosis: Optional[str] = None
     action_taken: str = Field(min_length=1)
+    technician: Optional[str] = None
     workshop_type: str
     workshop: Optional[str] = None
     repair_document: Optional[str] = None

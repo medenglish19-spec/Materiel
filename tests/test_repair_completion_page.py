@@ -152,3 +152,92 @@ def test_end_date_updates_persisted_statuses_and_fault_table(repair_page):
     ), "سجل الأعطال لا يعرض الحالة المحفوظة بعد إعادة تحميل الصفحة"
     assert "SPR-REPAIR-COMPLETE-TEST" in body
     assert "معلق" in body
+
+
+def test_repair_detail_edits_and_persists_fields_for_any_record(repair_page):
+    client, TestingSession, ids = repair_page
+    with TestingSession() as db:
+        other = Repair(
+            fault_id=ids["fault"], repair_date=date.today(),
+            repair_start_date=date.today(), repair_end_date=date.today(),
+            action_taken="سجل آخر مستقل", workshop_type="internal", status="completed",
+        )
+        db.add(other)
+        db.commit()
+        other_id = other.id
+    page = client.get(f"/faults-repairs/repairs/{ids['repair']}")
+    assert page.status_code == 200
+    assert 'id="editRepair"' in page.text
+    assert 'id="saveRepair"' in page.text
+    assert 'id="cancelRepair"' in page.text
+
+    response = client.patch(
+        f"/api/faults-repairs/repairs/{ids['repair']}",
+        json={
+            "repair_start_date": date.today().isoformat(),
+            "repair_end_date": None,
+            "action_taken": "تم تعديل الإجراء",
+            "technician": "فني الاختبار",
+            "workshop_type": "internal",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["action_taken"] == "تم تعديل الإجراء"
+
+    reloaded = client.get(f"/faults-repairs/repairs/{ids['repair']}")
+    assert "تم تعديل الإجراء" in reloaded.text
+    assert "تم حفظ التعديلات بنجاح" in client.get(
+        f"/faults-repairs/repairs/{ids['repair']}?saved=1"
+    ).text
+    with TestingSession() as db:
+        repair = db.get(Repair, ids["repair"])
+        assert repair.action_taken == "تم تعديل الإجراء"
+        assert repair.technician == "فني الاختبار"
+        assert repair.status == "in_progress"
+        assert db.get(Repair, other_id).action_taken == "سجل آخر مستقل"
+
+
+def test_repair_update_rejects_invalid_dates_without_changing_saved_values(repair_page):
+    client, TestingSession, ids = repair_page
+    response = client.patch(
+        f"/api/faults-repairs/repairs/{ids['repair']}",
+        json={
+            "repair_start_date": date.today().isoformat(),
+            "repair_end_date": date(2000, 1, 1).isoformat(),
+            "action_taken": "يجب ألا تحفظ",
+            "workshop_type": "internal",
+        },
+    )
+    assert response.status_code == 422
+    assert "يسبق" in response.text
+    with TestingSession() as db:
+        repair = db.get(Repair, ids["repair"])
+        assert repair.action_taken == "فحص أولي"
+        assert repair.repair_end_date is None
+
+
+def test_historical_repair_detail_remains_editable(repair_page):
+    client, TestingSession, ids = repair_page
+    with TestingSession() as db:
+        repair = db.get(Repair, ids["repair"])
+        repair.status = "completed"
+        repair.repair_end_date = date.today()
+        db.get(Fault, ids["fault"]).status = "repaired"
+        db.commit()
+
+    page = client.get(f"/faults-repairs/repairs/{ids['repair']}")
+    assert page.status_code == 200
+    assert 'id="editRepair"' in page.text
+    response = client.patch(
+        f"/api/faults-repairs/repairs/{ids['repair']}",
+        json={
+            "repair_start_date": date.today().isoformat(),
+            "repair_end_date": date.today().isoformat(),
+            "action_taken": "تصحيح سجل تاريخي",
+            "workshop_type": "internal",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "completed"
+    with TestingSession() as db:
+        assert db.get(Repair, ids["repair"]).action_taken == "تصحيح سجل تاريخي"

@@ -51,7 +51,7 @@ def update_repair(repair_id: int, data: RepairUpdate, db: Session = Depends(get_
     if not obj:
         raise HTTPException(404, "التصليح غير موجود")
     try:
-        return services.update_active_repair(db, obj, data)
+        return services.update_repair_record(db, obj, data)
     except ValueError as e:
         raise HTTPException(400, str(e))
 

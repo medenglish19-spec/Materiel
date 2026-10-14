@@ -389,6 +389,51 @@ def update_active_repair(db: Session, repair: Repair, data: RepairUpdate):
     return repair
 
 
+def update_repair_record(db: Session, repair: Repair, data: RepairUpdate):
+    """Edit the details of a repair without changing its identity or links."""
+    today = date.today()
+    if data.repair_start_date and data.repair_start_date > today:
+        raise ValueError("لا يمكن تسجيل بداية إصلاح بتاريخ مستقبلي")
+    if data.repair_end_date and data.repair_end_date > today:
+        raise ValueError("لا يمكن تسجيل نهاية إصلاح بتاريخ مستقبلي")
+    effective_start_date = data.repair_start_date or repair.repair_start_date or repair.repair_date
+    if data.repair_end_date and data.repair_end_date < effective_start_date:
+        raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
+    if repair.status == "cancelled" and data.repair_end_date and data.repair_end_date != repair.repair_end_date:
+        raise ValueError("لا يمكن تسجيل نهاية لإصلاح ملغى")
+    if data.workshop_type == "external" and not data.external_dispatch_document:
+        raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
+    _validate_meter_sequence(db, repair.fault.equipment, data.meter_value, effective_start_date,
+                             exclude=("repair", repair.id))
+
+    next_status = repair.status
+    if repair.status != "cancelled":
+        next_status = "completed" if data.repair_end_date else "in_progress"
+    if next_status == "in_progress":
+        other_active = db.query(Repair.id).filter(
+            Repair.fault_id == repair.fault_id,
+            Repair.status == "in_progress",
+            Repair.id != repair.id,
+        ).first()
+        if other_active:
+            raise ValueError("يوجد سجل تصليح نشط آخر لهذا العطل")
+
+    try:
+        for field, value in data.model_dump().items():
+            setattr(repair, field, value)
+        repair.status = next_status
+        if repair.status != "cancelled":
+            repair.fault.status = "repaired" if repair.status == "completed" else "repairing"
+        db.flush()
+        _sync_equipment_from_faults(db, repair.fault.equipment_id)
+        db.commit()
+        db.refresh(repair)
+        return repair
+    except Exception:
+        db.rollback()
+        raise
+
+
 def create_spare_part(db: Session, data: SparePartCreate):
     obj = SparePart(**data.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
 
