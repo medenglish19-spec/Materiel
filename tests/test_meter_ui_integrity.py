@@ -69,6 +69,20 @@ def test_meter_page_is_not_overridden_by_shared_base_meter_handlers():
     assert "getElementById('readingForm')" not in text
 
 
+def test_current_meter_page_omits_only_its_duplicate_navigation_link():
+    text = TEMPLATE.read_text(encoding="utf-8")
+    navigation = text.split('<div class="actions navigation-actions">', 1)[1].split("</div>", 1)[0]
+
+    assert 'href="/"' in navigation
+    assert 'href="/equipment"' in navigation
+    assert 'href="/meter-readings/operations"' in navigation
+    assert 'href="/meter-readings"' not in navigation
+    assert "▤ قراءات العدادات" not in navigation
+
+    shared_navigation = BASE_TEMPLATE.read_text(encoding="utf-8")
+    assert 'href="/meter-readings"' in shared_navigation
+
+
 def test_meter_readings_page_keeps_all_core_actions():
     text = TEMPLATE.read_text(encoding="utf-8")
     for marker in (
