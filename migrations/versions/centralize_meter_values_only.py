@@ -148,8 +148,13 @@ def _drop_sqlite_meter_triggers():
 
 
 def upgrade():
-    op.add_column("repairs", sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.current_timestamp()))
-    op.add_column("maintenance_records", sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.current_timestamp()))
+    # SQLite cannot add a NOT NULL column with a non-constant default through
+    # ALTER TABLE ADD COLUMN. Alembic's batch mode rebuilds the table and copies
+    # existing rows, applying CURRENT_TIMESTAMP to the new column.
+    with op.batch_alter_table("repairs") as batch_op:
+        batch_op.add_column(sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.current_timestamp()))
+    with op.batch_alter_table("maintenance_records") as batch_op:
+        batch_op.add_column(sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.current_timestamp()))
     for table, column, checks in (
         ("fuel_records", "meter_value", ()),
         ("faults", "meter_value", ("ck_fault_meter_nonnegative",)),
