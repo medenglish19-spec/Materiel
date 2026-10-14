@@ -60,3 +60,29 @@
 .maintenance-page .plan-name-cell{display:flex;align-items:center;gap:5px}
 .maintenance-page .standalone-check-col{width:34px;text-align:center}
 .maintenance-page #recordsTable input[type="checkbox"]{width:15px;height:15px;accent-color:var(--blue);vertical-align:middle;cursor:pointer}
+
+/* Maintenance landing page: align its palette and navigation cards with the shared shell. */
+.maintenance-page.maintenance-home{--navy:#315f42;--navy2:#397a54;--blue:#397a54;--blue2:#2f6747;--line:#d8e5da;--bg:#f3f8f4;--text:#20352a;--muted:#718477;background:var(--bg)}
+.maintenance-home .page-top{border-bottom-color:#d8e5da}
+.maintenance-home .page-heading h2{color:#20352a}
+.maintenance-home .breadcrumb .current{color:#397a54}
+.maintenance-home .panel{border-color:#d8e5da;box-shadow:0 4px 16px rgba(31,81,56,.06)}
+.maintenance-home .panel-head{border-bottom-color:#e5eee7}
+.maintenance-home .panel-head h3{color:#315f42}
+.maintenance-home .badge.info{background:#eaf2ec;color:#315f42}
+.maintenance-home .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.maintenance-home .kpi{min-height:84px;border-color:#d8e5da;box-shadow:0 3px 10px rgba(31,81,56,.045);transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.maintenance-home .kpi:hover{border-color:#a9c5b0;box-shadow:0 7px 17px rgba(31,81,56,.09);transform:translateY(-1px)}
+.maintenance-home .kpi-icon{background:#eaf2ec;color:#397a54}
+.maintenance-home .kpi-label{color:#315f42;font-size:12px;white-space:normal}
+.maintenance-home .kpi-meta{color:#718477;font-size:10px;line-height:1.6;white-space:normal}
+@media(max-width:900px){.maintenance-home .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.maintenance-home .kpi-grid{grid-template-columns:1fr}.maintenance-home .kpi{min-height:74px}}
+
+/* The maintenance table baseline is intentionally more specific; let the
+   opt-in shared palette win inside the compact unapproved-model dialogs. */
+.maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green th{background:#315f42;color:#f5fff7;border-color:#426c50}
+.maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green td{border-bottom-color:#e5eee7}
+.maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:nth-child(even) td{background:#f8fcf9}
+.maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:hover td{background:#eef6f0}
+.maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr.selected td{background:#dfede2}

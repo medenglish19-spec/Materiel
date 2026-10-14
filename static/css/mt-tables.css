@@ -72,6 +72,42 @@
   background:var(--bg-secondary,#F3F4F6);
 }
 
+/* Optional shared palette for pages migrated to the cool-green table theme.
+   Column widths remain content-driven; unwrapped headings request horizontal
+   scrolling from their region instead of shrinking or splitting labels. */
+[data-mt-region].mt-table-theme-green{
+  border:1px solid #d8e5da;
+  scrollbar-color:#b8cfbe #eaf2ec;
+}
+[data-mt-region].mt-table-theme-green table th,
+table.mt-table-theme-green th{
+  background:#315f42;
+  color:#f5fff7;
+  border-color:#426c50;
+  white-space:nowrap;
+  overflow-wrap:normal;
+  min-width:max-content;
+}
+[data-mt-region].mt-table-theme-green table td,
+table.mt-table-theme-green td{
+  border-bottom-color:#e5eee7;
+}
+[data-mt-region].mt-table-theme-green table tbody tr:nth-child(even) td,
+table.mt-table-theme-green tbody tr:nth-child(even) td{
+  background:#f8fcf9;
+}
+[data-mt-region].mt-table-theme-green table tbody tr:hover td,
+table.mt-table-theme-green tbody tr:hover td{
+  background:#eef6f0;
+}
+[data-mt-region].mt-table-theme-green table tbody tr.selected td,
+table.mt-table-theme-green tbody tr.selected td{
+  background:#dfede2;
+}
+[data-mt-region].mt-table-theme-green::-webkit-scrollbar-track{background:#eaf2ec}
+[data-mt-region].mt-table-theme-green::-webkit-scrollbar-thumb{background:#b8cfbe;border-color:#eaf2ec}
+[data-mt-region].mt-table-theme-green::-webkit-scrollbar-thumb:hover{background:#91ad98}
+
 /* Always-visible scrollbars (Blink/WebKit). */
 [data-mt-region]::-webkit-scrollbar{width:11px;height:12px}
 [data-mt-region]::-webkit-scrollbar-track{background:#eef1f4;border-radius:8px}

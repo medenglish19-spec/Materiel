@@ -130,7 +130,7 @@
     </form>
     <div class="request-workspace" id="requestWorkspace">
       <section class="request-list-pane" aria-label="قائمة طلبات قطع الغيار">
-        <div class="table-scroll" data-mt-region><table class="list-t"><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
+        <div class="table-scroll mt-table-theme-green" data-mt-region><table class="list-t"><thead><tr><th>رقم الطلب</th><th>الغيار</th><th>تاريخ الطلب</th><th>الحالة والإجراءات</th></tr></thead><tbody id="rows"></tbody></table></div>
       </section>
     </div>
   </div>
@@ -309,9 +309,9 @@ function detailHtml(x){
 
 function itemsHtml(x){
   const head='<thead><tr><th>اسم قطعة الغيار</th><th>من المخزون (اختياري)</th><th>المطلوب</th><th>المستلم كمية</th><th>ملاحظات</th><th>الإجراء</th></tr></thead>';
-  if(!x.items.length)return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
+  if(!x.items.length)return '<div class="table-scroll mt-table-theme-green" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
   const undoItem=x.items.find(i=>Number(i.received_quantity||0)>0||Boolean(i.supplier_institution));
-  return '<div class="table-scroll" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x,undoItem&&undoItem.id===i.id)).join('')+'</tbody></table></div>';
+  return '<div class="table-scroll mt-table-theme-green" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x,undoItem&&undoItem.id===i.id)).join('')+'</tbody></table></div>';
 }
 
 function itemRow(i,x,showUndo){
