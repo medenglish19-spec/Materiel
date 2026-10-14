@@ -35,7 +35,7 @@ body:has(.mdx) .module-nav{display:none}
 .mdx-action{height:38px;padding:0 13px;border:1px solid var(--mdx-line-strong);border-radius:9px;background:#fff;color:var(--mdx-ink);font-size:12.5px;box-shadow:none}
 .mdx-action:hover{background:var(--mdx-panel);border-color:#a9b6bc;transform:none;box-shadow:none}
 .mdx-primary,.mdx-primary:hover{background:var(--mdx-accent);border-color:var(--mdx-accent);color:#fff;box-shadow:none}
-.mdx .layout{grid-template-columns:340px minmax(0,1fr);gap:16px;align-items:start}
+.mdx .layout{grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:stretch}
 .mdx .card{background:#fff;border:1px solid var(--mdx-line);border-radius:12px;box-shadow:none}
 .mdx .tree-card{top:72px;max-height:calc(100vh - 88px)}
 .mdx .tree-head{padding:12px;background:#fff;border-bottom:1px solid var(--mdx-line)}
@@ -43,6 +43,9 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .tree-head .muted{background:#e6ebed;color:#4b5b64;padding:2px 8px;font-size:11.5px}
 .mdx .tree-search{width:calc(100% - 24px);margin:10px 12px 8px;height:36px;padding:0 11px;border:1px solid var(--mdx-line-strong);border-radius:9px;background:#fff;box-shadow:none;font-size:13px}
 .mdx .tree-search:focus{border-color:var(--mdx-accent);box-shadow:0 0 0 3px var(--mdx-accent-soft)}
+.mdx .tree-card>.global-search-wrap{flex:0 0 auto;width:auto;max-width:none;margin:10px 12px 8px;align-items:center}
+.mdx .tree-card>.global-search-wrap>.tree-search{width:auto;min-width:0;margin:0;flex:1 1 auto}
+.mdx .tree-card>.global-search-wrap>.global-search-btn,.mdx .tree-card>.global-search-wrap>.global-clear-btn{height:36px;min-height:36px;padding:0 10px;flex:0 0 auto}
 .mdx .tree-filter-bar{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 9px}
 .mdx .tree-filter{height:27px;padding:0 10px;border:1px solid var(--mdx-line-strong);border-radius:999px;background:#fff;color:#4b5b64;font-size:11.5px;font-weight:600}
 .mdx .tree-filter[aria-pressed="true"]{background:var(--mdx-ink);border-color:var(--mdx-ink);color:#fff}
@@ -64,7 +67,7 @@ body:has(.mdx) .module-nav{display:none}
 .mdx .editor-head small{font-size:12px;letter-spacing:0;text-transform:none;color:var(--mdx-muted);font-weight:500}
 .mdx .editor-head h2{font-size:17px;font-weight:700;color:var(--mdx-ink)}
 .mdx .body{padding:16px 18px;background:#fff}
-.mdx #empty{min-height:460px;border:0;border-radius:0;background:#fff;color:var(--mdx-muted);font-size:13.5px}
+.mdx #empty{min-height:320px;border:0;border-radius:0;background:#fff;color:var(--mdx-muted);font-size:13.5px}
 .mdx #empty::before{color:var(--mdx-accent);opacity:.75}
 .mdx .panel{padding:0;background:#fff}
 .mdx .type-overview{display:grid;gap:16px}
@@ -176,8 +179,9 @@ body:has(.mdx) .module-nav{display:none}
 /* Mobile-first model library refinement: keep navigation compact and let the library own the screen. */
 body:has(.mdx) .app-sidebar{width:208px}
 body:has(.mdx) .app-main{margin-right:208px}
-.mdx .layout{grid-template-columns:280px minmax(0,1fr);gap:14px}
-.mdx .tree-card{max-width:280px}
+.mdx .layout{grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:stretch}
+.mdx .tree-card{max-width:300px}
+@media(max-width:1200px){.mdx .layout{grid-template-columns:280px minmax(0,1fr);gap:14px}.mdx .tree-card{max-width:280px}}
 .mdx .tree-card{overflow:hidden;display:flex;flex-direction:column;min-height:0}
 .mdx .tree-card .tree{overflow-y:auto;overflow-x:hidden;min-height:0;scrollbar-width:thin;scrollbar-color:#aebbc0 transparent}
 .mdx .tree-card .tree::-webkit-scrollbar{width:8px}
@@ -186,11 +190,11 @@ body:has(.mdx) .app-main{margin-right:208px}
 .mdx .tree-card .tree::-webkit-scrollbar-thumb:hover{background:#89999f}
 .mdx .type-models-head{padding:12px 14px}
 .mdx .type-table th,.mdx .type-table td{padding:9px 10px}
-@media(max-width:900px){
+@media(max-width:980px){
   body:has(.mdx) .app-sidebar{width:176px}
   body:has(.mdx) .app-main{margin-right:176px}
-  .mdx .layout{grid-template-columns:250px minmax(0,1fr)}
-  .mdx .tree-card{max-width:250px}
+  .mdx .layout{grid-template-columns:minmax(0,1fr)}
+  .mdx .tree-card{max-width:none}
 }
 @media(max-width:700px){
   body:has(.mdx) .app-sidebar{
@@ -240,6 +244,9 @@ body:has(.mdx) .app-main{margin-right:208px}
   .mdx .tree-head{padding:9px 10px}
   .mdx .tree-head strong{font-size:12px}
   .mdx .tree-search{height:32px;margin:7px 10px 6px;width:calc(100% - 20px);font-size:11.5px}
+  .mdx .tree-card>.global-search-wrap{margin:7px 10px 6px}
+  .mdx .tree-card>.global-search-wrap>.tree-search{height:32px;font-size:11.5px}
+  .mdx .tree-card>.global-search-wrap>.global-search-btn,.mdx .tree-card>.global-search-wrap>.global-clear-btn{height:32px;min-height:32px;padding:0 8px;font-size:11px}
   .mdx .tree-filter-bar{padding:0 10px 7px;gap:4px}
   .mdx .tree-filter{height:24px;padding:0 8px;font-size:10px}
   .mdx .tree-node{min-height:30px;padding:4px 7px;font-size:11.5px}
@@ -553,7 +560,10 @@ function renderSpecManager(){
     const syncWidth=()=>{
       const width=Math.max(table.scrollWidth,tableWrap.clientWidth);
       topInner.style.width=width+'px';
-      return Math.max(0,tableWrap.scrollWidth-tableWrap.clientWidth);
+      const overflow=Math.max(0,tableWrap.scrollWidth-tableWrap.clientWidth);
+      topScroll.hidden=overflow<=1;
+      if(!overflow)topScroll.scrollLeft=0;
+      return overflow;
     };
     let syncing=false;
     const syncFromTop=()=>{
