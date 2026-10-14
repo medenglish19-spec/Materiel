@@ -92,7 +92,13 @@ def chronology_error(db: Session, equipment_id: int, maintenance_date: date, met
     if equipment is None:
         return "العتاد غير موجود"
     unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
-    reference = f"maintenance:{exclude_id}:meter" if exclude_id is not None else None
+    reference = None
+    if exclude_id is not None:
+        existing_record = db.get(MaintenanceRecord, exclude_id)
+        if existing_record is not None:
+            from app.modules.meter_readings.source_values import source_reference
+
+            reference = source_reference(existing_record, "meter_value")
     try:
         validate_meter_observation(db, equipment_id, maintenance_date, meter, unit, "الصيانة", source_reference=reference)
     except ValueError as exc:

@@ -365,8 +365,14 @@ def test_remove_operation_from_plan_keeps_operation_and_other_plans(api):
             json={"plan_id": plan["id"], "operation_id": operation["id"], "sort_order": 1},
         )
         assert linked.status_code == 201, linked.text
+    approved = client.post(f"/api/maintenance/plans/{plan1['id']}/approve")
+    assert approved.status_code == 200, approved.text
 
     # Remove from plan1 only
+    preview = client.get(f"/api/maintenance/plans/{plan1['id']}/operations/{operation['id']}/remove-impact")
+    assert preview.status_code == 200, preview.text
+    assert any(row["kind"] == "unlink" for row in preview.json()["effects"])
+    assert any(row.get("kind") == "recalculate" and row["count"] == 1 for row in preview.json()["effects"])
     response = client.delete(
         f"/api/maintenance/plans/{plan1['id']}/operations/{operation['id']}"
     )
@@ -401,8 +407,20 @@ def test_remove_operation_from_model_keeps_other_model_links(api):
     db.close()
 
     operation = _create_operation_with_multiple_models(client, [ids["model_a"], model_b_id])
+    plan = _create_plan(client, ids["model_a"], name="خطة مرتبطة بالطراز")
+    linked = client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations",
+        json={"plan_id": plan["id"], "operation_id": operation["id"], "sort_order": 1},
+    )
+    assert linked.status_code == 201, linked.text
+    approved = client.post(f"/api/maintenance/plans/{plan['id']}/approve")
+    assert approved.status_code == 200, approved.text
 
     # Remove from model_a only
+    preview = client.get(f"/api/maintenance/operations/{operation['id']}/models/{ids['model_a']}/remove-impact")
+    assert preview.status_code == 200, preview.text
+    assert any(row["kind"] == "unlink" for row in preview.json()["effects"])
+    assert any(row.get("kind") == "recalculate" and row["count"] == 1 for row in preview.json()["effects"])
     response = client.delete(
         f"/api/maintenance/operations/{operation['id']}/models/{ids['model_a']}"
     )
@@ -695,3 +713,97 @@ def test_error_response_structure_contains_detail_field(api):
     # 422 - validation error
     resp = client.post("/api/maintenance/plans/bulk-delete", json={"plan_ids": []})
     assert resp.status_code == 422
+
+
+def test_bulk_plan_operation_add_is_atomic_and_rejects_duplicates(api):
+    client, ids = api
+    plan = _create_plan(client, ids["model_a"])
+    operation = client.post(
+        "/api/maintenance/operations",
+        json={
+            "name": "عملية دفعة",
+            "equipment_model_conditions": [
+                {"model_id": ids["model_a"], "condition_source": "model", "interval_km": 900}
+            ],
+        },
+    )
+    assert operation.status_code == 201, operation.text
+    operation_id = operation.json()["id"]
+    second_operation = client.post("/api/maintenance/operations", json={"name": "عملية دفعة ثانية"})
+    assert second_operation.status_code == 201, second_operation.text
+    second_operation_id = second_operation.json()["id"]
+
+    invalid = client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations/bulk",
+        json={"operation_ids": [operation_id, 999999]},
+    )
+    assert invalid.status_code == 404
+    assert client.get(f"/api/maintenance/plans/{plan['id']}/operations").json() == []
+
+    added = client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations/bulk",
+        json={"operation_ids": [operation_id, second_operation_id]},
+    )
+    assert added.status_code == 201, added.text
+    assert [link["operation_id"] for link in added.json()] == [operation_id, second_operation_id]
+
+    duplicate = client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations/bulk",
+        json={"operation_ids": [operation_id]},
+    )
+    assert duplicate.status_code == 409
+    links = client.get(f"/api/maintenance/plans/{plan['id']}/operations").json()
+    assert [link["operation_id"] for link in links] == [operation_id, second_operation_id]
+    stored_operation = next(item for item in client.get("/api/maintenance/operations").json() if item["id"] == operation_id)
+    stored_condition = next(item for item in stored_operation["model_conditions"] if item["model_id"] == ids["model_a"])
+    assert float(stored_condition["interval_km"]) == 900
+
+
+def test_standalone_model_condition_is_separate_from_plan_condition(api):
+    client, ids = api
+    plan = _create_plan(client, ids["model_a"])
+    operation_response = client.post("/api/maintenance/operations", json={"name": "عملية مستقلة وخطة"})
+    assert operation_response.status_code == 201, operation_response.text
+    operation_id = operation_response.json()["id"]
+    linked = client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations",
+        json={"plan_id": plan["id"], "operation_id": operation_id},
+    )
+    assert linked.status_code == 201, linked.text
+
+    condition_url = f"/api/maintenance/operations/{operation_id}/models/{ids['model_a']}/condition"
+    saved = client.post(condition_url, json={"interval_km": 1200})
+    assert saved.status_code == 201, saved.text
+    duplicate = client.post(condition_url, json={"interval_days": 30})
+    assert duplicate.status_code == 409
+    assert client.post(condition_url, json={"interval_km": -1}).status_code == 422
+    assert client.post(condition_url, json={"interval_km": 0}).status_code == 422
+    assert client.post(condition_url, json={"unit": "months", "interval_days": 30}).status_code == 422
+    assert client.post(
+        f"/api/maintenance/plans/{plan['id']}/operations/bulk",
+        json={"operation_ids": [operation_id]},
+    ).status_code == 409
+
+    updated_plan = client.put(
+        f"/api/maintenance/plans/{plan['id']}",
+        json={
+            "name": plan["name"],
+            "equipment_model_id": ids["model_a"],
+            "interval_km": 25000,
+            "is_active": True,
+            "description": plan.get("description"),
+        },
+    )
+    assert updated_plan.status_code == 200, updated_plan.text
+    operation = next(item for item in client.get("/api/maintenance/operations").json() if item["id"] == operation_id)
+    model_condition = next(item for item in operation["model_conditions"] if item["model_id"] == ids["model_a"])
+    assert float(model_condition["interval_km"]) == 1200
+    assert client.get(f"/api/maintenance/plans/{plan['id']}/operations").json()[0]["operation_id"] == operation_id
+
+    edited = client.patch(condition_url, json={"interval_hours": 75})
+    assert edited.status_code == 200, edited.text
+    operation = next(item for item in client.get("/api/maintenance/operations").json() if item["id"] == operation_id)
+    model_condition = next(item for item in operation["model_conditions"] if item["model_id"] == ids["model_a"])
+    assert model_condition["interval_km"] is None
+    assert float(model_condition["interval_hours"]) == 75
+    assert client.get(f"/api/maintenance/plans/{plan['id']}/operations").json()[0]["operation_id"] == operation_id

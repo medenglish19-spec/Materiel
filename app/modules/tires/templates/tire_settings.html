@@ -8,7 +8,7 @@
   <section class="settings-panel">
     <h3>مدة الصلاحية</h3>
     <p class="hint">تطبق المدة على جميع الإطارات عند حساب تاريخ الانتهاء من تاريخ التصنيع، أو من تاريخ الاستلام إذا لم يوجد تاريخ تصنيع. عند تغيير المدة يعاد حساب تاريخ الانتهاء للإطارات التي لديها تاريخ أساس.</p>
-    <form method="post" action="/tires/settings">
+    <form method="post" action="/tires/settings" data-em-root>
       <label for="validity_years">مدة صلاحية الإطار — بالسنوات</label>
       <input id="validity_years" type="number" name="validity_years" min="1" max="100" value="{{ validity_years }}" required>
       <button type="submit">حفظ وتطبيق</button>

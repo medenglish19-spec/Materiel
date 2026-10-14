@@ -100,8 +100,14 @@
     window.refPanel(node.dataset.refItem, node.dataset.id, node.dataset.name || '', node.dataset);
     selectNode(node);
   };
-  const postDelete = (url, message) => {
-    if (!confirm(message)) return;
+  const postDelete = async (url, message) => {
+    const impactPath = url.replace(/^\/equipment-types\/models\/(\d+)\/delete$/, '/api/equipment-types/models/$1/delete-impact')
+      .replace(/^\/equipment-types\/categories\/(\d+)\/delete$/, '/api/equipment-types/categories/$1/delete-impact')
+      .replace(/^\/equipment-types\/(\d+)\/delete$/, '/api/equipment-types/$1/delete-impact')
+      .replace(/^\/equipment-types\/brands\/(\d+)\/delete$/, '/api/equipment-types/brands/$1/delete-impact');
+    if (impactPath !== url) {
+      if (!await window.MaterielDeleteImpact.confirmOne(impactPath, 'مراجعة آثار حذف البيانات المرجعية')) return;
+    } else if (!confirm(message)) return;
     const form = document.createElement('form');
     form.method = 'post'; form.action = url; form.hidden = true;
     document.body.appendChild(form); form.submit();

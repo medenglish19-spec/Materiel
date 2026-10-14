@@ -99,7 +99,7 @@
     {% if edit_record.operation_id %}
     <section class="panel" id="editRecord" style="margin-top:16px">
       <div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>التعديل يظل خاضعًا لشروط العملية والطراز وتسلسل العداد.</p></div></div>
-      <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
         <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
         <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
         <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-model-ids="{{ operation_model_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
@@ -121,7 +121,7 @@
   <dialog id="newRecordDialog" class="maintenance-record-dialog" aria-labelledby="newRecordTitle">
   <section class="panel" id="newRecord">
     <div class="panel-head"><div><h3 id="newRecordTitle">تسجيل صيانة جديدة</h3><p>التنفيذ يكون لعملية صيانة محددة. الخطة اختيارية؛ وإذا اختيرت فلا بد أن تكون العملية منضوية تحتها.</p></div><button class="m-btn dialog-close" type="button" data-close-record-dialog aria-label="إغلاق">×</button></div>
-    <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+    <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required disabled><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
       <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
@@ -218,7 +218,7 @@
     });
   async function bulkDeleteSelectedRecords(){
     const ids=[...selectedRecordIds];
-    if(!ids.length||!confirm('تحذير: سيُحذف سجل الصيانة المحدد نهائيًا من التاريخ التشغيلي، وقد تتغير قراءة العداد الحالية وفق السجلات المتبقية. ستبقى الأعطال وطلبات قطع الغيار المرتبطة، لكن سيُزال ارتباطها بهذا السجل. هل تريد المتابعة؟'))return;
+    if(!ids.length||!await window.MaterielDeleteImpact.confirmMany(ids.map(id=>api+'/records/'+id+'/delete-impact'),'مراجعة أثر حذف سجلات الصيانة المحددة'))return;
     bulkDeleteRecords.disabled=true;
     bulkDeleteRecords.textContent='جارٍ الحذف...';
     try{
@@ -377,7 +377,7 @@
         },
         "record-edit":()=>{window.location.href="/maintenance/records?edit="+id+"#editRecord";},
         "record-delete":async()=>{
-          if(!confirm('تحذير: سيُحذف سجل الصيانة المحدد نهائيًا من التاريخ التشغيلي، وقد تتغير قراءة العداد الحالية وفق السجلات المتبقية. ستبقى الأعطال وطلبات قطع الغيار المرتبطة، لكن سيُزال ارتباطها بهذا السجل. هل تريد المتابعة؟'))return;
+          if(!await window.MaterielDeleteImpact.confirmOne(api+'/records/'+id+'/delete-impact','مراجعة أثر حذف سجل الصيانة'))return;
           action.disabled=true;
           try{
             await req(api+"/records/"+id,{method:"DELETE"});

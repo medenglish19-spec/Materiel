@@ -100,6 +100,36 @@ def test_duplicate_manual_reading_same_date_and_value_is_rejected(db):
     assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).count() == 1
 
 
+@pytest.mark.parametrize(
+    ("meter_value", "message"),
+    [(Decimal("500"), "مكررة"), (Decimal("490"), "تعارض قراءة العداد")],
+)
+def test_maintenance_record_meter_uses_central_same_day_validation(db, meter_value, message):
+    """صيانة وقراءة أخرى لا تسجلان قياسين متعارضين في اليوم نفسه."""
+    from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
+
+    equipment = seed_equipment(db, "MAINT-DUP", "km")
+    operation = MaintenanceOperation(name="عملية اختبار", is_active=True)
+    db.add(operation)
+    db.flush()
+    reading_date = datetime(2026, 8, 17)
+    services.create_reading(db, equipment.id, odometer=500, reading_date=reading_date)
+
+    db.add(MaintenanceRecord(
+        equipment_id=equipment.id,
+        operation_id=operation.id,
+        maintenance_date=reading_date.date(),
+        meter_value=meter_value,
+        status="completed",
+    ))
+    with pytest.raises(ValueError, match=message):
+        db.commit()
+    db.rollback()
+
+    assert db.query(MaintenanceRecord).count() == 0
+    assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).count() == 1
+
+
 def test_direct_ledger_insert_rejects_a_value_above_a_later_reading(db):
     equipment = seed_equipment(db, "DIRECT-SEQ", "km")
     services.create_reading(db, equipment.id, odometer=120, reading_date=datetime(2026, 8, 20))

@@ -284,12 +284,39 @@ def test_every_page_renders_for_a_logged_in_user(pages):
     assert failures == [], "\n".join(failures)
 
 
+def test_single_form_pages_are_connected_to_the_shared_editor(pages):
+    client, _ = pages
+    for path, marker in (
+        ("/fuel", 'class="fuel-form" data-em-root'),
+        ("/missions", 'action="/missions" class="record-form" data-em-root'),
+        ("/tires/settings", 'action="/tires/settings" data-em-root'),
+        ("/batteries/settings", 'action="/batteries/settings" class="record-form" data-em-root'),
+        ("/tires", 'action="/tires" class="tire-form" data-em-root'),
+        ("/batteries", 'action="/batteries" class="battery-form" data-em-root'),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200, response.text
+        assert marker in response.text, f"النموذج لا يتتبع تغييره عبر الشريط: {path}"
+        assert 'data-em-action="save"' in response.text
+
+    meter_page = client.get('/meter-readings').text
+    assert 'id="readingForm" action="/meter-readings/create" method="post" data-em-root' in meter_page
+    assert "if(window.EditManager)EditManager.reset();openModal('readingModal')" in meter_page
+    assert "if(id==='readingModal')" in meter_page
+
+    maintenance_page = client.get('/maintenance/records')
+    assert maintenance_page.status_code == 200, maintenance_page.text
+    assert 'id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root' in maintenance_page.text
+    assert 'data-em-action="save"' in maintenance_page.text
+
+
 def test_detail_pages_render(pages):
     """صفحات التفاصيل لم تكن مغطّاة إطلاقاً — أعطال/تصليح/عداد/تحرير عتاد."""
     client, ids = pages
     paths = [
         f"/equipment/{ids['equipment']}",
         f"/equipment/{ids['equipment']}/meters",
+        f"/equipment/{ids['equipment']}/maintenance",
         f"/equipment/{ids['equipment']}/edit",
         f"/faults-repairs/faults/{ids['fault']}",
         f"/faults-repairs/repairs/{ids['repair']}",
@@ -301,6 +328,15 @@ def test_detail_pages_render(pages):
     ]
 
     assert failures == [], "\n".join(failures)
+    meter_page = client.get(f"/equipment/{ids['equipment']}/meters").text
+    assert '<form id="editReadingForm" method="post" data-em-root>' in meter_page
+    assert 'data-em-action="save"' in meter_page
+    assert "if(window.EditManager)EditManager.reset()" in meter_page
+    maintenance_page = client.get(f"/equipment/{ids['equipment']}/maintenance").text
+    assert f'action="/equipment/{ids["equipment"]}/maintenance/create" class="grid-form" data-em-root' in maintenance_page
+    assert 'data-em-action="save"' in maintenance_page
+    equipment_edit_page = client.get(f"/equipment/{ids['equipment']}/edit").text
+    assert 'id="equipmentEditForm" data-em-root onsubmit=' in equipment_edit_page
 
 
 def test_repair_workspace_uses_live_repair_and_has_four_sections(pages):
@@ -316,6 +352,7 @@ def test_repair_workspace_uses_live_repair_and_has_four_sections(pages):
     assert 'حالة الإصلاح للقراءة فقط' in body
     assert "تغيير حالة الإصلاح" not in body
     assert "SPR-PAGE-1" in body
+    assert '<form id="repairForm" data-em-root>' in body
 
 
 def test_repair_history_includes_same_equipment_and_excludes_other_equipment(anonymous):
@@ -452,6 +489,8 @@ def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     assert "111-TEST" in body, "العتاد المزروع غير ظاهر في القائمة"
     assert "في الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
     assert 'data-status="in_maintenance"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
+    assert '<form method="post" action="/equipment/create" class="grid-form" id="equipmentCreateForm" data-em-root>' in body
+    assert 'data-em-action="save"' in body
 
 
 def test_fault_list_shows_spare_request_linked_through_repair(pages):
@@ -461,6 +500,16 @@ def test_fault_list_shows_spare_request_linked_through_repair(pages):
     assert "SPR-PAGE-1" in body, "طلب الغيار المرتبط بالتصليح لا يظهر في سجل الأعطال"
     assert "حالة طلب الغيار" in body, "عمود حالة طلب الغيار غير موجود"
     assert "معلق" in body, "حالة طلب الغيار غير ظاهرة"
+    assert '<form id="faultForm" data-em-root>' in body
+    assert "EditManager.markSaved('dom')" in body
+
+
+def test_technician_creation_form_is_tracked_by_the_shared_editor(pages):
+    client, _ = pages
+    response = client.get("/faults-repairs/technicians")
+    assert response.status_code == 200
+    assert '<form id="techForm" class="tech-form" data-em-root>' in response.text
+    assert 'data-em-action="save"' in response.text
 
 
 def test_fault_pages_show_arabic_status_and_severity(pages):

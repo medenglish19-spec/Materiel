@@ -118,6 +118,8 @@ class RepairCreate(BaseModel):
 
 class RepairOut(RepairCreate):
     model_config = ConfigDict(from_attributes=True)
+    # Legacy repair rows may intentionally have an empty action after editing.
+    action_taken: str
     id: int
     created_at: datetime
 
@@ -127,7 +129,7 @@ class RepairUpdate(BaseModel):
     repair_end_date: Optional[date] = None
     meter_value: Optional[Decimal] = Field(default=None, ge=0)
     diagnosis: Optional[str] = None
-    action_taken: str = Field(min_length=1)
+    action_taken: str
     technician: Optional[str] = None
     workshop_type: str
     workshop: Optional[str] = None

@@ -148,5 +148,6 @@ class TestConsumedPartInputIsWholeNumber:
             ROOT / "app" / "modules" / "faults_repairs" / "templates" / "repair_detail.html"
         ).read_text(encoding="utf-8")
 
-    def test_quantity_step_is_one(self):
-        assert 'name="quantity" min="1" step="1"' in self.html
+    def test_repair_page_does_not_allow_untracked_consumed_quantity(self):
+        assert 'name="quantity"' not in self.html
+        assert "حركات التوزيع الفعلية" in self.html

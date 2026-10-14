@@ -25,13 +25,14 @@ def render_fixture(body):
 @pytest.fixture
 def browser_page():
     html = render_fixture('''
-    <form id="record" method="post" action="/maintenance/records/create">
+    <form id="record" method="post" action="/maintenance/records/create" data-em-root>
       <select id="model" name="model" required><option value="">طراز</option><option value="1">طراز 1</option></select>
       <select id="equipment" name="equipment" required><option value="">عتاد</option><option value="10">عتاد 10</option></select>
       <select id="operation" name="operation" required><option value="">عملية</option><option value="20">تغيير الزيت</option></select>
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
       <button type="submit">حفظ الصيانة</button><a href="/cancel" class="cancel-btn">إلغاء</a>
     </form>
+    <form id="other" data-em-root><input id="otherValue" name="other_value"></form>
     <input id="search" type="search" placeholder="بحث">
     <script>
       model.onchange=()=>{equipment.value='';operation.value=''};
@@ -51,6 +52,11 @@ def browser_page():
                 self.send_response(200);self.send_header("Content-Type",content_type);self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.end_headers();self.wfile.write(html.encode())
         def do_POST(self):
+            if self.path == "/native-save":
+                self.send_response(303)
+                self.send_header("Location", "/maintenance/records?submitted=1")
+                self.end_headers()
+                return
             self.send_response(200);self.send_header("Content-Type","application/json");self.end_headers();self.wfile.write(b'{"ok":true}')
         def log_message(self,*_): pass
 
@@ -85,6 +91,40 @@ def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_
     page.wait_for_timeout(500)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
+def test_form_scoped_baseline_and_restore_preserve_the_open_form_state(browser_page):
+    page, errors = browser_page
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(500)
+    page.evaluate("() => EditManager.markFormBaseline(document.getElementById('record'))")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'clean')
+
+    page.locator('#meter').fill('600')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
+    page.evaluate("async () => EditManager.restoreForm(document.getElementById('record'), 'إلغاء تعديل')")
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'clean')
+    assert not errors
+
+
+def test_form_scoped_rebase_and_restore_do_not_clear_another_form(browser_page):
+    page, errors = browser_page
+    page.locator('#otherValue').fill('draft in another form')
+    page.wait_for_timeout(500)
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(500)
+    page.evaluate("() => EditManager.markFormBaseline(document.getElementById('record'))")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
+
+    page.locator('#meter').fill('600')
+    page.wait_for_timeout(500)
+    page.evaluate("async () => EditManager.restoreForm(document.getElementById('record'), 'إلغاء نموذج')")
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#otherValue')).to_have_value('draft in another form')
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
     assert not errors
 
 
@@ -156,6 +196,24 @@ def test_form_without_method_is_tracked_and_fetch_save_is_awaited(browser_page):
     page.locator('[data-em-action="save"]').click()
     page.wait_for_timeout(150)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not errors
+
+def test_native_form_submission_is_listed_once_after_navigation(browser_page):
+    page, errors = browser_page
+    page.evaluate("""() => {
+      EditManager.setSaveHandler(null);
+      const form=document.createElement('form');form.id='nativeSaveForm';form.method='post';form.action='/native-save';form.dataset.emRoot='';
+      form.innerHTML='<input name="note" value="قبل"><button type="submit">حفظ الملاحظة</button>';
+      document.querySelector('main').append(form);
+      EditManager.markFormBaseline(form);
+    }""")
+    page.locator("#nativeSaveForm [name='note']").fill("بعد")
+    page.locator('[data-em-action="save"]').click()
+    page.wait_for_url("**/maintenance/records?submitted=1")
+    actions = page.evaluate("JSON.parse(sessionStorage.getItem('materiel:session-actions:v1') || '[]')")
+    assert len(actions) == 1
+    assert actions[0]["path"] == "/native-save"
+    assert actions[0]["method"] == "تنفيذ"
     assert not errors
 
 

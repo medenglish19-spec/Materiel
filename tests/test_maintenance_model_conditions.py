@@ -179,7 +179,7 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     assert "جارٍ تحميل المكتبة" in page
     assert "لا توجد عمليات مطابقة" in page
     assert "خطأ في التحميل" in page
-    assert "state.loadState='error'" in page
+    assert "state.loadState==='error'" in page
 
     # المكتبة لا تعرض شرط الطراز: لا نص «الشرط غير محدد» ولا قراءة model_conditions.
     assert "الشرط غير محدد" not in page

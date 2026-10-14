@@ -36,6 +36,7 @@ def _routes():
         ("POST", "/equipment/{equipment_id}/meters/{reading_id}/delete"),
         ("GET", "/api/equipment"),
         ("GET", "/api/equipment/{equipment_id}"),
+        ("GET", "/api/equipment/{equipment_id}/delete-impact"),
     ],
 )
 def test_core_equipment_route_is_registered(method, path):

@@ -142,13 +142,27 @@ def _validate_meter_history(movements):
         previous = value
 
 
-def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
+def _validate_equipment_meter(
+    db: Session,
+    equipment_id: int,
+    movement_date: date,
+    meter_value: Decimal | None,
+    source_reference: str | None = None,
+):
     if meter_value is None:
         return
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     unit = equipment.equipment_type.measurement_unit if equipment and equipment.equipment_type else "hours"
     from app.modules.meter_readings.services import validate_meter_observation
-    validate_meter_observation(db, equipment_id, movement_date, meter_value, unit, "حركة بطارية")
+    validate_meter_observation(
+        db,
+        equipment_id,
+        movement_date,
+        meter_value,
+        unit,
+        "حركة بطارية",
+        source_reference=source_reference,
+    )
 
 
 def _equipment_age_below_limit(equipment: Equipment | None, when: date, years: int) -> bool:
@@ -217,7 +231,16 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
                 if required_count == 1:
                     raise ValueError("العتاد لديه بطارية مركبة بالفعل في التاريخ المحدد")
                 raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
-            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"battery_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db,
+                equipment.id,
+                movement.movement_date,
+                movement.meter_value,
+                source_reference,
+            )
             state_at = {"installed": True, "equipment_id": movement.equipment_id}
         elif movement.movement_type == "move":
             if damaged_reported:
@@ -233,7 +256,16 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
                 raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
-            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"battery_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db,
+                equipment.id,
+                movement.movement_date,
+                movement.meter_value,
+                source_reference,
+            )
             state_at = {"installed": True, "equipment_id": movement.equipment_id}
         elif movement.movement_type == "remove":
             if not state_at["installed"]:

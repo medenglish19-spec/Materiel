@@ -24,7 +24,10 @@ def test_maintenance_plan_routes_cover_page_management_and_execution():
     assert ("/api/maintenance/plans/{plan_id}/approve", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("GET",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations", ("POST",)) in paths
+    assert ("/api/maintenance/plans/{plan_id}/operations/bulk", ("POST",)) in paths
     assert ("/api/maintenance/plans/{plan_id}/operations/{operation_id}", ("DELETE",)) in paths
+    assert ("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}/condition", ("POST",)) in paths
+    assert ("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}/condition", ("PATCH",)) in paths
     assert ("/api/maintenance/plan-execution", ("POST",)) in paths
 
 
@@ -56,14 +59,24 @@ def test_maintenance_plan_ui_exposes_complete_controls():
     # لا أزرار إجراءات دائمة ولا عمود إجراءات منفصل بعد التوحيد.
     for legacy in ('data-edit="', 'data-approve="', 'data-ops="', 'data-execute="', 'data-edit-standalone="'):
         assert legacy not in html
+    assert 'id="form" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root' in html
+    assert 'id="standaloneForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root' in html
     assert 'id="executionPanel"' in html
-    assert 'id="executionForm"' in html
+    assert 'id="executionForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root' in html
     assert 'id="executionEquipment"' in html
     assert 'id="executionDate"' in html
     assert 'id="executionMeter"' in html
     assert "api+'/plan-execution'" in html
     assert "لا يتم تعديل شروط العمليات من هنا." in html
-    assert "سيتم إزالة العملية من الخطة فقط" in html
+    assert "remove-impact" in html
+    assert "إزالة ارتباط عملية بالخطة" in html
+    assert 'id="savePlanOps"' in html
+    assert "EditManager.register(planOpsProvider" in html
+    assert "EditManager.register(standaloneLinksProvider" in html
+    assert "pendingStandaloneRemovals.add(Number(operationId))" in html
+    assert "saveStandaloneLinkRemovals" in html
+    assert "لديك تغييرات روابط غير محفوظة لهذا الطراز" in html
+    assert "EditManager.commit('إزالة ارتباط عملية مستقلة بالطراز')" in html
 
 
 def test_plan_operation_add_rejects_inactive_operation():
@@ -73,32 +86,29 @@ def test_plan_operation_add_rejects_inactive_operation():
 
 
 def test_plan_operations_are_added_only_from_the_operation_library():
-    """الإضافة الوحيدة لعمليات الخطة هي زر «📚 إضافة من مكتبة العمليات».
-
-    يجب أن يبقى زر المكتبة هو مسار الإضافة الوحيد، وأن يختفي الزر المكرر
-    «＋ إضافة العملية للخطة» مع عنصر الإضافة المضمَّن التابع له (operationSelect).
-    """
+    """اختيار عمليات المكتبة يجري داخل نافذة صفحة الخطط ويحفظ دفعة واحدة."""
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
-    # مسار الإضافة الوحيد: زر المكتبة وموصّله الفعلي.
     assert "📚 إضافة من مكتبة العمليات" in html
     assert 'id="openOperationLibrary"' in html
-    assert "$('openOperationLibrary').onclick" in html
-    assert "/maintenance/rules?plan_id=" in html
-    # لا يوجد زر إضافة مكرر ولا عنصر الإضافة المضمَّن التابع له.
-    assert "＋ إضافة العملية للخطة" not in html
-    assert 'id="addOperation"' not in html
-    assert 'id="operationSelect"' not in html
+    assert "$('openOperationLibrary').onclick=openPlanOperationPicker" in html
+    assert 'id="planOperationPicker"' in html
+    assert 'id="planOperationSearch"' in html
+    assert 'id="planOperationSelectAll"' in html
+    assert 'id="planOperationSelectedCount"' in html
+    assert "api+'/plans/'+planId+'/operations/bulk'" in html
+    assert "/maintenance/rules?plan_id=" not in html
+    picker = html[html.index('id="planOperationPicker"'):html.index('id="standalonePanel"')]
+    assert "حذف العملية" not in picker and "تعديل العملية" not in picker
+    assert "interval_km" not in picker and "شرط استحقاق" not in picker
 
 
 def test_operation_library_plan_mode_keeps_the_full_add_workflow():
-    """مكتبة العمليات في وضع الخطة تحفظ الإضافة فعليًا عبر واجهة الخطة."""
-    rules = RULES_TEMPLATE.read_text(encoding="utf-8")
-    # تقرأ plan_id من العنوان وتُظهر شريط وضع الخطة.
-    assert 'params.get("plan_id")' in rules
-    assert "planModeBar" in rules
-    # وتحفظ العمليات المختارة/المحذوفة على الخطة عبر نقاط النهاية الفعلية.
-    assert 'api+"/plans/"+state.planId+"/operations"' in rules
-    assert 'api+"/plans/"+state.planId+"/operations/"+operationId' in rules
+    """النافذة المستقلة تحفظ شرط الطراز عبر نقطة نهاية العلاقة المخصصة."""
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+    assert '<dialog class="maintenance-modal" id="standalonePanel"' in html
+    assert "api+'/operations/'+opId+'/models/'+modelId+'/condition'" in html
+    assert "method:$('standaloneOpId').value?'PATCH':'POST'" in html
+    assert "equipment_model_conditions:conditions" not in html
 
 
 def test_plan_selection_checkboxes_use_set_and_never_blank_the_table():
@@ -146,7 +156,8 @@ def test_plan_list_exposes_bulk_selection_and_scoped_bulk_actions():
     # الحذف الجماعي الحقيقي عبر نقطة النهاية الخادمية.
     assert 'api+"/plans/bulk-delete"' in html
     # إزالة العمليات المستقلة تبقى على نقطة نهاية إزالة الطراز الواحدة.
-    assert 'api+"/operations/"+operationId+"/models/"+modelId' in html
+    assert "api+'/operations/'+operationId+'/models/'+modelId" in html
+    assert "saveStandaloneLinkRemovals" in html
 
 
 def test_operation_library_bulk_delete_consumes_success_and_rejected_contract():

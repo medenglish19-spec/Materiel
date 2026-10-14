@@ -140,3 +140,13 @@ def test_the_sidebar_link_points_at_the_real_path():
     text = BASE_TEMPLATE.read_text(encoding="utf-8")
 
     assert f'href="{PAGE}"' in text, f"the sidebar does not link to {PAGE}"
+
+
+@pytest.mark.parametrize("template", ["distribution.html", "return.html"])
+def test_movement_editors_are_connected_to_the_shared_save_toolbar(template):
+    source = (ROOT / "app" / "modules" / "spare_parts_movements" / "templates" / template).read_text(encoding="utf-8")
+
+    assert '<form id="form" class="form" method="post" data-em-root novalidate>' in source
+    assert 'data-em-action="save"' not in source  # toolbar is shared from base.html
+    assert "EditManager.markFormBaseline(document.getElementById('form'))" in source
+    assert "document.getElementById('form').addEventListener('submit'" in source

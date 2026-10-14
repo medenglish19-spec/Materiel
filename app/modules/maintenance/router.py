@@ -14,7 +14,7 @@ from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
-from app.modules.maintenance.schemas import (MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
+from app.modules.maintenance.schemas import (MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenanceOperationModelConditionSave, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationsBulkCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
     maintenance_record_has_execution_data,
     maintenance_record_delete_reason,
@@ -36,7 +36,7 @@ from app.modules.maintenance.services import (
     plan_condition,
 )
 from app.modules.users.models import User
-from app.modules.faults_repairs.models import Technician
+from app.modules.faults_repairs.models import Technician, Fault
 from app.modules.faults_repairs.services import list_technicians
 
 router = APIRouter()
@@ -550,6 +550,21 @@ def maintenance_record_delete(
     return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.get("/api/maintenance/records/{record_id}/delete-impact")
+def maintenance_record_delete_impact(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.FLEET_MANAGER))):
+    rec = db.get(MaintenanceRecord, record_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود")
+    fault_count = db.query(Fault.id).filter(Fault.maintenance_record_id == rec.id).count()
+    reason = maintenance_record_delete_reason(rec)
+    effects = [
+        {"label": "سجل الصيانة", "count": 1},
+        {"label": "الأعطال التي ستبقى مع فصل ارتباطها بسجل الصيانة", "count": fault_count, "kind": "unlink"},
+        {"label": "قيمة العداد الحالية ستعاد مزامنتها من السجلات المتبقية", "count": 1, "kind": "recalculate"},
+    ]
+    return {"label": f"{rec.maintenance_date} — {rec.operation.name if rec.operation else 'سجل قديم'}", "effects": effects, "blocked": reason}
+
+
 @router.delete("/api/maintenance/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
 def api_maintenance_record_delete(
     record_id: int,
@@ -779,31 +794,13 @@ def api_operation_group_update(group_id: int, payload: MaintenanceOperationGroup
     except Exception as exc: db.rollback(); raise HTTPException(status_code=409, detail="اسم مجموعة شروط الصيانة مستخدم مسبقًا.") from exc
     return group
 
-@router.delete("/api/maintenance/operation-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
-
-def api_operation_group_delete(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-
+@router.get("/api/maintenance/operation-groups/{group_id}/delete-impact")
+def api_operation_group_delete_impact(group_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     group = db.get(MaintenanceOperationGroup, group_id)
-
     if group is None:
-
         raise HTTPException(status_code=404, detail="مجموعة شروط الصيانة غير موجودة.")
-
-    db.delete(group)
-
-    try:
-
-        db.commit()
-
-    except Exception as exc:
-
-        db.rollback()
-
-        raise HTTPException(status_code=409, detail="تعذر حذف مجموعة شروط الصيانة.") from exc
-
-    return None
-
-
+    operations = db.query(MaintenanceOperation).filter(MaintenanceOperation.group_id == group_id).all()
+    return {"label": group.name, "effects": [{"label": "عمليات الصيانة التي ستبقى بلا مجموعة", "count": len(operations), "kind": "unlink"}]}
 
 @router.get("/api/maintenance/equipment/models")
 
@@ -852,6 +849,20 @@ def api_operation_delete(operation_id: int, db: Session = Depends(get_db), curre
         db.rollback()
         raise HTTPException(status_code=409, detail="تعذر حذف عملية الصيانة.") from exc
     return None
+
+@router.get("/api/maintenance/operations/{operation_id}/delete-impact")
+def api_operation_delete_impact(operation_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    plan_count = db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.operation_id == operation_id).count()
+    record_count = db.query(MaintenanceRecord.id).filter(MaintenanceRecord.operation_id == operation_id).count()
+    blocked = "لا يمكن حذف العملية لارتباطها بخطط أو سجلات تنفيذ؛ عطّلها أو أزل ارتباطاتها أولًا." if plan_count or record_count else None
+    return {"label": operation.name, "effects": [
+        {"label": "روابط العملية بالطرازات التي ستحذف معها", "count": len(operation.equipment_models)},
+        {"label": "روابط الخطط التي تمنع الحذف", "count": plan_count, "kind": "blocked"},
+        {"label": "سجلات التنفيذ التي تمنع الحذف", "count": record_count, "kind": "blocked"},
+    ], "blocked": blocked}
 
 
 @router.get("/api/maintenance/operations", response_model=list[MaintenanceOperationOut])
@@ -1004,6 +1015,111 @@ def api_operation_remove_model(operation_id: int, equipment_model_id: int, db: S
         raise HTTPException(status_code=409, detail="تعذر إزالة الطراز من العملية.") from exc
     return None
 
+
+def _save_operation_model_condition(
+    operation_id: int,
+    equipment_model_id: int,
+    payload: MaintenanceOperationModelConditionSave,
+    db: Session,
+    *,
+    update: bool,
+):
+    """Save one model's independent condition without editing the library operation or plans."""
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    if not operation.is_active:
+        raise HTTPException(status_code=409, detail="لا يمكن ربط عملية صيانة غير مفعلة بطراز.")
+    model = db.get(EquipmentModel, equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+
+    relation = maintenance_operation_models
+    existing = db.execute(
+        relation.select().where(
+            relation.c.operation_id == operation_id,
+            relation.c.equipment_model_id == equipment_model_id,
+        )
+    ).first()
+    if update and (existing is None or existing.condition_source != "model"):
+        raise HTTPException(status_code=404, detail="لا يوجد شرط مستقل محفوظ لهذه العملية والطراز.")
+    if not update and existing is not None and existing.condition_source == "model":
+        raise HTTPException(status_code=409, detail="للعملية شرط مستقل محفوظ لهذا الطراز مسبقًا.")
+
+    values = {
+        "condition_source": "model",
+        "interval_km": payload.interval_km,
+        "interval_hours": payload.interval_hours,
+        "interval_days": payload.interval_days,
+    }
+    try:
+        if existing is None:
+            db.execute(relation.insert().values(
+                operation_id=operation_id,
+                equipment_model_id=equipment_model_id,
+                is_active=True,
+                **values,
+            ))
+        else:
+            db.execute(relation.update().where(
+                relation.c.operation_id == operation_id,
+                relation.c.equipment_model_id == equipment_model_id,
+            ).values(**values))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حفظ شرط العملية المستقلة للطراز.") from exc
+    return {"operation_id": operation_id, "model_id": equipment_model_id, **values}
+
+
+@router.post("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}/condition", status_code=status.HTTP_201_CREATED)
+def api_operation_model_condition_create(
+    operation_id: int,
+    equipment_model_id: int,
+    payload: MaintenanceOperationModelConditionSave,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _save_operation_model_condition(operation_id, equipment_model_id, payload, db, update=False)
+
+
+@router.patch("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}/condition")
+def api_operation_model_condition_update(
+    operation_id: int,
+    equipment_model_id: int,
+    payload: MaintenanceOperationModelConditionSave,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _save_operation_model_condition(operation_id, equipment_model_id, payload, db, update=True)
+
+
+@router.get("/api/maintenance/operations/{operation_id}/models/{equipment_model_id}/remove-impact")
+def api_operation_remove_model_impact(operation_id: int, equipment_model_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    operation = db.get(MaintenanceOperation, operation_id)
+    if operation is None:
+        raise HTTPException(status_code=404, detail="عملية الصيانة غير موجودة.")
+    model = db.get(EquipmentModel, equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد غير موجود.")
+    if model not in operation.equipment_models:
+        raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذا الطراز.")
+    approved_plans = db.query(MaintenancePlan.id).join(
+        MaintenancePlanOperation,
+        MaintenancePlanOperation.plan_id == MaintenancePlan.id,
+    ).filter(
+        MaintenancePlan.equipment_model_id == model.id,
+        MaintenancePlanOperation.operation_id == operation.id,
+        MaintenancePlan.is_approved.is_(True),
+    ).count()
+    return {
+        "label": f"{operation.name} — {model.name}",
+        "effects": [
+            {"label": "ارتباط العملية بالطراز الذي سيزال", "count": 1, "kind": "unlink"},
+            {"label": "خطط معتمدة ستحتاج إلى اعتماد جديد", "count": approved_plans, "kind": "recalculate"},
+        ],
+    }
+
 @router.get("/api/maintenance/plans", response_model=list[MaintenancePlanOut])
 def api_plans(equipment_model_id: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     query = db.query(MaintenancePlan)
@@ -1080,6 +1196,18 @@ def api_plan_delete(plan_id: int, db: Session = Depends(get_db), current_user: U
         raise HTTPException(status_code=409, detail="تعذر حذف خطة الصيانة.") from exc
     return None
 
+@router.get("/api/maintenance/plans/{plan_id}/delete-impact")
+def api_plan_delete_impact(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    record_count = db.query(MaintenanceRecord.id).filter(MaintenanceRecord.plan_id == plan.id).count()
+    operation_count = db.query(MaintenancePlanOperation.id).filter(MaintenancePlanOperation.plan_id == plan.id).count()
+    return {"label": plan.name, "effects": [
+        {"label": "روابط العمليات التي ستزال من الخطة", "count": operation_count},
+        {"label": "سجلات التنفيذ التي تمنع حذف الخطة", "count": record_count, "kind": "blocked"},
+    ], "blocked": "لا يمكن حذف الخطة لارتباطها بسجلات تنفيذ تاريخية." if record_count else None}
+
 @router.post("/api/maintenance/plans/{plan_id}/approve", response_model=MaintenancePlanOut)
 def api_plan_approve(plan_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     plan = db.get(MaintenancePlan, plan_id)
@@ -1149,6 +1277,61 @@ def api_plan_operation_add(plan_id: int, payload: MaintenancePlanOperationCreate
         raise HTTPException(status_code=409, detail="العملية مرتبطة بهذه الخطة مسبقًا أو أن البيانات غير صالحة.") from exc
     return link
 
+
+@router.post("/api/maintenance/plans/{plan_id}/operations/bulk", response_model=list[MaintenancePlanOperationOut], status_code=status.HTTP_201_CREATED)
+def api_plan_operations_add_bulk(
+    plan_id: int,
+    payload: MaintenancePlanOperationsBulkCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validate the whole selection, then add it atomically to one plan."""
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    if not plan.is_active:
+        raise HTTPException(status_code=409, detail="لا يمكن إضافة عمليات إلى خطة صيانة غير مفعلة.")
+    model = db.get(EquipmentModel, plan.equipment_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="طراز العتاد للخطة غير موجود.")
+
+    operation_ids = payload.operation_ids
+    operations = db.query(MaintenanceOperation).filter(MaintenanceOperation.id.in_(operation_ids)).all()
+    by_id = {operation.id: operation for operation in operations}
+    missing = [operation_id for operation_id in operation_ids if operation_id not in by_id]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"عمليات الصيانة غير موجودة: {missing}.")
+    inactive = [operation.id for operation in operations if not operation.is_active]
+    if inactive:
+        raise HTTPException(status_code=409, detail=f"توجد عمليات غير مفعلة ضمن الاختيار: {inactive}.")
+    existing_ids = {
+        operation_id for (operation_id,) in db.query(MaintenancePlanOperation.operation_id)
+        .filter(
+            MaintenancePlanOperation.plan_id == plan_id,
+            MaintenancePlanOperation.operation_id.in_(operation_ids),
+        ).all()
+    }
+    if existing_ids:
+        raise HTTPException(status_code=409, detail=f"بعض العمليات مرتبطة بالخطة مسبقًا: {sorted(existing_ids)}.")
+
+    links = []
+    try:
+        for sort_order, operation_id in enumerate(operation_ids):
+            operation = by_id[operation_id]
+            if model not in operation.equipment_models:
+                operation.equipment_models.append(model)
+            link = MaintenancePlanOperation(plan_id=plan_id, operation_id=operation_id, sort_order=sort_order)
+            db.add(link)
+            links.append(link)
+        plan.is_approved = False
+        db.commit()
+        for link in links:
+            db.refresh(link)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر إضافة العمليات المحددة؛ لم تُحفظ أي عملية.") from exc
+    return links
+
 @router.delete("/api/maintenance/plans/{plan_id}/operations/{operation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def api_plan_operation_remove(
     plan_id: int,
@@ -1173,6 +1356,32 @@ def api_plan_operation_remove(
         db.rollback()
         raise HTTPException(status_code=409, detail="تعذر إزالة العملية من الخطة.") from exc
     return None
+
+
+@router.get("/api/maintenance/plans/{plan_id}/operations/{operation_id}/remove-impact")
+def api_plan_operation_remove_impact(
+    plan_id: int,
+    operation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    plan = db.get(MaintenancePlan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="خطة الصيانة غير موجودة.")
+    link = db.query(MaintenancePlanOperation).filter(
+        MaintenancePlanOperation.plan_id == plan_id,
+        MaintenancePlanOperation.operation_id == operation_id,
+    ).first()
+    if link is None:
+        raise HTTPException(status_code=404, detail="العملية غير مرتبطة بهذه الخطة.")
+    operation = db.get(MaintenanceOperation, operation_id)
+    return {
+        "label": f"{operation.name if operation else 'عملية الصيانة'} — {plan.name}",
+        "effects": [
+            {"label": "ارتباط العملية بالخطة الذي سيزال", "count": 1, "kind": "unlink"},
+            {"label": "اعتماد الخطة سيُلغى ويلزم اعتماده مجددًا", "count": int(bool(plan.is_approved)), "kind": "recalculate"},
+        ],
+    }
 
 
 @router.get("/api/maintenance/execution", response_model=list[MaintenanceRecordOut])

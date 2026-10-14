@@ -150,6 +150,27 @@ def delete_intervention(intervention_id: int, db: Session = Depends(get_db), _: 
     except ValueError as e:
         raise HTTPException(400, str(e))
 
+
+@router.get("/technician-interventions/{intervention_id}/delete-impact")
+def technician_intervention_delete_impact(intervention_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    obj = db.query(TechnicianIntervention).filter(TechnicianIntervention.id == intervention_id).first()
+    if not obj:
+        raise HTTPException(404, "التدخل غير موجود")
+    effects = [
+        {"label": "تدخل الفني الذي سيحذف", "count": 1},
+        {"label": "ساعات العمل وإحصاءات الفني التي ستتغير", "count": 1, "kind": "recalculate"},
+    ]
+    if obj.repair.status != "in_progress":
+        effects.append({
+            "label": "هذا التدخل تابع لإصلاح تاريخي؛ سيُحذف التدخل مع بقاء سجل الإصلاح",
+            "count": 1,
+            "kind": "warning",
+        })
+    return {
+        "label": f"تدخل {obj.technician.full_name} — {obj.intervention_date:%Y-%m-%d} — {obj.hours} ساعة",
+        "effects": effects,
+    }
+
 @router.get("/technicians/{technician_id}/statistics")
 def technician_statistics(technician_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     result = services.technician_detail_stats(db, technician_id)
