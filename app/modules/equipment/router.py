@@ -1,14 +1,15 @@
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
+from app.modules.equipment import bulk_import as equipment_bulk_import
 from app.modules.equipment.analytics import build_capacity_readiness_analysis, build_utilization_analysis
 from app.modules.equipment.operational_analysis import build_operational_analysis
 from app.modules.equipment.models import Equipment
@@ -169,10 +170,43 @@ def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
 @router.post("/equipment/create")
-def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
-    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
+def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),first_service_date:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    from datetime import date
+    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,first_service_date=date.fromisoformat(first_service_date) if first_service_date else None,acquisition_date=date.fromisoformat(acquisition_date) if acquisition_date else None,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
     except ValueError: pass
     return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/equipment/import/template")
+def equipment_import_template(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    from io import BytesIO
+    content = equipment_bulk_import.build_template(db)
+    return StreamingResponse(BytesIO(content), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="equipment-import-template.xlsx"'})
+
+
+async def _equipment_import_rows(file: UploadFile) -> list[dict]:
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="ارفع ملف Excel بصيغة .xlsx.")
+    try:
+        return equipment_bulk_import.parse_workbook(await file.read(equipment_bulk_import.MAX_FILE_BYTES + 1))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/equipment/import/preview")
+async def equipment_import_preview(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    rows = await _equipment_import_rows(file)
+    results = equipment_bulk_import.preview(db, rows)
+    return {"total": len(results), "valid": sum(1 for row in results if row["ok"]), "rejected": sum(1 for row in results if not row["ok"]), "rows": results}
+
+
+@router.post("/equipment/import/confirm")
+async def equipment_import_confirm(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    rows = await _equipment_import_rows(file)
+    result = equipment_bulk_import.import_rows(db, rows, current_user.id)
+    created_count = len(result["created"])
+    rejected_count = len(result["rejected"])
+    return JSONResponse({"ok": rejected_count == 0, "created": created_count, "rejected": rejected_count, "rows": result["rejected"], "message": f"تمت إضافة {created_count} عتاد." + (f" تعذر إضافة {rejected_count} صف؛ راجع أسباب الرفض أدناه." if rejected_count else "")})
 @router.post("/equipment/{equipment_id}/edit")
 def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
