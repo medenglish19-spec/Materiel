@@ -153,7 +153,7 @@
   const opById=id=>state.operations.find(o=>o.id===id);
   const num=v=>v==null?'':(Number.isInteger(v)?v:Number(v));
   let initialPlanOps=new Set();
-  let pendingStandaloneRemovals=new Set(),loadedModelId=0;
+  let pendingStandaloneRemovals=new Set(),loadedModelId=0,standaloneSaving=false;
   let pickerPlanOps=new Set(),standaloneReturnFocus=null;
   const planOpsProvider='maintenance-plan-links';
   const standaloneLinksProvider='maintenance-standalone-links';
@@ -506,6 +506,7 @@
       pendingStandaloneRemovals.add(Number(operationId));
       state.selectedStandalone.delete(operationId);
       render();if(window.EditManager)EditManager.commit('إزالة ارتباط عملية مستقلة بالطراز');
+      alert('أزيلت العملية من العرض مؤقتًا. اضغط «حفظ» لتثبيت الإزالة؛ تحديث الصفحة قبل الحفظ يعيدها.');
     }catch(error){
       alert(error.message||"تعذر إزالة العملية من الطراز.",true);
     }
@@ -526,9 +527,9 @@
     }
     state.selectedStandalone.clear();render();if(removed.length&&window.EditManager)EditManager.commit('إزالة روابط العمليات المستقلة المحددة');
     if(failed.length){
-      alert(`تمت إزالة ${removed.length} عملية.\n`+failed.map(item=>`${item.name}: ${item.reason}`).join("\n"),true);
+      alert(`أزيلت ${removed.length} عملية من العرض مؤقتًا؛ اضغط «حفظ» لتثبيت الإزالة.\n`+failed.map(item=>`${item.name}: ${item.reason}`).join("\n"),true);
     }else{
-      alert(`تمت إزالة ${removed.length} عملية من الطراز الحالي.`);
+      alert(`أزيلت ${removed.length} عملية من العرض مؤقتًا. اضغط «حفظ» لتثبيت الإزالة؛ تحديث الصفحة قبل الحفظ يعيدها.`);
     }
   }
   async function saveStandaloneLinkRemovals(){
@@ -607,17 +608,27 @@
   $('form').onsubmit=async e=>{e.preventDefault();const id=$('planId').value,p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};try{await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});if(window.EditManager)EditManager.markSavedForm($('form'));alert(id?'تم تعديل الخطة، ويلزم إعادة اعتمادها.':'تم إنشاء الخطة، ويلزم اعتمادها لتظهر عملياتها في المتابعات.');$('editor').style.display='none';await load()}catch(e){alert(e.message,true)}};
   $('standaloneForm').onsubmit=async e=>{
     e.preventDefault();
+    if(standaloneSaving)return;
     const modelId=Number($('modelFilter').value);if(!modelId)return alert('اختر الطراز أولًا.',true);
     const opId=Number($('standaloneOpId').value||$('standaloneOperation').value);if(!opId)return alert('اختر عملية من المكتبة.',true);
     const km=$('standaloneKm').value?Number($('standaloneKm').value):null,hours=$('standaloneHours').value?Number($('standaloneHours').value):null,days=$('standaloneDays').value?Number($('standaloneDays').value):null;
     if(km===null&&hours===null&&days===null)return alert('حدد فاصلًا واحدًا على الأقل لشرط الاستحقاق.',true);
     const op=opById(opId);if(!op)return alert('العملية غير موجودة.',true);
+    const submit=$('standaloneForm').querySelector('button[type="submit"]');
+    standaloneSaving=true;if(submit)submit.disabled=true;
     try{
       await req(api+'/operations/'+opId+'/models/'+modelId+'/condition',{method:$('standaloneOpId').value?'PATCH':'POST',body:JSON.stringify({interval_km:km,interval_hours:hours,interval_days:days})});
       if(window.EditManager)EditManager.markSavedForm($('standaloneForm'));
       alert('تم حفظ شرط العملية المستقلة لهذا الطراز.');
       closeStandalone();await load();
-    }catch(e){alert(e.message,true)}
+    }catch(e){
+      if(e.message==='للعملية شرط مستقل محفوظ لهذا الطراز مسبقًا.'){
+        await load();
+        fillStandaloneOperations();
+        $('standaloneOperation').value=String(opId);
+        alert('هذه العملية مرتبطة بهذا الطراز مسبقًا. حدّثت القائمة؛ أغلق النافذة ثم اختر «تعديل شرط العملية» من صف العملية الموجودة.',true);
+      }else alert(e.message,true);
+    }finally{standaloneSaving=false;if(submit)submit.disabled=false}
   };
   $('openOperationLibrary').onclick=openPlanOperationPicker;
   $('planOperationSearch').oninput=renderPlanOperationPicker;
