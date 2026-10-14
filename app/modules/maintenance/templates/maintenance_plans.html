@@ -242,10 +242,21 @@
   function positionActionMenu(menu,toggle){
     const rect=toggle.getBoundingClientRect();
     const width=menu.offsetWidth||190;
+    const height=menu.offsetHeight;
+    const gap=4;
+    const viewportPadding=8;
+    const belowSpace=window.innerHeight-rect.bottom-gap-viewportPadding;
+    const aboveSpace=rect.top-gap-viewportPadding;
+    const openAbove=height>belowSpace&&aboveSpace>belowSpace;
     let left=rect.right-width;
-    if(left<8)left=8;
-    if(left+width>window.innerWidth-8)left=Math.max(8,window.innerWidth-width-8);
-    menu.style.top=Math.max(8,rect.bottom+4)+"px";
+    if(left<viewportPadding)left=viewportPadding;
+    if(left+width>window.innerWidth-viewportPadding)left=Math.max(viewportPadding,window.innerWidth-width-viewportPadding);
+    menu.style.maxHeight=Math.max(80,window.innerHeight-viewportPadding*2)+"px";
+    menu.style.overflowY="auto";
+    const top=openAbove
+      ? Math.max(viewportPadding,rect.top-gap-Math.min(height,aboveSpace))
+      : Math.min(rect.bottom+gap,window.innerHeight-viewportPadding-height);
+    menu.style.top=Math.max(viewportPadding,top)+"px";
     menu.style.left=left+"px";
   }
   function actionMenuButton(id,items,kind="row"){
