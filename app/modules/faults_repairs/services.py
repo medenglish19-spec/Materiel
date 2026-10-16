@@ -9,7 +9,17 @@ from app.modules.equipment.models import Equipment
 from app.modules.meter_readings.models import MeterReading
 from app.modules.maintenance.models import MaintenanceRecord
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
-from .schemas import FaultCreate, FaultUpdate, RepairCreate, RepairUpdate, TechnicianInterventionUpdate, SparePartCreate, SparePartUpdate, RepairPartCreate
+from .schemas import (
+    FaultCreate,
+    FaultUpdate,
+    REPAIR_STATUSES,
+    RepairCreate,
+    RepairUpdate,
+    TechnicianInterventionUpdate,
+    SparePartCreate,
+    SparePartUpdate,
+    RepairPartCreate,
+)
 
 
 
@@ -334,14 +344,18 @@ def dashboard_stats(db: Session):
     total = count()
     by_status = dict(db.query(Fault.status, func.count(Fault.id)).group_by(Fault.status).all())
     by_severity = dict(db.query(Fault.severity, func.count(Fault.id)).group_by(Fault.severity).all())
-    repairs = db.query(Repair).count()
+    repairs = db.query(Repair.status, func.count(Repair.id)).group_by(Repair.status).all()
+    repairs_by_status = {status: 0 for status in REPAIR_STATUSES}
+    repairs_by_status.update(dict(repairs))
+    repairs_total = sum(repairs_by_status.values())
     internal_open = db.query(Repair).join(Fault).filter(Repair.workshop_type == "internal", Repair.status == "in_progress").count()
     external_open = db.query(Repair).join(Fault).filter(Repair.workshop_type == "external", Repair.status == "in_progress").count()
     monthly_faults = db.query(Fault).filter(Fault.reported_date >= date.today().replace(day=1)).count()
     hours = db.query(func.coalesce(func.sum(TechnicianIntervention.hours), 0)).scalar()
     parts = db.query(func.coalesce(func.sum(RepairPart.quantity), 0)).scalar()
     return {"faults_total": total, "faults_by_status": by_status, "faults_by_severity": by_severity,
-            "repairs_total": repairs, "labor_hours": hours, "parts_consumed": parts,
+            "repairs_total": repairs_total, "repairs_by_status": repairs_by_status,
+            "labor_hours": hours, "parts_consumed": parts,
             "internal_repairs_in_progress": internal_open, "external_repairs_in_progress": external_open,
             "faults_this_month": monthly_faults}
 

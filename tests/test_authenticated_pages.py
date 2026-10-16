@@ -10,6 +10,7 @@
 كلاهما موجَّه إلى المحرك المؤقت.
 """
 
+import re
 from contextlib import contextmanager
 from datetime import date, timedelta
 
@@ -209,6 +210,20 @@ def anonymous():
 def test_login_sets_a_session_that_authenticates_the_pages(pages):
     client, _ = pages
     assert client.cookies.get("fleet_session"), "لا كوكي جلسة بعد الدخول"
+
+
+def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):
+    client, _ = pages
+    response = client.get("/faults-repairs")
+
+    assert response.status_code == 200
+    start = response.text.index('<section class="repair-statuses"')
+    end = response.text.index("</section>", start)
+    repair_metrics = response.text[start:end]
+    assert "قيد الإصلاح" in repair_metrics
+    assert "تم الإصلاح" in repair_metrics
+    assert "ملغى" in repair_metrics
+    assert re.findall(r'class="value">(\d+)</div>', repair_metrics) == ["1", "0", "0"]
 
 
 def test_pages_open_without_login(anonymous):
