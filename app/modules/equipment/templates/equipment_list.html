@@ -70,7 +70,7 @@
     </form>
 </div>
 {% if not types %}<div class="card alert-warning">لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.</div>{% endif %}
-<div class="toolbar">
+<div class="toolbar" data-mobile-filter-collapse>
     <input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل...">
     <select id="filter-type" class="select-box"><option value="">كل الأنواع</option>{% for t in types %}<option value="{{ t.name }}">{{ t.name }}</option>{% endfor %}</select>
     <select id="filter-status" class="select-box"><option value="">كل الوضعيات</option>{% for status_value, status_text in label_options('operational') %}<option value="{{ status_value }}">{{ status_text }}</option>{% endfor %}</select>

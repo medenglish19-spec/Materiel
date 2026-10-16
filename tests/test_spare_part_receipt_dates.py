@@ -407,7 +407,7 @@ def test_the_page_blocks_both_rules_before_sending_anything(client):
     html = page.get("/spare-parts-requests").text
     block = html[
         html.index("async function saveRequest"):html.index(
-            "document.getElementById('rows').addEventListener('click'"
+            "document.getElementById('sparePartsRequestPage').addEventListener('click'"
         )
     ]
 

@@ -293,8 +293,8 @@ def test_completed_execution_can_be_deleted_and_meter_is_recomputed(api):
         client, ids["equipment_a"], operation["id"], plan["id"],
         date(2026, 9, 24), meter_value=900,
     )
-    # The newer execution's 1000 reading is removed; the remaining latest
-    # execution must become the equipment's current meter value.
+    # Deleting a source record detaches its meter observation but preserves
+    # the central historical reading, so current mileage remains 1000.
 
     deleted = client.delete(f"/api/maintenance/records/{record_id}")
     assert deleted.status_code == 204
@@ -302,7 +302,11 @@ def test_completed_execution_can_be_deleted_and_meter_is_recomputed(api):
     execution = client.get("/api/maintenance/execution").json()
     assert not any(row["id"] == record_id for row in execution)
     assert any(row["id"] == older["id"] for row in execution)
-    assert _current_odometer(ids["equipment_a"]) == 900
+    assert _current_odometer(ids["equipment_a"]) == 1000
+    db = Session()
+    reading = db.query(MeterReading).filter(MeterReading.odometer == 1000).one()
+    assert reading.source_reference is None
+    db.close()
 
 
 def test_completed_execution_can_be_deleted_from_html_route_and_unlinks_fault(api):
@@ -501,7 +505,11 @@ def test_delete_completed_record_preserves_meter_history_and_current_value(api):
     assert deleted.status_code == 204
     assert _current_odometer(ids["equipment_a"]) == before == 1200
     db = Session()
-    assert db.query(MeterReading).filter(MeterReading.equipment_id == ids["equipment_a"]).count() == 2
+    assert db.query(MeterReading).filter(MeterReading.equipment_id == ids["equipment_a"]).count() == 3
+    unlinked = db.query(MeterReading).filter(
+        MeterReading.equipment_id == ids["equipment_a"], MeterReading.odometer == 1100
+    ).one()
+    assert unlinked.source_reference is None
     db.close()
 
 

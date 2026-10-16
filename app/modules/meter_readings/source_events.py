@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import event, insert, or_, select, update
+from sqlalchemy import inspect as sa_inspect
 
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentType
@@ -11,6 +12,34 @@ from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 
 
 _registered = False
+
+
+def _maintenance_reference(plan_id, equipment_id, maintenance_date, record_id):
+    if plan_id is not None:
+        return f"maintenance_plan:{plan_id}:{equipment_id}:{maintenance_date}:meter"
+    return f"maintenance:{record_id}:meter"
+
+
+def _unlink_reference(connection, reference):
+    """Keep a removed source reading in history, but detach its domain row."""
+    existing = connection.execute(
+        select(MeterReading.id, MeterReading.equipment_id, MeterReading.reading_date,
+               MeterReading.odometer, MeterReading.hours, MeterReading.source)
+        .where(MeterReading.source_reference == reference)
+    ).first()
+    if existing is None:
+        return None
+    reading_id, equipment_id, reading_date, odometer, hours, source = existing
+    unit = "km" if odometer is not None else "hours"
+    value = odometer if unit == "km" else hours
+    connection.execute(update(MeterReading).where(MeterReading.id == reading_id).values(source_reference=None))
+    connection.execute(insert(MeterReadingChange.__table__).values(
+        reading_id=reading_id, equipment_id=equipment_id, changed_at=utc_now(),
+        action="unlink", source=source, reading_date=reading_date, unit=unit,
+        old_value=value, new_value=value,
+        details="أزيلت القراءة من سجل العملية مع إبقائها في التاريخ المركزي.",
+    ))
+    return equipment_id
 
 
 def _as_datetime(value):
@@ -59,16 +88,7 @@ def _persist(connection, equipment_id, event_date, raw_value, source, reference)
     ).first()
     if raw_value is None or equipment_id is None or event_date is None:
         if existing is not None:
-            reading_id, old_equipment_id, old_date, old_odometer, old_hours, old_source = existing
-            unit = "km" if old_odometer is not None else "hours"
-            old_value = old_odometer if unit == "km" else old_hours
-            connection.execute(update(MeterReading).where(MeterReading.id == reading_id).values(source_reference=None))
-            connection.execute(insert(MeterReadingChange.__table__).values(
-                reading_id=reading_id, equipment_id=old_equipment_id, changed_at=utc_now(),
-                action="unlink", source=old_source, reading_date=old_date, unit=unit,
-                old_value=old_value, new_value=old_value,
-                details="أزيلت القراءة من سجل العملية مع إبقائها في التاريخ المركزي.",
-            ))
+            _unlink_reference(connection, reference)
         return
     reading_date = _as_datetime(event_date)
     if reading_date is None:
@@ -150,8 +170,54 @@ def register_domain_meter_listeners():
     sources = (FuelRecord, Fault, Repair, MaintenanceRecord, Mission, TireMovement, BatteryMovement)
     for model in sources:
         for operation in ("after_insert", "after_update"):
-            def listener(mapper, connection, target, _model=model):
+            def listener(mapper, connection, target, _model=model, _operation=operation):
+                if _model is MaintenanceRecord and _operation == "after_update":
+                    state = sa_inspect(target)
+                    history = {name: state.attrs[name].history for name in ("plan_id", "equipment_id", "maintenance_date")}
+                    if any(item.has_changes() for item in history.values()):
+                        old_plan = history["plan_id"].deleted[0] if history["plan_id"].deleted else target.plan_id
+                        old_equipment = history["equipment_id"].deleted[0] if history["equipment_id"].deleted else target.equipment_id
+                        old_date = history["maintenance_date"].deleted[0] if history["maintenance_date"].deleted else target.maintenance_date
+                        old_ref = _maintenance_reference(old_plan, old_equipment, old_date, target.id)
+                        new_ref = _maintenance_reference(target.plan_id, target.equipment_id, target.maintenance_date, target.id)
+                        if old_ref != new_ref:
+                            peers = connection.execute(
+                                select(MaintenanceRecord.id).where(
+                                    MaintenanceRecord.plan_id == old_plan,
+                                    MaintenanceRecord.equipment_id == old_equipment,
+                                    MaintenanceRecord.maintenance_date == old_date,
+                                    MaintenanceRecord.id != target.id,
+                                )
+                            ).first() if old_plan is not None else None
+                            if peers is None:
+                                connection.execute(update(MeterReading).where(
+                                    MeterReading.source_reference == old_ref
+                                ).values(source_reference=new_ref))
                 for equipment_id, event_date, value, source, reference in _observations(connection, _model.__name__, target):
                     _persist(connection, equipment_id, event_date, value, source, reference)
             event.listen(model, operation, listener)
+        def delete_listener(mapper, connection, target, _model=model):
+            observations = _observations(connection, _model.__name__, target)
+            for equipment_id, _, _, _, reference in observations:
+                if _model is MaintenanceRecord and target.plan_id is not None:
+                    peer = connection.execute(select(MaintenanceRecord.id).where(
+                        MaintenanceRecord.plan_id == target.plan_id,
+                        MaintenanceRecord.equipment_id == target.equipment_id,
+                        MaintenanceRecord.maintenance_date == target.maintenance_date,
+                        MaintenanceRecord.id != target.id,
+                    )).first()
+                    if peer is not None:
+                        continue
+                old_equipment_id = _unlink_reference(connection, reference)
+                if old_equipment_id is not None:
+                    unit = connection.execute(select(EquipmentType.measurement_unit)
+                        .select_from(Equipment.__table__.join(EquipmentType.__table__, Equipment.equipment_type_id == EquipmentType.id))
+                        .where(Equipment.id == old_equipment_id)).scalar_one_or_none()
+                    column = MeterReading.odometer if (unit or "hours").strip().lower() == "km" else MeterReading.hours
+                    latest = connection.execute(select(column).where(
+                        MeterReading.equipment_id == old_equipment_id, column.is_not(None)
+                    ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).limit(1)).scalar_one_or_none()
+                    field = Equipment.current_odometer if column is MeterReading.odometer else Equipment.current_hours
+                    connection.execute(update(Equipment).where(Equipment.id == old_equipment_id).values({field.key: latest}))
+        event.listen(model, "after_delete", delete_listener)
     _registered = True

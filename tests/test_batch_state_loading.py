@@ -95,14 +95,17 @@ def test_tire_detail_keeps_single_state_compatibility_path():
     assert "services.current_state(db, tire_id)" in inspect.getsource(router.tire_detail)
 
 
-def test_tire_dashboard_uses_batch_state_and_only_expired_installed_tires():
-    from app.modules.dashboard import router
+def test_tire_notification_provider_uses_batch_state_and_only_expired_installed_tires():
+    from app.modules.notifications import providers
 
-    source = inspect.getsource(router.dashboard_page)
+    # The dashboard now renders the unified notification provider output, so
+    # installed/expired tire rules belong to that provider rather than a
+    # second dashboard-only query.
+    source = inspect.getsource(providers.expired_tire_provider)
 
     assert "tire_batch_state.current_states(db)" in source
     assert "state.get(\"installed\")" in source
-    assert "tire_services.tire_condition(tire, state) == \"expired\"" in source
+    assert "tire_services.tire_condition(tire, state) != \"expired\"" in source
     assert "tire_services.current_state" not in source
 
 

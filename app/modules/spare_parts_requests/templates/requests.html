@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}سجل طلب قطع الغيار{% endblock %}
 {% block content %}
 <style>
@@ -112,7 +112,7 @@
     <div class="summary-card"><div class="summary-label">نتيجة البحث</div><div id="summaryFiltered" class="summary-value">0</div><div class="summary-note">بعد تطبيق البحث والفلاتر</div></div>
   </div>
   <div class="panel">
-    <div class="toolbar">
+    <div class="toolbar" data-mobile-filter-collapse>
       <div class="search-wrap"><input id="requestSearch" type="search" placeholder="ابحث برقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار"></div>
       <select id="filterStatus" aria-label="تصفية حسب الحالة"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
       <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>

@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}قراءات العداد لجميع العتاد{% endblock %}
 {% block content %}
 <div class="meter-page" dir="rtl">
@@ -7,12 +7,12 @@
     <div class="last-update">آخر تحديث: <strong>{{ last_update }}</strong></div>
   </div>
   <div class="actions navigation-actions">
-    <a class="btn" href="/">⌂ الرئيسية</a><a class="btn" href="/equipment">▣ قائمة العتاد</a><a class="btn" href="/meter-readings">▤ قراءات العدادات</a><a class="btn" href="/meter-readings/operations">▤ جلسات الإدخال</a>
+    <a class="btn" href="/">⌂ الرئيسية</a><a class="btn" href="/equipment">▣ قائمة العتاد</a><a class="btn" href="/meter-readings">▤ قراءات العدادات</a><a class="btn" href="/meter-readings/operations">▤ سجل العمليات</a>
   </div>
   <div class="actions main-actions">
     <button class="btn primary" type="button" onclick="openReadingModal()">＋ إضافة قراءة</button><button class="btn" type="button" onclick="openImportModal()">⇧ استيراد ملف Excel</button><button class="btn" type="button" onclick="openDateModal()">＋ إضافة تاريخ</button><button class="btn" type="button" onclick="openSelectedHistory()">▣ عرض السجل الزمني</button><button class="btn" type="button" onclick="location.reload()">↻</button>
   </div>
-  <form class="toolbar" method="get" action="/meter-readings" id="filtersForm">
+  <form class="toolbar" data-mobile-filter-collapse method="get" action="/meter-readings" id="filtersForm">
     <input type="search" name="search" value="{{ search }}" placeholder="بحث برقم التسجيل أو الطراز..."><select name="type_id"><option value="">كل أنواع العتاد</option>{% for type in types %}<option value="{{ type.id }}" {% if type_id == type.id %}selected{% endif %}>{{ type.name }}</option>{% endfor %}</select><select name="unit"><option value="">كل العدادات</option><option value="km" {% if unit == 'km' %}selected{% endif %}>كم</option><option value="hours" {% if unit == 'hours' %}selected{% endif %}>ساعة عمل</option></select><select name="sort"><option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>الأحدث</option><option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>الأقدم</option><option value="registration" {% if sort == 'registration' %}selected{% endif %}>رقم التسجيل</option></select><input type="hidden" name="page_size" id="pageSizeHidden" value="{{ page_size }}"><input type="hidden" name="date_from" id="dateFromHidden" value=""><input type="hidden" name="date_to" id="dateToHidden" value=""><button class="btn primary" type="submit">تطبيق</button><button class="btn" type="button" onclick="toggleMoreFilters()">☷ المزيد من الفلاتر</button>
   </form>
   <div id="moreFilters" class="more-filters" hidden><label>من تاريخ <input type="date" id="dateFrom"></label><label>إلى تاريخ <input type="date" id="dateTo"></label><button class="btn primary" type="button" onclick="applyDateFilter()">تطبيق التاريخ</button><button class="btn" type="button" onclick="clearDateFilter()">مسح التاريخ</button></div>

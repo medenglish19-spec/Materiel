@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}تسيير ومحاسبة العتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><link rel="stylesheet" href="/static/css/mt-tables.css?v=green-table-theme-20261014"><script src="/static/js/edit-manager.js"></script><script src="/static/js/mt-filters-core.js"></script><script src="/static/js/mt-tables.js?v=maintenance-record-filters"></script><script src="/static/js/delete-impact.js?v=delete-impact-v2" defer></script><script src="/static/js/page-freshness.js?v=1" defer></script>{% block extra_head %}{% endblock %}
+<meta charset="UTF-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}تسيير ومحاسبة العتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><link rel="stylesheet" href="/static/css/mt-tables.css?v=green-table-theme-20261016"><script src="/static/js/edit-manager.js"></script><script src="/static/js/mt-filters-core.js"></script><script src="/static/js/mt-tables.js?v=maintenance-record-filters&rev=20261016"></script><script src="/static/js/delete-impact.js?v=delete-impact-v2" defer></script><script src="/static/js/page-freshness.js?v=1" defer></script>{% block extra_head %}{% endblock %}
 <style>
 :root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:208px}
 body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tahoma,sans-serif}
@@ -251,6 +251,14 @@ html,body{background:var(--bg-primary);color:var(--text-primary)}
 .search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#629477;box-shadow:0 0 0 3px rgba(57,122,84,.13)}
 .module-nav a:hover,.module-nav a.active{background:#EAF2EC;color:#315F42}
 @media(max-width:700px){.app-sidebar{background:#1F5138}.app-menu{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#78A789 transparent}.app-menu a{flex:0 0 auto}}
+.container .module-nav{box-sizing:border-box;max-width:100%;min-width:0;margin:0 0 16px;flex-wrap:wrap;gap:5px}
+.container .module-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;white-space:nowrap}
+.container .module-nav a[aria-current="page"]{background:#eaf2ec;color:#315f42}
+.container :is(.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head){scroll-margin-block-start:108px}
+.container :is(.page-header h1,.page-header h2,.page-heading h1,.page-heading h2,.record-hero h1,.record-hero h2,.dashboard-head h1,.meter-head h1,.tires-top h1,.battery-top h1,.equip-head h1,.fr-head h1,.mdx-head h1){margin:0;font-family:'Cairo',sans-serif;color:#20352a;line-height:1.35}
+.container .page-title{margin:0;color:#20352a;font-family:'Cairo',sans-serif;font-size:clamp(21px,2vw,27px);font-weight:750;line-height:1.4}
+@media(max-width:700px){.container .module-nav{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#91ad98 transparent;margin-bottom:10px;padding:7px}.container .module-nav a{flex:0 0 auto;min-height:36px}.container :is(.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head){scroll-margin-block-start:12px}}
+@media(max-width:700px){.container .mobile-extra-filters{display:block;flex:1 1 100%;width:100%;min-width:0}.container .mobile-extra-filters>summary{display:flex;align-items:center;justify-content:space-between;min-height:36px;padding:0 11px;border:1px solid #b8d0bf;border-radius:8px;background:#f5faf6;color:#315f42;font-size:12px;font-weight:750;cursor:pointer;list-style:none}.container .mobile-extra-filters>summary::-webkit-details-marker{display:none}.container .mobile-extra-filters>summary:after{content:'⌄';font-size:14px}.container .mobile-extra-filters[open]>summary:after{content:'⌃'}.container .mobile-extra-filters[open]>.mobile-extra-filters-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.container .mobile-extra-filters-body>*{min-width:0;width:100%;box-sizing:border-box}}
 </style>
 </head>
 <body>
@@ -391,8 +399,104 @@ document.addEventListener('keydown',function(event){
   cancel.click();
 },true);
 const p=window.location.pathname;
-if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة الغيار');const links=[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
-if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';nav.setAttribute('aria-label','تنقل وحدة العتاد');const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
+const main=document.querySelector('.container');
+let pageHeading=main&&main.querySelector('h1,h2');
+if(pageHeading&&pageHeading.tagName.toLowerCase()==='h2'){
+  const semanticHeading=document.createElement('h1');
+  Array.from(pageHeading.attributes).forEach(function(attribute){semanticHeading.setAttribute(attribute.name,attribute.value)});
+  semanticHeading.innerHTML=pageHeading.innerHTML;
+  pageHeading.replaceWith(semanticHeading);
+  pageHeading=semanticHeading;
+}
+if(pageHeading)pageHeading.classList.add('page-title');
+const moduleNavigation=(function(){
+  if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/'))return {label:'تنقل وحدة الغيار',links:[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']]};
+  if(p.startsWith('/equipment')||p.startsWith('/equipment-types'))return {label:'تنقل وحدة العتاد',links:[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']]};
+  if(p==='/maintenance'||p.startsWith('/maintenance/'))return {label:'تنقل وحدة الصيانة',links:[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة']]};
+  if(p==='/faults-repairs'||p.startsWith('/faults-repairs/'))return {label:'تنقل وحدة الأعطال والإصلاحات',links:[['/faults-repairs','لوحة الوحدة'],['/faults-repairs/faults','سجل الأعطال'],['/faults-repairs/repairs','التصليحات'],['/faults-repairs/technicians','الفنيون'],['/faults-repairs/analytics','التحليلات']]};
+  if(p==='/tires'||p.startsWith('/tires/'))return {label:'تنقل وحدة الإطارات',links:[['/tires','إدارة الإطارات'],['/tires/inventory','المخزون'],['/tires/settings','الإعدادات']]};
+  if(p==='/batteries'||p.startsWith('/batteries/'))return {label:'تنقل وحدة البطاريات',links:[['/batteries','إدارة البطاريات'],['/batteries/settings','الإعدادات']]};
+  if(p==='/meter-readings'||p.startsWith('/meter-readings/'))return {label:'تنقل وحدة قراءات العدادات',links:[['/','الرئيسية'],['/equipment','قائمة العتاد'],['/meter-readings','قراءات العدادات'],['/meter-readings/operations','سجل العمليات']]};
+  return null;
+})();
+if(main&&moduleNavigation){
+  let nav=main.querySelector('.module-nav,.module-tabs,.tires-nav,.navigation-actions,.fr-head .actions');
+  if(!nav)nav=document.createElement('nav');
+  else if(nav.tagName.toLowerCase()!=='nav'){
+    const semanticNav=document.createElement('nav');
+    semanticNav.className=nav.className;
+    while(nav.firstChild)semanticNav.appendChild(nav.firstChild);
+    nav.replaceWith(semanticNav);
+    nav=semanticNav;
+  }
+  nav.classList.remove('module-tabs','tires-nav','navigation-actions','actions');
+  nav.classList.add('module-nav');
+  nav.setAttribute('role','navigation');
+  nav.setAttribute('aria-label',moduleNavigation.label);
+  moduleNavigation.links.forEach(function(item){
+    const href=item[0],label=item[1];
+    const existing=Array.from(nav.querySelectorAll('a')).find(function(link){return new URL(link.href,window.location.href).pathname===href});
+    if(existing){existing.textContent=label}
+    else{const link=document.createElement('a');link.href=href;link.textContent=label;nav.appendChild(link)}
+  });
+  const links=Array.from(nav.querySelectorAll('a'));
+  const matching=links.filter(function(link){const href=new URL(link.href,window.location.href).pathname;return p===href||(href!=='/'&&p.startsWith(href+'/'))});
+  const active=matching.sort(function(a,b){return new URL(b.href,window.location.href).pathname.length-new URL(a.href,window.location.href).pathname.length})[0];
+  links.forEach(function(link){const selected=link===active;link.classList.toggle('active',selected);if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current')});
+  if(p.startsWith('/spare-parts-history/')){const requests=links.find(function(link){return new URL(link.href,window.location.href).pathname==='/spare-parts-requests'});if(requests){if(active)active.classList.remove('active');requests.classList.add('active');requests.setAttribute('aria-current','page')}}
+  const headerBlock=pageHeading&&pageHeading.closest('header,.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head,.record-hero,.settings-hero,.head,.top');
+  let insertionPoint=headerBlock||pageHeading&&pageHeading.parentElement||main.firstElementChild;
+  if(headerBlock){
+    const primaryActions=Array.from(main.querySelectorAll('.main-actions,.primary-actions,.page-actions'))
+      .find(function(actions){return actions.parentElement===headerBlock.parentElement&&headerBlock.compareDocumentPosition(actions)&Node.DOCUMENT_POSITION_FOLLOWING});
+    if(primaryActions)insertionPoint=primaryActions;
+  }
+  if(insertionPoint&&insertionPoint.parentNode)insertionPoint.parentNode.insertBefore(nav,insertionPoint.nextSibling);
+  else if(main.firstElementChild!==nav)main.prepend(nav);
+}
+if(main){
+  const mobileFilterBreakpoint=window.matchMedia('(max-width:700px)');
+  main.querySelectorAll('[data-mobile-filter-collapse]').forEach(function(toolbar){
+    if(toolbar.dataset.mobileFilterReady)return;
+    const fields=Array.from(toolbar.querySelectorAll(':scope > select'));
+    if(fields.length<2)return;
+    toolbar.dataset.mobileFilterReady='1';
+    let details=null,summary=null,body=null,markers=[],manuallyToggled=false,preferredOpen=false;
+    function updateSummary(){
+      const active=fields.filter(function(field){return field.value!==''}).length;
+      if(summary)summary.textContent=active?'فلاتر إضافية ('+active+')':'فلاتر إضافية';
+    }
+    function mountDisclosure(){
+      if(details)return;
+      markers=fields.map(function(field){const marker=document.createComment('filter-field');field.parentNode.insertBefore(marker,field);return marker});
+      details=document.createElement('details');
+      details.className='mobile-extra-filters';
+      summary=document.createElement('summary');
+      body=document.createElement('div');
+      body.className='mobile-extra-filters-body';
+      fields.forEach(function(field){body.appendChild(field)});
+      details.append(summary,body);
+      toolbar.insertBefore(details,markers[0]);
+      details.addEventListener('toggle',function(){if(mobileFilterBreakpoint.matches){preferredOpen=details.open;manuallyToggled=true}});
+      updateSummary();
+    }
+    function removeDisclosure(){
+      if(!details)return;
+      fields.forEach(function(field,index){const marker=markers[index];marker.parentNode.insertBefore(field,marker.nextSibling);marker.remove()});
+      details.remove();details=null;summary=null;body=null;markers=[];
+    }
+    function syncDisclosure(){
+      if(!mobileFilterBreakpoint.matches){removeDisclosure();return}
+      mountDisclosure();
+      const active=fields.some(function(field){return field.value!==''});
+      details.open=manuallyToggled?preferredOpen:active;
+      updateSummary();
+    }
+    fields.forEach(function(field){field.addEventListener('change',updateSummary)});
+    mobileFilterBreakpoint.addEventListener('change',syncDisclosure);
+    syncDisclosure();
+  });
+}
 if(p==='/equipment/numerical-status'){const table=document.getElementById('numericalStatusTable');if(table){const heads=[...table.querySelectorAll('thead th')];const idx=heads.findIndex(h=>h.textContent.includes('% من الأب'));if(idx>=0){heads[idx].remove();table.querySelectorAll('tbody tr').forEach(r=>{if(r.children.length>idx)r.children[idx].remove()})}}}
 const brandSelect=document.getElementById('statusBrand');if(brandSelect){const current=brandSelect.value;fetch('/api/equipment-brands',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():[]).then(brands=>{const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));brandSelect.innerHTML='<option value="">كل الماركات</option>';names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;brandSelect.appendChild(o)});brandSelect.value=names.includes(current)?current:'';brandSelect.dispatchEvent(new Event('change',{bubbles:true}))}).catch(()=>{})}
 })();
