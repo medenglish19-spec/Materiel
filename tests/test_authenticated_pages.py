@@ -303,6 +303,40 @@ def test_detail_pages_render(pages):
     assert failures == [], "\n".join(failures)
 
 
+def test_technician_detail_renders_analysis_for_assigned_repairs():
+    from app.modules.faults_repairs.models import Technician, TechnicianIntervention
+
+    with _isolated_app() as (app, TestingSession, ids):
+        db = TestingSession()
+        try:
+            technician = Technician(
+                employee_number="TECH-ANALYSIS-PAGE-1",
+                full_name="فني اختبار الصفحة",
+                specialization="ميكانيك",
+            )
+            db.add(technician)
+            db.flush()
+            db.add(TechnicianIntervention(
+                repair_id=ids["repair"],
+                technician_id=technician.id,
+                intervention_date=date.today(),
+                hours=2,
+                work_description="فحص العطل",
+            ))
+            db.commit()
+            technician_id = technician.id
+        finally:
+            db.close()
+
+        with TestClient(app) as client:
+            response = client.get(f"/faults-repairs/technicians/{technician_id}")
+
+        assert response.status_code == 200, response.text
+        assert "فني اختبار الصفحة" in response.text
+        assert "عدد العتاد الذي تدخل عليه" in response.text
+        assert ">1</b>" in response.text
+
+
 def test_repair_workspace_uses_live_repair_and_has_four_sections(pages):
     client, ids = pages
     response = client.get(f"/faults-repairs/repairs/{ids['repair']}")

@@ -388,6 +388,7 @@ body:has(.mdx) .app-main{margin-right:208px}
 </div></main></div><div class="model-status-note" role="note"><strong>ملاحظة:</strong> <b>معتمد</b> يعني أن الطراز متاح للاستخدام وإضافة عتاد جديد عليه. نلجأ إلى <b>التجميد</b> عند التوقف عن استخدام الطراز مستقبلًا مع الحاجة إلى الاحتفاظ به وتاريخه؛ فالتجميد يمنع إضافة عتاد جديد ولا يحذف السجلات السابقة. لتجميد الطراز أو إلغاء تجميده، افتح قائمة إجراءات الطراز واختر «تجميد» أو «إعادة اعتماد».</div></div>
 <script>
 'use strict';
+(function(){
 const $=id=>document.getElementById(id);
 const DATA={{ tire_master_data|tojson }}; const LINKED_EQUIPMENT={{ linked_equipment|default({})|tojson }}; const DEFS={{ spec_definitions|tojson }}; let currentModel=null; let currentTypeId=null;
 const TYPE_DATA=Object.fromEntries([
@@ -646,6 +647,7 @@ $('modelType').onchange=()=>refreshModelTypeContext($('modelType').value);$('cho
 
 $('addBrandFromModel').onclick=()=>{refPanel('brand');}; $('btn-manage-brands').onclick=()=>{refPanel('brand');}; $('btn-manage-specs').onclick=()=>{refPanel('spec');};
 window.show=show;window.title=title;window.viewType=viewType;window.resetModel=resetModel;window.openNewModel=openNewModel;window.refPanel=refPanel;window.editModel=editModel;window.viewModel=viewModel;window.refreshModelTypeContext=refreshModelTypeContext;window.addSize=addSize;window.sync=sync;window.MATERIEL_MASTER_DATA={DATA,CATEGORIES,TYPES,BRANDS};window.MATERIEL_MASTER_DATA_READY=true;
+})();
 </script>
 <script src="/static/js/master-data-tree.js?v={{ tree_js_version|default('master-data-workspace-7') }}"></script>
 {% endblock %}
