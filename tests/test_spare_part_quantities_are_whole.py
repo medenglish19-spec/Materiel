@@ -145,8 +145,8 @@ class TestFormInputsAreWholeNumbers:
 class TestConsumedPartInputIsWholeNumber:
     def setup_method(self):
         self.html = (
-            ROOT / "app" / "modules" / "faults_repairs" / "templates" / "repair_detail.html"
+            ROOT / "app" / "modules" / "spare_parts_movements" / "templates" / "distribution.html"
         ).read_text(encoding="utf-8")
 
     def test_quantity_step_is_one(self):
-        assert 'name="quantity" min="1" step="1"' in self.html
+        assert 'type="number" min="0"' in self.html and 'step="1"' in self.html

@@ -470,7 +470,9 @@ def technician_detail_analysis(db: Session, technician_id: int):
     total_hours = db.query(func.coalesce(func.sum(TechnicianIntervention.hours), 0)).filter(
         TechnicianIntervention.technician_id == technician_id
     ).scalar()
-    equipment_count = db.query(func.count(func.distinct(Fault.equipment_id))).join(
+    equipment_count = db.query(func.count(func.distinct(Fault.equipment_id))).select_from(
+        TechnicianIntervention
+    ).join(
         Repair, Repair.id == TechnicianIntervention.repair_id
     ).join(Fault, Fault.id == Repair.fault_id).filter(
         TechnicianIntervention.technician_id == technician_id

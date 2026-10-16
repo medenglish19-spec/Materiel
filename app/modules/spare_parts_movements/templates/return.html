@@ -2,12 +2,64 @@
 {% block title %}إرجاع الغيار{% endblock %}
 {% block content %}
 <style>
-.spm{direction:rtl}.head{display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap}.spm h1{margin:0;color:#183955;font-size:22px}.muted{font-size:11px;color:#718096}.panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden;margin-top:12px}.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-bottom:1px solid #edf1f4}.spm input,.spm select,.spm textarea{height:32px;border:1px solid #dce4ea;border-radius:6px;padding:0 8px;font:inherit;font-size:10px;background:#fff}.spm textarea{height:58px;padding:7px}.btn{height:32px;border:0;border-radius:6px;padding:0 12px;background:#245d88;color:#fff;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.btn.secondary{background:#eef3f6;color:#35566e}.form{display:none;padding:12px;background:#fbfcfd;border-bottom:1px solid #edf1f4}.form.open{display:block}.grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:9px}.field{display:flex;flex-direction:column;gap:4px}.field label{font-size:10px;font-weight:800;color:#657582}.wide{grid-column:span 2}.table-scroll{overflow:auto}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{padding:9px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap}th{background:#f8fafc;color:#718096}.link{color:#245d88;font-weight:800;text-decoration:none}.empty{text-align:center;padding:28px;color:#8794a2}.notice{font-size:10px;color:#b54708;margin-top:7px}.row-actions{display:flex;gap:5px}.row-actions button{font-size:9px;padding:4px 7px;border:1px solid #dce4ea;background:#fff;border-radius:5px;cursor:pointer}@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:span 2}}@media(max-width:500px){.grid{grid-template-columns:1fr}.wide{grid-column:span 1}}
+.spm{direction:rtl;color:var(--text-primary,#20352a);font-family:"Tajawal",sans-serif}
+.spm .head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:0}
+.spm .head h1{margin:0;color:var(--text-primary,#20352a);font-family:"Cairo","Tajawal",sans-serif;font-size:23px;line-height:1.5;font-weight:700}
+.spm .muted{font-size:13px;line-height:1.7;color:var(--text-secondary,#52695a)}
+.spm .head .link{display:inline-flex;align-items:center;min-height:38px;color:#315f42;font-size:13px;font-weight:700;text-decoration:none}
+.spm .head .link:hover{color:#234b32;text-decoration:underline}
+.spm .panel{margin-top:16px;overflow:hidden;border:1px solid var(--line,#d8e5da);border-radius:14px;background:var(--white,#fcfefc);box-shadow:0 2px 10px rgba(31,81,56,.05)}
+.spm .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:64px;padding:12px 16px;border-bottom:1px solid var(--line,#d8e5da);background:#fff}
+.spm .bar>.global-search-wrap{flex:1 1 320px;min-width:0;max-width:540px}
+.spm input,.spm select,.spm textarea{box-sizing:border-box;min-width:0;min-height:40px;padding:8px 11px;border:1px solid var(--line,#d8e5da);border-radius:9px;background:#fff;color:var(--text-primary,#20352a);font:inherit;font-size:13px;outline:0;transition:border-color .15s ease,box-shadow .15s ease}
+.spm input:focus,.spm select:focus,.spm textarea:focus{border-color:#629477;box-shadow:0 0 0 3px rgba(57,122,84,.13)}
+.spm input[readonly]{background:#f3f7f4;color:var(--text-secondary,#52695a)}
+.spm input[type=date]{direction:ltr;text-align:left}
+.spm input[type=number]{direction:ltr;text-align:center;font-variant-numeric:tabular-nums}
+.spm textarea{height:auto;min-height:84px;padding:10px 11px;line-height:1.65;resize:vertical}
+.spm .bar>.global-search-wrap>.global-search-btn,.spm .bar>.global-search-wrap>.global-clear-btn{height:40px;min-height:40px;padding:0 12px;border:1px solid #c8d9cc;border-radius:9px;font-size:13px}
+.spm .bar>.global-search-wrap>.global-search-btn{background:#397a54;color:#fff}
+.spm .bar>.global-search-wrap>.global-search-btn:hover{background:#2f6747}
+.spm .bar>.global-search-wrap>.global-clear-btn{background:#fff;color:#315f42}
+.spm .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;height:40px;padding:0 15px;border:1px solid #397a54;border-radius:9px;background:#397a54;color:#fff;font:inherit;font-size:13px;font-weight:700;line-height:1.35;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.spm .btn:hover{background:#2f6747;border-color:#2f6747}
+.spm .btn:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(57,122,84,.18)}
+.spm .btn:disabled{opacity:.65;cursor:wait}
+.spm .btn.secondary{border-color:var(--line,#d8e5da);background:#fff;color:#315f42}
+.spm .btn.secondary:hover{border-color:#a9c4b0;background:#f4f8f5}
+.spm .form{display:none;max-width:1500px;margin:14px auto;padding:20px;border:1px solid var(--line,#d8e5da);border-radius:12px;background:#f8fbf9}
+.spm .form.open{display:block}
+.spm .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.spm .field{display:flex;min-width:0;flex-direction:column;gap:6px}
+.spm .field label{color:var(--text-secondary,#52695a);font-size:12.5px;font-weight:700;line-height:1.5}
+.spm .wide{grid-column:span 2}
+.spm .quantity-field{max-width:240px;margin-top:12px}
+.spm .section-caption{margin-top:16px;color:#315f42;font-size:13px;font-weight:700}
+.spm .form-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.spm .table-scroll{overflow:auto}
+.spm .table-scroll th,.spm .table-scroll td{padding:11px 13px;font-family:"Tajawal",sans-serif;font-size:13px;line-height:1.55;text-align:right}
+.spm .table-scroll th{font-family:"Cairo","Tajawal",sans-serif;font-size:12px;font-weight:700}
+.spm .table-scroll td{vertical-align:middle}
+.spm #rows td:nth-child(1),.spm #rows td:nth-child(2),.spm #rows td:nth-child(4){text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+.spm #rows td:nth-child(1){direction:ltr}
+.spm #lines td:nth-child(2){direction:ltr;text-align:center}
+.spm #lines td:nth-child(n+3){text-align:center;font-variant-numeric:tabular-nums}
+.spm .link{color:#315f42;font-weight:700;text-decoration:none}
+.spm .link:hover{color:#234b32;text-decoration:underline}
+.spm .empty{padding:28px 16px;color:#718378;font-size:13px;line-height:1.7;text-align:center}
+.spm .notice{min-height:0;margin-top:10px;color:#a34b16;font-size:13px;line-height:1.6}
+.spm #rows td button{min-height:34px;padding:5px 10px;border:1px solid #c8d9cc;border-radius:8px;background:#fff;color:#315f42;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.spm #rows td button:hover{border-color:#9cb9a3;background:#f1f7f2}
+.spm #rows td button[onclick^="delDoc"]{border-color:#e6c6c6;color:#a63a3a}
+.spm #rows td button[onclick^="delDoc"]:hover{border-color:#d99f9f;background:#fff5f5}
+@media(max-width:900px){.spm .grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.spm .head h1{font-size:20px}.spm .bar{padding:11px 12px;gap:8px}.spm .bar>.global-search-wrap{flex:1 1 100%;max-width:none}.spm .form{padding:15px;margin:10px auto}.spm .table-scroll th,.spm .table-scroll td{padding:10px 11px}}
+@media(max-width:520px){.spm .grid{grid-template-columns:minmax(0,1fr)}.spm .wide{grid-column:span 1}.spm .head .link{min-height:34px}.spm .form{padding:12px}.spm .btn{min-height:38px;height:38px;padding-inline:12px}}
 </style>
 <div class="spm">
 <div class="head"><div><h1>سجل إرجاع الغيار</h1><div class="muted">الإرجاع من الغيار المستلم، ويعاد إلى الهيئة التي سلّمتنا الغيار.</div></div><div><a class="link" href="/spare-parts-received">سجل الاستلام</a></div></div>
 <div class="panel">
-<div class="bar"><button id="newBtn" class="btn">＋ إرجاع</button><input id="search" placeholder="بحث في وثائق الإرجاع أو الغيار" style="min-width:260px"></div>
+<div class="bar"><button id="newBtn" class="btn">＋ إرجاع</button><input id="search" placeholder="بحث في وثائق الإرجاع أو الغيار"></div>
 <div id="form" class="form">
 <div class="grid">
 <div class="field"><label>رقم وثيقة الإرجاع *</label><input id="number" required maxlength="80"></div>
@@ -16,12 +68,12 @@
 <div class="field"><label>الهيئة الموردة</label><input id="supplier" readonly></div>
 <div class="field wide"><label>الملاحظة / سبب الإرجاع</label><textarea id="notes"></textarea></div>
 </div>
-<div style="margin-top:10px;font-size:11px;font-weight:800;color:#35566e">بيانات الاستلام</div>
-<div class="table-scroll" style="margin-top:6px" data-mt-region><table><thead><tr><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th></tr></thead><tbody id="lines"><tr><td colspan="7" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
-<div class="field" style="max-width:180px;margin-top:9px"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1" required></div>
-<div id="notice" class="notice"></div><div style="margin-top:10px"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
+<div class="section-caption">بيانات الاستلام</div>
+<div class="table-scroll mt-table-theme-green" style="margin-top:6px" data-mt-region><table><thead><tr><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th></tr></thead><tbody id="lines"><tr><td colspan="7" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
+<div class="field quantity-field"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1" required></div>
+<div id="notice" class="notice"></div><div class="form-actions"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
 </div>
-<div class="table-scroll" data-mt-region><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
+<div class="table-scroll mt-table-theme-green" data-mt-region><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
 </div></div>
 <script>
 let receipts=[],docs=[],editing=null,saving=false;
@@ -122,8 +174,8 @@ function renderDocs(){
             '<tr><td>'+esc(document.document_number)+'</td><td>'+esc(document.document_date)+'</td>'
             +'<td><a class="link" href="/spare-parts-history/'+Number(item.request_item_id)+'">'+esc(item.part_name)+'</a></td>'
             +'<td>'+esc(item.quantity)+'</td><td>'+esc(document.recipient)+'</td>'
-            +'<td><button onclick="editDoc('+Number(document.id)+')" style="font-size:9px;padding:4px 7px">تعديل</button> '
-            +'<button onclick="delDoc('+Number(document.id)+')" style="font-size:9px;padding:4px 7px">حذف</button></td></tr>'
+            +'<td><button onclick="editDoc('+Number(document.id)+')">تعديل</button> '
+            +'<button onclick="delDoc('+Number(document.id)+')">حذف</button></td></tr>'
         )).join('')
         :'<tr><td colspan="6" class="empty">لا توجد وثائق إرجاع.</td></tr>';
 }

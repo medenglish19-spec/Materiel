@@ -82,7 +82,9 @@ def test_seed_builds_a_complete_linked_dataset_and_clean_removes_only_it(tmp_pat
 
         requests = db.query(SparePartRequest).filter(SparePartRequest.request_number.like(f"{MARKER}%")).all()
         assert len(requests) == 3
-        assert all(r.status == "pending" for r in requests)
+        # The seeded requests already include completed receipt data, so the
+        # domain service correctly marks them approved.
+        assert all(r.status == "approved" for r in requests)
         assert all(r.items[0].received_quantity == 3 for r in requests)
         assert all(r.items[0].supplier_institution.endswith(MARKER) for r in requests)
 

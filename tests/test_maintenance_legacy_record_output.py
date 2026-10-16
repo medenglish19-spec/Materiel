@@ -63,14 +63,13 @@ def _insert_legacy_record(db, equipment_id):
         text(
             "INSERT INTO maintenance_records "
             "(equipment_id, operation_id, plan_id, maintenance_date, "
-            " reported_date, meter_value, status, is_scheduled, created_at) "
-            "VALUES (:eid, NULL, NULL, :mdate, :rdate, :meter, 'completed', 0, :now)"
+            " reported_date, status, is_scheduled, created_at, updated_at) "
+            "VALUES (:eid, NULL, NULL, :mdate, :rdate, 'completed', 0, :now, :now)"
         ),
         {
             "eid": equipment_id,
             "mdate": "2024-03-01",
             "rdate": "2024-03-02",
-            "meter": "100",
             "now": "2024-03-02 08:00:00",
         },
     )

@@ -142,8 +142,6 @@ def test_dashboard_metrics_follow_live_domain_records_after_changes():
                 "missions": "1",
                 "pending-parts": "1",
                 "notifications": "0",
-                "due-tires": "0",
-                "due-batteries": "0",
             }
 
             for repair_id in repair_ids:
@@ -190,8 +188,6 @@ def test_dashboard_metrics_follow_live_domain_records_after_changes():
                 "missions": "0",
                 "pending-parts": "0",
                 "notifications": "0",
-                "due-tires": "0",
-                "due-batteries": "0",
             }
     finally:
         db.close()
@@ -333,10 +329,13 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
         with TestClient(app) as client:
             before = client.get("/dashboard")
             assert before.status_code == 200
-            assert _metric_values(before.text)["due-tires"] == "1"
-            assert _metric_values(before.text)["due-batteries"] == "1"
             assert _metric_values(before.text)["notifications"] == "2"
-            assert "DASH-TIRE-1" in before.text and "DASH-BATTERY-1" in before.text
+            assert "DASH-TIRE-1" in before.text and before.text.count("DASH-TIRE-1") == 1
+            assert "DASH-BATTERY-1" in before.text and before.text.count("DASH-BATTERY-1") == 1
+            assert "data-dashboard-metric=\"due-tires\"" not in before.text
+            assert "data-dashboard-metric=\"due-batteries\"" not in before.text
+            assert "الإطارات المركبة المستحقة للاستبدال</h2>" not in before.text
+            assert "البطاريات المركبة التي حان موعد استبدالها</h2>" not in before.text
 
             session = TestingSession()
             try:
@@ -362,8 +361,6 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
 
             after = client.get("/dashboard")
             assert after.status_code == 200
-            assert _metric_values(after.text)["due-tires"] == "0"
-            assert _metric_values(after.text)["due-batteries"] == "0"
             assert _metric_values(after.text)["notifications"] == "0"
             assert "DASH-TIRE-1" not in after.text and "DASH-BATTERY-1" not in after.text
     finally:

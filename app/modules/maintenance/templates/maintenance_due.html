@@ -14,7 +14,7 @@
 <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
   <section class="panel">
     <div class="panel-head"><div><h3 id="unapprovedModelsTitle">طرازات بلا خطة صيانة معتمدة</h3><p>اختر طرازًا للانتقال مباشرة إلى إعداد خطة صيانة له.</p></div><button class="m-btn dialog-close" type="button" id="closeUnapprovedModels" aria-label="إغلاق">×</button></div>
-    <div class="table-wrap"><table class="m-table" data-mt-no-filter><thead><tr><th>#</th><th>طراز العتاد</th><th>الإجراء</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="m-table mt-table-theme-green" data-mt-no-filter><thead><tr><th>#</th><th>طراز العتاد</th><th>الإجراء</th></tr></thead><tbody>
       {% for model_id, model_name in unapproved_model_rows %}
       <tr><td>{{ loop.index }}</td><td class="vehicle">{{ model_name }}</td><td><a class="m-btn primary" href="/maintenance/plans?model_id={{ model_id }}&amp;new=1">إعداد الخطة</a></td></tr>
       {% endfor %}
@@ -23,7 +23,7 @@
 </dialog>
 {% endif %}
 <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="dueSearch" class="m-input" placeholder="بحث برقم السيارة..."></div><a class="m-btn" href="/maintenance/periodic">↶ &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a></div></div>
-<section class="panel"><div class="panel-head"><div><h3>{{ 'عمليات بلا سجل تنفيذ' if unrecorded_only else 'الصيانة المستحقة والقريبة' }}</h3><p>الترتيب مبني على آخر صيانة والعداد الحالي من نظام القراءات، مع احترام وحدة القياس الخاصة بكل عتاد.</p></div><span class="badge danger">{{ rows|length }} حالة</span></div><div class="table-wrap" data-mt-region>
+<section class="panel"><div class="panel-head"><div><h3>{{ 'عمليات بلا سجل تنفيذ' if unrecorded_only else 'الصيانة المستحقة والقريبة' }}</h3><p>الترتيب مبني على آخر صيانة والعداد الحالي من نظام القراءات، مع احترام وحدة القياس الخاصة بكل عتاد.</p></div><span class="badge danger">{{ rows|length }} حالة</span></div><div class="table-wrap mt-table-theme-green" data-mt-region>
 <table class="m-table" id="dueTable">
 <thead><tr><th>الأولوية</th><th>رقم السيارة</th><th>النوع / الطراز</th><th>عملية الصيانة</th><th>العداد الحالي</th><th>آخر صيانة</th><th>المتبقي بالعداد</th><th>الأيام المتبقية</th><th>الحالة</th><th>الإجراء</th></tr></thead>
 <tbody>

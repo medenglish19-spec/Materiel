@@ -395,9 +395,53 @@
       }
       row.classList.toggle('mt-col-hidden', !ok);
     });
+    syncFilterEmptyState(table, columns, rows, colCount);
     if (typeof CustomEvent === 'function') {
       table.dispatchEvent(new CustomEvent('mt:filters-applied', { bubbles: true }));
     }
+  }
+
+  function syncFilterEmptyState(table, columns, rows, colCount) {
+    var body = table.tBodies[0];
+    if (!body) return;
+    var emptyRow = body.querySelector('tr[data-mt-filter-auxiliary="filter-empty"]');
+    var records = rows.filter(function (row) { return !isMessageRow(row, colCount); });
+    var active = columns.some(function (column) { return CORE.isFilterActive(column.filter); });
+    var visible = records.some(function (row) {
+      return !row.hidden && !row.classList.contains('mt-col-hidden') &&
+        window.getComputedStyle(row).getPropertyValue('display') !== 'none';
+    });
+    if (!active || !records.length || visible) {
+      if (emptyRow) emptyRow.remove();
+      return;
+    }
+    if (!emptyRow) {
+      emptyRow = document.createElement('tr');
+      emptyRow.setAttribute('data-mt-filter-auxiliary', 'filter-empty');
+      var cell = document.createElement('td');
+      cell.colSpan = Math.max(1, colCount);
+      var message = document.createElement('div');
+      message.className = 'mt-filter-empty-state';
+      message.setAttribute('role', 'status');
+      var text = document.createElement('span');
+      text.textContent = 'لا توجد نتائج تطابق عوامل التصفية الحالية.';
+      var clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'mt-filter-clear';
+      clear.textContent = 'مسح التصفية';
+      clear.addEventListener('click', function () {
+        columns.forEach(function (column) {
+          column.filter = { values: null, text: '', min: '', max: '', from: '', to: '' };
+        });
+        applyTableFilters(table);
+      });
+      message.appendChild(text);
+      message.appendChild(clear);
+      cell.appendChild(message);
+      emptyRow.appendChild(cell);
+      body.appendChild(emptyRow);
+    }
+    if (emptyRow.cells[0]) emptyRow.cells[0].colSpan = Math.max(1, colCount);
   }
 
   function closeFilterMenu() {

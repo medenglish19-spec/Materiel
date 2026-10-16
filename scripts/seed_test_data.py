@@ -283,8 +283,12 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
             else Decimal("1000") + Decimal(idx * 250)
         )
         later_meter = base_meter + (Decimal("12") if model_unit == "hours" else Decimal("120"))
-        movement_meter = base_meter if model_unit == "km" else None
-        later_movement_meter = later_meter if model_unit == "km" else None
+        # The central meter sample already represents this equipment/day.
+        # Several tire/battery actions can share a date, so copying that same
+        # physical observation into each movement would create duplicate
+        # ledger readings. Keep movement meter fields empty in this fixture.
+        movement_meter = None
+        later_movement_meter = None
         for pos_idx in (1, 2):
             tire = Tire(
                 serial_number=f"{MARKER}-TIRE-{idx + 1:02d}-{pos_idx}",
@@ -522,7 +526,7 @@ def _create_technicians_faults_repairs_requests(db: Session, equipment):
             reported_date=today - timedelta(days=4),
             report_number=f"{MARKER}-FAULT-{idx + 1:02d}",
             note=f"عطل اختباري مترابط — {MARKER}",
-            meter_value=Decimal("1160") + Decimal(idx * 100),
+            meter_value=Decimal("1160") + Decimal(idx * 250),
             fault_type=("تبريد" if idx == 0 else "كهرباء" if idx == 1 else "هيدروليك"),
             description=f"وصف عطل اختباري للمعدة {idx + 1}",
             severity=("high" if idx == 0 else "medium"),
@@ -534,7 +538,7 @@ def _create_technicians_faults_repairs_requests(db: Session, equipment):
         repair = Repair(
             fault_id=fault.id,
             repair_date=today - timedelta(days=3),
-            meter_value=Decimal("1170") + Decimal(idx * 100),
+            meter_value=Decimal("1170") + Decimal(idx * 250),
             diagnosis=f"تشخيص اختباري {MARKER}",
             action_taken=f"إجراء إصلاح اختباري {MARKER}",
             technician=technicians[idx].full_name,
