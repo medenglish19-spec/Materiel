@@ -39,7 +39,13 @@ def render_requests_page():
 
 @pytest.fixture
 def requests_page():
-    html = render_requests_page()
+    html = (
+        '<!doctype html><html><head>'
+        '<script src="/static/js/delete-impact.js" defer></script>'
+        '</head><body>'
+        + render_requests_page()
+        + '</body></html>'
+    )
     requests_data = [
         {
             "id": 101,
@@ -87,6 +93,18 @@ def requests_page():
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(html.encode("utf-8"))
+                return
+            if self.path.startswith("/static/js/delete-impact.js"):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/javascript; charset=utf-8")
+                self.end_headers()
+                self.wfile.write((ROOT / "static" / "js" / "delete-impact.js").read_bytes())
+                return
+            if self.path == "/api/spare-parts-requests/101/delete-impact":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"label": "6541", "effects": []}).encode())
                 return
             if self.path.startswith("/api/spare-parts-requests?") or self.path == "/api/spare-parts-requests":
                 self.send_response(200)
@@ -150,7 +168,7 @@ def test_requests_page_search_filters_real_rendered_rows(requests_page):
     assert not errors
 
 
-def test_request_delete_keeps_existing_direct_action(requests_page):
+def test_request_delete_shows_impact_before_existing_api_action(requests_page):
     page, calls, errors = requests_page
 
     delete_button = page.locator(".request-row[data-id='101'] .delete-request")
@@ -158,8 +176,12 @@ def test_request_delete_keeps_existing_direct_action(requests_page):
     expect(delete_button).to_be_visible()
     expect(page.locator("#deleteConfirm")).to_have_count(0)
 
-    page.once("dialog", lambda dialog: dialog.accept())
     delete_button.click()
+    dialog = page.get_by_role("dialog", name="مراجعة آثار حذف طلب الغيار")
+    expect(dialog).to_be_visible()
+    assert calls == []
+
+    dialog.get_by_role("button", name="تأكيد الحذف").click()
     page.wait_for_timeout(100)
 
     assert calls == [("DELETE", "/api/spare-parts-requests/101")]
