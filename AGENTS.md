@@ -89,7 +89,7 @@ The single canonical working branch for all agents is:
 All implementation work must land on this branch and stay synchronized with
 `origin/stage3-maintenance-operations`. In the shared Materiel environment,
 all agents must use the same checkout at
-`C:\Users\utilisateur\Desktop\Materiel-stage3-maintenance-operations`.
+`D:\Materiel-stage3-maintenance-operations`.
 Do not create or use feature branches, additional clones, or worktrees for
 implementation. Do not start implementation from another checkout: preserve
 any work already there and transfer it deliberately before continuing. Keep
@@ -215,15 +215,23 @@ Prefer `python run_web.py`. Do not invent a different startup path if the existi
 
 For the shared Materiel environment, start the app from the canonical checkout
 using `bash scripts/start_shared.sh` in Git Bash. The script verifies the
-canonical checkout and branch, fast-forwards from
-`origin/stage3-maintenance-operations` when the tree is clean, sets the shared
-`DATABASE_URL`, then starts the official `run_web.py` entry point. If there
-are local edits, it serves that current working tree without changing it.
-This ensures the browser uses the same code checkout and data file for all
-agents.
+canonical checkout and branch, refuses to start with uncommitted changes,
+fast-forwards from `origin/stage3-maintenance-operations`, sets the shared
+`DATABASE_URL`, then starts the official `run_web.py` entry point. If GitHub
+cannot be reached or a fast-forward is not possible, startup fails instead of
+serving stale code. The devcontainer does not start a separate server or
+checkout-local database.
+Before starting, it creates a consistent SQLite snapshot in
+`D:\Materiel-database-backups` and runs the read-only database health
+check. A failed backup or health check stops startup. Snapshots are recovery copies; the active
+database remains the single shared file. Create an additional snapshot manually with:
+
+```bash
+python scripts/backup_shared_database.py D:/Materiel/fleet_assets.local-20261017.db --backup-dir D:/Materiel-database-backups
+```
 
 The shared SQLite database is
-`C:\Users\utilisateur\Desktop\Materiel\fleet_assets.local-20261017.db`.
+`D:\Materiel\fleet_assets.local-20261017.db`.
 Never rely on the checkout-relative default `fleet_assets.db` for agent or
 manual server work. Do not create a per-checkout database. Tests must continue
 to use isolated temporary databases and must never read the shared database.
@@ -532,20 +540,20 @@ Everything below was read from the code or measured, not taken from prose.
 
 ```powershell
 # setup
-python -m venv .venv; .venv\Scripts\activate; pip install -r requirements.txt
+& ..\Materiel\.venv\Scripts\Activate.ps1
 
 python run_web.py                                     # official entrypoint, :8000, admin / Admin@123
 
-.venv\Scripts\python -m pytest -q                     # full suite: 632 passed, 1 skipped (~95s)
-.venv\Scripts\python -m pytest tests/test_labels.py -q # one file
-.venv\Scripts\python -m pytest -q -k "effective_operational"   # one topic
+..\Materiel\.venv\Scripts\python -m pytest -q                     # full suite: 632 passed, 1 skipped (~95s)
+..\Materiel\.venv\Scripts\python -m pytest tests/test_labels.py -q # one file
+..\Materiel\.venv\Scripts\python -m pytest -q -k "effective_operational"   # one topic
 python -m compileall -q app web run_web.py             # CI's syntax gate
 python scripts/check_db_health.py [some_copy.db]       # read-only, exit 1 = real problem
 python scripts/seed_operational_demo.py [--remove]     # demo data — WRITES to DATABASE_URL
 ```
 
 There is **no `conftest.py`**; `pytest.ini` supplies `pythonpath = .`, so **run pytest from the
-repository root**. Without the venv activated, use the explicit `.venv\Scripts\python` form.
+repository root**. Without the venv activated, use the explicit `..\Materiel\.venv\Scripts\python` form.
 
 ## Database traps that cost data *(verified)*
 

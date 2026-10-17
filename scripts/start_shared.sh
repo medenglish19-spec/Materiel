@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-expected_repo='C:\Users\utilisateur\Desktop\Materiel-stage3-maintenance-operations'
+expected_repo='D:\Materiel-stage3-maintenance-operations'
 actual_repo="$(cygpath -aw "$repo_root")"
 actual_repo="${actual_repo,,}"
 expected_repo="${expected_repo,,}"
@@ -19,22 +19,32 @@ if [[ "$branch" != 'stage3-maintenance-operations' ]]; then
   exit 1
 fi
 
-if [[ -z "$(git status --porcelain)" ]]; then
-  git fetch --no-write-fetch-head origin \
-    refs/heads/stage3-maintenance-operations:refs/remotes/origin/stage3-maintenance-operations
-  git merge --ff-only origin/stage3-maintenance-operations
-else
-  printf 'Serving the current local working tree; local edits were preserved and not synchronized.\n'
+if [[ -n "$(git status --porcelain)" ]]; then
+  printf 'Refusing to start with uncommitted changes in %s. Commit the intended changes, then rerun this script.\n' "$repo_root" >&2
+  exit 1
 fi
 
-shared_db='C:/Users/utilisateur/Desktop/Materiel/fleet_assets.local-20261017.db'
+git fetch --no-write-fetch-head origin \
+  refs/heads/stage3-maintenance-operations:refs/remotes/origin/stage3-maintenance-operations
+git merge --ff-only origin/stage3-maintenance-operations
+
+shared_db='D:/Materiel/fleet_assets.local-20261017.db'
+backup_dir='D:/Materiel-database-backups'
+python_bin='D:/Materiel/.venv/Scripts/python.exe'
+if [[ ! -x "$python_bin" ]]; then
+  printf 'Shared Python environment not found: %s\n' "$python_bin" >&2
+  exit 1
+fi
 if [[ ! -f "$shared_db" ]]; then
   printf 'Shared database not found: %s\n' "$shared_db" >&2
   exit 1
 fi
 
 export DATABASE_URL="sqlite:///$shared_db"
+export MATERIEL_DB_BACKUP_DIR="$backup_dir"
 export APP_HOST="${APP_HOST:-127.0.0.1}"
 export APP_PORT="${APP_PORT:-8000}"
 
-python run_web.py
+"$python_bin" scripts/backup_shared_database.py "$shared_db" --backup-dir "$backup_dir"
+"$python_bin" scripts/check_db_health.py "$shared_db"
+"$python_bin" run_web.py
