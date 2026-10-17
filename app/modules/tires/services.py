@@ -190,12 +190,26 @@ def _equipment_measurement_unit(db: Session, equipment_id: int) -> str:
     return measurement_unit
 
 
-def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
+def _validate_equipment_meter(
+    db: Session,
+    equipment_id: int,
+    movement_date: date,
+    meter_value: Decimal | None,
+    source_reference: str | None = None,
+):
     if meter_value is None:
         return
     unit = _equipment_measurement_unit(db, equipment_id)
     from app.modules.meter_readings.services import validate_meter_observation
-    validate_meter_observation(db, equipment_id, movement_date, meter_value, unit, "حركة إطار")
+    validate_meter_observation(
+        db,
+        equipment_id,
+        movement_date,
+        meter_value,
+        unit,
+        "حركة إطار",
+        source_reference=source_reference,
+    )
 
 
 def _validate_tire_meter_history(movements):
@@ -261,7 +275,12 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("لا يمكن تركيب إطار منتهي الصلاحية في تاريخ الحركة المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "install", _movement_datetime(movement))
-            _validate_equipment_meter(db, equipment.id, movement_day, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"tire_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db, equipment.id, movement_day, movement.meter_value, source_reference
+            )
             if _position_occupied_at(db, equipment.id, movement.position_id, _movement_datetime(movement), tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار مشغول بإطار آخر في التاريخ والوقت المحددين")
             state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}
@@ -274,7 +293,12 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في التاريخ المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "move", _movement_datetime(movement))
-            _validate_equipment_meter(db, equipment.id, movement_day, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"tire_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db, equipment.id, movement_day, movement.meter_value, source_reference
+            )
             if _position_occupied_at(db, equipment.id, movement.position_id, _movement_datetime(movement), tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار الهدف مشغول بإطار آخر في التاريخ والوقت المحددين")
             state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}

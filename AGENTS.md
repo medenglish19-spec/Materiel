@@ -87,15 +87,17 @@ The single canonical working branch for all agents is:
 `stage3-maintenance-operations`
 
 All implementation work must land on this branch and stay synchronized with
-`origin/stage3-maintenance-operations`. Agents must not create or continue
-feature branches for routine work. If a task starts in another branch or an
-isolated worktree, do not switch branches or move commits while the checkout is
-dirty; preserve its changes and coordinate a safe transfer to the canonical
-branch before continuing implementation.
+`origin/stage3-maintenance-operations`. In the shared Materiel environment,
+all agents must use the same checkout at
+`C:\Users\utilisateur\Desktop\Materiel-stage3-maintenance-operations`.
+Do not create or use feature branches, additional clones, or worktrees for
+implementation. Do not start implementation from another checkout: preserve
+any work already there and transfer it deliberately before continuing. Keep
+one writer active at a time; other agents may inspect or review, but must wait
+before editing, committing, or pushing.
 
-Only one agent may write, commit, or push to the canonical branch at a time.
-Other agents may inspect or review, but must wait before making changes. This
-serializes updates so parallel agents cannot race each other's commits or pushes.
+This gives every agent the same working tree and prevents server runs from
+silently using a different branch's code.
 
 Always inspect:
 
@@ -208,6 +210,25 @@ python -m uvicorn web.main:app --host 127.0.0.1 --port 8000
 ```
 
 Prefer `python run_web.py`. Do not invent a different startup path if the existing project already provides one.
+
+### Shared agent startup
+
+For the shared Materiel environment, start the app from the canonical checkout
+using `bash scripts/start_shared.sh` in Git Bash. The script verifies the
+canonical checkout and branch, fast-forwards from
+`origin/stage3-maintenance-operations` when the tree is clean, sets the shared
+`DATABASE_URL`, then starts the official `run_web.py` entry point. If there
+are local edits, it serves that current working tree without changing it.
+This ensures the browser uses the same code checkout and data file for all
+agents.
+
+The shared SQLite database is
+`C:\Users\utilisateur\Desktop\Materiel\fleet_assets.local-20261017.db`.
+Never rely on the checkout-relative default `fleet_assets.db` for agent or
+manual server work. Do not create a per-checkout database. Tests must continue
+to use isolated temporary databases and must never read the shared database.
+If the shared database file is unavailable, stop and report that rather than
+silently initializing another database.
 
 When modifying startup behavior, also inspect:
 

@@ -11,6 +11,7 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
+from app.modules.faults_repairs.models import Fault
 from app.modules.maintenance.services import (
     chronology_error,
     condition_for_equipment,
@@ -144,3 +145,24 @@ def equipment_maintenance_delete(equipment_id: int, record_id: int, db: Session 
         raise HTTPException(status_code=409, detail="يُحذف سجل التنفيذ من جدول سجل الصيانة فقط.")
     db.delete(record); db.commit()
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/api/equipment/{equipment_id}/maintenance/{record_id}/delete-impact")
+def equipment_maintenance_delete_impact(equipment_id: int, record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    record = db.query(MaintenanceRecord).filter(
+        MaintenanceRecord.id == record_id,
+        MaintenanceRecord.equipment_id == equipment_id,
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
+    eligible = record.is_scheduled and record.status == "scheduled"
+    faults = db.query(Fault.id).filter(Fault.maintenance_record_id == record.id).count()
+    return {
+        "label": f"موعد {record.operation.name if record.operation else 'صيانة'} — {record.maintenance_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "موعد الصيانة المجدول الذي سيحذف", "count": 1},
+            {"label": "الأعطال التي ستبقى مع فصل ارتباطها بالموعد", "count": faults, "kind": "unlink"},
+            {"label": "قيمة العداد الحالية ستعاد مزامنتها من السجلات المتبقية", "count": 1, "kind": "recalculate"},
+        ],
+        "blocked": None if eligible else "يُحذف من هذه الصفحة الموعد المجدول غير المنفذ فقط.",
+    }

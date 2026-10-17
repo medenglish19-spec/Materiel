@@ -283,8 +283,8 @@ def test_delete_record_preserves_other_records_of_same_equipment(api):
     assert remaining[0]["id"] == record2["id"]
 
 
-def test_completed_execution_can_be_deleted_and_meter_is_recomputed(api):
-    """حذف التنفيذ المكتمل يعيد مزامنة العداد من التاريخ المتبقي."""
+def test_completed_execution_delete_keeps_its_central_meter_history(api):
+    """حذف سجل العملية لا يمحو قراءة العداد التاريخية المرتبطة بها."""
     client, ids = api
     plan, operation = _approve_plan_with_operation(client, ids["model_a"])
     record = _create_record(client, ids["equipment_a"], operation["id"], plan["id"])
@@ -345,6 +345,28 @@ def test_completed_execution_cannot_be_deleted_from_equipment_detail_page(api):
     assert response.status_code == 409
     assert "جدول سجل الصيانة فقط" in response.json()["detail"]
     assert any(row["id"] == record["id"] for row in client.get("/api/maintenance/execution").json())
+
+
+def test_scheduled_equipment_page_delete_preview_shows_server_impact(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    record = _create_record(
+        client, ids["equipment_a"], operation["id"], maintenance_date=date(2026, 9, 26),
+        is_scheduled=True, status="scheduled",
+    )
+    page = client.get(f"/equipment/{ids['equipment_a']}/maintenance")
+    assert page.status_code == 200
+    assert f'data-delete-impact="/api/equipment/{ids["equipment_a"]}/maintenance/{record["id"]}/delete-impact"' in page.text
+
+    preview = client.get(f"/api/equipment/{ids['equipment_a']}/maintenance/{record['id']}/delete-impact")
+    assert preview.status_code == 200, preview.text
+    assert "موعد" in preview.json()["label"]
+    assert preview.json()["blocked"] is None
+    assert any(row.get("kind") == "recalculate" for row in preview.json()["effects"])
+
+    completed = _create_record(client, ids["equipment_a"], operation["id"], maintenance_date=date(2026, 9, 25))
+    blocked = client.get(f"/api/equipment/{ids['equipment_a']}/maintenance/{completed['id']}/delete-impact")
+    assert "الموعد المجدول غير المنفذ فقط" in blocked.json()["blocked"]
 
 
 def test_html_delete_route_keeps_noncompleted_statuses_protected(api):
@@ -513,6 +535,43 @@ def test_delete_completed_record_preserves_meter_history_and_current_value(api):
     db.close()
 
 
+def test_delete_last_maintenance_record_keeps_its_meter_history(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    record = _create_record(client, ids["equipment_a"], operation["id"], meter_value=1000)
+
+    deleted = client.delete(f"/api/maintenance/records/{record['id']}")
+
+    assert deleted.status_code == 204
+    db = Session()
+    try:
+        assert float(db.get(Equipment, ids["equipment_a"]).current_odometer) == 1000.0
+        assert db.query(MeterReading).filter(MeterReading.equipment_id == ids["equipment_a"]).count() == 1
+    finally:
+        db.close()
+
+
+def test_delete_impact_lists_linked_fault_and_meter_recalculation(api):
+    client, ids = api
+    _, operation = _approve_plan_with_operation(client, ids["model_a"])
+    record = _create_record(client, ids["equipment_a"], operation["id"], meter_value=1000)
+    db = Session()
+    db.add(Fault(
+        equipment_id=ids["equipment_a"], maintenance_record_id=record["id"],
+        reported_date=date(2026, 10, 12), description="عطل مرتبط",
+        severity="low", status="open", exploitation_impact="limited",
+    ))
+    db.commit()
+    db.close()
+
+    response = client.get(f"/api/maintenance/records/{record['id']}/delete-impact")
+
+    assert response.status_code == 200
+    impact = response.json()
+    assert any("الأعطال" in row["label"] and row["count"] == 1 for row in impact["effects"])
+    assert any("العداد" in row["label"] and row["kind"] == "recalculate" for row in impact["effects"])
+
+
 def test_records_table_exposes_row_actions_and_bulk_selection():
     template = Path("app/modules/maintenance/templates/maintenance_records.html").read_text(encoding="utf-8")
     assert 'id="selectAllRecords"' in template
@@ -530,7 +589,8 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert "result.rejected" in template
     assert "response.ok" in template
     assert "finally{" in template
-    assert "تحذير: سيُحذف سجل الصيانة المحدد نهائيًا" in template
+    assert "MaterielDeleteImpact.confirmOne" in template
+    assert "delete-impact" in template
     assert 'data-menu-action="record-details"' in template
     assert 'class="record-operation-cell"' in template
     assert '<th>الإجراءات</th>' not in template
@@ -541,12 +601,10 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert 'class="record-check"' in template  # Per-row and bulk selection stays available.
 
 
-def test_record_delete_confirmations_warn_and_cancel_before_requests():
+def test_record_delete_confirmation_shows_server_impact_before_requests():
     template = Path("app/modules/maintenance/templates/maintenance_records.html").read_text(encoding="utf-8")
-    warning = "تحذير: سيُحذف سجل الصيانة المحدد نهائيًا"
-    assert template.count(warning) == 2
-    assert "if(!ids.length||!confirm('" + warning in template
-    assert 'if(!confirm(\'تحذير: سيُحذف سجل الصيانة المحدد نهائيًا' in template
+    assert "MaterielDeleteImpact.confirmMany(ids.map(id=>api+'/records/'+id+'/delete-impact')" in template
+    assert "MaterielDeleteImpact.confirmOne(api+'/records/'+id+'/delete-impact'" in template
     assert "<th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>" in template
     assert "<th>الإجراءات</th>" not in template
 

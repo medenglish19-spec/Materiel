@@ -60,7 +60,7 @@
 <div class="head"><div><h1>سجل إرجاع الغيار</h1><div class="muted">الإرجاع من الغيار المستلم، ويعاد إلى الهيئة التي سلّمتنا الغيار.</div></div><div><a class="link" href="/spare-parts-received">سجل الاستلام</a></div></div>
 <div class="panel">
 <div class="bar"><button id="newBtn" class="btn">＋ إرجاع</button><input id="search" placeholder="بحث في وثائق الإرجاع أو الغيار"></div>
-<div id="form" class="form">
+<form id="form" class="form" method="post" data-em-root novalidate>
 <div class="grid">
 <div class="field"><label>رقم وثيقة الإرجاع *</label><input id="number" required maxlength="80"></div>
 <div class="field"><label>تاريخ الإرجاع *</label><input id="date" type="date" required></div>
@@ -71,8 +71,8 @@
 <div class="section-caption">بيانات الاستلام</div>
 <div class="table-scroll mt-table-theme-green" style="margin-top:6px" data-mt-region><table><thead><tr><th>الغيار</th><th>العتاد</th><th>الكمية المستلمة</th><th>الكمية الموزعة</th><th>الكمية المعادة</th><th>المتاح للتوزيع</th><th>الحالة</th></tr></thead><tbody id="lines"><tr><td colspan="7" class="empty">اختر بند استلام.</td></tr></tbody></table></div>
 <div class="field quantity-field"><label for="returnQuantity">كمية الإرجاع</label><input id="returnQuantity" type="number" min="1" step="1" required></div>
-<div id="notice" class="notice"></div><div class="form-actions"><button id="save" class="btn">حفظ</button> <button id="cancel" class="btn secondary">إلغاء</button></div>
-</div>
+<div id="notice" class="notice"></div><div class="form-actions"><button id="save" class="btn" type="submit">حفظ</button> <button id="cancel" class="btn secondary" type="button">إلغاء</button></div>
+</form>
 <div class="table-scroll mt-table-theme-green" data-mt-region><table><thead><tr><th>الوثيقة</th><th>التاريخ</th><th>الغيار</th><th>الكمية</th><th>الجهة المستلمة</th><th>العمليات</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
 </div></div>
 <script>
@@ -192,11 +192,13 @@ function openForm(documentData=null){
     document.getElementById('receipt').value=receivedId||'';
     renderLines();
     if(firstItem)document.getElementById('returnQuantity').value=firstItem.quantity;
+    if(window.EditManager)EditManager.markFormBaseline(document.getElementById('form'));
 }
 
 function closeForm(){
     editing=null;
     document.getElementById('form').classList.remove('open');
+    if(window.EditManager)EditManager.markFormBaseline(document.getElementById('form'));
 }
 
 async function saveDoc(){
@@ -322,6 +324,6 @@ async function delDoc(id){
         alert('تعذر الاتصال بالخادم: '+error.message);
     }
 }
-document.getElementById('newBtn').onclick=()=>openForm();document.getElementById('cancel').onclick=closeForm;document.getElementById('save').onclick=saveDoc;document.getElementById('receipt').onchange=renderLines;document.getElementById('search').oninput=renderDocs;load();
+document.getElementById('newBtn').onclick=()=>openForm();document.getElementById('cancel').onclick=closeForm;document.getElementById('form').addEventListener('submit',event=>{event.preventDefault();saveDoc()});document.getElementById('receipt').onchange=renderLines;document.getElementById('search').oninput=renderDocs;load();
 </script>
 {% endblock %}

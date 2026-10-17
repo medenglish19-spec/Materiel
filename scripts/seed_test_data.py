@@ -312,7 +312,9 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "install",
                     "equipment_id": eq.id,
                     "position_id": positions[(model_idx, pos_idx)].id,
-                    "meter_value": movement_meter,
+                    # Keep one central meter observation per equipment/day;
+                    # the second tire shares the first tire's installation day.
+                    "meter_value": movement_meter if pos_idx == 1 else None,
                     "document_number": f"{MARKER}-TIRE-IN-{idx + 1:02d}-{pos_idx}",
                     "reason": None,
                     "notes": f"تركيب أولي — {MARKER}",
@@ -338,7 +340,9 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                 "movement_date": today - timedelta(days=20),
                 "movement_type": "install",
                 "equipment_id": eq.id,
-                "meter_value": movement_meter,
+                # The first tire installation already records this day's
+                # equipment meter in the central ledger.
+                "meter_value": None,
                 "document_number": f"{MARKER}-BAT-IN-{idx + 1:02d}",
                 "reason": None,
                 "notes": f"تركيب أولي — {MARKER}",
@@ -373,7 +377,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_type": "remove",
                     "equipment_id": None,
                     "position_id": None,
-                    "meter_value": later_movement_meter,
+                    "meter_value": None,
                     "document_number": f"{MARKER}-TIRE-OUT-{idx + 1:02d}",
                     "reason": "استبدال وقائي",
                     "removal_disposition": "stock",
@@ -420,7 +424,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_date": today - timedelta(days=8),
                     "movement_type": "remove",
                     "equipment_id": None,
-                    "meter_value": later_movement_meter,
+                    "meter_value": None,
                     "document_number": f"{MARKER}-BAT-OUT-{idx + 1:02d}",
                     "reason": "استبدال وقائي",
                     "notes": f"فك لأغراض الاختبار — {MARKER}",
@@ -433,7 +437,9 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
                     "movement_date": today - timedelta(days=7),
                     "movement_type": "install",
                     "equipment_id": eq.id,
-                    "meter_value": (later_movement_meter + Decimal("20")) if later_movement_meter is not None else None,
+                    # The replacement tire records the shared meter for this
+                    # day; its battery counterpart must not duplicate it.
+                    "meter_value": None,
                     "document_number": f"{MARKER}-BAT-REP-IN-{idx + 1:02d}",
                     "reason": None,
                     "notes": f"تركيب بديل — {MARKER}",

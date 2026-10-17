@@ -76,7 +76,7 @@
         <p>العملية العامة في المكتبة تُعرَّف بلا شرط استحقاق ولا إنذار؛ تُربط بالطرازات وتُضبط شروطها لاحقًا من خلال خطط الصيانة.</p>
       </div>
     </div>
-    <form id="operationForm" style="padding:18px">
+    <form id="operationForm" style="padding:18px" data-em-root>
       <input type="hidden" id="operationId">
       <div class="toolbar" style="flex-wrap:wrap;gap:10px">
         <input class="m-input" id="operationName" required placeholder="اسم العملية">
@@ -110,7 +110,7 @@
         </div>
         <button class="m-btn" type="button" id="groupEditorClose">إغلاق</button>
       </div>
-      <form id="groupForm" style="padding:18px">
+      <form id="groupForm" style="padding:18px" data-em-root>
         <input type="hidden" id="groupId">
         <div style="margin-bottom:16px">
           <label for="groupName" style="display:block;margin-bottom:6px;font-weight:600">اسم المجموعة</label>
@@ -357,7 +357,7 @@
     $('operationWarningKm').value = '';
     $('operationWarningDays').value = '';
     $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
-    syncMeterFields();
+    syncMeterFields();if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
   }
   function editOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
@@ -367,7 +367,7 @@
     $('operationWarningKm').value = op.warning_km ?? '';
     $('operationWarningDays').value = op.warning_days ?? '';
     $('editorTitle').textContent='تعديل عملية الصيانة'; $('operationEditor').style.display='';
-    window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});
+    window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
   }
   async function toggleOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
@@ -415,6 +415,7 @@
     if(!state.planId)return false;
     try{
       const added=[...state.planOps].filter(id=>!state.initialPlanOps.has(id)); const removed=[...state.initialPlanOps].filter(id=>!state.planOps.has(id)); let order=state.initialPlanOps.size;
+      if(removed.length&&!await window.MaterielDeleteImpact.confirmMany(removed.map(id=>api+"/plans/"+state.planId+"/operations/"+id+"/remove-impact"),"مراجعة أثر إزالة العمليات من الخطة"))return false;
       for(const operationId of added){await request(api+"/plans/"+state.planId+"/operations",{method:"POST",body:JSON.stringify({plan_id:state.planId,operation_id:operationId,sort_order:order++})})}
       for(const operationId of removed){await request(api+"/plans/"+state.planId+"/operations/"+operationId,{method:"DELETE"})}
       state.initialPlanOps=new Set(state.planOps); if(window.EditManager)EditManager.markSaved('maintenance-plan-selection'); showAlert("تم تحديث عمليات الخطة.");
@@ -476,6 +477,7 @@
     };
     try{
       await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      if(window.EditManager)EditManager.markSavedForm($('operationForm'));
       showAlert(id?'تم تعديل العملية.':'تمت إضافة العملية.');
       $('operationEditor').style.display='none'; await load();
     }catch(err){showAlert(err.message,'danger')}
@@ -620,8 +622,8 @@
   }
 
   async function deleteGroup(groupId, groupName) {
-    if (!confirm(`سيتم حذف المجموعة «${groupName}» فقط، وستبقى عملياتها بدون مجموعة. هل أنت متأكد؟`)) return;
     try {
+      if (!await window.MaterielDeleteImpact.confirmOne(`${api}/operation-groups/${groupId}/delete-impact`, 'مراجعة أثر حذف مجموعة الصيانة')) return;
       await request(`${api}/operation-groups/${groupId}`, {method: 'DELETE'});
       showAlert('تم حذف المجموعة.');
       await load();
@@ -637,11 +639,12 @@
     $('groupEditorTitle').textContent = isEdit ? 'تعديل المجموعة' : 'إضافة مجموعة';
     $('groupEditorSubtitle').textContent = isEdit ? 'عدل اسم المجموعة وترتيب العرض' : 'أدخل اسم المجموعة الجديدة';
     $('groupEditor').style.display = 'flex';
+    if(window.EditManager)EditManager.markFormBaseline($('groupForm'));
     $('groupName').focus();
   }
   function closeGroupEditor() {
     $('groupEditor').style.display = 'none';
-    $('groupForm').reset();
+    if(window.EditManager)EditManager.restoreForm($('groupForm'));else $('groupForm').reset();
   }
   $('groupEditorClose').onclick = closeGroupEditor;
   $('cancelGroupEditor').onclick = closeGroupEditor;
@@ -657,9 +660,11 @@
     try {
       if (id) {
         await request(`${api}/operation-groups/${id}`, {method: 'PUT', body: JSON.stringify({name, sort_order})});
+        if(window.EditManager)EditManager.markSavedForm($('groupForm'));
         showAlert('تم تعديل المجموعة.');
       } else {
         await request(`${api}/operation-groups`, {method: 'POST', body: JSON.stringify({name, sort_order})});
+        if(window.EditManager)EditManager.markSavedForm($('groupForm'));
         showAlert('تمت إضافة المجموعة.');
       }
       closeGroupEditor();
@@ -694,7 +699,7 @@
   $('newOperationBtn').onclick = resetEditor;
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
-  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; };
+  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
   $('groupFilter').onchange = render; $('statusFilter').onchange = render;
 
   // Bulk selection handling
@@ -785,7 +790,7 @@
   $('newOperationBtn').onclick = resetEditor;
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
-  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; };
+  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
   $('groupFilter').onchange = render; $('statusFilter').onchange = render;
   load();
 })();

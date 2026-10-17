@@ -413,8 +413,6 @@ def update_technician_intervention(db: Session, intervention: TechnicianInterven
 
 
 def delete_technician_intervention(db: Session, intervention: TechnicianIntervention):
-    if intervention.repair.status != "in_progress":
-        raise ValueError("لا يمكن حذف تدخل تابع لإصلاح تاريخي")
     db.delete(intervention); db.commit()
 
 def technician_detail_stats(db: Session, technician_id: int):

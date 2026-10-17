@@ -46,7 +46,7 @@
     <div class="edit-modal" dir="rtl">
         <div class="modal-head"><strong>تعديل قراءة العداد</strong><button type="button" id="closeEdit">×</button></div>
         <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.vin or '—' }}</div>
-        <form id="editReadingForm">
+        <form id="editReadingForm" data-em-root>
             <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
             <input type="hidden" name="reading_id" id="editReadingId">
             <label>تاريخ القراءة<input required type="date" name="reading_date" id="editReadingDate"></label>
@@ -74,9 +74,10 @@
         document.getElementById('editReadingValue').value=button.dataset.value||'';
         document.getElementById('editReadingNote').value=button.dataset.note||'';
         error.hidden=true; error.textContent=''; modal.hidden=false;
+        if(window.EditManager)EditManager.reset();
     };
     document.querySelectorAll('.action-btn.edit').forEach(b=>b.addEventListener('click',()=>openModal(b)));
-    const close=()=>{modal.hidden=true};
+    const close=()=>{form.reset();error.hidden=true;error.textContent='';modal.hidden=true;if(window.EditManager)EditManager.reset()};
     document.getElementById('closeEdit').addEventListener('click',close); document.getElementById('cancelEdit').addEventListener('click',close);
     modal.addEventListener('click',e=>{if(e.target===modal) close()});
     form.addEventListener('submit',async e=>{

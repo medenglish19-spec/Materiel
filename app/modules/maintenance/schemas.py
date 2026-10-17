@@ -262,6 +262,52 @@ class MaintenancePlanOperationCreate(MaintenancePlanOperationBase):
     pass
 
 
+class MaintenancePlanOperationsBulkCreate(BaseModel):
+    operation_ids: list[int] = Field(min_length=1)
+
+    @field_validator("operation_ids")
+    @classmethod
+    def operation_ids_are_unique_positive(cls, value):
+        if any(operation_id <= 0 for operation_id in value):
+            raise ValueError("معرّفات العمليات يجب أن تكون موجبة")
+        if len(value) != len(set(value)):
+            raise ValueError("لا يمكن تكرار معرّف العملية في الطلب نفسه")
+        return value
+
+
+class MaintenanceOperationModelConditionSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+
+    @field_validator("interval_km")
+    @classmethod
+    def interval_km_positive(cls, value):
+        if value is not None and not value.is_finite():
+            raise ValueError("فترة الكيلومترات يجب أن تكون رقمًا محدودًا")
+        return _positive(value, "فترة الكيلومترات")
+
+    @field_validator("interval_hours")
+    @classmethod
+    def interval_hours_positive(cls, value):
+        if value is not None and not value.is_finite():
+            raise ValueError("فترة الساعات يجب أن تكون رقمًا محدودًا")
+        return _positive(value, "فترة الساعات")
+
+    @field_validator("interval_days")
+    @classmethod
+    def interval_days_positive(cls, value):
+        return _positive(value, "فترة الأيام")
+
+    @model_validator(mode="after")
+    def require_interval(self):
+        if self.interval_km is None and self.interval_hours is None and self.interval_days is None:
+            raise ValueError("يجب تحديد فاصل استحقاق واحد على الأقل")
+        return self
+
+
 class MaintenancePlanOperationOut(MaintenancePlanOperationBase):
     model_config = ConfigDict(from_attributes=True)
     id: int

@@ -3,7 +3,7 @@
 {% block content %}
 <div dir="rtl" style="padding:20px">
   <h1>استيراد خصائص الطراز من مستند</h1>
-  <form id="previewForm" action="/document-import/preview" method="post" enctype="multipart/form-data">
+  <form id="previewForm" action="/document-import/preview" method="post" enctype="multipart/form-data" data-em-root>
     <input type="hidden" name="model_id" value="{{ model_id }}">
     <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
       <label class="field">ملف (PDF/DOCX/XLSX)
@@ -23,7 +23,7 @@
   </form>
 
   {% if candidates %}
-  <form id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px">
+  <form id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px" data-em-root>
     <input type="hidden" name="model_id" value="{{ model_id }}">
     <table class="tbl">
       <thead>

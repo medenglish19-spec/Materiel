@@ -22,7 +22,7 @@
 
 <section class="panel"><div class="ph">{% if active_repair %}تحديث سجل التصليح النشط R-{{ active_repair.id }}{% else %}بدء سجل تصليح جديد{% endif %}</div><div class="body">
 {% if waiting_for_parts %}<div class="state" style="display:block;margin-bottom:12px;background:#fff7e6;color:#8a5a00">في انتظار الغيار — توجد كميات مطلوبة لم تُستلم بعد. لا تغيّر هذه الملاحظة حالة العطل أو طلب الغيار.</div>{% endif %}
-<form id="repairForm">
+<form id="repairForm" data-em-root>
 <input type="hidden" name="fault_id" value="{{ fault.id }}">
 <div class="form-grid">
 <div class="field"><label>تاريخ بداية الإصلاح *</label><input type="date" name="repair_start_date" value="{% if active_repair and active_repair.repair_start_date %}{{ active_repair.repair_start_date.isoformat() }}{% elif active_repair %}{{ active_repair.repair_date.isoformat() }}{% endif %}" required></div>

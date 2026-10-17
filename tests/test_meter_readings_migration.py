@@ -16,8 +16,8 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 
 
-def test_migration_removes_local_values_backfills_and_guards_raw_writes():
-    database = Path.cwd() / f".meter-ledger-migration-{uuid.uuid4().hex}.db"
+def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path):
+    database = tmp_path / f"meter-ledger-migration-{uuid.uuid4().hex}.db"
     engine = create_engine(f"sqlite:///{database}")
     Base.metadata.create_all(engine)
     from sqlalchemy.orm import Session

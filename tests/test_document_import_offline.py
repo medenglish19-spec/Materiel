@@ -38,3 +38,9 @@ def test_schemas_have_review_fields():
     assert "edited" in s
     assert "ImportApplyRequest" in s
     assert "ImportApplyItem" in s
+
+
+def test_document_import_forms_join_the_shared_edit_manager():
+    template = Path("app/modules/document_import/templates/upload.html").read_text(encoding="utf-8")
+    assert 'id="previewForm"' in template and 'id="previewForm" action="/document-import/preview" method="post" enctype="multipart/form-data" data-em-root' in template
+    assert 'id="applyForm"' in template and 'id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px" data-em-root' in template

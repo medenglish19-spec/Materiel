@@ -39,6 +39,7 @@ from app.modules.maintenance.models import (
 )
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.maintenance.services import CONDITION_MODEL
+from app.modules.meter_readings.models import MeterReading
 from app.modules.users.models import User
 
 engine = create_engine(
@@ -368,6 +369,14 @@ def test_update_changes_technician_note_and_work_order(api):
     assert refreshed.technician_id is None, "إفراغ الفني يجب أن يُحفظ"
     assert refreshed.description == "أعمال محدّثة"
     assert refreshed.note == "ملاحظة محدّثة"
+    db = Session()
+    try:
+        readings = db.query(MeterReading).filter(MeterReading.equipment_id == ids["equipment_a"]).all()
+        assert len(readings) == 1
+        assert readings[0].source_reference == f"maintenance:{record.id}:meter"
+        assert readings[0].odometer == Decimal("100")
+    finally:
+        db.close()
 
 
 # --------------------------------------------------- تحقق الخلفية الحاسم

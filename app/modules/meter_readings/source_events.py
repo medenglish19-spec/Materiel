@@ -14,9 +14,9 @@ from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 _registered = False
 
 
-def _maintenance_reference(plan_id, equipment_id, maintenance_date, record_id):
+def _maintenance_reference(record_id, plan_id, equipment_id, event_date):
     if plan_id is not None:
-        return f"maintenance_plan:{plan_id}:{equipment_id}:{maintenance_date}:meter"
+        return f"maintenance_plan:{plan_id}:{equipment_id}:{event_date}:meter"
     return f"maintenance:{record_id}:meter"
 
 
@@ -61,13 +61,10 @@ def _observations(connection, model_name, row):
         equipment_id = connection.execute(select(Fault.equipment_id).where(Fault.id == row.fault_id)).scalar_one_or_none()
         return [(equipment_id, row.repair_date, row.meter_value, "repair", f"repair:{row.id}:meter")]
     if model_name == "MaintenanceRecord":
-        if row.plan_id is not None:
-            # One plan execution can create one record per operation while
-            # capturing a single physical meter reading. Keep that reading
-            # singular in the ledger and identify it by the execution group.
-            reference = f"maintenance_plan:{row.plan_id}:{row.equipment_id}:{row.maintenance_date}:meter"
-        else:
-            reference = f"maintenance:{row.id}:meter"
+        # One plan execution can create one record per operation while
+        # capturing a single physical meter reading. Keep that reading
+        # singular in the ledger and identify it by the execution group.
+        reference = _maintenance_reference(row.id, row.plan_id, row.equipment_id, row.maintenance_date)
         value = None if row.is_scheduled else row.meter_value
         return [(row.equipment_id, row.maintenance_date, value, "maintenance", reference)]
     if model_name == "Mission":
@@ -81,11 +78,16 @@ def _observations(connection, model_name, row):
     return []
 
 
-def _persist(connection, equipment_id, event_date, raw_value, source, reference):
+def _persist(connection, equipment_id, event_date, raw_value, source, reference, previous_reference=None):
     existing = connection.execute(
         select(MeterReading.id, MeterReading.equipment_id, MeterReading.reading_date, MeterReading.odometer, MeterReading.hours, MeterReading.source)
         .where(MeterReading.source_reference == reference)
     ).first()
+    if existing is None and previous_reference and previous_reference != reference:
+        existing = connection.execute(
+            select(MeterReading.id, MeterReading.equipment_id, MeterReading.reading_date, MeterReading.odometer, MeterReading.hours, MeterReading.source)
+            .where(MeterReading.source_reference == previous_reference)
+        ).first()
     if raw_value is None or equipment_id is None or event_date is None:
         if existing is not None:
             _unlink_reference(connection, reference)
@@ -108,9 +110,10 @@ def _persist(connection, equipment_id, event_date, raw_value, source, reference)
         raise ValueError("وحدة قياس العداد غير معرفة بشكل صحيح")
     column = MeterReading.odometer if unit == "km" else MeterReading.hours
     value_column = "odometer" if unit == "km" else "hours"
+    excluded_references = tuple({reference, previous_reference} - {None})
     stmt = select(MeterReading.id, MeterReading.reading_date, column, MeterReading.source).where(
         MeterReading.equipment_id == equipment_id,
-        or_(MeterReading.source_reference.is_(None), MeterReading.source_reference != reference),
+        or_(MeterReading.source_reference.is_(None), ~MeterReading.source_reference.in_(excluded_references)),
         column.is_not(None),
     )
     for _, other_date, other_value, other_source in connection.execute(stmt):
@@ -171,6 +174,7 @@ def register_domain_meter_listeners():
     for model in sources:
         for operation in ("after_insert", "after_update"):
             def listener(mapper, connection, target, _model=model, _operation=operation):
+                previous_reference = None
                 if _model is MaintenanceRecord and _operation == "after_update":
                     state = sa_inspect(target)
                     history = {name: state.attrs[name].history for name in ("plan_id", "equipment_id", "maintenance_date")}
@@ -178,8 +182,8 @@ def register_domain_meter_listeners():
                         old_plan = history["plan_id"].deleted[0] if history["plan_id"].deleted else target.plan_id
                         old_equipment = history["equipment_id"].deleted[0] if history["equipment_id"].deleted else target.equipment_id
                         old_date = history["maintenance_date"].deleted[0] if history["maintenance_date"].deleted else target.maintenance_date
-                        old_ref = _maintenance_reference(old_plan, old_equipment, old_date, target.id)
-                        new_ref = _maintenance_reference(target.plan_id, target.equipment_id, target.maintenance_date, target.id)
+                        old_ref = _maintenance_reference(target.id, old_plan, old_equipment, old_date)
+                        new_ref = _maintenance_reference(target.id, target.plan_id, target.equipment_id, target.maintenance_date)
                         if old_ref != new_ref:
                             peers = connection.execute(
                                 select(MaintenanceRecord.id).where(
@@ -190,11 +194,9 @@ def register_domain_meter_listeners():
                                 )
                             ).first() if old_plan is not None else None
                             if peers is None:
-                                connection.execute(update(MeterReading).where(
-                                    MeterReading.source_reference == old_ref
-                                ).values(source_reference=new_ref))
+                                previous_reference = old_ref
                 for equipment_id, event_date, value, source, reference in _observations(connection, _model.__name__, target):
-                    _persist(connection, equipment_id, event_date, value, source, reference)
+                    _persist(connection, equipment_id, event_date, value, source, reference, previous_reference)
             event.listen(model, operation, listener)
         def delete_listener(mapper, connection, target, _model=model):
             observations = _observations(connection, _model.__name__, target)

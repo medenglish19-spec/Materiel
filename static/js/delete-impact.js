@@ -4,7 +4,7 @@
   if (!document.getElementById('delete-impact-styles')) {
     const style = document.createElement('style');
     style.id = 'delete-impact-styles';
-    style.textContent = '.delete-impact-backdrop{position:fixed;inset:0;z-index:2000;background:#11182788;display:flex;align-items:center;justify-content:center;padding:16px}.delete-impact-dialog{width:min(520px,100%);max-height:80vh;overflow:auto;background:#fff;border-radius:10px;padding:20px;box-shadow:0 18px 50px #0003;color:#111827}.delete-impact-dialog h2{font:700 18px Cairo,sans-serif;margin:0 0 10px}.delete-impact-intro{margin:0 0 10px;color:#4b5563}.delete-impact-dialog ul{padding-right:22px;line-height:1.8;font-size:13px}.delete-impact-dialog footer{display:flex;gap:8px;justify-content:flex-start;margin-top:18px}.delete-impact-dialog button{border:1px solid #d1d5db;border-radius:6px;padding:9px 14px;background:#fff;cursor:pointer;font:inherit}.delete-impact-dialog .delete-impact-confirm{background:#b91c1c;border-color:#b91c1c;color:#fff}.delete-impact-dialog .delete-impact-confirm:disabled{opacity:.45;cursor:not-allowed}.delete-impact-blocked{color:#b91c1c;font-weight:700}';
+    style.textContent = '.delete-impact-backdrop{position:fixed;inset:0;z-index:2000;background:#11182788;display:flex;align-items:center;justify-content:center;padding:16px}.delete-impact-dialog{width:min(520px,100%);max-height:80vh;overflow:auto;background:#fff;border-radius:10px;padding:20px;box-shadow:0 18px 50px #0003;color:#111827}.delete-impact-dialog h2{font:700 18px Cairo,sans-serif;margin:0 0 10px}.delete-impact-intro{margin:0 0 10px;color:#4b5563}.delete-impact-dialog ul{padding-right:22px;line-height:1.8;font-size:13px}.delete-impact-dialog footer{display:flex;gap:8px;justify-content:flex-start;margin-top:18px}.delete-impact-dialog button{border:1px solid #d1d5db;border-radius:6px;padding:9px 14px;background:#fff;cursor:pointer;font:inherit}.delete-impact-dialog .delete-impact-confirm{background:#b91c1c;border-color:#b91c1c;color:#fff}.delete-impact-dialog .delete-impact-confirm:disabled{opacity:.45;cursor:not-allowed}.delete-impact-blocked{color:#b91c1c;font-weight:700}.delete-impact-warning{color:#9a6700;font-weight:700}';
     document.head.append(style);
   }
   function show(rows, title, blocked) {
@@ -16,8 +16,9 @@
       const list = backdrop.querySelector('ul');
       (rows || []).filter(row => Number(row.count) > 0).forEach(row => {
         const li = document.createElement('li');
-        li.textContent = row.kind === 'blocked' ? row.label : `${row.label}: ${row.count}${row.kind === 'unlink' ? ' (سيبقى السجل دون ارتباط)' : row.kind === 'remain' ? ' (سيبقى محفوظًا)' : row.kind === 'recalculate' ? ' (سيعاد احتسابه)' : ''}`;
+        li.textContent = row.kind === 'blocked' ? row.label : row.kind === 'warning' ? `تنبيه: ${row.label}` : `${row.label}: ${row.count}${row.kind === 'unlink' ? ' (سيبقى السجل دون ارتباط)' : row.kind === 'remain' ? ' (سيبقى محفوظًا)' : row.kind === 'recalculate' ? ' (سيعاد احتسابه)' : ''}`;
         if (row.kind === 'blocked') li.className = 'delete-impact-blocked';
+        if (row.kind === 'warning') li.className = 'delete-impact-warning';
         list.append(li);
       });
       if (!list.children.length) {

@@ -34,7 +34,10 @@ def render_requests_page():
         {"id": 1, "name": "فلتر زيت", "part_number": "OIL-01"},
         {"id": 2, "name": "فلتر هواء", "part_number": "AIR-02"},
     ]
-    return template.render(request=_Request(), parts=parts)
+    rendered = template.render(request=_Request(), parts=parts)
+    toolbar = """<header style="position:sticky;top:0;z-index:50;background:white"><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" data-em-action="undo" disabled>تراجع</button><button type="button" data-em-action="redo" disabled>إعادة</button><button type="button" data-em-action="save" disabled>حفظ</button><span id="emStatus" data-state="clean">نظيف</span></div></header><script>window.MaterielDeleteImpact={confirmOne:async()=>true}</script>"""
+    manager = (ROOT / "static" / "js" / "edit-manager.js").read_text(encoding="utf-8")
+    return "<!doctype html><html><head><script>" + manager + "</script></head><body>" + toolbar + rendered + "</body></html>"
 
 
 @pytest.fixture
@@ -58,6 +61,7 @@ def requests_page():
             "status": "pending",
             "items": [
                 {
+                    "id": 201,
                     "part_name": "فلتر زيت",
                     "spare_part_id": 1,
                     "requested_quantity": 3,
@@ -88,7 +92,7 @@ def requests_page():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/spare-parts-requests":
+            if self.path == "/spare-parts-requests" or self.path.startswith("/spare-parts-requests?"):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
@@ -120,6 +124,34 @@ def requests_page():
                 calls.append(("DELETE", self.path))
                 self.send_response(204)
                 self.end_headers()
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def do_POST(self):
+            calls.append(("POST", self.path))
+            self.send_response(303)
+            self.send_header("Location", "/spare-parts-requests?submitted=1")
+            self.end_headers()
+
+        def do_PATCH(self):
+            if self.path == "/api/spare-parts-requests/101":
+                payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                requests_data[0].update(payload)
+                calls.append(("PATCH", self.path))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b"{}")
+                return
+            if self.path == "/api/spare-parts-requests/items/201":
+                payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                requests_data[0]["items"][0].update(payload)
+                calls.append(("PATCH", self.path))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b"{}")
                 return
             self.send_response(404)
             self.end_headers()
@@ -185,4 +217,47 @@ def test_request_delete_shows_impact_before_existing_api_action(requests_page):
     page.wait_for_timeout(100)
 
     assert calls == [("DELETE", "/api/spare-parts-requests/101")]
+    assert not errors
+
+
+def test_top_save_persists_an_open_request_without_bypassing_its_api(requests_page):
+    page, calls, errors = requests_page
+
+    page.locator(".request-row[data-id='101']").click()
+    expect(page.locator("#requestModal")).to_be_visible()
+    page.locator("#detailPane .f-number").fill("6541-UPDATED")
+    page.locator("#detailPane .i-qty").fill("4")
+    expect(page.locator('[data-em-action="save"]')).to_be_enabled()
+
+    page.locator('[data-em-action="save"]').click()
+    expect(page.locator("#detailPane .f-number")).to_have_value("6541-UPDATED")
+    expect(page.locator("#detailPane .i-qty")).to_have_value("4")
+    expect(page.locator('[data-em-action="save"]')).to_be_disabled()
+    assert calls == [
+        ("PATCH", "/api/spare-parts-requests/101"),
+        ("PATCH", "/api/spare-parts-requests/items/201"),
+    ]
+    assert page.evaluate("sessionStorage.getItem('materiel:pending-form-action:v1')") is None
+    actions = page.evaluate("JSON.parse(sessionStorage.getItem('materiel:session-actions:v1') || '[]')")
+    assert len(actions) == 2
+    assert {row["label"] for row in actions} == {
+        "تعديل طلبات الغيار #101",
+        "تعديل طلبات الغيار #201",
+    }
+
+
+def test_native_top_save_submission_is_added_to_the_session_index(requests_page):
+    page, calls, errors = requests_page
+    page.evaluate("""() => {
+      const form=document.createElement('form');form.id='nativeSaveForm';form.method='post';form.action='/native-save';form.dataset.emRoot='';
+      form.innerHTML='<input name="note" value="قبل">';document.body.append(form);
+      EditManager.markFormBaseline(form);
+    }""")
+    page.locator("#nativeSaveForm [name='note']").fill("بعد")
+    page.locator('[data-em-action="save"]').click()
+    page.wait_for_url("**/spare-parts-requests?submitted=1")
+    assert ("POST", "/native-save") in calls
+    actions = page.evaluate("JSON.parse(sessionStorage.getItem('materiel:session-actions:v1') || '[]')")
+    assert actions and actions[0]["method"] == "تنفيذ"
+    assert actions[0]["path"] == "/native-save"
     assert not errors

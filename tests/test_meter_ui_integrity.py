@@ -109,5 +109,7 @@ def test_meter_history_page_keeps_edit_delete_actions():
     text = HISTORY_TEMPLATE.read_text(encoding="utf-8")
     assert 'class="action-btn edit"' in text
     assert 'class="action-btn delete"' in text
+    assert '<form id="editReadingForm" data-em-root>' in text
+    assert "if(window.EditManager)EditManager.reset();" in text
     assert '/meter-readings/history/{{ equipment.id }}/update' in text
     assert '/meter-readings/history/{{ equipment.id }}/delete' in text

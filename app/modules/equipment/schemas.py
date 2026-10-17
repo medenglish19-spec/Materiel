@@ -100,6 +100,10 @@ class EquipmentUpdate(BaseModel):
         return v
 
 
+class EquipmentBulkDelete(BaseModel):
+    equipment_ids: list[int] = Field(min_length=1)
+
+
 class EquipmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

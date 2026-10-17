@@ -110,6 +110,10 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert "${api}/operation-groups" in template
     assert "مكتبة عمليات الصيانة" in template or "مكتبة شروط الصيانة" in template
     assert "إضافة عملية صيانة" in template
+    assert 'id="operationForm" style="padding:18px" data-em-root' in template
+    assert 'id="groupForm" style="padding:18px" data-em-root' in template
+    assert "EditManager.markFormBaseline($('operationForm'))" in template
+    assert "EditManager.restoreForm($('groupForm'))" in template
     # المكتبة لا تعدّل شروط الطرازات ولا تعرضها: لا محرر ولا عمود شرط ولا نافذة تفاصيل.
     assert "equipment_model_conditions" not in template
     assert "editorModelsBody" not in template

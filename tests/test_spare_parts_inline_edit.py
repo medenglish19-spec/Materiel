@@ -464,6 +464,7 @@ def test_the_new_request_form_is_a_real_form_element(client):
     )
     # novalidate keeps our Arabic messages instead of the browser's tooltips
     assert "novalidate" in opened.group(0)
+    assert "data-em-root" in opened.group(0)
     assert html.count("<form") == html.count("</form>")
 
 
@@ -493,6 +494,21 @@ def test_the_submit_listener_is_still_wired_to_the_form(client):
     # the handler must prevent the native navigation before posting to the API
     handler_at = html.index("getElementById('requestForm').addEventListener('submit'")
     assert "preventDefault" in html[handler_at : handler_at + 200]
+
+
+def test_open_and_new_request_rows_bind_to_their_real_save_paths(client):
+    page, _ = client
+    html = page.get("/spare-parts-requests").text
+
+    assert "spare-request-new-item-rows" in html
+    assert "form:()=>document.getElementById('requestForm')" in html
+    assert "spare-request-detail-item-rows" in html
+    assert "save:saveOpenRequest" in html
+    assert 'id="detailPane" data-em-root' in html
+    assert "function tagDetailFields()" in html
+    assert "fields:[...document.querySelectorAll('#detailPane [data-em-track]')" in html
+    assert "return saveRequest(Number(button.dataset.id),button)" in html
+    assert "field.disabled=hidden" in html
 
 
 def _row_source(html):
