@@ -101,7 +101,7 @@ class Repair(Base):
             name="ck_external_repair_requires_dispatch_document",
         ),
         CheckConstraint(
-            "status IN ('in_progress', 'completed', 'cancelled')",
+            "status IN ('in_progress', 'completed')",
             name="ck_repair_status",
         ),
         CheckConstraint(

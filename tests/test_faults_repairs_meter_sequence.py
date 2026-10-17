@@ -533,13 +533,12 @@ def test_repair_update_rejects_end_date_before_start_date(db):
     assert fault.status == "repairing"
 
 
-@pytest.mark.parametrize("terminal_status", ["completed", "cancelled"])
-def test_terminal_repair_cannot_change_fault_when_updated(terminal_status, db):
-    equipment = seed_equipment(db, f"COMPLETE-OLD-{terminal_status}", "km")
+def test_completed_repair_cannot_change_fault_when_updated(db):
+    equipment = seed_equipment(db, "COMPLETE-OLD", "km")
     fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
     fault_services.change_fault_status(db, fault, "diagnosing")
     repair = create_repair(db, fault, TODAY, 25)
-    fault_services.change_repair_status(db, repair, terminal_status)
+    fault_services.change_repair_status(db, repair, "completed")
     status_before = fault.status
 
     with pytest.raises(ValueError, match="تاريخي"):
@@ -550,3 +549,15 @@ def test_terminal_repair_cannot_change_fault_when_updated(terminal_status, db):
     db.refresh(fault)
     assert fault.status == status_before
 
+
+def test_repair_cannot_be_cancelled(db):
+    equipment = seed_equipment(db, "NO-CANCEL", "km")
+    fault = create_fault(db, equipment, TODAY - timedelta(days=1), 20)
+    fault_services.change_fault_status(db, fault, "diagnosing")
+    repair = create_repair(db, fault, TODAY, 25)
+
+    with pytest.raises(ValueError, match="حالة الإصلاح غير صحيحة"):
+        fault_services.change_repair_status(db, repair, "cancelled")
+
+    db.refresh(repair)
+    assert repair.status == "in_progress"

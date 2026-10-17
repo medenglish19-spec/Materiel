@@ -53,7 +53,6 @@ FAULT_STATUS_LABELS: Dict[str, str] = {
 REPAIR_STATUS_LABELS: Dict[str, str] = {
     "in_progress": "قيد الإصلاح",
     "completed": "تم الإصلاح",
-    "cancelled": "ملغى",
 }
 
 # خطورة العطل (نفس التسميات المستعملة في <select> داخل faults.html)

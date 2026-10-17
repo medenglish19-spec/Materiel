@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 FAULT_SEVERITIES = {"low", "medium", "high", "critical"}
 FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired"}
 FAULT_EXPLOITATION_IMPACTS = {"none", "limited", "prohibited"}
-REPAIR_STATUSES = {"in_progress", "completed", "cancelled"}
+REPAIR_STATUSES = {"in_progress", "completed"}
 WORKSHOP_TYPES = {"internal", "external"}
 
 
