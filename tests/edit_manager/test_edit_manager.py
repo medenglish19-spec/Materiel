@@ -422,3 +422,18 @@ def test_distribution_save_failure_refreshes_balances_without_losing_quantities(
     assert posts[1]["items"]==[{"request_item_id":42,"quantity":3}]
     assert page.url.endswith('/maintenance/records')
     assert not errors
+
+def test_history_index_lists_and_navigates_between_undoable_changes(browser_page):
+    page, errors = browser_page
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(450)
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(450)
+    expect(page.locator('#emHistoryCount')).to_have_text('2')
+    page.locator('#emHistoryMenu summary').click()
+    expect(page.locator('#emHistoryList [data-em-history-index]')).to_have_count(3)
+    page.locator('#emHistoryList [data-em-history-index="1"]').click()
+    expect(page.locator('#meter')).to_have_value('250')
+    page.locator('#emHistoryList [data-em-history-index="2"]').click()
+    expect(page.locator('#meter')).to_have_value('500')
+    assert not errors
