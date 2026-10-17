@@ -127,7 +127,8 @@ def create_app() -> FastAPI:
                     target += "?" + parsed.query
                 separator="&" if parsed.query else "?"
                 detail=str(exc.detail) if exc.detail else "تعذر تنفيذ العملية. راجع البيانات وحاول مرة أخرى."
-                target += separator + "notice_type=warning&notice=" + quote(detail)
+                notice_type = "danger" if exc.status_code >= 500 else "warning"
+                target += separator + "notice_type=" + notice_type + "&notice=" + quote(detail)
                 return RedirectResponse(url=target,status_code=303)
         return JSONResponse(status_code=exc.status_code,content={"detail":exc.detail},headers=exc.headers)
 

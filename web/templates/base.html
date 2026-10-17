@@ -101,8 +101,14 @@ body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tah
 .module-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 20px;padding:10px 12px;background:var(--white);border:1px solid rgba(46,125,50,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
 .module-nav a{padding:8px 12px;border-radius:var(--radius-sm);color:var(--text-secondary);text-decoration:none;font-size:12px;font-weight:700;transition:all .2s ease}
 .module-nav a:hover,.module-nav a.active{background:var(--bg-secondary);color:var(--primary)}
-.materiel-notice{display:flex;align-items:flex-start;gap:12px;margin:0 0 16px;padding:14px 16px;border:1px solid rgba(46,125,50,.1);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow);opacity:0;transform:translateY(-6px);transition:all .2s ease}
+.materiel-notice-backdrop{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;box-sizing:border-box;background:rgba(15,23,42,.48);opacity:0;visibility:hidden;transition:opacity .18s ease,visibility .18s ease}
+.materiel-notice-backdrop-visible{opacity:1;visibility:visible}
+.materiel-notice{box-sizing:border-box;display:flex;align-items:flex-start;gap:12px;width:min(560px,100%);max-height:min(80vh,620px);overflow:auto;margin:0;padding:18px 20px;border:1px solid rgba(46,125,50,.1);border-radius:var(--radius);background:var(--white);box-shadow:0 22px 70px rgba(15,23,42,.25);opacity:0;transform:translateY(8px) scale(.98);transition:opacity .18s ease,transform .18s ease}
+.materiel-notice-inline{position:static;width:auto;max-height:none;overflow:visible;margin:0 0 16px;padding:14px 16px;opacity:1;transform:none;transition:none}
 .materiel-notice-visible{opacity:1;transform:none}
+.materiel-notice-content{flex:1;min-width:0}
+.materiel-notice-title{display:block;margin:0 0 6px;color:#111;font-size:15px;font-weight:800}
+@media(prefers-reduced-motion:reduce){.materiel-notice-backdrop,.materiel-notice{transition:none}}
 .materiel-notice-icon{font-size:20px;line-height:1.2}
 .materiel-notice-text{flex:1;font-size:12px;line-height:1.8;font-weight:600;color:var(--text-secondary)}
 .materiel-notice-close{border:0;background:transparent;color:var(--text-secondary);font-size:20px;line-height:1;cursor:pointer;padding:0 3px}
@@ -267,7 +273,26 @@ html,body{background:var(--bg-primary);color:var(--text-primary)}
 <script>
 (function(){
 const el=document.getElementById('systemDate');if(el){el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}
-const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){const box=document.createElement('div');box.className='materiel-notice materiel-notice-'+noticeType;const icon=noticeType==='danger'?'⛔':noticeType==='success'?'✓':noticeType==='info'?'ℹ️':'⚠️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,textEl,close);const main=document.querySelector('.container');if(main)main.prepend(box);close.addEventListener('click',()=>box.remove());window.setTimeout(()=>box.classList.add('materiel-notice-visible'),20);const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
+let dismissMaterielNotice=null;
+window.showMaterielNotice=function(message,type='warning'){
+  const kind=['warning','danger','info','success'].includes(type)?type:'warning';
+  if(kind!=='warning'&&kind!=='danger')return;
+  if(dismissMaterielNotice)dismissMaterielNotice();
+  const previousFocus=document.activeElement;
+  const backdrop=document.createElement('div');backdrop.className='materiel-notice-backdrop';
+  const box=document.createElement('section');box.className='materiel-notice materiel-notice-'+kind;box.setAttribute('role','alertdialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',kind==='danger'?'رسالة خطأ':'رسالة تحذير');
+  const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.setAttribute('aria-hidden','true');iconEl.textContent=kind==='danger'?'⛔':'⚠️';
+  const content=document.createElement('div');content.className='materiel-notice-content';
+  const title=document.createElement('strong');title.className='materiel-notice-title';title.textContent=kind==='danger'?'خطأ':'تنبيه';
+  const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=String(message||'تعذر تنفيذ العملية. حاول مرة أخرى.');content.append(title,textEl);
+  const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,content,close);backdrop.append(box);document.body.append(backdrop);
+  const dismiss=()=>{backdrop.remove();document.removeEventListener('keydown',onKeyDown);if(dismissMaterielNotice===dismiss)dismissMaterielNotice=null;if(previousFocus&&previousFocus.isConnected&&typeof previousFocus.focus==='function')previousFocus.focus()};
+  dismissMaterielNotice=dismiss;
+  const onKeyDown=event=>{if(event.key==='Escape'){event.preventDefault();dismiss()}else if(event.key==='Tab'){event.preventDefault();close.focus()}};
+  close.addEventListener('click',dismiss);backdrop.addEventListener('click',event=>{if(event.target===backdrop)dismiss()});document.addEventListener('keydown',onKeyDown);
+  window.setTimeout(()=>{backdrop.classList.add('materiel-notice-backdrop-visible');box.classList.add('materiel-notice-visible');close.focus()},20);
+};
+const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){if(noticeType==='warning'||noticeType==='danger'){window.showMaterielNotice(notice,noticeType)}else{const box=document.createElement('div');box.className='materiel-notice materiel-notice-inline materiel-notice-'+(noticeType==='success'?'success':'info');const icon=noticeType==='success'?'✓':'ℹ️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;box.append(iconEl,textEl);const main=document.querySelector('.container');if(main)main.prepend(box)}const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
 const mutationKey='materiel:mutation-completed';document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>sessionStorage.setItem(mutationKey,'1'))});if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey)}window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload()});
 const searchSelector='input[type="search"],input.search-box,input[id*="search" i],input[id*="Search"]';
 document.querySelectorAll(searchSelector).forEach(input=>{
