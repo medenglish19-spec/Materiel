@@ -218,9 +218,7 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
         )
         for field, value in data.model_dump(exclude={"fault_id", "status"}).items():
             setattr(active, field, value)
-        if data.status == "cancelled":
-            active.status = "cancelled"
-        elif data.status == "completed":
+        if data.status == "completed":
             active.status = "completed"
             fault.status = "repaired"
         else:
@@ -286,16 +284,12 @@ def update_repair_record(db: Session, repair: Repair, data: RepairUpdate):
     effective_start_date = data.repair_start_date or repair.repair_start_date or repair.repair_date
     if data.repair_end_date and data.repair_end_date < effective_start_date:
         raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
-    if repair.status == "cancelled" and data.repair_end_date and data.repair_end_date != repair.repair_end_date:
-        raise ValueError("لا يمكن تسجيل نهاية لإصلاح ملغى")
     if data.workshop_type == "external" and not data.external_dispatch_document:
         raise ValueError("وثيقة إرسال العتاد للورشة الخارجية إلزامية")
     _validate_meter_sequence(db, repair.fault.equipment, data.meter_value, effective_start_date,
                              exclude=("repair", repair.id), source="repair")
 
-    next_status = repair.status
-    if repair.status != "cancelled":
-        next_status = "completed" if data.repair_end_date else "in_progress"
+    next_status = "completed" if data.repair_end_date else "in_progress"
     if next_status == "in_progress":
         other_active = db.query(Repair.id).filter(
             Repair.fault_id == repair.fault_id,
@@ -309,8 +303,7 @@ def update_repair_record(db: Session, repair: Repair, data: RepairUpdate):
         for field, value in data.model_dump().items():
             setattr(repair, field, value)
         repair.status = next_status
-        if repair.status != "cancelled":
-            repair.fault.status = "repaired" if repair.status == "completed" else "repairing"
+        repair.fault.status = "repaired" if repair.status == "completed" else "repairing"
         db.flush()
         _sync_equipment_from_faults(db, repair.fault.equipment_id)
         db.commit()
@@ -448,10 +441,10 @@ def list_repairs(db: Session, fault_id=None, workshop_type=None, status=None):
 
 
 def change_repair_status(db: Session, repair: Repair, new_status: str):
-    if new_status not in {"in_progress", "completed", "cancelled"}:
+    if new_status not in REPAIR_STATUSES:
         raise ValueError("حالة الإصلاح غير صحيحة")
-    if repair.status in {"completed", "cancelled"} and new_status != repair.status:
-        raise ValueError("سجل التصليح المكتمل أو الملغى تاريخي ولا يمكن إعادة فتحه")
+    if repair.status == "completed" and new_status != repair.status:
+        raise ValueError("سجل التصليح المكتمل تاريخي ولا يمكن إعادة فتحه")
     if new_status == "in_progress":
         other_active = db.query(Repair.id).filter(
             Repair.fault_id == repair.fault_id,

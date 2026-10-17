@@ -222,8 +222,8 @@ def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):
     repair_metrics = response.text[start:end]
     assert "قيد الإصلاح" in repair_metrics
     assert "تم الإصلاح" in repair_metrics
-    assert "ملغى" in repair_metrics
-    assert re.findall(r'class="value">(\d+)</div>', repair_metrics) == ["1", "0", "0"]
+    assert "ملغى" not in repair_metrics
+    assert re.findall(r'class="value">(\d+)</div>', repair_metrics) == ["1", "0"]
 
 
 def test_pages_open_without_login(anonymous):

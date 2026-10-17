@@ -216,7 +216,7 @@ def test_faults_repairs_dashboard_counts_repairs_separately_by_status():
         session.add(equipment)
         session.flush()
 
-        for index, status in enumerate(("in_progress", "completed", "cancelled")):
+        for index, status in enumerate(("in_progress", "completed")):
             fault = Fault(
                 equipment_id=equipment.id,
                 reported_date=date.today(),
@@ -240,11 +240,10 @@ def test_faults_repairs_dashboard_counts_repairs_separately_by_status():
 
         stats = repair_services.dashboard_stats(session)
 
-        assert stats["repairs_total"] == 3
+        assert stats["repairs_total"] == 2
         assert stats["repairs_by_status"] == {
             "in_progress": 1,
             "completed": 1,
-            "cancelled": 1,
         }
     finally:
         session.close()
