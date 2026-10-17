@@ -1,5 +1,6 @@
 import os
 import pytest
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -52,6 +53,8 @@ def browser_page():
                 self.send_response(200);self.send_header("Content-Type",content_type);self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.end_headers();self.wfile.write(html.encode())
         def do_POST(self):
+            if self.path == "/legacy-save":
+                time.sleep(0.25)
             if self.path == "/native-save":
                 self.send_response(303)
                 self.send_header("Location", "/maintenance/records?submitted=1")
@@ -225,6 +228,52 @@ def test_save_failure_keeps_page_dirty(browser_page):
     page.locator('[data-em-action="save"]').click()
     page.wait_for_timeout(100)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert not errors
+
+
+def test_saving_locks_edits_and_history_until_server_success(browser_page):
+    page,errors=browser_page
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(450)
+    page.evaluate("""() => {
+      window.finishSave = null;
+      EditManager.setSaveHandler(() => new Promise(resolve => { window.finishSave = resolve; }));
+      window.pendingSave = EditManager.save();
+    }""")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','saving')
+    expect(page.locator('[data-em-action="undo"]')).to_be_disabled()
+    assert page.evaluate('document.body.inert')
+    assert page.evaluate('EditManager.undo()') is False
+    page.evaluate('window.finishSave(true)')
+    page.wait_for_function("document.getElementById('emStatus').dataset.state === 'clean'")
+    assert not page.evaluate('document.body.inert')
+    expect(page.locator('#meter')).to_have_value('250')
+    assert not errors
+
+
+def test_legacy_page_save_locks_edits_until_its_request_finishes(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => {
+      const form=document.createElement('form');form.id='legacySaveForm';form.method='post';form.dataset.emRoot='';
+      form.innerHTML='<input id="legacyValue" name="value"><button type="submit">حفظ الصفحة</button>';
+      document.body.append(form);
+      form.addEventListener('submit',async event=>{
+        event.preventDefault();
+        const response=await fetch('/legacy-save',{method:'POST',body:new FormData(form)});
+        if(response.ok)EditManager.markSavedForm(form);
+      });
+      EditManager.markFormBaseline(form);
+    }""")
+    page.locator('#legacyValue').fill('saved value')
+    page.wait_for_timeout(450)
+    page.locator('#legacySaveForm button').click()
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','saving')
+    expect(page.locator('[data-em-action="undo"]')).to_be_disabled()
+    assert page.evaluate('document.body.inert')
+    assert page.evaluate('EditManager.undo()') is False
+    page.wait_for_function("document.getElementById('emStatus').dataset.state === 'clean'")
+    assert not page.evaluate('document.body.inert')
+    expect(page.locator('#legacyValue')).to_have_value('saved value')
     assert not errors
 
 
