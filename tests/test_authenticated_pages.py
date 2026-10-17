@@ -45,6 +45,7 @@ PAGE_MARKERS = [
     ("/tires", "الإطارات"),
     ("/tires/inventory", None),
     ("/batteries", "البطاريات"),
+    ("/spare-parts-received", "استلام الإطارات والبطاريات"),
     ("/fuel", "الوقود"),
     ("/missions", "المهمات"),
     ("/users", None),
@@ -210,6 +211,46 @@ def anonymous():
 def test_login_sets_a_session_that_authenticates_the_pages(pages):
     client, _ = pages
     assert client.cookies.get("fleet_session"), "لا كوكي جلسة بعد الدخول"
+
+
+def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
+    client, _ = pages
+    receipt_day = date.today().isoformat()
+    for asset_type, number, description in (
+        ("tire", "E2E-TIRE-RECEIPT", "إطار اختبار 1"),
+        ("battery", "E2E-BATTERY-RECEIPT", "بطارية AGM اختبار"),
+    ):
+        response = client.post("/api/spare-parts-requests/asset-receipts", json={
+            "asset_type": asset_type,
+            "document_number": number,
+            "description": description,
+            "quantity": 1,
+            "received_date": receipt_day,
+            "supplier": "مورد الاختبار",
+            "recipient": "مستلم الاختبار",
+        })
+        assert response.status_code == 201, response.text
+
+    tire_invalid = client.post("/tires", data={"serial_number": "E2E-T-INVALID", "acquisition_document": "UNKNOWN"})
+    assert tire_invalid.status_code == 400
+    tire_created = client.post("/tires", data={"serial_number": "E2E-T-1", "brand": "Brand", "model": "Model", "acquisition_document": "E2E-TIRE-RECEIPT"}, follow_redirects=False)
+    assert tire_created.status_code == 303
+    tires_html = client.get("/tires").text
+    assert "E2E-T-1" in tires_html
+    tire_id = re.search(r'href="/tires/(\d+)"', tires_html).group(1)
+    assert client.post(f"/tires/{tire_id}/delete", follow_redirects=False).status_code == 303
+
+    battery_invalid = client.post("/batteries", data={"battery_type": "AGM", "acquisition_document": "UNKNOWN"})
+    assert battery_invalid.status_code == 400
+    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "model": "Model", "acquisition_document": "E2E-BATTERY-RECEIPT"}, follow_redirects=False)
+    assert battery_created.status_code == 303
+    batteries_html = client.get("/batteries").text
+    assert "AGM" in batteries_html
+    battery_id = re.search(r'href="/batteries/(\d+)"', batteries_html).group(1)
+    battery_detail = client.get(f"/batteries/{battery_id}")
+    assert battery_detail.status_code == 200
+    assert "E2E-BATTERY-RECEIPT" in battery_detail.text
+    assert client.post(f"/batteries/{battery_id}/delete", follow_redirects=False).status_code == 303
 
 
 def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):

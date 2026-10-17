@@ -10,13 +10,16 @@ from app.shared.mixins import AuditMixin
 class Battery(Base, AuditMixin):
     __tablename__ = "batteries"
     id = Column(Integer, primary_key=True, index=True)
-    serial_number = Column(String(80), unique=True, nullable=False, index=True)
+    # Kept nullable for legacy records; battery identity is type/model, not a serial.
+    serial_number = Column(String(80), unique=True, nullable=True, index=True)
+    battery_type = Column(String(100), nullable=True)
     brand = Column(String(80), nullable=True)
     model = Column(String(80), nullable=True)
     manufacture_date = Column(Date, nullable=True)
     receipt_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)
     acquisition_document = Column(String(100), nullable=True)
+    acquisition_receipt_id = Column(Integer, ForeignKey("asset_receipts.id", ondelete="RESTRICT", name="fk_batteries_acquisition_receipt_id_asset_receipts"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
     movements = relationship("BatteryMovement", back_populates="battery", order_by="BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()", cascade="all, delete-orphan")
 

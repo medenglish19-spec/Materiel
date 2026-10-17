@@ -136,3 +136,14 @@ class SparePartRequestOut(BaseModel):
     items: list[SparePartRequestItemOut]
 
     model_config = {"from_attributes": True}
+
+
+class AssetReceiptCreate(BaseModel):
+    asset_type: str
+    document_number: str = Field(min_length=1, max_length=100)
+    description: str = Field(min_length=1, max_length=200)
+    quantity: int = Field(gt=0)
+    received_date: date
+    supplier: str | None = None
+    recipient: str | None = None
+    notes: str | None = None

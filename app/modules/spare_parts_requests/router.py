@@ -18,9 +18,25 @@ from .schemas import (
     SparePartRequestStatusUpdate,
     SparePartRequestItemOut,
     SparePartRequestUpdate,
+    AssetReceiptCreate,
 )
 
 router = APIRouter(prefix="/api/spare-parts-requests")
+
+
+@router.get("/asset-receipts")
+def asset_receipts(asset_type: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    return services.list_asset_receipts(db, asset_type)
+
+
+@router.post("/asset-receipts", status_code=201)
+def create_asset_receipt(data: AssetReceiptCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    try:
+        receipt = services.create_asset_receipt(db, data.model_dump())
+        return {"id": receipt.id, "asset_type": receipt.asset_type, "document_number": receipt.document_number}
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
 
 
 @router.get("", response_model=list[SparePartRequestOut])

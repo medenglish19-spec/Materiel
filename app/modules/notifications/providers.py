@@ -155,7 +155,7 @@ def battery_replacement_provider(db) -> list[dict]:
                 "key": f"battery:{battery.id}",
                 "severity": "overdue",
                 "module": "batteries",
-                "title": f"بطارية مستحقة الاستبدال: {battery.serial_number}",
+                "title": f"بطارية مستحقة الاستبدال: {getattr(battery, 'battery_type', None) or battery.serial_number or battery.id}",
                 "detail": f"{_equipment_label(equipment)} · موعد الاستبدال {due_date}",
                 "url": f"/batteries/{battery.id}",
             }

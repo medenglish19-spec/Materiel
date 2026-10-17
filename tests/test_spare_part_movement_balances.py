@@ -1144,7 +1144,8 @@ def _page():
 def test_every_balance_column_is_shown_under_its_own_header():
     """رأس السجل وترتيب خلاياه يطابقان الأرصدة المرئية المطلوبة."""
     html = _page()
-    headers = re.findall(r"<th>(.*?)</th>", html)
+    legacy_register = html.split('<section class="panel asset-receipts"', 1)[0]
+    headers = re.findall(r"<th>(.*?)</th>", legacy_register)
     assert headers == list(COLUMNS.values())
 
     builder = html[html.index("function render()") : html.index("function esc(")]
@@ -1168,7 +1169,7 @@ def test_every_balance_column_is_shown_under_its_own_header():
 
 
 def test_the_row_spans_the_same_number_of_columns_as_the_header():
-    html = _page()
+    html = _page().split('<section class="panel asset-receipts"', 1)[0]
     columns = len(re.findall(r"<th>", html))
     assert columns == len(COLUMNS)
     for colspan in re.findall(r'colspan="(\d+)"', html):

@@ -67,3 +67,24 @@ class SparePartRequestItem(Base):
 
     request = relationship("SparePartRequest", back_populates="items")
     spare_part = relationship("SparePart")
+
+
+class AssetReceipt(Base):
+    """Procurement receipts for tires and batteries, kept out of repair stock."""
+    __tablename__ = "asset_receipts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    asset_type = Column(String(20), nullable=False, index=True)
+    document_number = Column(String(100), nullable=False, unique=True, index=True)
+    description = Column(String(200), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    received_date = Column(Date, nullable=False, index=True)
+    supplier = Column(String(200), nullable=True)
+    recipient = Column(String(160), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+
+    __table_args__ = (
+        CheckConstraint("asset_type IN ('tire', 'battery')", name="ck_asset_receipt_type"),
+        CheckConstraint("quantity > 0", name="ck_asset_receipt_quantity_positive"),
+    )

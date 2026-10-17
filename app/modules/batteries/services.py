@@ -277,11 +277,37 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
 def add_battery(db: Session, data: dict):
     data = dict(data)
     data.pop("expiry_date", None)
+    battery_type = (data.get("battery_type") or "").strip()
+    if not battery_type:
+        raise ValueError("نوع البطارية مطلوب")
+    data["battery_type"] = battery_type
+    data.pop("serial_number", None)
+    from app.modules.spare_parts_requests.models import AssetReceipt
+    receipt_number = (data.get("acquisition_document") or "").strip()
+    receipt = db.query(AssetReceipt).filter(AssetReceipt.document_number == receipt_number, AssetReceipt.asset_type == "battery").first()
+    if not receipt:
+        raise ValueError("وثيقة اقتناء البطارية غير موجودة في سجل الاستلام بوحدة الغيار")
+    used = db.query(Battery.id).filter(Battery.acquisition_receipt_id == receipt.id).count()
+    if used >= receipt.quantity:
+        raise ValueError("اكتملت كمية هذه الوثيقة في سجل الاستلام")
+    data["acquisition_document"] = receipt.document_number
+    data["acquisition_receipt_id"] = receipt.id
+    data["receipt_date"] = receipt.received_date
     battery = Battery(**data)
     db.add(battery)
     db.commit()
     db.refresh(battery)
     return battery
+
+
+def delete_battery(db: Session, battery_id: int):
+    battery = db.query(Battery).filter(Battery.id == battery_id).first()
+    if not battery:
+        raise ValueError("البطارية غير موجودة")
+    if current_state(db, battery_id) and current_state(db, battery_id).get("installed"):
+        raise ValueError("يجب فك البطارية قبل حذفها من السجل")
+    db.delete(battery)
+    db.commit()
 
 
 def add_movement(db: Session, battery_id: int, data: dict):

@@ -331,9 +331,18 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
         db.close()
 
         session = TestingSession()
+        old_receipt_date = date.today() - timedelta(days=365 * 3)
+        request_services.create_asset_receipt(session, {
+            "asset_type": "tire", "document_number": "DASH-TIRE-RECEIPT",
+            "description": "205/55", "quantity": 1, "received_date": old_receipt_date,
+        })
+        request_services.create_asset_receipt(session, {
+            "asset_type": "battery", "document_number": "DASH-BATTERY-RECEIPT",
+            "description": "AGM 12V", "quantity": 1, "received_date": old_receipt_date,
+        })
         tire = tire_services.add_tire(
             session,
-            {"serial_number": "DASH-TIRE-1", "size": "205/55", "expiry_date": date.today()},
+            {"serial_number": "DASH-TIRE-1", "size": "205/55", "expiry_date": date.today(), "acquisition_document": "DASH-TIRE-RECEIPT"},
         )
         tire_services.add_movement(
             session,
@@ -349,8 +358,8 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
         battery = battery_services.add_battery(
             session,
             {
-                "serial_number": "DASH-BATTERY-1",
-                "receipt_date": date.today() - timedelta(days=365 * 3),
+                "battery_type": "AGM 12V",
+                "acquisition_document": "DASH-BATTERY-RECEIPT",
             },
         )
         battery_services.add_movement(
@@ -387,7 +396,7 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
             assert before.status_code == 200
             assert _metric_values(before.text)["notifications"] == "2"
             assert "DASH-TIRE-1" in before.text and before.text.count("DASH-TIRE-1") == 1
-            assert "DASH-BATTERY-1" in before.text and before.text.count("DASH-BATTERY-1") == 1
+            assert "AGM 12V" in before.text and before.text.count("AGM 12V") == 1
             assert "data-dashboard-metric=\"due-tires\"" not in before.text
             assert "data-dashboard-metric=\"due-batteries\"" not in before.text
             assert "الإطارات المركبة المستحقة للاستبدال</h2>" not in before.text

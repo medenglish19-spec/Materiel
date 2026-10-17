@@ -10,7 +10,7 @@ from app.modules.meter_readings.models import MeterReading
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
 from app.modules.tires import state_engine
 
-MOVEMENT_TYPES = {"install", "move", "remove"}
+MOVEMENT_TYPES = {"install", "remove"}
 REMOVAL_DISPOSITIONS = {"stock", "damaged", "expired"}
 SIDES = {"left", "right"}
 POSITION_TYPES = {"single", "inner", "outer"}
@@ -259,6 +259,7 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
     timeline = sorted(existing + [candidate], key=_movement_datetime)
     initial_state = current_state(db, tire.id) if not existing else None
     state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": "stock"}
+    first_existing_equipment_id = next((m.equipment_id for m in sorted(existing, key=_movement_datetime) if m.movement_type == "install" and m.equipment_id), None)
     if initial_state and not initial_state.get("installed") and initial_state.get("disposition") in {"damaged", "expired"}:
         state_at["disposition"] = initial_state["disposition"]
     for movement in timeline:
@@ -268,6 +269,8 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("التسلسل التاريخي غير صالح: الإطار مركب بالفعل قبل عملية التركيب")
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")
+            if movement is candidate and first_existing_equipment_id is not None and movement.equipment_id != first_existing_equipment_id:
+                raise ValueError("يُمنع نقل الإطار بين العربات نهائيًا. يجب تخصيص إطار مستقل لكل عربة.")
             if state_at["disposition"] in {"damaged", "expired"}:
                 label = "تالف" if state_at["disposition"] == "damaged" else "منتهي الصلاحية"
                 raise ValueError(f"لا يمكن تركيب إطار {label} بعد تسجيل إخراجه بهذه الحالة")
@@ -316,6 +319,17 @@ def add_tire(db: Session, data: dict):
     if db.query(Tire.id).filter(Tire.serial_number == serial_number).first():
         raise ValueError("الرقم التسلسلي للإطار مستخدم مسبقًا")
     data["serial_number"] = serial_number
+    from app.modules.spare_parts_requests.models import AssetReceipt
+    receipt_number = (data.get("acquisition_document") or "").strip()
+    receipt = db.query(AssetReceipt).filter(AssetReceipt.document_number == receipt_number, AssetReceipt.asset_type == "tire").first()
+    if not receipt:
+        raise ValueError("وثيقة اقتناء الإطار غير موجودة في سجل الاستلام بوحدة الغيار")
+    used = db.query(Tire.id).filter(Tire.acquisition_receipt_id == receipt.id).count()
+    if used >= receipt.quantity:
+        raise ValueError("اكتملت كمية هذه الوثيقة في سجل الاستلام")
+    data["acquisition_document"] = receipt.document_number
+    data["acquisition_receipt_id"] = receipt.id
+    data["receipt_date"] = receipt.received_date
     manufacture_date = data.get("manufacture_date")
     receipt_date = data.get("receipt_date")
     expiry_date = data.get("expiry_date")
@@ -334,6 +348,16 @@ def add_tire(db: Session, data: dict):
     db.commit()
     db.refresh(tire)
     return tire
+
+
+def delete_tire(db: Session, tire_id: int):
+    tire = db.query(Tire).filter(Tire.id == tire_id).first()
+    if not tire:
+        raise ValueError("الإطار غير موجود")
+    if current_state(db, tire_id) and current_state(db, tire_id).get("installed"):
+        raise ValueError("يجب فك الإطار قبل حذفه من السجل")
+    db.delete(tire)
+    db.commit()
 
 
 

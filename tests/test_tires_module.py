@@ -31,7 +31,7 @@ def test_tire_models_are_registered_with_expected_tables():
     assert Tire.__tablename__ == "tires"
     assert TireMovement.__tablename__ == "tire_movements"
     assert TirePosition.__tablename__ == "tire_positions"
-    assert {"install", "move", "remove"} == MOVEMENT_TYPES
+    assert {"install", "remove"} == MOVEMENT_TYPES
 
 
 def test_tire_condition_and_location_are_independent():

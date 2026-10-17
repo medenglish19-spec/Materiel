@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
@@ -37,7 +37,10 @@ def batteries_page(request: Request, db: Session = Depends(get_db), current_user
         equipment = state.get("equipment") if state else None
         statuses[battery.id] = services.status(battery, state, db=db)
         due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
-    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates})
+    from app.modules.spare_parts_requests.services import list_asset_receipts
+    movements = db.query(BatteryMovement).options(joinedload(BatteryMovement.equipment)).order_by(BatteryMovement.movement_date.asc(), BatteryMovement.id.asc()).all()
+    related_equipment = {movement.battery_id: movement.equipment for movement in movements if movement.equipment is not None}
+    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates, "battery_states": states, "related_equipment": related_equipment, "battery_receipts": list_asset_receipts(db, "battery")})
 
 
 @router.get("/batteries/settings", response_class=HTMLResponse)
@@ -56,12 +59,22 @@ def update_battery_settings(validity_years: int = Form(...), db: Session = Depen
 
 
 @router.post("/batteries")
-def create_battery(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_battery(battery_type: str = Form(...), brand: str = Form(""), model: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), acquisition_document: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_battery(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
+        services.add_battery(db, {"battery_type": battery_type.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "acquisition_document": acquisition_document.strip(), "notes": notes.strip() or None})
     except Exception as exc:
         db.rollback()
         raise HTTPException(400, f"تعذر إنشاء البطارية: {exc}")
+    return RedirectResponse("/batteries", 303)
+
+
+@router.post("/batteries/{battery_id}/delete")
+def delete_battery(battery_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        services.delete_battery(db, battery_id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
     return RedirectResponse("/batteries", 303)
 
 

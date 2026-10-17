@@ -8,10 +8,44 @@ from app.modules.faults_repairs.models import Fault, Repair, SparePart
 from .models import SparePartRequest, SparePartRequestItem
 from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
 from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
+from .models import AssetReceipt
 
 RECEIPT_BEFORE_REQUEST = "تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب."
 RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد."
 REQUEST_NUMBER_TAKEN = "رقم الطلب مستخدم مسبقًا، يرجى إدخال رقم آخر."
+
+
+def create_asset_receipt(db: Session, data: dict) -> AssetReceipt:
+    kind = (data.get("asset_type") or "").strip()
+    number = (data.get("document_number") or "").strip()
+    description = (data.get("description") or "").strip()
+    quantity = int(data.get("quantity") or 0)
+    if kind not in {"tire", "battery"}:
+        raise ValueError("نوع الأصل غير صالح")
+    if not number or not description or quantity < 1:
+        raise ValueError("رقم الوثيقة والوصف والكمية الموجبة مطلوبة")
+    if db.query(AssetReceipt.id).filter(AssetReceipt.document_number == number).first():
+        raise ValueError("رقم وثيقة الاستلام مستخدم مسبقًا")
+    receipt = AssetReceipt(**{**data, "asset_type": kind, "document_number": number, "description": description, "quantity": quantity})
+    db.add(receipt)
+    db.commit()
+    db.refresh(receipt)
+    return receipt
+
+
+def list_asset_receipts(db: Session, asset_type: str | None = None):
+    from app.modules.tires.models import Tire
+    from app.modules.batteries.models import Battery
+    query = db.query(AssetReceipt)
+    if asset_type in {"tire", "battery"}:
+        query = query.filter(AssetReceipt.asset_type == asset_type)
+    rows = query.order_by(AssetReceipt.received_date.desc(), AssetReceipt.id.desc()).all()
+    result = []
+    for row in rows:
+        model = Tire if row.asset_type == "tire" else Battery
+        used = db.query(model.id).filter(model.acquisition_receipt_id == row.id).count()
+        result.append({"id": row.id, "asset_type": row.asset_type, "document_number": row.document_number, "description": row.description, "quantity": row.quantity, "used_quantity": used, "remaining_quantity": row.quantity - used, "received_date": row.received_date, "supplier": row.supplier, "recipient": row.recipient, "notes": row.notes})
+    return result
 
 
 def _request_number(value: str | None) -> str:
