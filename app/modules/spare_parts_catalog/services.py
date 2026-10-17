@@ -10,6 +10,7 @@ import os
 import re
 import uuid
 import zipfile
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -29,12 +30,12 @@ MAX_ZIP_UNPACKED = 30 * 1024 * 1024
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".pdf", ".docx", ".xml", ".html", ".htm", ".zip"}
 
 HEADER_NAMES = {
-    "reference": {"reference", "ref", "part number", "part no", "part_number", "référence", "reférence", "ref.", "رقم القطعة", "رقم المرجع", "المرجع", "مرجع"},
-    "name": {"name", "part name", "description", "designation", "désignation", "designation", "libellé", "الاسم", "اسم القطعة", "التسمية", "الوصف"},
-    "name_ar": {"name ar", "arabic name", "الاسم العربي", "اسم عربي"},
+    "reference": {"reference", "ref", "part number", "part no", "part_number", "part code", "item code", "item no", "article code", "code article", "référence", "référence pièce", "référence fabricant", "référence constructeur", "référence fournisseur", "reférence", "ref.", "ref constructeur", "ref fabricant", "oem", "oem number", "oem reference", "p/n", "n° pièce", "n° de pièce", "numéro de pièce", "رقم القطعة", "رقم المرجع", "رقم الصنف", "كود القطعة", "المرجع", "مرجع"},
+    "name": {"name", "part name", "item name", "product name", "part description", "item description", "product description", "description", "designation", "désignation", "désignation pièce", "désignation article", "libellé", "libellé article", "اسم المنتج", "اسم الصنف", "اسم القطعة", "التسمية", "وصف القطعة", "الوصف"},
+    "name_ar": {"name ar", "arabic name", "nom arabe", "الاسم العربي", "اسم عربي"},
     "name_fr": {"name fr", "french name", "nom français", "nom francais", "الاسم الفرنسي", "اسم فرنسي"},
-    "manufacturer": {"manufacturer", "make", "brand", "fabricant", "constructeur", "الشركة المصنعة", "الشركة", "المصنع"},
-    "category": {"category", "group", "family", "catégorie", "famille", "التصنيف", "الفئة", "المجموعة"},
+    "manufacturer": {"manufacturer", "manufacturer name", "make", "brand", "marque", "fabricant", "constructeur", "الشركة المصنعة", "اسم المصنع", "الشركة", "المصنع"},
+    "category": {"category", "group", "family", "product family", "catégorie", "famille", "système", "system", "التصنيف", "الفئة", "المجموعة", "النظام"},
     "notes": {"notes", "comment", "remarks", "الملاحظات", "ملاحظات"},
 }
 
@@ -42,6 +43,43 @@ HEADER_NAMES = {
 def _norm(value: Any) -> str:
     text = str(value or "").strip().casefold()
     return re.sub(r"[\s\-_/]+", "", text)
+
+
+def _header_norm(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    text = "".join(character for character in text if unicodedata.category(character) != "Mn")
+    return re.sub(r"[^\w]+", "", text, flags=re.UNICODE)
+
+
+HEADER_LOOKUP = {
+    _header_norm(alias): field
+    for field, aliases in HEADER_NAMES.items()
+    for alias in aliases
+}
+
+
+def _header_mapping(row: list[Any]) -> dict[str, int]:
+    mapping = {}
+    for index, value in enumerate(row):
+        field = HEADER_LOOKUP.get(_header_norm(value))
+        if field and field not in mapping:
+            mapping[field] = index
+    return mapping
+
+
+def _find_header(rows: list[tuple[int, list[Any]]]) -> tuple[int | None, dict[str, int]]:
+    """Find the strongest recognized header near the top of a sheet."""
+    candidates = []
+    for position, (_source_index, row) in enumerate(rows[:20]):
+        mapping = _header_mapping(row)
+        if mapping:
+            score = len(mapping) * 10 + (5 if {"name", "name_ar", "name_fr"} & mapping.keys() else 0)
+            score += 2 if "reference" in mapping else 0
+            candidates.append((score, -position, position, mapping))
+    if not candidates:
+        return None, {}
+    _, _, position, mapping = max(candidates)
+    return position, mapping
 
 
 def _cell_text(value: Any, number_format: str | None = None) -> str:
@@ -95,6 +133,30 @@ def _decode_text(data: bytes) -> str:
         except UnicodeDecodeError:
             continue
     return data.decode("utf-8", errors="replace")
+
+
+def _csv_dialect(text: str) -> csv.Dialect:
+    try:
+        return csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
+    except csv.Error:
+        # Vendor exports often prepend a title row that does not have the same
+        # number of fields as the table. Infer the separator from the most
+        # consistent non-empty rows instead of silently treating them as CSV
+        # comma-delimited data.
+        lines = [line for line in text[:4096].splitlines() if line.strip()]
+        candidates = []
+        for delimiter in (";", "\t", "|", ","):
+            counts = [line.count(delimiter) for line in lines]
+            positive = [count for count in counts if count]
+            if positive:
+                mode = max(set(positive), key=positive.count)
+                candidates.append((positive.count(mode), sum(positive), len(positive), delimiter))
+        if not candidates:
+            return csv.excel
+        delimiter = max(candidates)[-1]
+        dialect = csv.excel()
+        dialect.delimiter = delimiter
+        return dialect
 
 
 def _xml_matrix(data: bytes) -> list[list[str]]:
@@ -190,10 +252,7 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
     tables: list[tuple[str, list[list[str]]]]
     if extension == ".csv":
         text = _decode_text(data)
-        try:
-            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
-        except csv.Error:
-            dialect = csv.excel
+        dialect = _csv_dialect(text)
         tables = [("", list(csv.reader(io.StringIO(text), dialect)))]
     elif extension == ".xlsx":
         if not zipfile.is_zipfile(io.BytesIO(data)):
@@ -314,32 +373,36 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
     records = []
     row_number = 0
     for sheet, matrix in tables:
-        nonempty = [row for row in matrix if any(str(value or "").strip() for value in row)]
+        nonempty = [
+            (index, row)
+            for index, row in enumerate(matrix)
+            if any(str(value or "").strip() for value in row)
+        ]
         if not nonempty:
             continue
-        header = [str(value or "").strip() for value in nonempty[0]]
-        mapping = {}
-        for index, label in enumerate(header):
-            normalized = _norm(label)
-            for field, aliases in HEADER_NAMES.items():
-                if normalized in {_norm(alias) for alias in aliases}:
-                    mapping[field] = index
-                    break
-        if "name" not in mapping and "name_ar" not in mapping and "name_fr" not in mapping:
+        header_position, mapping = _find_header(nonempty)
+        if header_position is not None:
+            start = header_position + 1
+            skipped_rows = nonempty[header_position][0]
+            if skipped_rows:
+                warnings.append(f"الورقة {sheet or 'الأولى'}: تم تجاوز {skipped_rows} صفوف تمهيدية قبل صف العناوين.")
+        else:
             # Headerless two-column files use reference, name by convention.
             start = 0
-            mapping = {"reference": 0, "name": 1} if len(nonempty[0]) >= 2 else {}
-        else:
-            start = 1
+            mapping = {"reference": 0, "name": 1} if len(nonempty[0][1]) >= 2 else {}
+            if mapping:
+                warnings.append(f"الورقة {sheet or 'الأولى'}: لم تُكتشف عناوين؛ اعتُمد العمودان الأولان مرجعًا واسمًا. راجع المعاينة.")
         if not mapping:
             continue
-        for row in nonempty[start:]:
+        for source_index, row in nonempty[start:]:
+            if header_position is not None and _header_mapping(row) == mapping:
+                continue
             row_number += 1
             if row_number > MAX_ROWS:
                 raise ValueError("تجاوز الملف الحد الأقصى وهو 1000 صف.")
             get = lambda field: str(row[mapping[field]] or "").strip() if field in mapping and mapping[field] < len(row) else ""
             record = {
-                "source_row": row_number,
+                "source_row": source_index + 1,
                 "sheet": sheet,
                 "reference": get("reference")[:120],
                 "name": get("name")[:160],
@@ -397,6 +460,8 @@ def create_import_preview(db: Session, filename: str, data: bytes, user_id: int 
     payload = {"rows": stored_rows, "warnings": warnings}
     previous = db.query(SparePartCatalogImport).filter_by(content_sha256=digest).order_by(SparePartCatalogImport.id.desc()).first()
     if previous:
+        if previous.status != "completed":
+            previous.payload = json.dumps(payload, ensure_ascii=False)
         previous._preview_payload = preview
         return previous
     batch = SparePartCatalogImport(

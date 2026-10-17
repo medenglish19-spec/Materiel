@@ -1,4 +1,5 @@
 import io
+import json
 import zipfile
 
 import pytest
@@ -37,6 +38,41 @@ def test_csv_preserves_leading_zero_reference_and_apply_is_idempotent(db):
     assert db.query(SparePartCatalogDetails).one().manufacturer == "Marque A"
     assert services.apply_import(db, batch.id, {"row-0-include": "1"}) == result
     assert db.query(SparePart).count() == 1
+
+
+def test_csv_finds_vendor_headers_after_preamble_and_maps_common_aliases():
+    data = (
+        "Catalogue fournisseur;Export 2026\n"
+        "Liste des pièces détachées\n"
+        "Code article;Désignation pièce;Marque\n"
+        "00042;Filtre hydraulique;Maker X\n"
+    ).encode("utf-8-sig")
+    rows, _, warnings = services._parse_content("vendor.csv", data)
+    assert rows[0]["reference"] == "00042"
+    assert rows[0]["name"] == "Filtre hydraulique"
+    assert rows[0]["manufacturer"] == "Maker X"
+    assert rows[0]["source_row"] == 4
+    assert any("صفوف تمهيدية" in warning for warning in warnings)
+
+
+def test_arabic_header_aliases_are_normalized():
+    data = "رقم الصنف,اسم الصنف,النظام\n0012,مضخة,المحرك\n".encode("utf-8")
+    rows, _, _ = services._parse_content("arabic.csv", data)
+    assert rows[0]["reference"] == "0012"
+    assert rows[0]["name"] == "مضخة"
+    assert rows[0]["category"] == "المحرك"
+
+
+def test_repreview_of_same_unfinished_file_refreshes_saved_parsed_rows(db):
+    data = "رقم الصنف,اسم الصنف\n0012,مضخة\n".encode("utf-8")
+    batch = services.create_import_preview(db, "catalog.csv", data)
+    db.commit()
+    batch.payload = json.dumps({"rows": [], "warnings": []})
+    db.commit()
+
+    refreshed = services.create_import_preview(db, "catalog.csv", data)
+    assert refreshed.id == batch.id
+    assert json.loads(refreshed.payload)["rows"][0]["name"] == "مضخة"
 
 
 def test_reference_duplicate_is_flagged_and_never_merged_automatically(db):
