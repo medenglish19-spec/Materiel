@@ -376,7 +376,7 @@ body:has(.mdx) .app-main{margin-right:208px}
     </div><p class="model-empty" id="viewBatteryEmpty" hidden>هذا الطراز غير مجهز ببطاريات.</p></section>
   </section>
   <section class="model-view-section" data-model-view-panel="specs" hidden>
-    <section class="card"><div class="box-head" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="display:flex;align-items:center;gap:8px"><h3>الخصائص الفنية</h3><span class="muted" id="viewSpecCount"></span></div></div><div class="table-wrap mt-table-theme-green" data-mt-region><table class="tbl model-spec-table"><tbody id="viewSpecRows"></tbody></table></div><p class="model-empty" id="viewSpecEmpty" hidden>لا توجد خصائص فنية مسجلة لهذا الطراز.</p></section>
+    <section class="card"><div class="box-head" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="display:flex;align-items:center;gap:8px"><h3>الخصائص الفنية</h3><span class="muted" id="viewSpecCount"></span></div><a id="btn-import-specs-doc-view" class="btn soft" hidden>＋ استيراد الخصائص من مستند</a></div><div class="table-wrap mt-table-theme-green" data-mt-region><table class="tbl model-spec-table"><tbody id="viewSpecRows"></tbody></table></div><p class="model-empty" id="viewSpecEmpty" hidden>لا توجد خصائص فنية مسجلة لهذا الطراز.</p></section>
   </section>
   <section class="model-view-section" data-model-view-panel="equipment" hidden>
     <section class="card"><div class="box-head"><h3>العتاد المرتبط</h3><span class="muted" id="viewEquipmentCount"></span></div><div class="table-wrap mt-table-theme-green" data-mt-region><table class="tbl"><thead><tr><th>رقم التسجيل</th><th>الوضعية</th><th class="num">العداد</th></tr></thead><tbody id="viewEquipmentRows"></tbody></table></div><p class="model-empty" id="viewEquipmentEmpty" hidden>لا يوجد عتاد فعلي مسجل لهذا الطراز.</p></section>
@@ -511,7 +511,7 @@ function renderCompleteness(d){
  $('viewCompleteness').innerHTML=checks.map(([label,ok,detail])=>'<li class="'+(ok?'':'missing')+'"><span class="check-dot">'+(ok?'✓':'!')+'</span><span>'+label+'</span><small>'+htmlSafe(detail)+'</small></li>').join('');$('viewCompletenessCount').textContent=checks.filter(x=>x[1]).length+' من '+checks.length;
 }
 function viewModel(id){
- const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);const type=TYPE_DATA[String(d.equipment_type_id)]||{},brand=BRANDS[String(d.brand_id)]||'بدون علامة تجارية',positions=d.positions||[],specCount=(d.specs||[]).filter(x=>String(x.value||'').trim()).length;
+ const d=DATA[String(id)]||DATA[id]||{};currentModel=Number(id);const importSpecsLink=$('btn-import-specs-doc-view');if(importSpecsLink){importSpecsLink.href='/document-import/upload?model_id='+encodeURIComponent(id);importSpecsLink.hidden=false}const type=TYPE_DATA[String(d.equipment_type_id)]||{},brand=BRANDS[String(d.brand_id)]||'بدون علامة تجارية',positions=d.positions||[],specCount=(d.specs||[]).filter(x=>String(x.value||'').trim()).length;
  title(d.name||'عرض الطراز','الطراز');$('viewModelName').textContent=d.name||'—';
  const heroImg=$('viewModelImage');if(heroImg){const src=d.image_url||'';if(src){heroImg.src=src;heroImg.hidden=false}else{heroImg.removeAttribute('src');heroImg.hidden=true}}
  $('viewModelPath').textContent=(CATEGORIES[String(d.category_id)]||'التصنيف')+' › '+(type.name||'نوع العتاد');$('viewModelBrand').textContent=brand;$('viewModelType').textContent=type.name||'—';$('viewModelBrandValue').textContent=brand;$('viewModelTypeValue').textContent=type.name||'—';

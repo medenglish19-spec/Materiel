@@ -15,6 +15,7 @@ from app.database.session import get_db
 from app.modules.users.models import User
 
 from .schemas import ImportPreviewResponse, ImportApplyRequest
+from .extraction.extractor import ExtractionError
 from .services import preview_from_document, apply_candidates
 
 log = logging.getLogger(__name__)
@@ -52,7 +53,14 @@ async def preview_html(
         data = await file.read()
         tmp.write(data)
         tmp.close()
-        cands = preview_from_document(model_id=model_id, file_path=tmp.name, mode=mode, requested=requested or [], db=db)
+        try:
+            cands = preview_from_document(model_id=model_id, file_path=tmp.name, mode=mode, requested=requested or [], db=db)
+        except ExtractionError as exc:
+            return templates.TemplateResponse(
+                request=request,
+                name="upload.html",
+                context={"request": request, "model_id": model_id, "user": current_user, "error": exc.message},
+            )
         return templates.TemplateResponse(
             request=request,
             name="upload.html",
@@ -82,7 +90,10 @@ async def preview_json(
         data = await file.read()
         tmp.write(data)
         tmp.close()
-        cands = preview_from_document(model_id=model_id, file_path=tmp.name, mode=mode, requested=requested or [], db=db)
+        try:
+            cands = preview_from_document(model_id=model_id, file_path=tmp.name, mode=mode, requested=requested or [], db=db)
+        except ExtractionError as exc:
+            raise HTTPException(status_code=400, detail=exc.message) from exc
         return ImportPreviewResponse(candidates=cands)
     finally:
         try:

@@ -22,6 +22,17 @@
     </div>
   </form>
 
+  {% if error %}
+  <div role="alert" style="margin-top:14px;padding:12px;border:1px solid #e7b8b8;border-radius:8px;background:#fff1f1;color:#8a2222">
+    <strong>تعذّرت المعاينة:</strong> {{ error }}
+  </div>
+  {% endif %}
+  {% if candidates is defined and not candidates and not error %}
+  <div role="status" style="margin-top:14px;padding:12px;border:1px solid #d8e0e8;border-radius:8px;background:#f8f9fa">
+    لم يُعثر على أي خصائص في المستند. اختر ملفًا آخر أو راجع محتوى الملف.
+  </div>
+  {% endif %}
+
   {% if candidates %}
   <form id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px" data-em-root>
     <input type="hidden" name="model_id" value="{{ model_id }}">
