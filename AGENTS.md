@@ -227,16 +227,17 @@ check. A failed backup or health check stops startup. Snapshots are recovery cop
 database remains the single shared file. Create an additional snapshot manually with:
 
 ```bash
-python scripts/backup_shared_database.py D:/Materiel/fleet_assets.local-20261017.db --backup-dir D:/Materiel-database-backups
+python scripts/backup_shared_database.py D:/Materiel/fleet_assets.db --backup-dir D:/Materiel-database-backups
 ```
 
-The shared SQLite database is
-`D:\Materiel\fleet_assets.local-20261017.db`.
-Never rely on the checkout-relative default `fleet_assets.db` for agent or
-manual server work. Do not create a per-checkout database. Tests must continue
-to use isolated temporary databases and must never read the shared database.
-If the shared database file is unavailable, stop and report that rather than
-silently initializing another database.
+The single shared operational SQLite database is
+`D:\Materiel\fleet_assets.db` (use the explicit URL
+`sqlite:///D:/Materiel/fleet_assets.db`). `D:\Materiel\fleet_assets.local-20261017.db`
+and checkout-relative `fleet_assets.db` files are copies, not the shared source
+of truth. Do not point the app at them, create another operational database, or
+silently initialize a replacement. If the shared file is unavailable, stop and
+report that. Tests must use isolated temporary databases and must never read the
+shared database. Keep recovery snapshots in `D:\Materiel-database-backups`.
 
 When modifying startup behavior, also inspect:
 
@@ -557,10 +558,13 @@ repository root**. Without the venv activated, use the explicit `..\Materiel\.ve
 
 ## Database traps that cost data *(verified)*
 
-1. **Never boot a dev server against `fleet_assets.db`.** `init_db()` runs at startup and it
-   *rewrites data*, not just schema. Copy first:
-   `Copy-Item fleet_assets.db fleet_assets.dev.db; $env:DATABASE_URL="sqlite:///./fleet_assets.dev.db"`.
-   `.devcontainer/start_materiel.sh` starts the app with **no** `DATABASE_URL` — i.e. on the live file.
+1. **In the shared Materiel environment, only `scripts/start_shared.sh` may start the app against
+   `D:\Materiel\fleet_assets.db`.** It creates a verified snapshot and checks database health
+   before invoking `run_web.py`. Startup runs `init_db()`, which can delete invalid legacy meter
+   readings, reconcile current meters, and normalize unused built-in categories; do not bypass the
+   shared startup script. For isolated development, use a separate temporary copy and set an
+   explicit `DATABASE_URL`. `.devcontainer/start_materiel.sh` does not set that URL and must not
+   be used to start the shared application.
 2. **Startup mutates rows** (`app/database/init_db.py`). `cleanup_legacy_readings` **deletes**
    meter readings that are future-dated, negative, or decreasing per equipment; the startup then
    rewrites `current_odometer` / `current_hours` and drops unused built-in categories. Backup

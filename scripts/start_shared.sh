@@ -28,7 +28,7 @@ git fetch --no-write-fetch-head origin \
   refs/heads/stage3-maintenance-operations:refs/remotes/origin/stage3-maintenance-operations
 git merge --ff-only origin/stage3-maintenance-operations
 
-shared_db='D:/Materiel/fleet_assets.local-20261017.db'
+shared_db='D:/Materiel/fleet_assets.db'
 backup_dir='D:/Materiel-database-backups'
 python_bin='D:/Materiel/.venv/Scripts/python.exe'
 if [[ ! -x "$python_bin" ]]; then
