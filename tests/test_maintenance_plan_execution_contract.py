@@ -33,5 +33,5 @@ def test_plan_execution_schema_has_required_plan_and_equipment():
 
 def test_plan_status_is_separate_from_operation_status():
     assert "def plan_status_for(" in SERVICES
-    assert "operation-specific conditions remain authoritative" in SERVICES
+    assert "with the plan's condition" in SERVICES
     assert "def effective_plans_for_equipment(" in SERVICES

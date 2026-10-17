@@ -15,7 +15,25 @@ class Mission(Base, AuditMixin):
     destination = Column(String(150), nullable=True)
     start_date = Column(Date, nullable=False, index=True)
     end_date = Column(Date, nullable=True, index=True)
-    departure_meter = Column(Numeric(10, 1), nullable=True)
-    return_meter = Column(Numeric(10, 1), nullable=True)
     notes = Column(Text, nullable=True)
     equipment = relationship("Equipment")
+
+    @property
+    def departure_meter(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "departure_meter")
+
+    @departure_meter.setter
+    def departure_meter(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "departure_meter", value)
+
+    @property
+    def return_meter(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "return_meter")
+
+    @return_meter.setter
+    def return_meter(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "return_meter", value)

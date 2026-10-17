@@ -16,11 +16,12 @@ def test_health_endpoint(monkeypatch):
     assert response.json() == {"status": "ok"}
 
 
-def test_root_redirects_to_login_without_session(monkeypatch):
+def test_root_opens_dashboard_when_auth_is_disabled(monkeypatch):
+    """تعطيل المصادقة المؤقت: `/` يفتح لوحة القيادة بدل إعادة التوجيه إلى /login."""
     with _client(monkeypatch) as client:
         response = client.get("/", follow_redirects=False)
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "/dashboard"
 
 
 def test_login_page_renders_html(monkeypatch):

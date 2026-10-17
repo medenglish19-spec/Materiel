@@ -7,8 +7,36 @@ from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
-from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation
-from app.modules.maintenance.services import effective_operations_for_equipment
+from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenancePlanOperation, maintenance_operation_models
+from app.modules.faults_repairs.models import Fault
+from app.modules.maintenance.services import CONDITION_MODEL, effective_operations_for_equipment, operation_condition_for_model
+from app.modules.users.models import User
+
+
+def link_condition(db, operation, model, **condition):
+    """Create the operation↔model relation with that model's own condition.
+    
+    Warning fields (warning_km, warning_days) are not part of the model condition
+    table anymore - they're unified at the operation level.
+    """
+    # Extract warning fields from condition - they belong on the operation, not the model condition
+    warning_km = condition.pop("warning_km", None)
+    warning_days = condition.pop("warning_days", None)
+    
+    # Set warning on operation if provided
+    if warning_km is not None:
+        operation.warning_km = warning_km
+    if warning_days is not None:
+        operation.warning_days = warning_days
+    
+    db.execute(
+        maintenance_operation_models.insert().values(
+            operation_id=operation.id,
+            equipment_model_id=model.id,
+            condition_source=CONDITION_MODEL,
+            **condition,
+        )
+    )
 
 
 engine = create_engine(
@@ -41,6 +69,8 @@ def test_maintenance_operations_are_model_effective_through_active_plans():
         db.add(plan)
         db.flush()
         db.add(MaintenancePlanOperation(plan_id=plan.id, operation_id=operation_a.id))
+        # الشرط يخص الطراز: يُكتب على علاقة العملية بالطراز، لا على العملية.
+        link_condition(db, operation_a, model_a, interval_km=Decimal("5000"), warning_km=Decimal("250"))
         db.commit()
 
         eq_a = SimpleNamespace(equipment_model_id=model_a.id)
@@ -48,10 +78,26 @@ def test_maintenance_operations_are_model_effective_through_active_plans():
         rows_a = effective_operations_for_equipment(db, eq_a, include_standalone=False)
         rows_b = effective_operations_for_equipment(db, eq_b, include_standalone=False)
 
+        # In the new architecture, operation-model link is separate from plan approval.
+        # Operation A is linked to Model A, so it's effective for Model A equipment
+        # regardless of plan approval status.
         assert [row.id for row in rows_a] == [operation_a.id]
         assert rows_b == []
+
+        # Plan approval still required for plan execution
+        plan.is_approved = True
+        db.commit()
+        rows_a = effective_operations_for_equipment(db, eq_a, include_standalone=False)
+        rows_b = effective_operations_for_equipment(db, eq_b, include_standalone=False)
+        assert [row.id for row in rows_a] == [operation_a.id]
+        assert rows_b == []
+
+        # Library-only operations (not linked to any model) are never included
+        assert operation_b not in effective_operations_for_equipment(db, eq_a)
+        assert operation_b not in effective_operations_for_equipment(db, eq_a, include_standalone=False)
     finally:
         db.close()
+
 
 def test_maintenance_conditions_workspace_uses_operation_library():
     from pathlib import Path
@@ -62,12 +108,62 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert "const api='/api/maintenance'" in template
     assert "${api}/operations" in template
     assert "${api}/operation-groups" in template
-    assert "مكتبة شروط الصيانة الدورية" in template
+    assert "مكتبة عمليات الصيانة" in template or "مكتبة شروط الصيانة" in template
     assert "إضافة عملية صيانة" in template
-    assert "equipment_model_id" not in template
+    assert 'id="operationForm" style="padding:18px" data-em-root' in template
+    assert 'id="groupForm" style="padding:18px" data-em-root' in template
+    assert "EditManager.markFormBaseline($('operationForm'))" in template
+    assert "EditManager.restoreForm($('groupForm'))" in template
+    # المكتبة لا تعدّل شروط الطرازات ولا تعرضها: لا محرر ولا عمود شرط ولا نافذة تفاصيل.
+    assert "equipment_model_conditions" not in template
+    assert "editorModelsBody" not in template
+    assert "modelOptions" not in template
+    assert 'data-filter-col="condition"' not in template
+    assert "conditionDetails" not in template
+    assert "الشرط غير محدد" not in template
+    # وحقول الإنذار الموحّد على مستوى العملية تبقى في المكتبة.
+    assert "operationWarningKm" in template
     assert "maintenance/rules/create" not in router
     assert "exceptions/create" not in router
     assert "parent_rule" not in router
+
+
+def test_operation_condition_is_read_from_the_model_relation():
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    db = Session()
+    try:
+        equipment_type = EquipmentType(name="نوع شروط الطراز", measurement_unit="km")
+        db.add(equipment_type)
+        db.flush()
+        model_a = EquipmentModel(name="Model A", equipment_type_id=equipment_type.id)
+        model_b = EquipmentModel(name="Model B", equipment_type_id=equipment_type.id)
+        db.add_all([model_a, model_b])
+        db.flush()
+        operation = MaintenanceOperation(name="تغيير زيت المحرك", interval_km=Decimal("5000"))
+        db.add(operation)
+        db.flush()
+        link_condition(db, operation, model_a, interval_km=Decimal("5000"), warning_km=Decimal("250"))
+        link_condition(db, operation, model_b, interval_km=Decimal("9000"), warning_km=Decimal("600"))
+        db.commit()
+
+        condition_a = operation_condition_for_model(db, operation.id, model_a.id)
+        condition_b = operation_condition_for_model(db, operation.id, model_b.id)
+        # Intervals are per-model
+        assert condition_a.interval_km == Decimal("5000.0")
+        assert condition_b.interval_km == Decimal("9000.0")
+        # Warning is unified at operation level (last one set wins)
+        assert operation.warning_km == Decimal("600.0")
+
+        # طراز بلا علاقة => شرط غير محدد، ولا تُستنتج له قيمة من طراز آخر ولا من العملية.
+        model_c = EquipmentModel(name="Model C", equipment_type_id=equipment_type.id)
+        db.add(model_c)
+        db.commit()
+        condition_c = operation_condition_for_model(db, operation.id, model_c.id)
+        assert condition_c.is_defined is False
+        assert condition_c.interval_km is None
+    finally:
+        db.close()
 
 
 def test_maintenance_plan_workspace_is_exposed():

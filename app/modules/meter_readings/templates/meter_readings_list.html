@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}سجل قراءات العداد{% endblock %}
 
@@ -17,9 +17,9 @@
             <span>حالة العداد: <strong>{{ rows[0].status if rows else '—' }}</strong></span>
             <span>عدد القراءات: <strong>{{ total }}</strong></span>
         </div>
-        <div class="history-table-wrap">
+        <div class="history-table-wrap mt-table-theme-green" data-mt-region>
             <table class="history-table">
-                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
+                <thead><tr><th>الرقم</th><th>التاريخ</th><th>القراءة</th><th>الفارق</th><th>المصدر</th><th>الملاحظة</th><th>حالة العداد</th><th>إجراء</th></tr></thead>
                 <tbody>
                 {% for row in rows %}
                     <tr>
@@ -27,6 +27,7 @@
                         <td>{{ row.date }}</td>
                         <td class="reading">{{ row.reading }}</td>
                         <td>{% if row.difference == '—' %}<span class="reference">—</span>{% elif row.difference == 'غير صالح' %}<span class="negative">غير صالح</span>{% else %}<span class="positive">{{ row.difference }}</span>{% endif %}</td>
+                        <td>{{ row.source }}</td>
                         <td>{{ row.note }}</td>
                         <td><span class="status status-{{ row.status_class }}">{{ row.status }}</span></td>
                         <td class="actions">
@@ -34,7 +35,7 @@
                             <button type="button" class="action-btn delete" data-id="{{ row.id }}">حذف</button>
                         </td>
                     </tr>
-                {% else %}<tr><td colspan="7" class="empty">لا توجد قراءات مسجلة لهذا العتاد.</td></tr>{% endfor %}
+                {% else %}<tr><td colspan="8" class="empty">لا توجد قراءات مسجلة لهذا العتاد.</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -45,7 +46,7 @@
     <div class="edit-modal" dir="rtl">
         <div class="modal-head"><strong>تعديل قراءة العداد</strong><button type="button" id="closeEdit">×</button></div>
         <div class="modal-context">{{ equipment.equipment_model.name if equipment.equipment_model else '—' }} — رقم التسجيل: {{ equipment.registration_number or equipment.vin or '—' }}</div>
-        <form id="editReadingForm">
+        <form id="editReadingForm" data-em-root>
             <input type="hidden" name="equipment_id" value="{{ equipment.id }}">
             <input type="hidden" name="reading_id" id="editReadingId">
             <label>تاريخ القراءة<input required type="date" name="reading_date" id="editReadingDate"></label>
@@ -58,7 +59,7 @@
 </div>
 
 <style>
-.history-page{width:100%}.history-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}.history-head h1{margin:0;color:#173b63;font-size:23px}.history-head p{margin:6px 0 0;color:#64748b;font-size:13px}.back-btn{background:#fff;border:1px solid #d4dbe3;border-radius:7px;padding:9px 13px;color:#334155;text-decoration:none;font-size:12px;font-weight:600}.history-card{background:#fff;border:1px solid #d8e0e8;border-radius:9px;overflow:hidden}.history-info{display:flex;gap:24px;flex-wrap:wrap;padding:11px 13px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px}.history-info strong{color:#173b63}.history-table-wrap{overflow:auto;max-height:calc(100vh - 250px)}.history-table{width:100%;min-width:850px;border-collapse:separate;border-spacing:0}.history-table th,.history-table td{padding:10px 12px;text-align:center;border-left:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;white-space:nowrap;font-size:12px}.history-table th{position:sticky;top:0;background:#173b63;color:#fff;z-index:5}.reading{font-weight:700}.positive{color:#15803d;font-weight:700}.negative{color:#b91c1c;font-weight:700}.reference{color:#64748b}.status{display:inline-block;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700}.status-success{background:#dcfce7;color:#166534}.status-danger{background:#fee2e2;color:#991b1b}.actions{display:flex;justify-content:center;gap:5px}.action-btn{border:1px solid #d4dbe3;background:#fff;border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}.action-btn.edit{color:#175da8}.action-btn.delete{color:#b91c1c}.empty{text-align:center;color:#94a3b8;padding:40px!important}.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000}.modal-backdrop[hidden]{display:none}.edit-modal{width:min(460px,100%);background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.2);padding:18px}.modal-head{display:flex;align-items:center;justify-content:space-between;color:#173b63;font-size:18px}.modal-head button{border:0;background:transparent;font-size:25px;cursor:pointer;color:#64748b}.modal-context{margin:8px 0 16px;color:#64748b;font-size:12px}.edit-modal label{display:block;margin:10px 0;color:#334155;font-size:12px;font-weight:600}.edit-modal input,.edit-modal textarea{display:block;width:100%;box-sizing:border-box;margin-top:5px;border:1px solid #d4dbe3;border-radius:7px;padding:9px;font:inherit}.edit-modal textarea{min-height:70px;resize:vertical}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.cancel-btn,.save-btn{border-radius:7px;padding:9px 14px;border:1px solid #d4dbe3;cursor:pointer}.save-btn{background:#176dcc;color:#fff;border-color:#176dcc}.form-error{background:#fff1f2;color:#b91c1c;border:1px solid #fecdd3;border-radius:7px;padding:8px;font-size:12px}.form-error[hidden]{display:none}@media(max-width:700px){.history-head{align-items:flex-start;flex-direction:column}.back-btn{width:100%;text-align:center}}
+.history-page{width:100%}.history-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}.history-head h1{margin:0;color:#20352a;font-size:23px}.history-head p{margin:6px 0 0;color:#64748b;font-size:13px}.back-btn{background:#fff;border:1px solid #d4dbe3;border-radius:7px;padding:9px 13px;color:#334155;text-decoration:none;font-size:12px;font-weight:600}.history-card{background:#fff;border:1px solid #d8e0e8;border-radius:9px;overflow:hidden}.history-info{display:flex;gap:24px;flex-wrap:wrap;padding:11px 13px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:12px}.history-info strong{color:#20352a}.history-table-wrap{overflow:auto;max-height:calc(100vh - 250px)}.history-table{width:100%;border-collapse:separate;border-spacing:0;table-layout:auto}.history-table th,.history-table td{padding:10px 12px;text-align:center;border-left:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;white-space:nowrap;font-size:12px}.history-table th{position:sticky;top:0;background:#20352a;color:#fff;z-index:5}.reading{font-weight:700}.positive{color:#15803d;font-weight:700}.negative{color:#b91c1c;font-weight:700}.reference{color:#64748b}.status{display:inline-block;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:700}.status-success{background:#dcfce7;color:#166534}.status-danger{background:#fee2e2;color:#991b1b}.actions{display:flex;justify-content:center;gap:5px}.action-btn{border:1px solid #d4dbe3;background:#fff;border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}.action-btn.edit{color:#397a54}.action-btn.delete{color:#b91c1c}.empty{text-align:center;color:#94a3b8;padding:40px!important}.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000}.modal-backdrop[hidden]{display:none}.edit-modal{width:min(460px,100%);background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.2);padding:18px}.modal-head{display:flex;align-items:center;justify-content:space-between;color:#20352a;font-size:18px}.modal-head button{border:0;background:transparent;font-size:25px;cursor:pointer;color:#64748b}.modal-context{margin:8px 0 16px;color:#64748b;font-size:12px}.edit-modal label{display:block;margin:10px 0;color:#334155;font-size:12px;font-weight:600}.edit-modal input,.edit-modal textarea{display:block;width:100%;box-sizing:border-box;margin-top:5px;border:1px solid #d4dbe3;border-radius:7px;padding:9px;font:inherit}.edit-modal textarea{min-height:70px;resize:vertical}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.cancel-btn,.save-btn{border-radius:7px;padding:9px 14px;border:1px solid #d4dbe3;cursor:pointer}.save-btn{background:#397a54;color:#fff;border-color:#397a54}.form-error{background:#fff1f2;color:#b91c1c;border:1px solid #fecdd3;border-radius:7px;padding:8px;font-size:12px}.form-error[hidden]{display:none}@media(max-width:700px){.history-head{align-items:flex-start;flex-direction:column}.back-btn{width:100%;text-align:center}}
 </style>
 
 <script>
@@ -73,9 +74,10 @@
         document.getElementById('editReadingValue').value=button.dataset.value||'';
         document.getElementById('editReadingNote').value=button.dataset.note||'';
         error.hidden=true; error.textContent=''; modal.hidden=false;
+        if(window.EditManager)EditManager.reset();
     };
     document.querySelectorAll('.action-btn.edit').forEach(b=>b.addEventListener('click',()=>openModal(b)));
-    const close=()=>{modal.hidden=true};
+    const close=()=>{form.reset();error.hidden=true;error.textContent='';modal.hidden=true;if(window.EditManager)EditManager.reset()};
     document.getElementById('closeEdit').addEventListener('click',close); document.getElementById('cancelEdit').addEventListener('click',close);
     modal.addEventListener('click',e=>{if(e.target===modal) close()});
     form.addEventListener('submit',async e=>{
@@ -88,10 +90,10 @@
         }catch(err){error.textContent=err.message; error.hidden=false; button.disabled=false;}
     });
     document.querySelectorAll('.action-btn.delete').forEach(button=>button.addEventListener('click',async()=>{
-        if(!confirm('هل تريد حذف هذه القراءة نهائيًا؟')) return;
         button.disabled=true;
         const data=new FormData(); data.append('equipment_id','{{ equipment.id }}'); data.append('reading_id',button.dataset.id);
         try{
+            if(!await window.MaterielDeleteImpact.confirmOne('/meter-readings/history/{{ equipment.id }}/'+button.dataset.id+'/delete-impact','مراجعة أثر حذف قراءة العداد')){button.disabled=false;return;}
             const response=await fetch('/meter-readings/history/{{ equipment.id }}/delete',{method:'POST',body:data});
             const result=await response.json();
             if(!response.ok||!result.ok) throw new Error(result.error||'تعذر حذف القراءة');

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}إدارة الأسطول والعتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><script src="/static/js/edit-manager.js"></script>{% block extra_head %}{% endblock %}
+<meta charset="UTF-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=Tajawal:wght@400;500;600;700;800&display=swap"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{% block title %}تسيير ومحاسبة العتاد{% endblock %}</title><link rel="stylesheet" href="/static/css/style.css"><link rel="stylesheet" href="/static/css/mt-tables.css?v=green-table-theme-20261016"><script src="/static/js/edit-manager.js"></script><script src="/static/js/mt-filters-core.js"></script><script src="/static/js/mt-tables.js?v=maintenance-record-filters&rev=20261016"></script><script src="/static/js/delete-impact.js?v=delete-impact-v2" defer></script><script src="/static/js/page-freshness.js?v=1" defer></script>{% block extra_head %}{% endblock %}
 <style>
 :root{--bg-primary:#e8f5e9;--bg-secondary:#f1f8e9;--sidebar-start:#2e7d32;--sidebar-end:#388e3c;--primary:#43a047;--primary-light:#66bb6a;--success:#2e7d32;--warning:#f9a825;--error:#c62828;--text-primary:#1b5e20;--text-secondary:#4e6b52;--white:#ffffff;--shadow:0 4px 20px rgba(46,125,50,.08);--shadow-hover:0 8px 30px rgba(46,125,50,.15);--radius:14px;--radius-sm:10px;--sidebar-w:208px}
-body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family:"Segoe UI",Tahoma,sans-serif}
+body{margin:0;background:var(--bg-primary);color:#111;font-family:"Segoe UI",Tahoma,sans-serif}
 .app-sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidebar-w);background:#0b3f3c;color:#fff;z-index:100;display:flex;flex-direction:column;box-shadow:none;overflow:hidden}
 .app-brand{padding:20px 16px;border-bottom:0;display:flex;align-items:center;gap:12px;font-family:"Noto Kufi Arabic","IBM Plex Sans Arabic",Tahoma,sans-serif;font-size:15px;font-weight:800}
 .app-brand-icon{width:34px;height:34px;border:0;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:#fff;color:#0e6b66}
@@ -19,7 +19,7 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .sidebar-logout:hover{background:rgba(198,40,40,.15)}
 .app-main{margin-right:var(--sidebar-w);min-height:100vh;padding:24px;width:auto;max-width:100%}
 @media(max-width:900px){:root{--sidebar-w:176px}.app-main{margin-right:176px}}
-@media(max-width:700px){:root{--sidebar-w:0px}.app-sidebar{position:static;width:100%;height:auto;min-height:52px;flex-direction:row;align-items:flex-start;box-shadow:none;overflow:visible}.app-brand{flex:0 0 52px;width:52px;height:52px;padding:0;justify-content:center;border-left:1px solid #ffffff18}.app-brand-icon{width:30px;height:30px;font-size:16px}.app-brand span:not(.app-brand-icon),.sidebar-user,.sidebar-logout{display:none}.app-menu{flex:1;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;padding:6px 7px;overflow:visible}.app-menu a{box-sizing:border-box;flex:0 0 auto;min-height:34px;height:34px;padding:7px 9px;border-radius:7px;font-size:11px;white-space:nowrap}.app-menu a .menu-icon{font-size:15px;width:18px}.app-main{margin-right:0;padding:0}.app-topbar{flex-direction:row;gap:8px;align-items:center;position:static;min-height:48px;padding:7px 12px}.app-topbar-title{font-size:11px;white-space:nowrap}.app-workbar{margin-inline-start:auto}.app-workbtn{height:30px;padding:0 8px;font-size:10px}.app-work-status,.app-worksep{display:none}.app-topbar-date{display:none}.container{padding:0 10px}}
+@media(max-width:700px){:root{--sidebar-w:0px}.app-sidebar{position:static;width:100%;height:auto;min-height:52px;flex-direction:row;align-items:flex-start;box-shadow:none;overflow:visible}.app-brand{flex:0 0 52px;width:52px;height:52px;padding:0;justify-content:center;border-left:1px solid #ffffff18}.app-brand-icon{width:30px;height:30px;font-size:16px}.app-brand span:not(.app-brand-icon),.sidebar-user,.sidebar-logout{display:none}.app-menu{flex:1;min-width:0;display:flex;flex-direction:row;flex-wrap:wrap;gap:4px;padding:6px 7px;overflow:visible}.app-menu a{box-sizing:border-box;flex:0 0 auto;min-height:34px;height:34px;padding:7px 9px;border-radius:7px;font-size:11px;white-space:nowrap}.app-menu a .menu-icon{font-size:15px;width:18px}.app-main{margin-right:0;padding:0}.app-topbar{flex-direction:row;gap:8px;align-items:center;position:static;min-height:48px;padding:7px 12px}.app-topbar-title{font-size:11px;white-space:nowrap}.app-workbar{margin-inline-start:auto}.app-workbtn{height:30px;padding:0 8px;font-size:10px}.app-work-status,.app-worksep{display:none}.app-history-panel{position:fixed;top:56px;inset-inline:8px;width:auto;max-height:55vh}.app-topbar-date{display:none}.container{padding:0 10px}}
 .app-topbar{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-radius:var(--radius);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;box-shadow:var(--shadow);border:1px solid rgba(46,125,50,.08);position:sticky;top:16px;z-index:50}
 .app-topbar-title{font-size:16px;font-weight:800;color:var(--text-primary)}
 .app-workbar{display:flex;align-items:center;gap:8px}
@@ -28,13 +28,26 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .app-workbtn:disabled{opacity:.5;cursor:not-allowed}
 .app-work-save{background:linear-gradient(135deg,var(--primary),var(--success));color:#fff;border:none}
 .app-work-status{font-size:12px;color:var(--text-secondary);padding:0 8px}
+.app-history-menu{position:relative}.app-history-menu>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}.app-history-menu>summary::-webkit-details-marker{display:none}.app-history-count{min-width:18px;height:18px;display:inline-grid;place-items:center;border-radius:99px;background:#EAF2EC;color:#315F42;font-size:10px}.app-history-panel{position:absolute;z-index:210;top:calc(100% + 8px);inset-inline-start:0;width:min(360px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:12px;background:#fff;border:1px solid #D1D5DB;border-radius:9px;box-shadow:0 8px 26px #11182722;color:#111827}.app-history-panel>strong{display:block;margin-bottom:8px;font-size:13px}.app-history-list{list-style:none;margin:0;padding:0}.app-history-list li+li{margin-top:4px}.app-history-item{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #E5E7EB;border-radius:6px;background:#fff;color:#374151;text-align:start;font:inherit;font-size:12px;cursor:pointer}.app-history-item:hover:not(:disabled){background:#F3F7F4;border-color:#B8D0BF}.app-history-item:disabled{cursor:default;opacity:.7}.app-history-item[aria-current="step"]{border-color:#397A54;background:#EAF2EC;color:#315F42;font-weight:700}.app-history-item-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.app-history-current{flex:0 0 auto;font-size:10px}.app-history-empty{padding:8px;color:#6B7280;font-size:12px}
 .app-worksep{width:1px;height:24px;background:rgba(46,125,50,.15)}
-.app-topbar-date{font-size:13px;color:var(--text-secondary)}
+.app-topbar-date{font-size:13px;color:#111}
+.page-hint{color:#111}
+.app-work-status{color:var(--text-secondary)}
+.materiel-notice-text{color:#111}
+.materiel-notice-close{color:#111}
+.field label{color:#111}
+.form-value{color:#111}
+.empty{color:#111}
+.module-nav a{color:#111}
+.equipment-card-info{color:#111}
+.master-preview,.master-specs{color:#111}
 .container{max-width:100%;min-width:0}
 .page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
 .page-header h2{font-size:22px;font-weight:800;color:var(--text-primary);margin:0}
 .page-hint{font-size:13px;color:var(--text-secondary);margin-top:4px}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all .2s ease;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 15px;border-radius:6px;font-size:13px;font-weight:700;border:1px solid transparent;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease;text-decoration:none;line-height:1.35}.btn:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
+/* Shared visual standard for ordinary module action buttons. This changes appearance only; behavior, position and handlers remain untouched. */
+.app-main button{border-radius:6px;line-height:1.35;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease}.app-main button:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(55,65,81,.12)}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--success));color:#fff;box-shadow:0 4px 14px rgba(67,160,71,.25)}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(67,160,71,.35)}
 .btn-outline{background:var(--white);color:var(--primary);border:1px solid var(--primary-light)}
@@ -45,8 +58,36 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .toolbar{display:flex;align-items:center;gap:10px;background:var(--white);padding:14px 16px;border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:20px;flex-wrap:wrap;border:1px solid rgba(46,125,50,.06)}
 .search-box{flex:1;min-width:200px;padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;transition:all .2s ease;background:var(--bg-secondary)}
 .search-box:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(67,160,71,.12);background:var(--white)}
+.global-search-wrap{display:inline-flex;align-items:stretch;gap:6px;flex:1 1 220px;min-width:0;max-width:100%}
+.global-search-wrap>input{flex:1 1 auto;min-width:0}
+.global-search-btn,.global-clear-btn{border:1px solid rgba(46,125,50,.18);border-radius:var(--radius-sm);padding:8px 12px;font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.global-search-btn{background:var(--primary);color:#fff}
+.global-clear-btn{background:var(--white);color:var(--text-primary)}
+.global-clear-btn[hidden]{display:none}
 .select-box{padding:10px 14px;border:1px solid rgba(46,125,50,.15);border-radius:var(--radius-sm);font-size:13px;outline:none;background:var(--white);cursor:pointer}
 .data-table,.modern-table{width:100%;border-collapse:collapse;font-size:13px;border:1px solid rgba(46,125,50,.08);border-radius:var(--radius-sm);overflow:hidden}
+/* --- global table rules -------------------------------------------------- */
+.app-main table,.mdx table{
+  width:max-content;
+  min-width:100%;
+  table-layout:auto;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+.app-main table th,.app-main table td,.mdx table th,.mdx table td{
+  color:#111;
+}
+.app-main table td>a:not(.btn),.mdx table td>a:not(.btn){
+  color:#111;
+}
+.app-main table .numeric-cell,.mdx table .numeric-cell{
+  text-align:center!important;
+  font-variant-numeric:tabular-nums;
+}
+
 .data-table th,.modern-table thead th{background:var(--bg-secondary);color:var(--text-primary);font-weight:700;padding:12px 14px;text-align:right;border-bottom:1px solid rgba(46,125,50,.1)}
 .data-table td,.modern-table td{padding:12px 14px;border-bottom:1px solid rgba(46,125,50,.05);color:var(--text-secondary)}
 .data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:rgba(232,245,233,.4)}
@@ -61,8 +102,14 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .module-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 20px;padding:10px 12px;background:var(--white);border:1px solid rgba(46,125,50,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
 .module-nav a{padding:8px 12px;border-radius:var(--radius-sm);color:var(--text-secondary);text-decoration:none;font-size:12px;font-weight:700;transition:all .2s ease}
 .module-nav a:hover,.module-nav a.active{background:var(--bg-secondary);color:var(--primary)}
-.materiel-notice{display:flex;align-items:flex-start;gap:12px;margin:0 0 16px;padding:14px 16px;border:1px solid rgba(46,125,50,.1);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow);opacity:0;transform:translateY(-6px);transition:all .2s ease}
+.materiel-notice-backdrop{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:16px;box-sizing:border-box;background:rgba(15,23,42,.48);opacity:0;visibility:hidden;transition:opacity .18s ease,visibility .18s ease}
+.materiel-notice-backdrop-visible{opacity:1;visibility:visible}
+.materiel-notice{box-sizing:border-box;display:flex;align-items:flex-start;gap:12px;width:min(560px,100%);max-height:min(80vh,620px);overflow:auto;margin:0;padding:18px 20px;border:1px solid rgba(46,125,50,.1);border-radius:var(--radius);background:var(--white);box-shadow:0 22px 70px rgba(15,23,42,.25);opacity:0;transform:translateY(8px) scale(.98);transition:opacity .18s ease,transform .18s ease}
+.materiel-notice-inline{position:static;width:auto;max-height:none;overflow:visible;margin:0 0 16px;padding:14px 16px;opacity:1;transform:none;transition:none}
 .materiel-notice-visible{opacity:1;transform:none}
+.materiel-notice-content{flex:1;min-width:0}
+.materiel-notice-title{display:block;margin:0 0 6px;color:#111;font-size:15px;font-weight:800}
+@media(prefers-reduced-motion:reduce){.materiel-notice-backdrop,.materiel-notice{transition:none}}
 .materiel-notice-icon{font-size:20px;line-height:1.2}
 .materiel-notice-text{flex:1;font-size:12px;line-height:1.8;font-weight:600;color:var(--text-secondary)}
 .materiel-notice-close{border:0;background:transparent;color:var(--text-secondary);font-size:20px;line-height:1;cursor:pointer;padding:0 3px}
@@ -85,22 +132,426 @@ body{margin:0;background:var(--bg-primary);color:var(--text-primary);font-family
 .equipment-card-info{font-size:12px;color:var(--text-secondary);line-height:1.8}
 .equipment-card-actions{display:flex;gap:8px;margin-top:12px}
 .equipment-card-actions .btn{padding:6px 12px;font-size:11px}
+
+/* Materiel responsive UI standard: the page reflows; only genuinely wide tables scroll. */
+html,body{max-width:100%;}
+body{overflow-x:clip;}
+.app-main,.container,main.container{min-width:0;max-width:100%;box-sizing:border-box;}
+.app-main > *, .container > *{min-width:0;max-width:100%;box-sizing:border-box;}
+.app-topbar{min-width:0;flex-wrap:wrap;}
+.app-topbar-title{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.table-scroll{width:100%;max-width:100%;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;}
+.table-scroll:focus{outline:2px solid var(--primary-light);outline-offset:2px;}
+.record-table-wrap{width:100%;max-width:100%;min-width:0;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}.record-table-wrap:focus{outline:2px solid var(--primary-light);outline-offset:2px}
+.table-scroll > table{max-width:none;}
+.table-scroll th,.table-scroll td{overflow-wrap:anywhere;}
+.table-scroll .nowrap{white-space:nowrap;overflow-wrap:normal;}
+@media(max-width:700px){
+  .app-topbar{margin-bottom:12px;border-radius:0;padding:8px 12px;}
+  .app-topbar-title{font-size:11px;flex:1 1 120px;}
+  .app-workbar{flex:0 1 auto;min-width:0;}
+}
+
+
+/* Small-screen refinement: keep controls usable without page-level horizontal scrolling. */
+@media(max-width:480px){
+  .app-menu{gap:3px;padding:5px;}
+  .app-menu a{min-height:32px;height:32px;padding:6px 7px;font-size:10px;}
+  .app-menu a .menu-icon{width:16px;font-size:14px;}
+  .container{padding:0 8px;}
+  .page-header{margin-bottom:12px;gap:8px;}
+  .page-header h2{font-size:18px;}
+  .page-hint{font-size:11px;}
+  .card,.stat-card{padding:14px;margin-bottom:12px;}
+  .toolbar{padding:10px;gap:7px;margin-bottom:12px;}
+  .search-box{min-width:0;flex:1 1 100%;width:100%;box-sizing:border-box;}
+  .select-box{min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
+  .grid-form{grid-template-columns:minmax(0,1fr);gap:10px;}
+  .field input,.field select,.field textarea{box-sizing:border-box;width:100%;max-width:100%;}
+  .module-nav{gap:4px;padding:7px;margin-bottom:12px;}
+  .module-nav a{padding:6px 8px;font-size:10px;}
+  .btn{max-width:100%;box-sizing:border-box;padding:9px 12px;font-size:12px;}
+  .equipment-card-actions{flex-wrap:wrap;}
+  .equipment-card-actions .btn{flex:1 1 auto;min-width:0;}
+  .data-table,.modern-table{font-size:12px;}
+  .data-table th,.modern-table thead th,
+  .data-table td,.modern-table td{padding:9px 10px;}
+}
+@media(max-width:375px){
+  .app-menu a{padding:5px 6px;font-size:9px;}
+  .app-menu a .menu-icon{width:14px;font-size:13px;}
+  .app-topbar{padding:7px 9px;}
+  .app-topbar-title{font-size:10px;}
+  .app-workbtn{padding:0 6px;font-size:9px;}
+  .container{padding:0 6px;}
+  .card,.stat-card{padding:12px;}
+  .page-header h2{font-size:17px;}
+}
+
+/* --- global visual standard: neutral management UI (visual only) --- */
+:root{--bg-primary:#FAFAFA;--bg-secondary:#F3F4F6;--sidebar-start:#374151;--sidebar-end:#374151;--primary:#374151;--primary-light:#9CA3AF;--success:#374151;--warning:#B45309;--error:#B91C1C;--text-primary:#111827;--text-secondary:#4B5563;--white:#FFFFFF;--shadow:0 2px 10px rgba(17,24,39,.05);--shadow-hover:0 6px 18px rgba(17,24,39,.08);--radius:10px;--radius-sm:6px}
+html,body{background:#FAFAFA;color:#4B5563;font-family:'Tajawal',sans-serif}
+body{font-size:14px}
+.app-sidebar{background:#374151;color:#fff}
+.app-brand{font-family:'Cairo',sans-serif;color:#fff}
+.app-brand-icon{color:#374151}
+.app-menu a{color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.app-menu a:hover{background:#4B5563;color:#fff}
+.app-menu a.active{background:#fff;color:#374151}
+.sidebar-user{color:#D1D5DB}
+.sidebar-logout{color:#E5E7EB}
+.sidebar-logout:hover{background:rgba(185,28,28,.12)}
+.app-topbar{background:#fff;border:1px solid #E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.app-topbar-title,.page-header h2,.card h3{font-family:'Cairo',sans-serif;color:#111827}
+.app-topbar-title{font-weight:800}
+.app-topbar-date,.app-work-status,.page-hint{font-family:'Tajawal',sans-serif;color:#4B5563}
+.app-workbtn{font-family:'Tajawal',sans-serif;color:#374151;border-color:#E5E7EB;background:#fff}
+.app-workbtn:hover:not(:disabled){background:#F3F4F6;border-color:#D1D5DB}
+.app-work-save{background:#374151;color:#fff}
+.page-header h2{font-weight:800}
+.btn,.app-main button{font-family:'Tajawal',sans-serif}
+.btn-primary,.app-main .btn-primary{background:#374151;color:#fff;border-color:#374151;box-shadow:none}
+.btn-primary:hover,.app-main .btn-primary:hover{background:#1F2937;border-color:#1F2937;transform:none;box-shadow:none}
+.btn-outline{background:#fff;color:#374151;border-color:#D1D5DB}
+.btn-outline:hover{background:#F3F4F6}
+.btn-danger{background:#B91C1C;color:#fff;border-color:#B91C1C}
+.card,.stat-card,.toolbar,.equipment-card,.module-nav,.materiel-notice{background:#fff;border-color:#E5E7EB;box-shadow:0 2px 10px rgba(17,24,39,.05)}
+.toolbar{border-color:#E5E7EB}
+.search-box,.select-box,.field input,.field select,.field textarea{font-family:'Tajawal',sans-serif;color:#4B5563;border-color:#D1D5DB;background:#fff}
+.search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#6B7280;box-shadow:0 0 0 3px rgba(55,65,81,.10)}
+.field label{font-family:'Cairo',sans-serif;color:#374151}
+.form-value,.empty{font-family:'Tajawal',sans-serif;color:#4B5563}
+.data-table,.modern-table{border-color:#E5E7EB;font-family:'Tajawal',sans-serif}
+.data-table th,.modern-table thead th{font-family:'Cairo',sans-serif;background:#F3F4F6;color:#111827;border-bottom-color:#E5E7EB}
+.data-table td,.modern-table td{font-family:'Tajawal',sans-serif;color:#4B5563;border-bottom-color:#E5E7EB}
+.data-table tbody tr:nth-child(even),.modern-table tbody tr:nth-child(even){background:#FAFAFA}
+.data-table tbody tr:hover,.modern-table tbody tr:hover{background:#F3F4F6}
+.module-nav a{font-family:'Tajawal',sans-serif;color:#4B5563}
+.module-nav a:hover,.module-nav a.active{background:#F3F4F6;color:#374151}
+.materiel-notice-text,.materiel-notice-close,.equipment-card-info{font-family:'Tajawal',sans-serif;color:#4B5563}
+.badge{font-family:'Tajawal',sans-serif}
+</style>
+<style>
+/* Shared cool-green shell palette. Page-specific work areas keep their own layout. */
+:root{--bg-primary:#EFF6F1;--bg-secondary:#EAF2EC;--primary:#397A54;--primary-light:#78A789;--success:#2F7650;--text-primary:#20352A;--text-secondary:#52695A;--white:#FCFEFC;--line:#D8E5DA;--sidebar-w:224px;--radius:14px;--radius-sm:9px}
+html,body{background:var(--bg-primary);color:var(--text-primary)}
+.app-sidebar{background:#1F5138;color:#F5FFF7}
+.app-brand{color:#F5FFF7}
+.app-brand-icon{background:#fff;color:#1F5138}
+.app-menu a{color:#DDEBE0}
+.app-menu a:hover{background:#FFFFFF18;color:#fff}
+.app-menu a.active{background:#2F7650;color:#fff;box-shadow:inset -3px 0 #C5E2CC}
+.sidebar-user{color:#C0D8C7;border-color:#FFFFFF24}
+.sidebar-logout{color:#E4F0E7}
+.app-main{background:var(--bg-primary)}
+.app-topbar{background:rgba(252,254,252,.96);border-color:var(--line);box-shadow:0 4px 16px rgba(31,81,56,.07)}
+.app-topbar-title,.page-header h2,.card h3{color:var(--text-primary)}
+.app-topbar-date,.app-work-status,.page-hint{color:var(--text-secondary)}
+.app-workbtn{color:#315F42;border-color:var(--line);background:var(--white)}
+.app-workbtn:hover:not(:disabled){background:#EAF2EC;border-color:#B8D0BF}
+.app-work-save,.btn-primary,.app-main .btn-primary{background:#397A54;color:#fff;border-color:#397A54}
+.app-work-save:hover:not(:disabled),.btn-primary:hover,.app-main .btn-primary:hover{background:#2F6747;border-color:#2F6747}
+.btn-outline{color:#315F42;border-color:#B8D0BF}
+.btn-outline:hover{background:#EAF2EC}
+.card,.stat-card,.toolbar,.equipment-card,.module-nav,.materiel-notice{border-color:var(--line)}
+.search-box,.select-box,.field input,.field select,.field textarea{border-color:#C8D9CC}
+.search-box:focus,.field input:focus,.field select:focus,.field textarea:focus{border-color:#629477;box-shadow:0 0 0 3px rgba(57,122,84,.13)}
+.module-nav a:hover,.module-nav a.active{background:#EAF2EC;color:#315F42}
+@media(max-width:700px){.app-sidebar{background:#1F5138}.app-menu{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#78A789 transparent}.app-menu a{flex:0 0 auto}}
+.container .module-nav{box-sizing:border-box;max-width:100%;min-width:0;margin:0 0 16px;flex-wrap:wrap;gap:5px}
+.container .module-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;white-space:nowrap}
+.container .module-nav a[aria-current="page"]{background:#eaf2ec;color:#315f42}
+.container :is(.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head){scroll-margin-block-start:108px}
+.container :is(.page-header h1,.page-header h2,.page-heading h1,.page-heading h2,.record-hero h1,.record-hero h2,.dashboard-head h1,.meter-head h1,.tires-top h1,.battery-top h1,.equip-head h1,.fr-head h1,.mdx-head h1){margin:0;font-family:'Cairo',sans-serif;color:#20352a;line-height:1.35}
+.container .page-title{margin:0;color:#20352a;font-family:'Cairo',sans-serif;font-size:clamp(21px,2vw,27px);font-weight:750;line-height:1.4}
+@media(max-width:700px){.container .module-nav{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#91ad98 transparent;margin-bottom:10px;padding:7px}.container .module-nav a{flex:0 0 auto;min-height:36px}.container :is(.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head){scroll-margin-block-start:12px}}
+@media(max-width:700px){.container .mobile-extra-filters{display:block;flex:1 1 100%;width:100%;min-width:0}.container .mobile-extra-filters>summary{display:flex;align-items:center;justify-content:space-between;min-height:36px;padding:0 11px;border:1px solid #b8d0bf;border-radius:8px;background:#f5faf6;color:#315f42;font-size:12px;font-weight:750;cursor:pointer;list-style:none}.container .mobile-extra-filters>summary::-webkit-details-marker{display:none}.container .mobile-extra-filters>summary:after{content:'⌄';font-size:14px}.container .mobile-extra-filters[open]>summary:after{content:'⌃'}.container .mobile-extra-filters[open]>.mobile-extra-filters-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.container .mobile-extra-filters-body>*{min-width:0;width:100%;box-sizing:border-box}}
 </style>
 </head>
 <body>
-<aside class="app-sidebar"><div class="app-brand"><span class="app-brand-icon">⚙</span><span>نظام إدارة العتاد</span></div><nav class="app-menu"><a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a><a href="/equipment" class="{% if request.url.path.startswith('/equipment') %}active{% endif %}"><span class="menu-icon">▦</span><span>العتاد</span></a><a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a><a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>العدادات</span></a><a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a><a href="/spare-parts-requests" class="{% if request.url.path.startswith('/spare-parts-requests') %}active{% endif %}"><span class="menu-icon">▤</span><span>طلبات قطع الغيار</span></a><a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a><a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a><a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a><a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a><a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a></nav><div class="sidebar-spacer"></div><div class="sidebar-user">النظام المحلي<br>إدارة الأسطول والعتاد</div><a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a></aside>
-<div class="app-main"><header class="app-topbar"><span class="app-topbar-title">إدارة الأسطول والعتاد</span><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></header><main class="container">{% block content %}{% endblock %}</main></div>
+<aside class="app-sidebar"><div class="app-brand"><span class="app-brand-icon">⚙</span><span>تسيير ومحاسبة العتاد</span></div><nav class="app-menu"><a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a><a href="/equipment" class="{% if request.url.path.startswith('/equipment') %}active{% endif %}"><span class="menu-icon">▦</span><span>العتاد</span></a><a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a><a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>العدادات</span></a><a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a><a href="/spare-parts" class="{% if request.url.path == '/spare-parts' %}active{% endif %}"><span class="menu-icon">▤</span><span>قطع الغيار</span></a><a href="/spare-parts-return" class="{% if request.url.path.startswith('/spare-parts-return') %}active{% endif %}"><span class="menu-icon">↩</span><span>إرجاع الغيار</span></a><a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a><a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a><a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a><a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات</span></a><a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a></nav><div class="sidebar-spacer"></div><div class="sidebar-user">النظام المحلي<br>تسيير ومحاسبة العتاد</div><a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a></aside>
+<div class="app-main"><header class="app-topbar"><span class="app-topbar-title">تسيير ومحاسبة العتاد</span><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><details class="app-history-menu" id="emHistoryMenu"><summary class="app-workbtn" aria-label="فهرس التغييرات" title="التغييرات التي يمكن التراجع عنها"><span aria-hidden="true">☷</span><span>التغييرات</span><span id="emHistoryCount" class="app-history-count">0</span></summary><div class="app-history-panel"><strong>فهرس التغييرات</strong><ol id="emHistoryList" class="app-history-list" aria-label="نقاط التغيير"></ol></div></details><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span id="emStatus" class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></header><main class="container">{% block content %}{% endblock %}</main></div>
 <script>
 (function(){
 const el=document.getElementById('systemDate');if(el){el.textContent=new Intl.DateTimeFormat('ar-DZ',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date())}
-const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){const box=document.createElement('div');box.className='materiel-notice materiel-notice-'+noticeType;const icon=noticeType==='danger'?'⛔':noticeType==='success'?'✓':noticeType==='info'?'ℹ️':'⚠️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,textEl,close);const main=document.querySelector('.container');if(main)main.prepend(box);close.addEventListener('click',()=>box.remove());window.setTimeout(()=>box.classList.add('materiel-notice-visible'),20);const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
+let dismissMaterielNotice=null;
+window.showMaterielNotice=function(message,type='warning'){
+  const kind=['warning','danger','info','success'].includes(type)?type:'warning';
+  if(kind!=='warning'&&kind!=='danger')return;
+  if(dismissMaterielNotice)dismissMaterielNotice();
+  const previousFocus=document.activeElement;
+  const backdrop=document.createElement('div');backdrop.className='materiel-notice-backdrop';
+  const box=document.createElement('section');box.className='materiel-notice materiel-notice-'+kind;box.setAttribute('role','alertdialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',kind==='danger'?'رسالة خطأ':'رسالة تحذير');
+  const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.setAttribute('aria-hidden','true');iconEl.textContent=kind==='danger'?'⛔':'⚠️';
+  const content=document.createElement('div');content.className='materiel-notice-content';
+  const title=document.createElement('strong');title.className='materiel-notice-title';title.textContent=kind==='danger'?'خطأ':'تحذير';
+  const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=String(message||'تعذر تنفيذ العملية. حاول مرة أخرى.');content.append(title,textEl);
+  const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,content,close);backdrop.append(box);document.body.append(backdrop);
+  const dismiss=()=>{backdrop.remove();document.removeEventListener('keydown',onKeyDown);if(dismissMaterielNotice===dismiss)dismissMaterielNotice=null;if(previousFocus&&previousFocus.isConnected&&typeof previousFocus.focus==='function')previousFocus.focus()};
+  dismissMaterielNotice=dismiss;
+  const onKeyDown=event=>{if(event.key==='Escape'){event.preventDefault();dismiss()}else if(event.key==='Tab'){event.preventDefault();close.focus()}};
+  close.addEventListener('click',dismiss);backdrop.addEventListener('click',event=>{if(event.target===backdrop)dismiss()});document.addEventListener('keydown',onKeyDown);
+  window.setTimeout(()=>{backdrop.classList.add('materiel-notice-backdrop-visible');box.classList.add('materiel-notice-visible');close.focus()},20);
+};
+const params=new URLSearchParams(window.location.search);const notice=params.get('notice');const noticeType=params.get('notice_type')||'warning';if(notice){if(noticeType==='warning'||noticeType==='danger'){window.showMaterielNotice(notice,noticeType)}else{const box=document.createElement('div');box.className='materiel-notice materiel-notice-inline materiel-notice-'+(noticeType==='success'?'success':'info');const icon=noticeType==='success'?'✓':'ℹ️';const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.textContent=icon;const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=notice;box.append(iconEl,textEl);const main=document.querySelector('.container');if(main)main.prepend(box)}const clean=new URL(window.location.href);clean.searchParams.delete('notice');clean.searchParams.delete('notice_type');window.history.replaceState({},'',clean.toString())}
 const mutationKey='materiel:mutation-completed';document.querySelectorAll('form[method="post"]').forEach(form=>{form.setAttribute('autocomplete','off');form.addEventListener('submit',()=>sessionStorage.setItem(mutationKey,'1'))});if(sessionStorage.getItem(mutationKey)==='1'){sessionStorage.removeItem(mutationKey)}window.addEventListener('pageshow',e=>{if(e.persisted)window.location.reload()});
-document.querySelectorAll('input.search-box,input[id*="search" i],input[id*="Search"]').forEach(input=>{if(input.closest('.global-search-wrap')||input.type==='hidden')return;const parent=input.parentElement;if(!parent)return;const wrap=document.createElement('span');wrap.className='global-search-wrap';parent.insertBefore(wrap,input);wrap.appendChild(input);const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='بحث';const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;wrap.append(search,clear);const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));search.addEventListener('click',fire);clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});input.addEventListener('input',()=>clear.hidden=!input.value)});
+const searchSelector='input[type="search"],input.search-box,input[id*="search" i],input[id*="Search"]';
+document.querySelectorAll(searchSelector).forEach(input=>{
+  if(input.closest('.global-search-wrap')||input.type==='hidden')return;
+  const parent=input.parentElement;if(!parent)return;
+  const wrap=document.createElement('span');wrap.className='global-search-wrap';
+  parent.insertBefore(wrap,input);wrap.appendChild(input);
+  const search=document.createElement('button');search.type='button';search.className='global-search-btn';search.textContent='ابحث';search.setAttribute('aria-label','تنفيذ البحث');
+  const clear=document.createElement('button');clear.type='button';clear.className='global-clear-btn';clear.textContent='إلغاء';clear.hidden=!input.value;
+  wrap.append(search,clear);
+  const fire=()=>input.dispatchEvent(new Event('input',{bubbles:true}));
+  const runSearch=()=>{
+    fire();
+    const form=input.closest('form');
+    const name=(input.name+' '+input.id+' '+input.getAttribute('aria-label')+' '+input.placeholder).toLowerCase();
+    const serverSearch=form&&form.method.toLowerCase()==='get'&&(/search|query|بحث|filter|تصفية/.test(name)||input.type==='search');
+    if(serverSearch){
+      if(typeof form.requestSubmit==='function')form.requestSubmit();
+      else form.submit();
+    }
+  };
+  search.addEventListener('click',runSearch);
+  input.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.isComposing)return;
+    event.preventDefault();
+    search.click();
+  });
+  clear.addEventListener('click',()=>{input.value='';clear.hidden=true;fire();input.dispatchEvent(new Event('change',{bubbles:true}))});
+  input.addEventListener('input',()=>clear.hidden=!input.value);
+});
+(function installEnterNavigation(){
+  const excludedTypes=new Set(['hidden','button','submit','reset','image','file','checkbox','radio','range','color']);
+  const isEditable=el=>el instanceof HTMLElement&&(el.isContentEditable||el.matches('textarea'));
+  const isInput=el=>el instanceof HTMLInputElement&&!excludedTypes.has(el.type)&&!el.readOnly;
+  const isUsable=el=>el instanceof HTMLElement&&!el.matches(':disabled,[hidden],[aria-hidden="true"]')&&!!(el.offsetWidth||el.offsetHeight||el.getClientRects().length);
+  const isNextControl=el=>isInput(el)||el instanceof HTMLSelectElement||isEditable(el)||(el instanceof HTMLButtonElement&&(el.type==='submit'||el.hasAttribute('data-enter-next')));
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Enter'||event.defaultPrevented||event.isComposing||event.shiftKey||event.ctrlKey||event.metaKey||event.altKey)return;
+    const current=event.target;
+    if(!(current instanceof HTMLElement)||!(isInput(current)||current instanceof HTMLSelectElement)||(current instanceof HTMLInputElement&&current.type==='search')||current.closest('.global-search-wrap')||current.hasAttribute('data-enter-native'))return;
+    if(current.closest('[contenteditable="true"],textarea'))return;
+    const form=current.closest('form');
+    const scope=form||current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    if(!scope)return;
+    const controls=[...scope.querySelectorAll('input,select,textarea,button,[contenteditable="true"]')].filter(el=>isUsable(el)&&isNextControl(el));
+    const index=controls.indexOf(current);
+    if(index<0)return;
+    event.preventDefault();
+    const next=controls[index+1];
+    if(next){
+      if(next instanceof HTMLButtonElement&&next.hasAttribute('data-enter-next')){next.click();return}
+      if(next instanceof HTMLButtonElement&&next.type==='submit'){if(form&&form.checkValidity())form.requestSubmit(next);else if(form)form.reportValidity();else next.click();return}
+      next.focus();return;
+    }
+    if(form){
+      if(form.checkValidity())form.requestSubmit();
+      else form.reportValidity();
+      return;
+    }
+    const operation=current.closest('[data-enter-scope],.grid-form,.tire-form,.toolbar,.card,.panel');
+    const action=operation?.querySelector('[data-enter-next]');
+    if(action instanceof HTMLElement&&isUsable(action))action.click();
+  });
+})();
+document.querySelectorAll('.table-scroll,.record-table-wrap,.table-wrap,.type-table-wrap').forEach(function(el){if(!el.hasAttribute('tabindex'))el.setAttribute('tabindex','0');if(!el.hasAttribute('role'))el.setAttribute('role','region');if(!el.getAttribute('aria-label'))el.setAttribute('aria-label','جدول البيانات');});
+/* Global UI rule: every action menu closes on any left click outside the open menu.
+   This is intentionally owned by the shared base template so the rule applies to every module,
+   including tree-generated menus that stop propagation inside their own handlers. */
+document.addEventListener('click',function(event){
+  document.querySelectorAll('details.action-menu[open]').forEach(function(menu){
+    if(!menu.contains(event.target)) menu.removeAttribute('open');
+  });
+  document.querySelectorAll('.master-context-menu:not([hidden])').forEach(function(menu){
+    if(!menu.contains(event.target) && !event.target.closest('[data-action-menu]')){
+      menu.hidden=true;
+      menu.replaceChildren();
+    }
+  });
+},true);
+/* Global keyboard rule: Escape always exits an active editor from anywhere on its page. */
+document.addEventListener('keydown',function(event){
+  if(event.key!=='Escape'||event.repeat)return;
+  const active=document.activeElement;
+  const modal=active?.closest?.('.modal.open,.maintenance-edit-modal.open,[role="dialog"]');
+  const openMenu=active?.closest?.('details.action-menu[open],.master-context-menu:not([hidden])');
+  if(openMenu){
+    if(openMenu.matches('details.action-menu[open]')) openMenu.removeAttribute('open');
+    else {openMenu.hidden=true;openMenu.replaceChildren()}
+    event.preventDefault();
+    return;
+  }
+  /* First prefer the editor containing focus; otherwise locate the page editor
+     itself. An editor must contain a real editable field in addition to its
+     save/cancel controls; this prevents Escape from hijacking ordinary list,
+     filter, or display pages that happen to contain a form. */
+  const isEditorForm=function(form){
+    if(!form)return false;
+    const hasEditable=[...form.querySelectorAll('input,select,textarea,[contenteditable="true"]')].some(function(el){
+      return !ignoredEscapeControl(el);
+    });
+    const hasSubmit=!!form.querySelector('button[type="submit"],input[type="submit"]');
+    const hasCancel=[...form.querySelectorAll('a,button,[role="button"]')].some(function(el){
+      if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+      const text=(el.textContent||'').trim();
+      return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+    });
+    return hasEditable&&hasSubmit&&hasCancel;
+  };
+  const ignoredEscapeControl=function(el){
+    if(!el||el.disabled)return true;
+    if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"]'))return true;
+    const hint=(el.name||'')+' '+(el.id||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.placeholder||'');
+    return /(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint);
+  };
+  let scope=modal||(isEditorForm(active?.closest?.('form'))?active.closest('form'):null);
+  if(!scope){
+    scope=[...document.querySelectorAll('form')].find(isEditorForm);
+  }
+  if(!scope)return;
+  const cancel=[...scope.querySelectorAll('a,button,[role="button"]')].find(function(el){
+    if(el.disabled||el.getAttribute('aria-disabled')==='true')return false;
+    const text=(el.textContent||'').trim();
+    return /^(إلغاء|الغاء|cancel|رجوع|عودة)$/i.test(text)||el.matches('.cancel-btn,[id*="cancel" i],[data-cancel-action]');
+  });
+  if(!cancel)return;
+  event.preventDefault();
+  const dirty=typeof window.EditManager?.isDirty==='function'&&window.EditManager.isDirty();
+  if(dirty&&!window.confirm('لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'))return;
+  cancel.click();
+},true);
 const p=window.location.pathname;
-if(p.startsWith('/equipment')||p.startsWith('/equipment-types')){const nav=document.createElement('nav');nav.className='module-nav';const links=[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل العتاد'],['/equipment-types','أنواع العتاد'],['/equipment-types/structure','هيكلة الأنواع']];links.forEach(([href,label])=>{const a=document.createElement('a');a.href=href;a.textContent=label;if(p===href)a.className='active';nav.appendChild(a)});const main=document.querySelector('.container');if(main)main.prepend(nav)}
+const main=document.querySelector('.container');
+let pageHeading=main&&main.querySelector('h1,h2');
+if(pageHeading&&pageHeading.tagName.toLowerCase()==='h2'){
+  const semanticHeading=document.createElement('h1');
+  Array.from(pageHeading.attributes).forEach(function(attribute){semanticHeading.setAttribute(attribute.name,attribute.value)});
+  semanticHeading.innerHTML=pageHeading.innerHTML;
+  pageHeading.replaceWith(semanticHeading);
+  pageHeading=semanticHeading;
+}
+if(pageHeading)pageHeading.classList.add('page-title');
+const moduleNavigation=(function(){
+  if(p==='/spare-parts'||p.startsWith('/spare-parts-requests')||p.startsWith('/spare-parts-received')||p.startsWith('/spare-parts-distribution')||p.startsWith('/spare-parts-return')||p.startsWith('/spare-parts-history/'))return {label:'تنقل وحدة الغيار',links:[['/spare-parts','قطع الغيار'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع']]};
+  if(p.startsWith('/equipment')||p.startsWith('/equipment-types'))return {label:'تنقل وحدة العتاد',links:[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']]};
+  if(p==='/maintenance'||p.startsWith('/maintenance/'))return {label:'تنقل وحدة الصيانة',links:[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة']]};
+  if(p==='/faults-repairs'||p.startsWith('/faults-repairs/'))return {label:'تنقل وحدة الأعطال والإصلاحات',links:[['/faults-repairs','لوحة الوحدة'],['/faults-repairs/faults','سجل الأعطال'],['/faults-repairs/repairs','التصليحات'],['/faults-repairs/technicians','الفنيون'],['/faults-repairs/analytics','التحليلات']]};
+  if(p==='/tires'||p.startsWith('/tires/'))return {label:'تنقل وحدة الإطارات',links:[['/tires','إدارة الإطارات'],['/tires/inventory','المخزون'],['/tires/settings','الإعدادات']]};
+  if(p==='/batteries'||p.startsWith('/batteries/'))return {label:'تنقل وحدة البطاريات',links:[['/batteries','إدارة البطاريات'],['/batteries/settings','الإعدادات']]};
+  if(p==='/meter-readings'||p.startsWith('/meter-readings/'))return {label:'تنقل وحدة قراءات العدادات',links:[['/','الرئيسية'],['/equipment','قائمة العتاد'],['/meter-readings','قراءات العدادات'],['/meter-readings/operations','سجل العمليات']]};
+  return null;
+})();
+if(main&&moduleNavigation){
+  let nav=main.querySelector('.module-nav,.module-tabs,.tires-nav,.navigation-actions,.fr-head .actions');
+  if(!nav)nav=document.createElement('nav');
+  else if(nav.tagName.toLowerCase()!=='nav'){
+    const semanticNav=document.createElement('nav');
+    semanticNav.className=nav.className;
+    while(nav.firstChild)semanticNav.appendChild(nav.firstChild);
+    nav.replaceWith(semanticNav);
+    nav=semanticNav;
+  }
+  nav.classList.remove('module-tabs','tires-nav','navigation-actions','actions');
+  nav.classList.add('module-nav');
+  nav.setAttribute('role','navigation');
+  nav.setAttribute('aria-label',moduleNavigation.label);
+  moduleNavigation.links.forEach(function(item){
+    const href=item[0],label=item[1];
+    const existing=Array.from(nav.querySelectorAll('a')).find(function(link){return new URL(link.href,window.location.href).pathname===href});
+    if(existing){existing.textContent=label}
+    else{const link=document.createElement('a');link.href=href;link.textContent=label;nav.appendChild(link)}
+  });
+  const links=Array.from(nav.querySelectorAll('a'));
+  const matching=links.filter(function(link){const href=new URL(link.href,window.location.href).pathname;return p===href||(href!=='/'&&p.startsWith(href+'/'))});
+  const active=matching.sort(function(a,b){return new URL(b.href,window.location.href).pathname.length-new URL(a.href,window.location.href).pathname.length})[0];
+  links.forEach(function(link){const selected=link===active;link.classList.toggle('active',selected);if(selected)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current')});
+  if(p.startsWith('/spare-parts-history/')){const requests=links.find(function(link){return new URL(link.href,window.location.href).pathname==='/spare-parts-requests'});if(requests){if(active)active.classList.remove('active');requests.classList.add('active');requests.setAttribute('aria-current','page')}}
+  const headerBlock=pageHeading&&pageHeading.closest('header,.page-header,.page-top,.dashboard-head,.meter-head,.tires-top,.battery-top,.equip-head,.fr-head,.mdx-head,.record-hero,.settings-hero,.head,.top');
+  let insertionPoint=headerBlock||pageHeading&&pageHeading.parentElement||main.firstElementChild;
+  if(headerBlock){
+    const primaryActions=Array.from(main.querySelectorAll('.main-actions,.primary-actions,.page-actions'))
+      .find(function(actions){return actions.parentElement===headerBlock.parentElement&&headerBlock.compareDocumentPosition(actions)&Node.DOCUMENT_POSITION_FOLLOWING});
+    if(primaryActions)insertionPoint=primaryActions;
+  }
+  if(insertionPoint&&insertionPoint.parentNode)insertionPoint.parentNode.insertBefore(nav,insertionPoint.nextSibling);
+  else if(main.firstElementChild!==nav)main.prepend(nav);
+}
+if(main){
+  const mobileFilterBreakpoint=window.matchMedia('(max-width:700px)');
+  main.querySelectorAll('[data-mobile-filter-collapse]').forEach(function(toolbar){
+    if(toolbar.dataset.mobileFilterReady)return;
+    const fields=Array.from(toolbar.querySelectorAll(':scope > select'));
+    if(fields.length<2)return;
+    toolbar.dataset.mobileFilterReady='1';
+    let details=null,summary=null,body=null,markers=[],manuallyToggled=false,preferredOpen=false;
+    function updateSummary(){
+      const active=fields.filter(function(field){return field.value!==''}).length;
+      if(summary)summary.textContent=active?'فلاتر إضافية ('+active+')':'فلاتر إضافية';
+    }
+    function mountDisclosure(){
+      if(details)return;
+      markers=fields.map(function(field){const marker=document.createComment('filter-field');field.parentNode.insertBefore(marker,field);return marker});
+      details=document.createElement('details');
+      details.className='mobile-extra-filters';
+      summary=document.createElement('summary');
+      body=document.createElement('div');
+      body.className='mobile-extra-filters-body';
+      fields.forEach(function(field){body.appendChild(field)});
+      details.append(summary,body);
+      toolbar.insertBefore(details,markers[0]);
+      details.addEventListener('toggle',function(){if(mobileFilterBreakpoint.matches){preferredOpen=details.open;manuallyToggled=true}});
+      updateSummary();
+    }
+    function removeDisclosure(){
+      if(!details)return;
+      fields.forEach(function(field,index){const marker=markers[index];marker.parentNode.insertBefore(field,marker.nextSibling);marker.remove()});
+      details.remove();details=null;summary=null;body=null;markers=[];
+    }
+    function syncDisclosure(){
+      if(!mobileFilterBreakpoint.matches){removeDisclosure();return}
+      mountDisclosure();
+      const active=fields.some(function(field){return field.value!==''});
+      details.open=manuallyToggled?preferredOpen:active;
+      updateSummary();
+    }
+    fields.forEach(function(field){field.addEventListener('change',updateSummary)});
+    mobileFilterBreakpoint.addEventListener('change',syncDisclosure);
+    syncDisclosure();
+  });
+}
 if(p==='/equipment/numerical-status'){const table=document.getElementById('numericalStatusTable');if(table){const heads=[...table.querySelectorAll('thead th')];const idx=heads.findIndex(h=>h.textContent.includes('% من الأب'));if(idx>=0){heads[idx].remove();table.querySelectorAll('tbody tr').forEach(r=>{if(r.children.length>idx)r.children[idx].remove()})}}}
 const brandSelect=document.getElementById('statusBrand');if(brandSelect){const current=brandSelect.value;fetch('/api/equipment-brands',{headers:{Accept:'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():[]).then(brands=>{const names=[...new Set((Array.isArray(brands)?brands:[]).map(b=>String(b.name||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));brandSelect.innerHTML='<option value="">كل الماركات</option>';names.forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;brandSelect.appendChild(o)});brandSelect.value=names.includes(current)?current:'';brandSelect.dispatchEvent(new Event('change',{bubbles:true}))}).catch(()=>{})}
 })();
+</script>
+<script>
+(function(){
+  function markNumericCells(root){
+    const cells=(root||document).querySelectorAll('table tbody td');
+    const numeric=/^[+\-−]?\s*(?:\d[\d\s,.]*|[٠-٩][٠-٩\s،.]*)(?:\s*%?)$/;
+    cells.forEach(function(td){
+      const text=(td.textContent||'').trim();
+      if(text && numeric.test(text)) td.classList.add('numeric-cell');
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){markNumericCells();});
+  else markNumericCells();
+  new MutationObserver(function(mutations){
+    mutations.forEach(function(m){m.addedNodes.forEach(function(n){
+      if(n.nodeType===1) markNumericCells(n);
+    });});
+  }).observe(document.body,{childList:true,subtree:true});
+})();
+</script>
+<style>
+.app-session-menu{position:relative}.app-session-menu>summary{list-style:none;display:inline-flex;align-items:center;justify-content:center;min-width:38px;padding:0 10px;font-size:21px;cursor:pointer}.app-session-menu>summary::-webkit-details-marker{display:none}.app-session-panel{position:absolute;z-index:200;top:calc(100% + 8px);left:0;width:min(340px,calc(100vw - 24px));max-height:60vh;overflow:auto;padding:14px;background:#fff;border:1px solid #d1d5db;border-radius:8px;box-shadow:0 8px 26px #11182722;color:#111827}.app-session-panel ol{margin:10px 0;padding-right:22px;font-size:12px;line-height:1.8}.app-session-panel li{padding:3px 0;border-bottom:1px solid #f3f4f6}.app-session-empty{color:#6b7280;list-style:none;margin-right:-22px}.app-session-clear{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:6px 10px;cursor:pointer;font:inherit;font-size:12px}@media(max-width:700px){.app-session-panel{position:fixed;top:58px;left:8px;right:8px;width:auto;max-height:55vh}}
+.delete-impact-backdrop{position:fixed;inset:0;z-index:2000;background:#11182788;display:flex;align-items:center;justify-content:center;padding:16px}.delete-impact-dialog{width:min(520px,100%);max-height:80vh;overflow:auto;background:#fff;border-radius:10px;padding:20px;box-shadow:0 18px 50px #0003;color:#111827}.delete-impact-dialog h2{font:700 18px 'Cairo',sans-serif;margin:0 0 10px}.delete-impact-intro{margin:0 0 10px;color:#4b5563}.delete-impact-dialog ul{padding-right:22px;line-height:1.8;font-size:13px}.delete-impact-dialog footer{display:flex;gap:8px;justify-content:flex-start;margin-top:18px}.delete-impact-dialog button{border:1px solid #d1d5db;border-radius:6px;padding:9px 14px;background:#fff;cursor:pointer;font:inherit}.delete-impact-dialog .delete-impact-confirm{background:#b91c1c;border-color:#b91c1c;color:#fff}.delete-impact-dialog .delete-impact-confirm:disabled{opacity:.45;cursor:not-allowed}.delete-impact-blocked{color:#b91c1c;font-weight:700}
+</style>
+<script>
+(function(){const key='materiel:session-actions:v1';function rows(){try{return JSON.parse(sessionStorage.getItem(key)||'[]')}catch(_){return[]}}function render(){const list=document.getElementById('emSessionActions');if(!list)return;const items=rows();list.replaceChildren();if(!items.length){const li=document.createElement('li');li.className='app-session-empty';li.textContent='لم تُسجل أعمال بعد';list.append(li);return}items.forEach(row=>{const li=document.createElement('li');li.textContent=`${row.time} · ${row.method} ${row.label}`;list.append(li)})}document.addEventListener('DOMContentLoaded',render);document.addEventListener('click',e=>{if(e.target.closest('[data-em-session-clear]')){sessionStorage.removeItem(key);render()}});render()})();
 </script>
 </body>
 </html>

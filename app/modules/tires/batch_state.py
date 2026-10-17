@@ -75,13 +75,20 @@ def dashboard_stats(db):
 def inventory(db):
     tires, states = current_states(db)
     from app.modules.tires import services
+    movements = db.query(TireMovement).options(joinedload(TireMovement.equipment)).order_by(
+        TireMovement.movement_datetime.asc(), TireMovement.id.asc()
+    ).all()
+    last_equipment = {}
+    for movement in movements:
+        if movement.equipment is not None:
+            last_equipment[movement.tire_id] = movement.equipment
     result = []
     for tire in tires:
         state = states.get(tire.id)
         if state and state.get("disposition") == "disposed":
             continue
         if not state or not state.get("installed"):
-            result.append({"tire": tire, "state": state, "status": services.tire_status(tire, state), "condition": services.tire_condition(tire, state), "location": services.tire_location(state)})
+            result.append({"tire": tire, "state": state, "equipment": last_equipment.get(tire.id), "status": services.tire_status(tire, state), "condition": services.tire_condition(tire, state), "location": services.tire_location(state)})
     return result
 
 

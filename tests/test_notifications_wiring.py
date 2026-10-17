@@ -9,9 +9,31 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.database import model_registry  # noqa: F401  (يسجّل كل النماذج قبل أي استعلام)
+from app.modules.maintenance.services import CONDITION_MODEL, ModelCondition, CONDITION_UNSET
 from app.modules.notifications import providers, services
 
 TEMPLATE = Path("app/modules/dashboard/templates/dashboard.html")
+
+
+def _model_condition(equipment_model_id, **condition):
+    """شرط طراز حقيقي كما يقرأه محرك الاستحقاق من علاقة العملية بالطراز.
+    
+    Warning settings are unified at the operation level, not per-model.
+    """
+    # Filter out warning fields - they belong on the operation, not the model condition
+    condition = {k: v for k, v in condition.items() if k not in ("warning_km", "warning_days")}
+    values = {"condition_source": CONDITION_MODEL, "equipment_model_id": equipment_model_id}
+    values.update(condition)
+    return ModelCondition(**values)
+
+
+def _use_model_condition(monkeypatch, **condition):
+    """استبدال قراءة شرط الطراز بشرط حقيقي بدل الوصول إلى القاعدة."""
+    monkeypatch.setattr(
+        providers,
+        "condition_for_equipment",
+        lambda db, operation, equipment: _model_condition(equipment.equipment_model_id, **condition),
+    )
 
 
 class _Query:
@@ -100,8 +122,9 @@ def test_maintenance_provider_reports_overdue_operations(monkeypatch):
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
     monkeypatch.setattr(
-        providers, "effective_operations_for_equipment", lambda db, eq: [_operation()]
+        providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation()]
     )
+    _use_model_condition(monkeypatch, interval_km=10000)
 
     notes = providers.maintenance_due_provider(
         _DB([_equipment(current_odometer=Decimal("20000"))])
@@ -124,8 +147,9 @@ def test_maintenance_provider_reports_upcoming_inside_warning_window(monkeypatch
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq: [_operation(interval_km=20000, warning_km=1000)],
+        lambda db, eq, **kwargs: [_operation(interval_km=20000, warning_km=Decimal("1000"))],
     )
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     notes = providers.maintenance_due_provider(
         _DB([_equipment(current_odometer=Decimal("19500"))])
@@ -142,10 +166,29 @@ def test_maintenance_provider_stays_silent_within_schedule(monkeypatch):
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
-        lambda db, eq: [_operation(interval_km=20000, warning_km=100)],
+        lambda db, eq, **kwargs: [_operation(interval_km=10000, warning_km=Decimal("100"))],
     )
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     assert providers.maintenance_due_provider(_DB([_equipment()])) == []
+
+
+def test_maintenance_provider_does_not_invent_a_condition_for_an_unset_model(monkeypatch):
+    """بلا شرط محفوظ للطراز لا يُبنى إنذار من القيمة القديمة على العملية."""
+    record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
+    monkeypatch.setattr(providers, "latest_readings", lambda db: {})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
+    monkeypatch.setattr(
+        providers,
+        "effective_operations_for_equipment",
+        # العملية تحمل قيمة قديمة مشتركة، والطراز بلا شرط محفوظ.
+        lambda db, eq, **kwargs: [_operation(interval_km=10000, warning_km=Decimal("900"))],
+    )
+    _use_model_condition(monkeypatch, condition_source=CONDITION_UNSET)
+
+    assert providers.maintenance_due_provider(
+        _DB([_equipment(current_odometer=Decimal("999999"))])
+    ) == []
 
 
 def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
@@ -153,19 +196,23 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     calls: list = []
 
-    def _operations(db, eq):
+    def _operations(db, eq, **kwargs):
         calls.append(eq.equipment_model_id)
         return [_operation()]
 
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record, (6, 3): record})
-    monkeypatch.setattr(providers, "effective_operations_for_equipment", _operations)
+    def _operations_with_warning(db, eq, **kwargs):
+        calls.append(eq.equipment_model_id)
+        return [_operation(warning_km=Decimal("1000"))]
+    monkeypatch.setattr(providers, "effective_operations_for_equipment", _operations_with_warning)
+    _use_model_condition(monkeypatch, interval_km=20000)
 
     notes = providers.maintenance_due_provider(
         _DB(
             [
-                _equipment(id=5, registration_number="EQ-5", current_odometer=Decimal("20000")),
-                _equipment(id=6, registration_number="EQ-6", current_odometer=Decimal("20000")),
+                _equipment(id=5, registration_number="EQ-5", current_odometer=Decimal("19500")),
+                _equipment(id=6, registration_number="EQ-6", current_odometer=Decimal("19500")),
             ]
         )
     )
@@ -174,10 +221,48 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
     assert len(notes) == 2
 
 
+def test_maintenance_provider_uses_each_equipment_own_model_condition(monkeypatch):
+    """الشرط يُقرأ لطراز كل عتاد؛ عتادان بطرازين مختلفين يحصلان على شرطين مختلفين."""
+    record_5 = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
+    record_6 = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
+    monkeypatch.setattr(providers, "latest_readings", lambda db: {})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record_5, (6, 3): record_6})
+    monkeypatch.setattr(
+        providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation(warning_km=Decimal("1000"))]
+    )
+    conditions = {
+        11: _model_condition(11, interval_km=Decimal("20000")),
+        12: _model_condition(12, interval_km=Decimal("100")),
+    }
+    seen: list = []
+
+    def _condition(db, operation, equipment):
+        seen.append(equipment.equipment_model_id)
+        return conditions[equipment.equipment_model_id]
+
+    monkeypatch.setattr(providers, "condition_for_equipment", _condition)
+
+    notes = providers.maintenance_due_provider(
+        _DB(
+            [
+                _equipment(id=5, registration_number="EQ-5", current_odometer=Decimal("19500")),
+                _equipment(id=6, registration_number="EQ-6", equipment_model_id=12, current_odometer=Decimal("100050")),
+            ]
+        )
+    )
+
+    assert seen == [11, 12], "شرط كل عتاد يُقرأ من طرازه"
+    # الطراز 11 على بعد 500 كم، والطراز 12 تجاوز فاصله البالغ 100 كم.
+    assert {(note["key"], note["severity"]) for note in notes} == {
+        ("maintenance:5:3", "upcoming"),
+        ("maintenance:6:3", "overdue"),
+    }
+
+
 def test_maintenance_provider_skips_equipment_without_type(monkeypatch):
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
     monkeypatch.setattr(providers, "latest_records", lambda db: {})
-    monkeypatch.setattr(providers, "effective_operations_for_equipment", lambda db, eq: [])
+    monkeypatch.setattr(providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [])
 
     assert providers.maintenance_due_provider(
         _DB([_equipment(equipment_type=None)])

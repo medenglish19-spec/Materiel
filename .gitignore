@@ -9,6 +9,7 @@ __pycache__/
 
 # Local databases
 *.db
+*.db.bak-*
 *.sqlite3
 
 # Local artefacts (excluded by decision - never commit)

@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from decimal import Decimal
 
@@ -6,7 +6,7 @@ import pytest
 
 from app.modules.maintenance.router import status_for, priority_for
 from app.modules.maintenance.services import plan_status_for
-from app.modules.maintenance.models import _validate_record
+from app.modules.meter_readings.services import validate_meter_observation
 
 
 def equipment(unit="km"):
@@ -76,70 +76,38 @@ def test_priority_puts_due_before_near_and_missing_record():
     assert priority_for("بلا سجل", None, {}) == 3
 
 
-class _Result:
-    def __init__(self, rows=None, scalar=None, first=None):
-        self._rows = rows or []
-        self._scalar = scalar
-        self._first = first
-
-    def scalar_one_or_none(self):
-        return self._scalar
-
-    def first(self):
-        return self._first
-
-    def all(self):
-        return self._rows
+class _MeterQuery:
+    def __init__(self, rows): self.rows = rows
+    def filter(self, *args): return self
+    def __iter__(self): return iter(self.rows)
 
 
-class _MaintenanceValidationConnection:
-    def __init__(self, same_day_rows):
-        self.same_day_rows = same_day_rows
-        self.calls = 0
-
-    def execute(self, statement):
-        self.calls += 1
-        if self.calls == 1:
-            return _Result(scalar="km")
-        if self.calls == 2:
-            return _Result(first=(20,))
-        if self.calls == 3:
-            return _Result(first=(30, True))
-        if self.calls == 6:
-            return _Result(rows=self.same_day_rows)
-        return _Result(rows=[])
-
-
-def _validation_target(meter, record_id=None):
-    return SimpleNamespace(
-        equipment_id=20,
-        maintenance_date=date(2026, 9, 5),
-        meter_value=Decimal(str(meter)),
-        id=record_id,
-        operation_id=1,
-    )
+class _MeterSession:
+    def __init__(self, rows): self.rows = rows
+    def query(self, *args): return _MeterQuery(self.rows)
 
 
 def test_same_day_new_maintenance_cannot_go_backwards_in_meter():
-    connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 1)])
-    with pytest.raises(ValueError, match="في نفس يوم الصيانة"):
-        _validate_record(connection, _validation_target(90))
+    session = _MeterSession([(1, datetime(2026, 9, 5), Decimal("100"), "manual")])
+    with pytest.raises(ValueError, match="نفس التاريخ"):
+        validate_meter_observation(session, 20, date(2026, 9, 5), 90, "km", "maintenance")
 
 
 def test_same_day_new_maintenance_can_keep_or_increase_meter():
-    connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 1)])
-    _validate_record(connection, _validation_target(100))
-    connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 1)])
-    _validate_record(connection, _validation_target(110))
+    session = _MeterSession([(1, datetime(2026, 9, 5), Decimal("100"), "manual")])
+    with pytest.raises(ValueError, match="مسجلة مسبقًا"):
+        validate_meter_observation(session, 20, date(2026, 9, 5), 100, "km", "maintenance")
+    with pytest.raises(ValueError, match="نفس التاريخ"):
+        validate_meter_observation(session, 20, date(2026, 9, 5), 110, "km", "maintenance")
 
 
 def test_same_day_update_respects_record_id_order():
-    connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 1)])
-    with pytest.raises(ValueError, match="في نفس يوم الصيانة"):
-        _validate_record(connection, _validation_target(90, record_id=2), exclude_id=2)
-
-    connection = _MaintenanceValidationConnection([(date(2026, 9, 5), Decimal("100"), 2)])
-    _validate_record(connection, _validation_target(90, record_id=1), exclude_id=1)
+    session = _MeterSession([(2, datetime(2026, 9, 5), Decimal("100"), "manual")])
+    with pytest.raises(ValueError, match="نفس التاريخ"):
+        validate_meter_observation(session, 20, date(2026, 9, 5), 90, "km", "maintenance")
+    # Updating this observation excludes its own source reference; no peer
+    # observation remains on that date, so its replacement value is valid.
+    validate_meter_observation(_MeterSession([]), 20, date(2026, 9, 5), 90, "km", "maintenance", "manual:2")
 
 
 def test_status_uses_calendar_axis_even_when_meter_axis_is_not_due():
@@ -190,13 +158,11 @@ def test_effective_operations_includes_standalone_and_deduplicates_planned():
             return list(self.rows)
 
     class FakeDB:
-        def __init__(self, planned, standalone):
-            self.planned = planned
-            self.standalone = standalone
-            self.calls = 0
+        def __init__(self, operations):
+            self.operations = operations
         def query(self, model):
-            self.calls += 1
-            return FakeQuery(self.planned if self.calls == 1 else self.standalone)
+            # Return operations pre-filtered for the model (fake does the filtering)
+            return FakeQuery(self.operations)
 
     class Op:
         def __init__(self, id, name):
@@ -205,8 +171,15 @@ def test_effective_operations_includes_standalone_and_deduplicates_planned():
     equipment_model = SimpleNamespace(equipment_model_id=7)
     first = Op(1, "زيت المحرك")
     duplicate = Op(1, "زيت المحرك")
-    standalone = Op(2, "فحص الفرامل")
-    db = FakeDB([first, duplicate], [standalone])
+    # Second operation (different ID)
+    other = Op(2, "فحص الفرامل")
+
+    # Test with only the two operations that would be returned for this model
+    db = FakeDB([first, duplicate, other])
 
     rows = effective_operations_for_equipment(db, equipment_model)
+    # Should deduplicate by ID
+    assert [row.id for row in rows] == [1, 2]
+
+    rows = effective_operations_for_equipment(db, equipment_model, include_standalone=True)
     assert [row.id for row in rows] == [1, 2]

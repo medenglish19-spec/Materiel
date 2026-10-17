@@ -118,6 +118,11 @@ def generate_asset_code(db: Session, registration_number: Optional[str] = None) 
 
 def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] = None) -> Equipment:
     asset_code = generate_asset_code(db, data.registration_number); values = data.model_dump(); type_id = values["equipment_type_id"]; model_id = values.get("equipment_model_id")
+    # Equipment creation is not a meter-reading operation. The current-meter
+    # fields are a derived cache and must start empty until the central ledger
+    # receives its first sourced reading.
+    values["current_odometer"] = None
+    values["current_hours"] = None
     equipment_type = db.query(EquipmentType).filter(EquipmentType.id == type_id).first()
     if equipment_type is None: raise ValueError("نوع العتاد المحدد غير موجود")
     if equipment_type.is_frozen: raise ValueError("نوع العتاد مجمد؛ لا يمكن اعتماد عتاد جديد عليه قبل إعادة اعتماده")
@@ -189,6 +194,16 @@ def update_operational_status(db: Session, equipment_id: int, status: str) -> Op
 def update_meters(db: Session, equipment_id: int, odometer=None, hours=None) -> Optional[Equipment]:
     equipment = get_equipment(db, equipment_id)
     if not equipment: return None
-    if odometer is not None: equipment.current_odometer = odometer
-    if hours is not None: equipment.current_hours = hours
-    db.commit(); db.refresh(equipment); return equipment
+    unit = equipment.equipment_type.measurement_unit if equipment.equipment_type else "hours"
+    value = odometer if unit == "km" else hours
+    if value is None:
+        raise ValueError("يجب إدخال قراءة العداد المطابقة لوحدة العتاد")
+    from datetime import datetime, timezone
+    from app.modules.meter_readings.services import create_reading
+    create_reading(
+        db, equipment_id, odometer=value if unit == "km" else None,
+        hours=value if unit == "hours" else None,
+        reading_date=datetime.now(timezone.utc), notes="تحديث قراءة العداد من بيانات العتاد",
+    )
+    db.refresh(equipment)
+    return equipment

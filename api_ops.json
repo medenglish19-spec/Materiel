@@ -1,0 +1,38 @@
+[
+  {
+    "name": "اختبار التشغيل بعد الصيانة",
+    "interval_km": null,
+    "interval_hours": null,
+    "interval_days": 30,
+    "warning_km": null,
+    "warning_days": 6,
+    "is_active": false,
+    "description": null,
+    "group_id": 15,
+    "id": 120
+  },
+  {
+    "name": "اختبار الطريق عند الحاجة",
+    "interval_km": null,
+    "interval_hours": null,
+    "interval_days": 180,
+    "warning_km": null,
+    "warning_days": 36,
+    "is_active": false,
+    "description": null,
+    "group_id": 15,
+    "id": 121
+  },
+  {
+    "name": "اختبار جهد البطارية",
+    "interval_km": null,
+    "interval_hours": null,
+    "interval_days": 90,
+    "warning_km": null,
+    "warning_days": 18,
+    "is_active": false,
+    "description": null,
+    "group_id": 3,
+    "id": 26
+  }
+]

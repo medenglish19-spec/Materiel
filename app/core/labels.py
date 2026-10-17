@@ -47,14 +47,12 @@ FAULT_STATUS_LABELS: Dict[str, str] = {
     "repairing": "قيد الإصلاح",
     "waiting_parts": "بانتظار قطع الغيار",
     "repaired": "تم الإصلاح",
-    "closed": "مغلق",
 }
 
 # حالة التصليح (faults_repairs/schemas.py :: REPAIR_STATUSES)
 REPAIR_STATUS_LABELS: Dict[str, str] = {
     "in_progress": "قيد الإصلاح",
     "completed": "تم الإصلاح",
-    "cancelled": "ملغى",
 }
 
 # خطورة العطل (نفس التسميات المستعملة في <select> داخل faults.html)
@@ -65,6 +63,13 @@ SEVERITY_LABELS: Dict[str, str] = {
     "critical": "حرجة",
 }
 
+SPARE_REQUEST_STATUS_LABELS: Dict[str, str] = {
+    "pending": "معلق",
+    "approved": "معتمد",
+    "rejected": "مرفوض",
+    "cancelled": "ملغى",
+}
+
 
 LABELS: Dict[str, Dict[str, str]] = {
     "operational": OPERATIONAL_STATUS_LABELS,
@@ -72,6 +77,7 @@ LABELS: Dict[str, Dict[str, str]] = {
     "fault": FAULT_STATUS_LABELS,
     "repair": REPAIR_STATUS_LABELS,
     "severity": SEVERITY_LABELS,
+    "spare_request": SPARE_REQUEST_STATUS_LABELS,
 }
 
 

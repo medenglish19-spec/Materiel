@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 from app.modules.equipment.models import Equipment
 from app.modules.missions.models import Mission
+from app.modules.meter_readings.services import sync_current_meter, validate_meter_observation
 
 
 def list_missions(db: Session):
@@ -36,14 +37,21 @@ def validate(db: Session, equipment_id: int, start_date: date, end_date: date | 
         raise ValueError("عداد الانطلاق غير صالح")
     if return_meter is not None and departure_meter is not None and return_meter < departure_meter:
         raise ValueError("عداد العودة لا يمكن أن يقل عن عداد الانطلاق")
-    if return_meter is not None and equipment.current_odometer is not None and return_meter > equipment.current_odometer:
-        raise ValueError("عداد العودة أعلى من العداد الحالي للعتاد")
+    if return_meter is not None and departure_meter is not None and end_date == start_date:
+        raise ValueError("لا يمكن تسجيل قراءتي انطلاق وعودة للعداد في اليوم نفسه")
+    unit = (equipment.equipment_type.measurement_unit if equipment.equipment_type else "km")
+    if departure_meter is not None:
+        validate_meter_observation(db, equipment_id, start_date, departure_meter, unit, "المهمة/الانطلاق")
+    if return_meter is not None and end_date is not None:
+        validate_meter_observation(db, equipment_id, end_date, return_meter, unit, "المهمة/العودة")
 
 
 def add_mission(db: Session, data: dict):
     validate(db, data["equipment_id"], data["start_date"], data.get("end_date"), data.get("departure_meter"), data.get("return_meter"))
     mission = Mission(**data)
     db.add(mission)
+    db.flush()
+    sync_current_meter(db, mission.equipment_id)
     # تحديث وضعية العتاد إلى "في مهمة"
     equipment = db.query(Equipment).filter(Equipment.id == data["equipment_id"]).first()
     if equipment:

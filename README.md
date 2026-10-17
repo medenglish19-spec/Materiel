@@ -26,6 +26,48 @@ python run_web.py
 متغيرات بيئية مدعومة: `DATABASE_URL` · `SECRET_KEY` · `APP_HOST` · `APP_PORT` ·
 `ACCESS_TOKEN_EXPIRE_MINUTES` · `LOG_LEVEL` · `LOG_DIR`
 
+## أي قاعدة بيانات يعمل عليها التطبيق
+
+**خادم التطوير يشير إلى نسخة، لا إلى `fleet_assets.db`.**
+
+`init_db()` ينفّذ `alembic upgrade head` عند كل إقلاع. ومع `--reload` يُعاد
+الإقلاع عند كل حفظ، فأي تعديل على ملف في `migrations/versions/` يُطبَّق على قاعدة
+البيانات أثناء العمل، دون أن يقرر أحد ذلك. حدث هذا فعلًا: تعديل على
+`stage12_spare_parts_complete` طُبِّق على القاعدة الحيّة أثناء إعادة تحميل
+تلقائية لجلسة أخرى.
+
+انسخ القاعدة أولًا، ثم وجّه `DATABASE_URL` إليها:
+
+```bash
+cp fleet_assets.db /tmp/fleet_assets.dev.db
+DATABASE_URL=sqlite:////tmp/fleet_assets.dev.db python run_web.py
+```
+
+```powershell
+Copy-Item fleet_assets.db fleet_assets.dev.db
+$env:DATABASE_URL = "sqlite:///./fleet_assets.dev.db"; python run_web.py
+```
+
+أما القاعدة الحيّة فتُرقَّم مرة واحدة **مقصودة**:
+
+```bash
+python -m alembic upgrade head
+```
+
+ملفات `fleet_assets_backup_*.db` في جذر المستودع بقايا نسخ يدوية متفرقة؛ النسخ
+المسار أعلاه يكفي ولا داعي تراكمها في Git.
+
+### كيف تتأكد ممّا حدث
+
+سطر واحد عند الإقلاع يقول أي قاعدة بيانات يعمل عليها:
+
+```
+Startup facts: commit=726a44a routes=194 database=sqlite:///./fleet_assets.db
+```
+
+وكل migration مُطبَّقة تظهر في `logs/app.log` باسم ملفها، فمراجعة السجل تكفي لمعرفة
+ما طرأ على أي قاعدة.
+
 ## الدخول
 
 `admin` / `Admin@123` — يُنشأ عند أول تشغيل إن لم يوجد.

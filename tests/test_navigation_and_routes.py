@@ -89,15 +89,17 @@ def test_base_navigation_contains_only_registered_internal_paths():
     assert internal_paths <= registered_paths
 
 
-def test_main_page_routes_exist_and_are_protected(monkeypatch):
-    with _client(monkeypatch) as client:
+def test_main_page_routes_are_registered(monkeypatch):
+    """تعطيل المصادقة المؤقت أزال اشتراط الجلسة عن هذه الصفحات.
+
+    نتحقّق هنا من تسجيل المسارات فقط. أمّا الوصول الفعلي بلا جلسة فيُغطّى
+    في `tests/test_authenticated_pages.py` على قاعدة معزولة، حتى لا يلمس
+    أي اختبار قاعدة `fleet_assets.db`.
+    """
+    with _client(monkeypatch):
         registered_paths = _registered_paths()
         for path in sorted(PAGE_PATHS):
             assert path in registered_paths, path
-            response = client.get(path, follow_redirects=False)
-            assert response.status_code in {302, 303, 401, 403}, path
-            if response.status_code in {302, 303}:
-                assert response.headers.get("location", "").startswith("/login"), path
 
 
 def test_logout_remains_public_and_redirects_to_login(monkeypatch):

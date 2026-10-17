@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}لوحة الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=maintenance-home-green">{% endblock %}
 {% block content %}
-<div class="maintenance-page" dir="rtl">
+<div class="maintenance-page maintenance-home" dir="rtl">
   <div class="page-top">
     <div class="page-heading">
       <h2>لوحة الصيانة</h2>
@@ -26,9 +26,10 @@
       </a>
       <a class="kpi" href="/maintenance/rules" style="text-decoration:none;color:inherit">
         <div class="kpi-icon">⚙</div>
-        <div class="kpi-body"><div class="kpi-label">2. شروط الصيانة</div><div class="kpi-meta">تعريف قواعد وفترات الصيانة</div></div>
+        <div class="kpi-body"><div class="kpi-label">2. عمليات الصيانة</div><div class="kpi-meta">تعريف قواعد وفترات الصيانة</div></div>
       </a>
-      <a class="kpi" href="/maintenance/plans" style="text-decoration:none;color:inherit"><div class="kpi-icon">▣</div><div class="kpi-body"><div class="kpi-label">3. خطط الصيانة</div><div class="kpi-meta">تعريف الخطط وربط العمليات بها</div></div></a>\n      <a class="kpi" href="/maintenance/records" style="text-decoration:none;color:inherit">
+      <a class="kpi" href="/maintenance/plans" style="text-decoration:none;color:inherit"><div class="kpi-icon">▣</div><div class="kpi-body"><div class="kpi-label">3. خطط الصيانة</div><div class="kpi-meta">تعريف الخطط وربط العمليات بها</div></div></a>
+      <a class="kpi" href="/maintenance/records" style="text-decoration:none;color:inherit">
         <div class="kpi-icon">▤</div>
         <div class="kpi-body"><div class="kpi-label">4. سجل الصيانة</div><div class="kpi-meta">تسجيل ومراجعة عمليات الصيانة</div></div>
       </a>

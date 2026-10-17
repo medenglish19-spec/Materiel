@@ -46,7 +46,8 @@ def tires_page(request: Request, db: Session = Depends(get_db), current_user: Us
     tires, states = batch_state.current_states(db)
     statuses = {t.id: services.tire_status(t, states.get(t.id)) for t in tires}
     counts = batch_state.dashboard_stats_from_snapshot(tires, states)
-    return templates.TemplateResponse(request=request, name="tires.html", context={"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses})
+    from app.modules.spare_parts_requests.services import list_asset_receipts
+    return templates.TemplateResponse(request=request, name="tires.html", context={"request": request, "user": current_user, "tires": tires, "stats": counts, "validity_years": services.get_validity_years(db), "tire_statuses": statuses, "tire_states": states, "tire_receipts": list_asset_receipts(db, "tire")})
 
 
 @router.get("/tires/settings", response_class=HTMLResponse)
@@ -84,10 +85,20 @@ def tire_inventory_page(request: Request, db: Session = Depends(get_db), current
 
 
 @router.post("/tires")
-def create_tire(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), size: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(""), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_tire(serial_number: str = Form(...), brand: str = Form(""), model: str = Form(""), size: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), expiry_date: date | None = Form(None), acquisition_document: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         services.add_tire(db, {"serial_number": serial_number.strip(), "brand": brand.strip() or None, "model": model.strip() or None, "size": size.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "expiry_date": expiry_date, "acquisition_document": acquisition_document.strip() or None, "notes": notes.strip() or None})
     except Exception as exc:
+        db.rollback()
+        raise _error(exc)
+    return RedirectResponse("/tires", status_code=303)
+
+
+@router.post("/tires/{tire_id}/delete")
+def delete_tire(tire_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        services.delete_tire(db, tire_id)
+    except ValueError as exc:
         db.rollback()
         raise _error(exc)
     return RedirectResponse("/tires", status_code=303)

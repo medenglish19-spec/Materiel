@@ -43,12 +43,17 @@ def test_master_data_has_no_excel_import_at_all():
     assert 'id="chooseSpecs"' in TEMPLATE
 
 
-def test_master_data_keeps_model_copy_and_delete_actions():
-    assert 'data-copy="{{ m.id }}"' in TEMPLATE
+def test_master_data_keeps_model_actions_without_copy():
+    assert 'data-copy="{{ m.id }}"' not in TEMPLATE
     assert 'data-delete="{{ m.id }}"' in TEMPLATE
+    assert 'viewModel(id)' in TEMPLATE
+    assert 'data-type-model' in TEMPLATE
+    assert 'id="editModelBtn"' in TEMPLATE
+    assert 'id="freezeModelForm"' in TEMPLATE
+    assert 'id="deleteModelForm"' in TEMPLATE
+    assert 'نسخ الطراز' not in TREE_SCRIPT
+    assert "'unfreeze' : 'freeze'" in TREE_SCRIPT
     assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in TREE_SCRIPT
-    assert "$('modelForm').action='/equipment-types/models/create'" in TEMPLATE
-
 
 def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
     assert '<script src="/static/js/master-data-tree.js' in TEMPLATE

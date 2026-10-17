@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.equipment.models import Equipment
 from app.modules.fuel.models import FuelRecord
+from app.modules.meter_readings.services import sync_current_meter, validate_meter_observation
 
 ABNORMAL_FACTOR = Decimal("1.20")
 
@@ -18,7 +19,7 @@ def _previous(db: Session, equipment_id: int, fueling_date: date, record_id: int
     q = db.query(FuelRecord).filter(FuelRecord.equipment_id == equipment_id)
     if record_id:
         q = q.filter(FuelRecord.id != record_id)
-    return q.order_by(FuelRecord.fueling_date.desc(), FuelRecord.meter_value.desc(), FuelRecord.id.desc()).first()
+    return q.order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).first()
 
 
 def validate_record(db: Session, equipment_id: int, fueling_date: date, meter_value: Decimal, quantity: Decimal, record_id: int | None = None):
@@ -29,15 +30,9 @@ def validate_record(db: Session, equipment_id: int, fueling_date: date, meter_va
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise ValueError("العتاد غير موجود")
-    if equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-        raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
-    previous = _previous(db, equipment_id, fueling_date, record_id)
-    if previous:
-        if fueling_date < previous.fueling_date:
-            raise ValueError("تاريخ التعبئة لا يمكن أن يسبق آخر تعبئة")
-        if meter_value < previous.meter_value:
-            raise ValueError("قراءة العداد لا يمكن أن تقل عن القراءة السابقة")
-    return previous
+    unit = (equipment.equipment_type.measurement_unit if equipment.equipment_type else "km")
+    validate_meter_observation(db, equipment_id, fueling_date, meter_value, unit, "الوقود")
+    return _previous(db, equipment_id, fueling_date, record_id)
 
 
 def add_record(db: Session, data: dict):
@@ -46,6 +41,8 @@ def add_record(db: Session, data: dict):
         data["sequence_number"] = (db.query(func.max(FuelRecord.sequence_number)).filter(FuelRecord.equipment_id == data["equipment_id"]).scalar() or 0) + 1
     record = FuelRecord(**data)
     db.add(record)
+    db.flush()
+    sync_current_meter(db, record.equipment_id)
     db.commit(); db.refresh(record)
     return record
 

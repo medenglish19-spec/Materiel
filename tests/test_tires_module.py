@@ -1,5 +1,7 @@
 from datetime import date, datetime, timedelta
 
+from pathlib import Path
+
 import pytest
 
 from app.modules.tires.models import Tire, TireMovement, TirePosition
@@ -29,7 +31,7 @@ def test_tire_models_are_registered_with_expected_tables():
     assert Tire.__tablename__ == "tires"
     assert TireMovement.__tablename__ == "tire_movements"
     assert TirePosition.__tablename__ == "tire_positions"
-    assert {"install", "move", "remove"} == MOVEMENT_TYPES
+    assert {"install", "remove"} == MOVEMENT_TYPES
 
 
 def test_tire_condition_and_location_are_independent():
@@ -89,3 +91,10 @@ def test_damaged_tire_cannot_be_installed(monkeypatch):
 
     with pytest.raises(ValueError, match="تالف"):
         validate_movement(_DB(), tire, "install", date.today(), 1, 1, None, datetime.now().replace(microsecond=0))
+
+
+def test_tire_movement_form_uses_shared_editor_without_tracking_disposal_form():
+    template = Path("app/modules/tires/templates/tire_detail.html").read_text(encoding="utf-8")
+
+    assert 'id="movementForm" method="post" action="/tires/{{ tire.id }}/movements" class="record-form" data-em-root' in template
+    assert 'action="/tires/{{ tire.id }}/dispose" class="record-form" data-em-root' in template

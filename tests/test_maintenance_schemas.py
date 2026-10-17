@@ -11,9 +11,13 @@ from app.modules.maintenance.schemas import (
 )
 
 
-def test_operation_requires_at_least_one_interval():
-    with pytest.raises(ValidationError):
-        MaintenanceOperationCreate(name="تغيير الزيت")
+def test_operation_does_not_require_an_interval_on_its_own_row():
+    """شرط الاستحقاق يخص علاقة الطراز؛ العملية العامة تُنشأ بلا فاصل مشترك."""
+    item = MaintenanceOperationCreate(name="تغيير الزيت")
+    assert item.interval_km is None
+    assert item.interval_hours is None
+    assert item.interval_days is None
+    assert item.equipment_model_conditions == []
 
 
 def test_operation_accepts_single_interval():
