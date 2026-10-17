@@ -82,9 +82,20 @@ Do not modify historical migrations merely to repair a current problem unless th
 
 ## Git Rules
 
-The working branch is normally:
+The single canonical working branch for all agents is:
 
 `stage3-maintenance-operations`
+
+All implementation work must land on this branch and stay synchronized with
+`origin/stage3-maintenance-operations`. Agents must not create or continue
+feature branches for routine work. If a task starts in another branch or an
+isolated worktree, do not switch branches or move commits while the checkout is
+dirty; preserve its changes and coordinate a safe transfer to the canonical
+branch before continuing implementation.
+
+Only one agent may write, commit, or push to the canonical branch at a time.
+Other agents may inspect or review, but must wait before making changes. This
+serializes updates so parallel agents cannot race each other's commits or pushes.
 
 Always inspect:
 
@@ -121,36 +132,37 @@ Do not:
 
 unless explicitly instructed.
 
-### Commit policy
+### Commit and sync policy
 
-Do not create a commit merely because a modification works.
+After completing the assigned change and passing its relevant tests, each agent
+must create a focused commit and push it to
+`origin/stage3-maintenance-operations`. This repository-level instruction
+authorizes that routine commit and push without a separate request each time.
+Do not commit incomplete work or mix unrelated changes into the commit.
 
-Create a commit only when the user explicitly requests:
-
-* commit
-* commit + push
-* push
-* تنفيذ commit
-* نفذ commit
-* commit and push
-
-When explicitly requested, make a focused commit with a clear message.
-
-Do not mix unrelated fixes into one commit.
-
-### Push policy
-
-Never push automatically unless the user explicitly requests a push.
-
-Before pushing:
+Before starting work and again before committing or pushing:
 
 ```bash
+git fetch origin
 git status -sb
+git branch --show-current
 git log --oneline --decorate -5
 ```
 
-Confirm the intended branch and commit.
+Confirm the current branch is `stage3-maintenance-operations`. Bring it up to
+date only with a fast-forward when the working tree is clean:
 
+```bash
+git merge --ff-only origin/stage3-maintenance-operations
+```
+
+Stage only the assigned task's files or hunks. Push the focused commit to the
+canonical remote branch. If the push is rejected because another update landed,
+fetch and coordinate with the active writer; never force-push, reset, or rebase
+shared history. Do not merge every local or remote branch wholesale. Review
+candidate commits and their tests, then transfer only validated work to the
+canonical branch while preserving all source branches until that transfer is
+verified.
 ---
 
 ## Testing Rules
