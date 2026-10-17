@@ -170,6 +170,7 @@ def test_repair_detail_edits_and_persists_fields_for_any_record(repair_page):
     assert 'id="editRepair"' in page.text
     assert 'id="saveRepair"' in page.text
     assert 'id="cancelRepair"' in page.text
+    assert "if(d.repair_end_date==='')d.repair_end_date=null" in page.text
 
     response = client.patch(
         f"/api/faults-repairs/repairs/{ids['repair']}",
