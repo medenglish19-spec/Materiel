@@ -207,7 +207,9 @@ class SparePart(Base):
     id = Column(Integer, primary_key=True, index=True)
     part_number = Column(String(80), nullable=False, index=True)
     name = Column(String(160), nullable=False)
-    receiving_document = Column(String(255), nullable=False)
+    # Catalog records may exist before a procurement/receipt document does.
+    # Receipt history remains in spare-parts request/movement modules.
+    receiving_document = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 
 

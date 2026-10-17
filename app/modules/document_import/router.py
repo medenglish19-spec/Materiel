@@ -17,6 +17,7 @@ from app.modules.users.models import User
 from .schemas import ImportPreviewResponse, ImportApplyRequest
 from .extraction.extractor import ExtractionError
 from .services import preview_from_document, apply_candidates
+from .upload import read_upload_bytes, UploadTooLargeError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -50,7 +51,10 @@ async def preview_html(
         raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
-        data = await file.read()
+        try:
+            data = await read_upload_bytes(file)
+        except UploadTooLargeError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
         tmp.write(data)
         tmp.close()
         try:
@@ -87,7 +91,10 @@ async def preview_json(
         raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
-        data = await file.read()
+        try:
+            data = await read_upload_bytes(file)
+        except UploadTooLargeError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
         tmp.write(data)
         tmp.close()
         try:

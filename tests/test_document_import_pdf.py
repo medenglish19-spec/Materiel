@@ -167,6 +167,7 @@ def test_corrupt_pdf_raises_clear_error(tmp_path):
 
 
 def test_encrypted_pdf_raises_clear_error(tmp_path):
+    pytest.importorskip("pypdf", reason="اختبار تشفير PDF يتطلب pypdf الاختيارية")
     p = tmp_path / "enc.pdf"
     p.write_bytes(build_encrypted_pdf())
 

@@ -16,10 +16,21 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 
 
+CATALOG_TABLES = {
+    "spare_part_categories",
+    "spare_part_catalog_details",
+    "spare_part_catalog_references",
+    "spare_part_catalog_imports",
+}
+
+
 def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path):
     database = tmp_path / f"meter-ledger-migration-{uuid.uuid4().hex}.db"
     engine = create_engine(f"sqlite:///{database}")
-    Base.metadata.create_all(engine)
+    # Model metadata includes tables introduced after this migration's starting
+    # revision. Build the legacy schema without them before replaying Alembic.
+    legacy_tables = [table for table in Base.metadata.sorted_tables if table.name not in CATALOG_TABLES]
+    Base.metadata.create_all(engine, tables=legacy_tables)
     from sqlalchemy.orm import Session
     with Session(engine) as session:
         equipment_type = EquipmentType(name="Migration km", measurement_unit="km")

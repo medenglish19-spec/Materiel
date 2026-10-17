@@ -46,6 +46,7 @@ PAGE_MARKERS = [
     ("/tires/inventory", None),
     ("/batteries", "البطاريات"),
     ("/spare-parts-received", "استلام الإطارات والبطاريات"),
+    ("/spare-parts/catalog", "كتالوج قطع الغيار"),
     ("/fuel", "الوقود"),
     ("/missions", "المهمات"),
     ("/users", None),
@@ -211,6 +212,37 @@ def anonymous():
 def test_login_sets_a_session_that_authenticates_the_pages(pages):
     client, _ = pages
     assert client.cookies.get("fleet_session"), "لا كوكي جلسة بعد الدخول"
+
+
+def test_spare_parts_catalog_add_and_import_preview_apply(pages):
+    client, _ = pages
+    page = client.get("/spare-parts/catalog")
+    assert page.status_code == 200
+    assert "كتالوج قطع الغيار" in page.text
+
+    created = client.post(
+        "/spare-parts/catalog/parts",
+        data={"name": "فلتر تجريبي", "name_ar": "فلتر", "reference": "PAGE-001", "manufacturer": "شركة اختبار"},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    assert "فلتر" in client.get("/spare-parts/catalog").text
+
+    preview = client.post(
+        "/spare-parts/catalog/import",
+        files={"file": ("catalog.csv", "reference,name,manufacturer\nPAGE-002,حشية,شركة اختبار\n".encode("utf-8"), "text/csv")},
+    )
+    assert preview.status_code == 200, preview.text
+    assert "حشية" in preview.text
+    import re
+    batch_id = re.search(r"/spare-parts/catalog/import/(\d+)/apply", preview.text).group(1)
+    result = client.post(
+        f"/spare-parts/catalog/import/{batch_id}/apply",
+        data={"row-0-include": "1"},
+    )
+    assert result.status_code == 200, result.text
+    assert "أضيف 1" in result.text
+    assert "PAGE-002" in client.get("/spare-parts/catalog").text
 
 
 def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):

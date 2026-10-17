@@ -5,6 +5,10 @@ Scanned PDF: if extracted text < threshold, tries PaddleOCR (local) if installed
 """
 from __future__ import annotations
 from pathlib import Path
+import re
+import zlib
+import zipfile
+from xml.etree import ElementTree
 from typing import Any, Dict, List, Optional, Union
 
 
@@ -31,6 +35,45 @@ class ExtractedDocument:
         self.metadata = metadata or {}
         self.ocr_used = ocr_used
         self.ocr_engine = ocr_engine
+
+
+def _simple_pdf_text(path: Path) -> str:
+    """Best-effort fallback for uncompressed text-only PDF content streams.
+
+    Full parsing is delegated to pypdf/Docling when installed. This fallback
+    handles ordinary literal-string Tj/TJ operators and does not perform OCR.
+    """
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return ""
+    if len(data) > 25 * 1024 * 1024:
+        return ""
+    pages = []
+    for match in re.finditer(rb"stream\r?\n(.*?)\r?\nendstream", data, re.DOTALL):
+        stream = match.group(1)
+        prefix = data[max(0, match.start() - 512):match.start()]
+        if b"/FlateDecode" in prefix:
+            try:
+                stream = zlib.decompress(stream)
+            except zlib.error:
+                continue
+        pieces = []
+        literal_pattern = re.compile(rb"\(((?:\\.|[^\\)])*)\)")
+        operators = re.finditer(rb"(\((?:\\.|[^\\)])*\)\s*Tj|\[(.*?)\]\s*TJ)", stream, re.DOTALL)
+        for operator in operators:
+            payload = operator.group(1) if operator.group(2) is None else operator.group(2)
+            for literal in literal_pattern.findall(payload):
+                def unescape(match):
+                    token = match.group(1)
+                    if len(token) == 3 and all(byte in b"01234567" for byte in token):
+                        return bytes([int(token, 8)])
+                    return {b"n": b"\n", b"r": b"\r", b"t": b"\t", b"b": b"\b", b"f": b"\f"}.get(token, token)
+                decoded = re.sub(rb"\\(\\|\(|\)|[nrtbf]|[0-7]{3})", unescape, literal)
+                pieces.append(decoded.decode("latin-1", errors="replace"))
+        if pieces:
+            pages.append("".join(pieces))
+    return "\n\n".join(f"PAGE {index}:\n{text}" for index, text in enumerate(pages, start=1))
 
 
 def extract_document(path: Union[str, Path], **kwargs) -> ExtractedDocument:
@@ -106,6 +149,13 @@ def extract_document(path: Union[str, Path], **kwargs) -> ExtractedDocument:
                 if not text_parts and not tables:
                     raise ExtractionError("pdf_corrupt", "ملف PDF تالف أو غير صالح.") from exc
 
+        if PdfReader is None and not text_parts and not tables:
+            if b"/Encrypt" in p.read_bytes()[-4096:]:
+                raise ExtractionError("pdf_encrypted", "ملف PDF محمي؛ أزل كلمة المرور أو ثبّت pypdf لدعم الملفات المحمية.")
+            fallback = _simple_pdf_text(p)
+            if fallback:
+                text_parts.append(fallback)
+
         text = "\n\n".join(text_parts)
         if not text.strip():
             try:
@@ -147,22 +197,47 @@ def extract_document(path: Union[str, Path], **kwargs) -> ExtractedDocument:
         return ExtractedDocument(text=text, tables=tables, ocr_used=ocr_used, ocr_engine=ocr_engine)
 
     if ext == ".docx":
+        # Read Office Open XML directly: no macros are executed, and the
+        # importer remains usable when the optional python-docx package is absent.
         try:
-            from docx import Document  # type: ignore
-
-            d = Document(str(p))
-            for para in d.paragraphs:
-                if para.text:
-                    text_parts.append(para.text)
-            for t in d.tables:
+            with zipfile.ZipFile(p) as archive:
+                if "word/document.xml" not in archive.namelist():
+                    raise ExtractionError("docx_invalid", "الملف لا يحتوي مستند Word صالحًا.")
+                document = ElementTree.fromstring(archive.read("word/document.xml"))
+            namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+            for paragraph in document.iter(namespace + "p"):
+                text = "".join(node.text or "" for node in paragraph.iter(namespace + "t"))
+                if text:
+                    text_parts.append(text)
+            for table in document.iter(namespace + "tbl"):
                 rows = []
-                for tr in t.rows:
-                    rows.append([tc.text for tc in tr.cells])
+                for row in table.findall(namespace + "tr"):
+                    rows.append(["".join(node.text or "" for node in cell.iter(namespace + "t")) for cell in row.findall(namespace + "tc")])
                 if rows:
                     tables.append(ExtractedTable(rows=rows))
-        except Exception:
-            pass
+        except ExtractionError:
+            raise
+        except (OSError, zipfile.BadZipFile, ElementTree.ParseError) as exc:
+            raise ExtractionError("docx_corrupt", "ملف DOCX تالف أو غير صالح.") from exc
+        if not text_parts and not tables:
+            raise ExtractionError("docx_no_content", "لم يُعثر على نص أو جداول قابلة للاستخراج في DOCX.")
         return ExtractedDocument(text="\n".join(text_parts), tables=tables)
+
+    if ext == ".xls":
+        try:
+            import xlrd  # type: ignore
+        except ImportError as exc:
+            raise ExtractionError("xls_dependency", "ملفات XLS القديمة تحتاج إلى xlrd؛ احفظ الملف بصيغة XLSX أو CSV.") from exc
+        try:
+            workbook = xlrd.open_workbook(str(p), on_demand=True)
+            for sheet in workbook.sheets():
+                rows = [[str(sheet.cell_value(row, col)) for col in range(sheet.ncols)] for row in range(sheet.nrows)]
+                if rows:
+                    tables.append(ExtractedTable(rows=rows, name=sheet.name))
+            workbook.release_resources()
+        except Exception as exc:
+            raise ExtractionError("xls_corrupt", "ملف XLS تالف أو غير صالح.") from exc
+        return ExtractedDocument(tables=tables)
 
     if ext == ".xlsx":
         try:

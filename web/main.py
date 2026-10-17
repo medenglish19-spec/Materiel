@@ -28,6 +28,7 @@ from app.modules.meter_readings.router import router as meter_readings_router
 from app.modules.tires.router import router as tires_router
 from app.modules.batteries.router import router as batteries_router
 from app.modules.document_import.router import router as document_import_router
+from app.modules.spare_parts_catalog.router import router as spare_parts_catalog_router
 from app.modules.fuel.router import router as fuel_router
 from app.modules.missions.router import router as missions_router
 from app.modules.users.router import router as users_router
@@ -164,6 +165,7 @@ def create_app() -> FastAPI:
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])
     app.include_router(document_import_router, tags=["document_import"])
+    app.include_router(spare_parts_catalog_router, tags=["spare_parts_catalog"])
     app.include_router(missions_router, tags=["missions"])
 
     @app.get("/health")
