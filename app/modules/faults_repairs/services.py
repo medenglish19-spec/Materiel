@@ -9,7 +9,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.meter_readings.models import MeterReading
 from app.modules.maintenance.models import MaintenanceRecord
 from .models import Fault, Repair, SparePart, RepairPart, Technician, TechnicianIntervention
-from .schemas import FaultCreate, FaultUpdate, RepairCreate, RepairUpdate, TechnicianInterventionUpdate, SparePartCreate, SparePartUpdate, RepairPartCreate
+from .schemas import FaultCreate, FaultUpdate, REPAIR_STATUSES, RepairCreate, RepairUpdate, TechnicianInterventionUpdate, SparePartCreate, SparePartUpdate, RepairPartCreate
 
 
 

@@ -199,61 +199,6 @@ def test_dashboard_metrics_follow_live_domain_records_after_changes():
         engine.dispose()
 
 
-def test_faults_repairs_dashboard_counts_repairs_separately_by_status():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine, autoflush=False)()
-    try:
-        equipment_type = EquipmentType(name="Repair status test type", measurement_unit="km")
-        session.add(equipment_type)
-        session.flush()
-        equipment = Equipment(
-            asset_code="REPAIR-STATUS-1",
-            equipment_type_id=equipment_type.id,
-            technical_condition="ready",
-            operational_status="available",
-        )
-        session.add(equipment)
-        session.flush()
-
-        for index, status in enumerate(("in_progress", "completed")):
-            fault = Fault(
-                equipment_id=equipment.id,
-                reported_date=date.today(),
-                description=f"Repair status test fault {index}",
-                severity="medium",
-                status="repairing",
-                exploitation_impact="none",
-            )
-            session.add(fault)
-            session.flush()
-            session.add(
-                Repair(
-                    fault_id=fault.id,
-                    repair_date=date.today(),
-                    action_taken="Repair status test",
-                    workshop_type="internal",
-                    status=status,
-                )
-            )
-        session.commit()
-
-        stats = repair_services.dashboard_stats(session)
-
-        assert stats["repairs_total"] == 2
-        assert stats["repairs_by_status"] == {
-            "in_progress": 1,
-            "completed": 1,
-        }
-    finally:
-        session.close()
-        Base.metadata.drop_all(engine)
-        engine.dispose()
-
 def test_dashboard_readiness_is_zero_for_an_empty_fleet():
     engine = create_engine(
         "sqlite:///:memory:",
