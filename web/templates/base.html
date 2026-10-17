@@ -283,7 +283,7 @@ window.showMaterielNotice=function(message,type='warning'){
   const box=document.createElement('section');box.className='materiel-notice materiel-notice-'+kind;box.setAttribute('role','alertdialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label',kind==='danger'?'رسالة خطأ':'رسالة تحذير');
   const iconEl=document.createElement('span');iconEl.className='materiel-notice-icon';iconEl.setAttribute('aria-hidden','true');iconEl.textContent=kind==='danger'?'⛔':'⚠️';
   const content=document.createElement('div');content.className='materiel-notice-content';
-  const title=document.createElement('strong');title.className='materiel-notice-title';title.textContent=kind==='danger'?'خطأ':'تنبيه';
+  const title=document.createElement('strong');title.className='materiel-notice-title';title.textContent=kind==='danger'?'خطأ':'تحذير';
   const textEl=document.createElement('div');textEl.className='materiel-notice-text';textEl.textContent=String(message||'تعذر تنفيذ العملية. حاول مرة أخرى.');content.append(title,textEl);
   const close=document.createElement('button');close.type='button';close.className='materiel-notice-close';close.setAttribute('aria-label','إغلاق');close.textContent='×';box.append(iconEl,content,close);backdrop.append(box);document.body.append(backdrop);
   const dismiss=()=>{backdrop.remove();document.removeEventListener('keydown',onKeyDown);if(dismissMaterielNotice===dismiss)dismissMaterielNotice=null;if(previousFocus&&previousFocus.isConnected&&typeof previousFocus.focus==='function')previousFocus.focus()};

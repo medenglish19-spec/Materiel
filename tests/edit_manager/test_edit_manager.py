@@ -224,10 +224,12 @@ def test_save_failure_keeps_page_dirty(browser_page):
     page,errors=browser_page
     page.locator('#meter').fill('250')
     page.wait_for_timeout(500)
+    page.evaluate("window.noticeMessages=[];window.showMaterielNotice=(message,type)=>window.noticeMessages.push({message,type})")
     page.evaluate("EditManager.setSaveHandler(async()=>false)")
     page.locator('[data-em-action="save"]').click()
     page.wait_for_timeout(100)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate('window.noticeMessages.at(-1)') == {"message": "تعذر حفظ التغييرات. حاول مرة أخرى.", "type": "danger"}
     assert not errors
 
 
@@ -307,7 +309,7 @@ def test_async_form_save_waits_for_api_and_retries_without_losing_input(browser_
     assert not page.evaluate("window.firstSave")
     expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
     expect(page.locator('#asyncSaveValue')).to_have_value('keep-me')
-    expect(page.locator('#emToast')).to_contain_text('الكمية المتاحة للتوزيع هي 3 فقط')
+    expect(page.get_by_role('alertdialog')).to_contain_text('الكمية المتاحة للتوزيع هي 3 فقط')
     assert page.url.endswith('/maintenance/records')
 
     page.locator('#asyncSaveValue').fill('valid-value')
@@ -348,7 +350,7 @@ def test_concurrent_writes_are_all_awaited_and_repeated_save_is_guarded(browser_
     assert [method for method,_ in calls]==['POST','PATCH']
     assert page.evaluate("window.apiErrors.length")==1
     expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
-    expect(page.locator('#emToast')).to_contain_text('قيمة غير صالحة')
+    expect(page.get_by_role('alertdialog')).to_contain_text('قيمة غير صالحة')
     assert not errors
 
 
