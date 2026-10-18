@@ -1,4 +1,4 @@
-"""Load optional, post-build branding for the application's welcome screen."""
+"""Load editable application branding shared by the welcome screen and shell."""
 
 import base64
 import json
@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = {
     "institution_name": "اسم المؤسسة",
     "description": "مساحة للنص التعريفي أو رسالة الترحيب",
@@ -24,8 +24,7 @@ def customization_directory() -> Path:
     return PROJECT_ROOT / "splash-screen"
 
 
-def load_splash_content() -> dict[str, str | None]:
-    """Read editable text and an optional logo without requiring an app rebuild."""
+def _load_configuration() -> tuple[Path, dict[str, str]]:
     directory = customization_directory()
     values = DEFAULTS.copy()
     try:
@@ -37,6 +36,18 @@ def load_splash_content() -> dict[str, str | None]:
             value = loaded.get(key)
             if isinstance(value, str) and value.strip():
                 values[key] = value.strip()
+    return directory, values
+
+
+def load_institution_name() -> str:
+    """Read the institution name from the editable branding configuration."""
+    _, values = _load_configuration()
+    return values["institution_name"]
+
+
+def load_splash_content() -> dict[str, str | None]:
+    """Read editable welcome text and an optional logo without rebuilding."""
+    directory, values = _load_configuration()
 
     logo_file = values["logo_file"]
     logo_path = directory / logo_file

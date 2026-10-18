@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
 
+from app.core.branding import load_splash_content
 from app.core.config import security_warnings, settings
 from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
@@ -33,8 +34,6 @@ from app.modules.spare_parts_catalog.router import router as spare_parts_catalog
 from app.modules.fuel.router import router as fuel_router
 from app.modules.missions.router import router as missions_router
 from app.modules.users.router import router as users_router
-from web.splash_screen import load_splash_content
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = PROJECT_ROOT / "static"
 

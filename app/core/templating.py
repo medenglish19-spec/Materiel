@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from app.core.branding import load_institution_name
 from app.core.labels import LABELS, label, label_options
 
 
@@ -26,5 +27,10 @@ def get_module_templates(module_templates_dir: str) -> Jinja2Templates:
     """
     module_dir = PROJECT_ROOT / module_templates_dir
     templates = Jinja2Templates(directory=[str(module_dir), str(SHARED_TEMPLATES_DIR)])
-    templates.env.globals.update(label=label, label_options=label_options, LABELS=LABELS)
+    templates.env.globals.update(
+        label=label,
+        label_options=label_options,
+        LABELS=LABELS,
+        institution_name=load_institution_name,
+    )
     return templates

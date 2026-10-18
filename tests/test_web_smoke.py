@@ -29,7 +29,7 @@ def test_root_renders_splash_and_offers_dashboard_when_auth_is_disabled(monkeypa
 def test_splash_content_can_be_changed_without_rebuilding(monkeypatch, tmp_path):
     import json
 
-    from web import splash_screen
+    from app.core import branding
 
     (tmp_path / "config.json").write_text(json.dumps({
         "institution_name": "مؤسسة الاختبار",
@@ -39,7 +39,7 @@ def test_splash_content_can_be_changed_without_rebuilding(monkeypatch, tmp_path)
         "logo_file": "logo.png",
     }, ensure_ascii=False), encoding="utf-8")
     (tmp_path / "logo.png").write_bytes(b"test-logo")
-    monkeypatch.setattr(splash_screen, "customization_directory", lambda: tmp_path)
+    monkeypatch.setattr(branding, "customization_directory", lambda: tmp_path)
 
     with _client(monkeypatch) as client:
         response = client.get("/")
