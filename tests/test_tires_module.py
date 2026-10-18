@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.database import model_registry  # noqa: F401
 from app.modules.tires.models import Tire, TireMovement, TirePosition
 from app.modules.tires.services import MOVEMENT_TYPES, tire_condition, tire_location, tire_status, validate_movement
 
@@ -98,3 +99,10 @@ def test_tire_movement_form_uses_shared_editor_without_tracking_disposal_form():
 
     assert 'id="movementForm" method="post" action="/tires/{{ tire.id }}/movements" class="record-form" data-em-root' in template
     assert 'action="/tires/{{ tire.id }}/dispose" class="record-form" data-em-root' in template
+
+
+def test_legacy_install_without_equipment_does_not_render_a_broken_link():
+    template = Path("app/modules/tires/templates/tire_detail.html").read_text(encoding="utf-8")
+
+    assert "{% if state.equipment and state.equipment.id %}" in template
+    assert "سجل التركيب لا يحتوي على رابط عتاد صالح." in template
