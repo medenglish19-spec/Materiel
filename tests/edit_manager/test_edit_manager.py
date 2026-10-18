@@ -423,7 +423,7 @@ def test_distribution_save_failure_refreshes_balances_without_losing_quantities(
     assert page.url.endswith('/maintenance/records')
     assert not errors
 
-def test_history_index_lists_and_navigates_between_undoable_changes(browser_page):
+def test_history_index_is_read_only_and_undo_redo_remain_sequential(browser_page):
     page, errors = browser_page
     page.locator('#meter').fill('250')
     page.wait_for_timeout(450)
@@ -431,9 +431,20 @@ def test_history_index_lists_and_navigates_between_undoable_changes(browser_page
     page.wait_for_timeout(450)
     expect(page.locator('#emHistoryCount')).to_have_text('2')
     page.locator('#emHistoryMenu summary').click()
-    expect(page.locator('#emHistoryList [data-em-history-index]')).to_have_count(3)
-    page.locator('#emHistoryList [data-em-history-index="1"]').click()
+    items = page.locator('#emHistoryList .app-history-item')
+    expect(items).to_have_count(3)
+    expect(page.locator('#emHistoryList button')).to_have_count(0)
+    expect(page.locator('#emHistoryList [data-em-history-index]')).to_have_count(0)
+    assert page.evaluate("typeof EditManager.goToHistory") == 'undefined'
+    items.nth(1).click()
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#emHistoryCount')).to_have_text('2')
+    page.locator('[data-em-action="undo"]').click()
     expect(page.locator('#meter')).to_have_value('250')
-    page.locator('#emHistoryList [data-em-history-index="2"]').click()
+    page.locator('[data-em-action="undo"]').click()
+    expect(page.locator('#meter')).to_have_value('')
+    page.locator('[data-em-action="redo"]').click()
+    expect(page.locator('#meter')).to_have_value('250')
+    page.locator('[data-em-action="redo"]').click()
     expect(page.locator('#meter')).to_have_value('500')
     assert not errors
