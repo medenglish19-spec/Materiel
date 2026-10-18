@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -112,8 +112,24 @@ def test_meter_history_shows_difference_for_latest_reading(
 
     assert total == 2
     assert page == 1
-    assert rows[0]["difference"] == expected_difference
-    assert rows[1]["difference"] == "—"
+    assert [row["reading"] for row in rows] == [f"{first_value:,}", f"{latest_value:,}"]
+    assert rows[0]["difference"] == "—"
+    assert rows[1]["difference"] == expected_difference
+
+
+def test_meter_history_date_filter_preserves_previous_chronological_reading(db):
+    equipment = seed_equipment(db, "HISTORY-FILTER", "km")
+    services.create_reading(db, equipment.id, odometer=31900, reading_date=datetime(2026, 10, 17))
+    services.create_reading(db, equipment.id, odometer=32000, reading_date=datetime(2026, 10, 18))
+
+    _equipment, rows, total, _pages, page = services.history_rows(
+        db, equipment.id, from_date=date(2026, 10, 18), to_date=date(2026, 10, 18)
+    )
+
+    assert total == 1
+    assert page == 1
+    assert [row["reading"] for row in rows] == ["32,000"]
+    assert rows[0]["difference"] == "+100"
 
 
 def test_duplicate_manual_reading_same_date_and_value_is_rejected(db):

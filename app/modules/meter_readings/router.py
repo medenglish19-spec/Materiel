@@ -226,7 +226,9 @@ def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session 
         ],
     }
 @router.get("/history/{equipment_id}", response_class=HTMLResponse)
-def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
+def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), from_date: date | None = Query(None), to_date: date | None = Query(None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if from_date and to_date and from_date > to_date:
+        raise HTTPException(status_code=400, detail="تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه.")
+    equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size, from_date=from_date, to_date=to_date)
     if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size})
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size, "from_date": from_date, "to_date": to_date})
