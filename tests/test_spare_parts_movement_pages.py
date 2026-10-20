@@ -135,11 +135,14 @@ def test_each_movement_page_is_registered_exactly_once(path):
     )
 
 
-def test_the_sidebar_link_points_at_the_real_path():
+def test_the_fixed_header_navigation_links_to_the_real_path():
     """The nav href and the route must agree, or the link 404s for the user."""
     text = BASE_TEMPLATE.read_text(encoding="utf-8")
+    nav_start = text.index('id="appModuleNav"')
+    nav_end = text.index("</nav>", nav_start)
+    nav = text[nav_start:nav_end]
 
-    assert f'href="{PAGE}"' in text, f"the sidebar does not link to {PAGE}"
+    assert f'href="{PAGE}"' in nav, f"the fixed header does not link to {PAGE}"
 
 
 @pytest.mark.parametrize("template", ["distribution.html", "return.html"])
