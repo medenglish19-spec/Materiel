@@ -496,6 +496,73 @@ def test_viewer_can_view_record_details_but_cannot_edit_or_delete(api, monkeypat
     )
 
 
+def test_viewer_cannot_create_maintenance_plans_operations_or_records(api, monkeypatch):
+    client, ids = api
+    plan, operation = _approve_plan_with_operation(client, ids["model_a"])
+    viewer = User(
+        id=2,
+        username="maintenance-viewer",
+        full_name="قارئ",
+        hashed_password="x",
+        role="viewer",
+        is_active=True,
+    )
+    monkeypatch.setattr(settings, "DEV_DISABLE_AUTH", False)
+    client.app.dependency_overrides[get_current_user] = lambda: viewer
+
+    plan_response = client.post(
+        "/api/maintenance/plans",
+        json={
+            "name": "خطة غير مصرح بها",
+            "equipment_model_id": ids["model_a"],
+            "interval_km": 20000,
+        },
+    )
+    operation_response = client.post(
+        "/api/maintenance/operations",
+        json={
+            "name": "عملية غير مصرح بها",
+            "equipment_model_conditions": [
+                {"model_id": ids["model_a"], "condition_source": "model", "interval_km": 20000}
+            ],
+        },
+    )
+    record_response = client.post(
+        "/maintenance/records/create",
+        data={
+            "equipment_id": ids["equipment_a"],
+            "operation_id": operation["id"],
+            "plan_id": plan["id"],
+            "maintenance_date": date.today().isoformat(),
+            "meter_value": "100",
+        },
+    )
+
+    assert plan_response.status_code == 403
+    assert operation_response.status_code == 403
+    assert record_response.status_code == 403
+    assert client.get("/api/maintenance/plans").status_code == 200
+
+    fleet_manager = User(
+        id=3,
+        username="maintenance-manager",
+        full_name="مدير الأسطول",
+        hashed_password="x",
+        role="fleet_manager",
+        is_active=True,
+    )
+    client.app.dependency_overrides[get_current_user] = lambda: fleet_manager
+    manager_response = client.post(
+        "/api/maintenance/plans",
+        json={
+            "name": "خطة مصرح بها",
+            "equipment_model_id": ids["model_a"],
+            "interval_km": 20000,
+        },
+    )
+    assert manager_response.status_code == 201, manager_response.text
+
+
 def test_delete_completed_record_preserves_meter_history_and_current_value(api):
     client, ids = api
     plan, operation = _approve_plan_with_operation(client, ids["model_a"])

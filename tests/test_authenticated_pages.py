@@ -38,6 +38,7 @@ PAGE_MARKERS = [
     ("/maintenance/periodic", None),
     ("/maintenance/plans", None),
     ("/maintenance/rules", None),
+    ("/maintenance/catalog-imports", "كتالوجات الصيانة الفنية"),
     ("/faults-repairs", "الأعطال"),
     ("/faults-repairs/faults", None),
     ("/faults-repairs/repairs", None),
@@ -49,6 +50,7 @@ PAGE_MARKERS = [
     ("/spare-parts/catalog", "كتالوج قطع الغيار"),
     ("/fuel", "الوقود"),
     ("/missions", "المهمات"),
+    ("/missions/drivers", "المهمات والسائقون"),
     ("/users", None),
 ]
 
@@ -376,7 +378,7 @@ def test_single_form_pages_are_connected_to_the_shared_editor(pages):
     client, _ = pages
     for path, marker in (
         ("/fuel", 'class="fuel-form" data-em-root'),
-        ("/missions", 'action="/missions" class="record-form" data-em-root'),
+        ("/missions", 'action="/missions" class="mission-form" data-em-root'),
         ("/tires/settings", 'action="/tires/settings" data-em-root'),
         ("/batteries/settings", 'action="/batteries/settings" class="record-form" data-em-root'),
         ("/tires", 'action="/tires" class="tire-form" data-em-root'),

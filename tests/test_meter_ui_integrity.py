@@ -107,10 +107,6 @@ def test_meter_readings_page_keeps_all_core_actions():
 
 def test_meter_history_page_keeps_edit_delete_actions():
     text = HISTORY_TEMPLATE.read_text(encoding="utf-8")
-    assert 'data-meter-history-order="chronological"' in text
-    assert 'name="from_date"' in text
-    assert 'name="to_date"' in text
-    assert "الفرق عن القراءة السابقة زمنيًا" in text
     assert 'class="action-btn edit"' in text
     assert 'class="action-btn delete"' in text
     assert '<form id="editReadingForm" data-em-root>' in text

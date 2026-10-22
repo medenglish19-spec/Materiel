@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.faults_repairs.models import Fault, Repair, SparePart
@@ -40,10 +40,24 @@ def list_asset_receipts(db: Session, asset_type: str | None = None):
     if asset_type in {"tire", "battery"}:
         query = query.filter(AssetReceipt.asset_type == asset_type)
     rows = query.order_by(AssetReceipt.received_date.desc(), AssetReceipt.id.desc()).all()
+    used_by_receipt = {}
+    if asset_type != "battery":
+        used_by_receipt.update(
+            db.query(Tire.acquisition_receipt_id, func.count(Tire.id))
+            .filter(Tire.acquisition_receipt_id.isnot(None))
+            .group_by(Tire.acquisition_receipt_id)
+            .all()
+        )
+    if asset_type != "tire":
+        used_by_receipt.update(
+            db.query(Battery.acquisition_receipt_id, func.count(Battery.id))
+            .filter(Battery.acquisition_receipt_id.isnot(None))
+            .group_by(Battery.acquisition_receipt_id)
+            .all()
+        )
     result = []
     for row in rows:
-        model = Tire if row.asset_type == "tire" else Battery
-        used = db.query(model.id).filter(model.acquisition_receipt_id == row.id).count()
+        used = used_by_receipt.get(row.id, 0)
         result.append({"id": row.id, "asset_type": row.asset_type, "document_number": row.document_number, "description": row.description, "quantity": row.quantity, "used_quantity": used, "remaining_quantity": row.quantity - used, "received_date": row.received_date, "supplier": row.supplier, "recipient": row.recipient, "notes": row.notes})
     return result
 

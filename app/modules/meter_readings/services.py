@@ -167,26 +167,12 @@ def list_latest_rows(db: Session, page: int = 1, page_size: int = 10, search: st
     return rows, total, pages, last_update_text
 def get_equipment_with_readings(db: Session, equipment_id: int):
     return db.query(Equipment).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model)).filter(Equipment.id == equipment_id).first()
-def history_rows(
-    db: Session,
-    equipment_id: int,
-    page: int = 1,
-    page_size: int = 20,
-    from_date: date | None = None,
-    to_date: date | None = None,
-):
+def history_rows(db: Session, equipment_id: int, page: int = 1, page_size: int = 20):
     equipment = get_equipment_with_readings(db, equipment_id)
     if not equipment: return None, [], 0, 1, 1
-    if from_date and to_date and from_date > to_date:
-        raise ValueError("تاريخ البداية يجب أن يسبق تاريخ النهاية أو يساويه.")
     page = max(1, page); page_size = min(max(1, page_size), 100); unit_code = _unit(equipment)
-    ordered = db.query(MeterReading.id.label("id"), MeterReading.reading_date.label("reading_date"), MeterReading.odometer.label("odometer"), MeterReading.hours.label("hours"), MeterReading.equipment_status.label("equipment_status"), MeterReading.notes.label("notes"), MeterReading.source.label("source"), func.lag(MeterReading.odometer).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.asc(), MeterReading.id.asc())).label("previous_odometer"), func.lag(MeterReading.hours).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.asc(), MeterReading.id.asc())).label("previous_hours")).filter(MeterReading.equipment_id == equipment_id).subquery()
-    filtered = db.query(ordered)
-    if from_date:
-        filtered = filtered.filter(ordered.c.reading_date >= datetime.combine(from_date, datetime.min.time()))
-    if to_date:
-        filtered = filtered.filter(ordered.c.reading_date <= datetime.combine(to_date, datetime.max.time()))
-    total = filtered.count(); pages = max(1, (total + page_size - 1) // page_size); page = min(page, pages); rows_data = filtered.order_by(ordered.c.reading_date.asc(), ordered.c.id.asc()).offset((page - 1) * page_size).limit(page_size).all(); rows = []
+    ordered = db.query(MeterReading.id.label("id"), MeterReading.reading_date.label("reading_date"), MeterReading.odometer.label("odometer"), MeterReading.hours.label("hours"), MeterReading.equipment_status.label("equipment_status"), MeterReading.notes.label("notes"), MeterReading.source.label("source"), func.lag(MeterReading.odometer).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_odometer"), func.lag(MeterReading.hours).over(partition_by=MeterReading.equipment_id, order_by=(MeterReading.reading_date.desc(), MeterReading.id.desc())).label("previous_hours")).filter(MeterReading.equipment_id == equipment_id).subquery()
+    total = db.query(func.count()).select_from(ordered).scalar() or 0; pages = max(1, (total + page_size - 1) // page_size); page = min(page, pages); rows_data = db.query(ordered).order_by(ordered.c.reading_date.desc(), ordered.c.id.desc()).offset((page - 1) * page_size).limit(page_size).all(); rows = []
     for number, row in enumerate(rows_data, start=(page - 1) * page_size + 1):
         current_value = row.odometer if unit_code == "km" else row.hours; previous_value = row.previous_odometer if unit_code == "km" else row.previous_hours; difference = Decimal(current_value) - Decimal(previous_value) if current_value is not None and previous_value is not None else None; status, status_class = _reading_status_label(row, equipment)
         rows.append({"number": number, "id": row.id, "date": row.reading_date.strftime("%d/%m/%Y"), "odometer": _fmt(row.odometer), "hours": _fmt(row.hours), "reading": _fmt(current_value), "difference": _fmt_difference(difference), "note": row.notes or "—", "source": _source_label(row.source), "status": status, "status_class": status_class, "unit": "كم" if unit_code == "km" else "ساعة عمل"})

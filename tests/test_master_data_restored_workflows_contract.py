@@ -3,6 +3,8 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.core.templating import page_section
+
 
 TEMPLATE_PATH = Path("app/modules/equipment_types/templates/master_data_workspace.html")
 TEMPLATE = TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -110,6 +112,8 @@ def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tr
         ]),
         autoescape=select_autoescape(["html", "xml"]),
     )
+    env.globals["institution_name"] = lambda: ""
+    env.globals["page_section"] = page_section
     template = env.get_template(TEMPLATE_PATH.name)
     request = SimpleNamespace(
         query_params={},

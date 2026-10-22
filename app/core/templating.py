@@ -16,6 +16,45 @@ from app.core.labels import LABELS, label, label_options
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHARED_TEMPLATES_DIR = PROJECT_ROOT / "web" / "templates"
+PAGE_SECTIONS = {
+    "dashboard": "لوحة التحكم",
+    "equipment": "العتاد",
+    "equipment-types": "أنواع العتاد",
+    "maintenance": "الصيانة",
+    "meter-readings": "العدادات",
+    "faults-repairs": "الأعطال والإصلاحات",
+    "spare-parts": "قطع الغيار",
+    "spare-parts-distribution": "قطع الغيار",
+    "spare-parts-history": "قطع الغيار",
+    "spare-parts-received": "قطع الغيار",
+    "spare-parts-return": "قطع الغيار",
+    "spare-parts-requests": "قطع الغيار",
+    "spare-parts-movements": "قطع الغيار",
+    "tires": "الإطارات",
+    "batteries": "البطاريات",
+    "fuel": "الوقود",
+    "missions": "المهمات",
+    "users": "المستخدمون",
+    "document-import": "استيراد المستندات",
+    "equipment-maintenance": "صيانة العتاد",
+}
+
+
+def page_section(path: str) -> str:
+    """Return the Arabic module label shown above each page title."""
+    segments = path.strip("/").split("/")
+    if len(segments) >= 3 and segments[0] == "equipment":
+        equipment_subpages = {
+            "batteries": "البطاريات",
+            "fuel": "الوقود",
+            "maintenance": "صيانة العتاد",
+            "meters": "العدادات",
+            "tires": "الإطارات",
+        }
+        if section := equipment_subpages.get(segments[2]):
+            return section
+    first_segment = segments[0]
+    return PAGE_SECTIONS.get(first_segment, "الرئيسية")
 
 
 def get_module_templates(module_templates_dir: str) -> Jinja2Templates:
@@ -32,5 +71,6 @@ def get_module_templates(module_templates_dir: str) -> Jinja2Templates:
         label_options=label_options,
         LABELS=LABELS,
         institution_name=load_institution_name,
+        page_section=page_section,
     )
     return templates

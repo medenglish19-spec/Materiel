@@ -20,8 +20,12 @@ class _Request:
 
 def render_fixture(body):
     env = Environment(loader=FileSystemLoader(BASE), autoescape=select_autoescape(["html"]))
+    env.globals.update(
+        institution_name=lambda: "اسم المؤسسة",
+        page_section=lambda _path: "اختبار",
+    )
     t = env.from_string('{% extends "base.html" %}{% block title %}اختبار{% endblock %}{% block content %}' + body + '{% endblock %}')
-    return t.render(request=_Request())
+    return t.render(request=_Request(), topbar_page_title="اختبار")
 
 @pytest.fixture
 def browser_page():
@@ -383,7 +387,13 @@ def test_distribution_save_failure_refreshes_balances_without_losing_quantities(
         ]),
         autoescape=select_autoescape(["html"]),
     )
-    distribution_html=env.get_template("distribution.html").render(request=_Request())
+    env.globals.update(
+        institution_name=lambda: "اسم المؤسسة",
+        page_section=lambda _path: "اختبار",
+    )
+    distribution_html=env.get_template("distribution.html").render(
+        request=_Request(), topbar_page_title="اختبار"
+    )
     posts=[]
     def distribution_api(route):
         request=route.request

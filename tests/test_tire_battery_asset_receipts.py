@@ -2,17 +2,20 @@ from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
 
 from app.database import model_registry  # noqa: F401
 from app.database.base import Base
 from app.modules.batteries.models import Battery, BatteryMovement
 from app.modules.batteries.services import add_battery, delete_battery
+from app.modules.batteries.router import batteries_page
 from app.modules.spare_parts_requests.services import create_asset_receipt, list_asset_receipts
 from app.modules.tires.models import Tire, TireMovement
 from app.modules.tires.services import add_tire, delete_tire, validate_movement
+from app.modules.users.models import User
 
 
 @pytest.fixture
@@ -39,6 +42,76 @@ def test_asset_receipt_is_required_type_checked_and_quantity_limited(db):
     assert list_asset_receipts(db, "tire")[0]["remaining_quantity"] == 0
     with pytest.raises(ValueError, match="اكتملت كمية"):
         add_tire(db, {"serial_number": "T-002", "acquisition_document": "REC-T-1"})
+
+
+def test_asset_receipt_listing_uses_bounded_queries_for_many_receipts(db):
+    for index in range(12):
+        create_asset_receipt(db, {
+            "asset_type": "tire",
+            "document_number": f"REC-T-{index}",
+            "description": "275/70 R22.5",
+            "quantity": 2,
+            "received_date": date.today(),
+        })
+
+    statements = []
+    def capture_statement(_connection, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(db.get_bind(), "before_cursor_execute", capture_statement)
+    try:
+        receipts = list_asset_receipts(db, "tire")
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", capture_statement)
+
+    assert len(receipts) == 12
+    assert len(statements) <= 2
+
+
+def test_first_battery_page_load_uses_bounded_queries(db):
+    create_asset_receipt(db, {
+        "asset_type": "battery",
+        "document_number": "REC-B-PERF",
+        "description": "AGM 12V",
+        "quantity": 24,
+        "received_date": date.today(),
+    })
+    for index in range(24):
+        add_battery(db, {
+            "battery_type": "AGM",
+            "model": f"batch-{index % 4}",
+            "acquisition_document": "REC-B-PERF",
+        })
+
+    statements = []
+
+    def capture_statement(_connection, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(db.get_bind(), "before_cursor_execute", capture_statement)
+    try:
+        response = batteries_page(
+            Request({
+                "type": "http",
+                "http_version": "1.1",
+                "method": "GET",
+                "scheme": "http",
+                "path": "/batteries",
+                "raw_path": b"/batteries",
+                "query_string": b"",
+                "headers": [],
+                "server": ("127.0.0.1", 80),
+                "client": ("127.0.0.1", 12345),
+            }),
+            db,
+            User(username="battery-page-test", full_name="Test", hashed_password="unused", role="ADMIN"),
+        )
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", capture_statement)
+
+    assert response.status_code == 200
+    assert len(statements) <= 12
+    assert response.context["stats"]["total"] == 24
 
 
 def test_battery_uses_type_without_serial_and_requires_battery_receipt(db):

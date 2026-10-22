@@ -21,7 +21,29 @@ CATALOG_TABLES = {
     "spare_part_catalog_details",
     "spare_part_catalog_references",
     "spare_part_catalog_imports",
+    "maintenance_catalog_imports",
 }
+DRIVER_TABLES = {"drivers", "driver_system_settings"}
+
+
+def _create_legacy_missions(connection):
+    connection.execute(text("""
+        CREATE TABLE missions (
+            id INTEGER NOT NULL PRIMARY KEY,
+            equipment_id INTEGER NOT NULL,
+            driver_name VARCHAR(120),
+            mission_document VARCHAR(100),
+            purpose VARCHAR(250),
+            destination VARCHAR(150),
+            start_date DATE NOT NULL,
+            end_date DATE,
+            notes TEXT,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            created_by_id INTEGER,
+            updated_by_id INTEGER
+        )
+    """))
 
 
 def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path):
@@ -29,8 +51,14 @@ def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path
     engine = create_engine(f"sqlite:///{database}")
     # Model metadata includes tables introduced after this migration's starting
     # revision. Build the legacy schema without them before replaying Alembic.
-    legacy_tables = [table for table in Base.metadata.sorted_tables if table.name not in CATALOG_TABLES]
+    excluded_tables = CATALOG_TABLES | DRIVER_TABLES | {"missions"}
+    legacy_tables = [
+        table for table in Base.metadata.sorted_tables
+        if table.name not in excluded_tables
+    ]
     Base.metadata.create_all(engine, tables=legacy_tables)
+    with engine.begin() as connection:
+        _create_legacy_missions(connection)
     from sqlalchemy.orm import Session
     with Session(engine) as session:
         equipment_type = EquipmentType(name="Migration km", measurement_unit="km")

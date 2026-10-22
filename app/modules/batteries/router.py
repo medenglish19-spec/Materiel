@@ -29,18 +29,23 @@ def dec(v):
 
 @router.get("/batteries", response_class=HTMLResponse)
 def batteries_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    validity_years = services.get_validity_years(db)
     batteries, states = services.current_states(db)
     statuses = {}
     due_dates = {}
     for battery in batteries:
         state = states.get(battery.id)
         equipment = state.get("equipment") if state else None
-        statuses[battery.id] = services.status(battery, state, db=db)
-        due_dates[battery.id] = services.replacement_due_date(db, battery, equipment)
+        statuses[battery.id] = services.status(
+            battery, state, db=db, validity_years=validity_years
+        )
+        due_dates[battery.id] = services.replacement_due_date(
+            db, battery, equipment, validity_years
+        )
     from app.modules.spare_parts_requests.services import list_asset_receipts
     movements = db.query(BatteryMovement).options(joinedload(BatteryMovement.equipment)).order_by(BatteryMovement.movement_date.asc(), BatteryMovement.id.asc()).all()
     related_equipment = {movement.battery_id: movement.equipment for movement in movements if movement.equipment is not None}
-    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db), "validity_years": services.get_validity_years(db), "statuses": statuses, "due_dates": due_dates, "battery_states": states, "related_equipment": related_equipment, "battery_receipts": list_asset_receipts(db, "battery")})
+    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": batteries, "stats": services.stats(db, batteries, states, validity_years), "validity_years": validity_years, "statuses": statuses, "due_dates": due_dates, "battery_states": states, "related_equipment": related_equipment, "battery_receipts": list_asset_receipts(db, "battery")})
 
 
 @router.get("/batteries/settings", response_class=HTMLResponse)

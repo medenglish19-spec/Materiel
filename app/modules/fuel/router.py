@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
@@ -27,8 +27,8 @@ def dec(value: str):
 @router.get("/fuel", response_class=HTMLResponse)
 def fuel_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = services.list_records(db)
-    enriched = [{"record": r, "distance": services.distance_from_previous(db, r), "consumption": services.consumption(db, r), "abnormal": services.is_abnormal(db, r)} for r in records]
-    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "monthly": services.monthly_summary(db)})
+    enriched, _ = services.enrich_records(db, records)
+    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "monthly": services.monthly_summary(db, records)})
 
 
 @router.post("/fuel")
@@ -47,6 +47,6 @@ def equipment_fuel_page(request: Request, equipment_id: int, db: Session = Depen
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(404, "العتاد غير موجود")
-    records = db.query(FuelRecord).filter(FuelRecord.equipment_id == equipment_id).order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).all()
-    enriched = [{"record": r, "distance": services.distance_from_previous(db, r), "consumption": services.consumption(db, r), "abnormal": services.is_abnormal(db, r)} for r in records]
-    return templates.TemplateResponse(request=request, name="equipment_fuel.html", context={"request": request, "user": current_user, "equipment": equipment, "records": enriched, "average": services.equipment_average(db, equipment_id)})
+    records = db.query(FuelRecord).options(joinedload(FuelRecord.equipment)).filter(FuelRecord.equipment_id == equipment_id).order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).all()
+    enriched, averages = services.enrich_records(db, records)
+    return templates.TemplateResponse(request=request, name="equipment_fuel.html", context={"request": request, "user": current_user, "equipment": equipment, "records": enriched, "average": averages.get(equipment_id)})

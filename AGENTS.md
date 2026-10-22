@@ -165,6 +165,23 @@ shared history. Do not merge every local or remote branch wholesale. Review
 candidate commits and their tests, then transfer only validated work to the
 canonical branch while preserving all source branches until that transfer is
 verified.
+
+### Temporary hold: maintenance catalog importer
+
+The maintenance catalog importer currently under study is **not authorized for
+staging, committing, or pushing**. This specific hold overrides the routine
+commit-and-push policy above, even if the working change passes tests. Preserve
+its existing local edits in place; do not discard, reset, stash, overwrite, or
+silently transfer them. Agents may inspect the work or run isolated tests, but
+must stop before staging or publishing it. The hold remains until the user
+explicitly lifts it.
+
+This hold covers importer-specific changes in `app/modules/maintenance/`
+(catalog importer logic, catalog import routes/model/templates and the
+maintenance-home entry), its Alembic migration, and tests added or adjusted
+specifically for catalog import. If one of these files also contains unrelated
+work, preserve that work and do not commit importer hunks as part of another
+task.
 ---
 
 ## Testing Rules

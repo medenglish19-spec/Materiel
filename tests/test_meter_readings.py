@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from io import BytesIO
 
@@ -89,47 +89,6 @@ def test_manual_reading_and_monotonic_validation(db):
     with pytest.raises(ValueError, match="تاريخ مستقبلي"):
         services.create_reading(db, equipment.id, odometer=125, reading_date=datetime.now(timezone.utc) + timedelta(days=1))
     assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).count() == 2
-
-
-@pytest.mark.parametrize(
-    ("unit", "first_value", "latest_value", "expected_difference"),
-    [("km", 31900, 32000, "+100"), ("hours", 1440, 1450, "+10")],
-)
-def test_meter_history_shows_difference_for_latest_reading(
-    db, unit, first_value, latest_value, expected_difference
-):
-    equipment = seed_equipment(db, f"HISTORY-{unit}", unit)
-    first_date = datetime(2026, 10, 17)
-    latest_date = datetime(2026, 10, 18)
-    if unit == "km":
-        services.create_reading(db, equipment.id, odometer=first_value, reading_date=first_date)
-        services.create_reading(db, equipment.id, odometer=latest_value, reading_date=latest_date)
-    else:
-        services.create_reading(db, equipment.id, hours=first_value, reading_date=first_date)
-        services.create_reading(db, equipment.id, hours=latest_value, reading_date=latest_date)
-
-    _equipment, rows, total, _pages, page = services.history_rows(db, equipment.id)
-
-    assert total == 2
-    assert page == 1
-    assert [row["reading"] for row in rows] == [f"{first_value:,}", f"{latest_value:,}"]
-    assert rows[0]["difference"] == "—"
-    assert rows[1]["difference"] == expected_difference
-
-
-def test_meter_history_date_filter_preserves_previous_chronological_reading(db):
-    equipment = seed_equipment(db, "HISTORY-FILTER", "km")
-    services.create_reading(db, equipment.id, odometer=31900, reading_date=datetime(2026, 10, 17))
-    services.create_reading(db, equipment.id, odometer=32000, reading_date=datetime(2026, 10, 18))
-
-    _equipment, rows, total, _pages, page = services.history_rows(
-        db, equipment.id, from_date=date(2026, 10, 18), to_date=date(2026, 10, 18)
-    )
-
-    assert total == 1
-    assert page == 1
-    assert [row["reading"] for row in rows] == ["32,000"]
-    assert rows[0]["difference"] == "+100"
 
 
 def test_duplicate_manual_reading_same_date_and_value_is_rejected(db):

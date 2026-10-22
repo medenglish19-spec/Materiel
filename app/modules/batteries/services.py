@@ -175,16 +175,27 @@ def _general_expiry_date(battery: Battery, years: int) -> date | None:
     return _add_years(base, years) if base else None
 
 
-def _expired_at(db: Session, battery: Battery, equipment: Equipment | None, when: date) -> bool:
-    years = get_validity_years(db)
+def _expired_at(
+    db: Session,
+    battery: Battery,
+    equipment: Equipment | None,
+    when: date,
+    validity_years: int | None = None,
+) -> bool:
+    years = validity_years if validity_years is not None else get_validity_years(db)
     if equipment and getattr(equipment, "first_service_date", None):
         return when >= _add_years(equipment.first_service_date, years)
     expiry = _general_expiry_date(battery, years)
     return bool(expiry and when >= expiry)
 
 
-def replacement_due_date(db: Session, battery: Battery, equipment: Equipment | None = None) -> date | None:
-    years = get_validity_years(db)
+def replacement_due_date(
+    db: Session,
+    battery: Battery,
+    equipment: Equipment | None = None,
+    validity_years: int | None = None,
+) -> date | None:
+    years = validity_years if validity_years is not None else get_validity_years(db)
     if equipment and getattr(equipment, "first_service_date", None):
         return _add_years(equipment.first_service_date, years)
     return _general_expiry_date(battery, years)
@@ -324,7 +335,13 @@ def add_movement(db: Session, battery_id: int, data: dict):
     return movement
 
 
-def status(battery: Battery, state, equipment: Equipment | None = None, db: Session | None = None):
+def status(
+    battery: Battery,
+    state,
+    equipment: Equipment | None = None,
+    db: Session | None = None,
+    validity_years: int | None = None,
+):
     movement = state.get("movement") if isinstance(state, dict) else None
     if movement and movement.movement_type == "remove":
         reason = (movement.reason or "").strip().lower()
@@ -334,7 +351,7 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
             return "expired"
     if db is not None and state and state.get("installed"):
         target = equipment or state.get("equipment")
-        if _expired_at(db, battery, target, date.today()):
+        if _expired_at(db, battery, target, date.today(), validity_years):
             return "expired"
     elif db is None and battery.expiry_date and battery.expiry_date < date.today():
         return "expired"
@@ -345,11 +362,21 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
     return "stock"
 
 
-def stats(db: Session):
+def stats(
+    db: Session,
+    batteries: list[Battery] | None = None,
+    states: dict | None = None,
+    validity_years: int | None = None,
+):
     counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
-    batteries, states = current_states(db)
+    if batteries is None or states is None:
+        batteries, states = current_states(db)
+    if validity_years is None and any(
+        state and state.get("installed") for state in states.values()
+    ):
+        validity_years = get_validity_years(db)
     for battery in batteries:
         counts["total"] += 1
-        key = status(battery, states.get(battery.id), db=db)
+        key = status(battery, states.get(battery.id), db=db, validity_years=validity_years)
         counts[key] += 1
     return counts

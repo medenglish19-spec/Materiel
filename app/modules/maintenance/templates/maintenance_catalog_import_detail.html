@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}مراجعة كتالوج الصيانة{% endblock %}
+{% block content %}
+<main class="maintenance-page" dir="rtl">
+  <div class="page-top"><div class="page-heading"><h2>مراجعة كتالوج الصيانة</h2><div class="breadcrumb"><a href="/maintenance">الصيانة</a> › <a href="/maintenance/catalog-imports">الكتالوجات</a> › <span class="current">{{ catalog.document_title or catalog.filename }}</span></div></div></div>
+  {% if duplicate %}<div class="panel" style="margin-top:16px;border-inline-start:4px solid #2684c7">هذا الملف مستورد للطراز نفسه مسبقًا؛ عُرض الإصدار الموجود دون إنشاء نسخة جديدة.</div>{% endif %}
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>{{ catalog.document_title or catalog.filename }}</h3><p>{{ catalog.manufacturer or 'الشركة غير محددة' }} · {{ catalog.equipment_model.name }} · الإصدار الداخلي {{ catalog.version_number }}{% if catalog.document_version %} · إصدار الوثيقة {{ catalog.document_version }}{% endif %}</p></div><span class="badge info">{{ {'draft':'قيد المراجعة','reviewed':'مراجع','applied':'أضيف للمكتبة','rejected':'مرفوض'}.get(catalog.status, catalog.status) }}</span></div>
+    <p>المقارنة مع الإصدار السابق: {% if version_diff.previous_version %}الإصدار {{ version_diff.previous_version }}؛ {{ version_diff.added }} عملية مضافة، {{ version_diff.removed }} محذوفة، {{ version_diff.changed }} متغيرة.{% else %}لا يوجد إصدار سابق لهذا الطراز.{% endif %}</p>
+    <p class="muted">شرط «كلما سبق» يضاف إلى العملية بعد المراجعة. يتولى سجل التنفيذ إعادة احتساب الاستحقاق بعد كل تنفيذ. لا تُعدّل الخطط المعتمدة أو السجلات السابقة.</p>
+    {% for warning in warnings %}<div class="alert warning">{{ warning }}</div>{% endfor %}
+  </section>
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>العمليات المستخرجة ({{ items|length }})</h3><p>راجع الاسم والشرط المستخرج. عناصر الظروف الإضافية محفوظة كمراجع ولا تُدمج تلقائيًا مع الشرط الأساسي.</p></div></div>
+    {% for item in items %}
+      <article id="item-{{ loop.index0 }}" class="panel" style="margin:14px 0;padding:14px">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><strong>صفحة {{ item.source_page or 'غير محددة' }} · {{ item.section or item.schedule_type }}</strong><span class="badge {% if item.review_state == 'accepted' %}success{% elif item.review_state == 'supplemental' %}info{% else %}warning{% endif %}">{{ {'needs_review':'بانتظار المراجعة','accepted':'مقبول','rejected':'مرفوض','supplemental':'شرط إضافي محفوظ'}.get(item.review_state, item.review_state) }}</span><span class="muted">{{ item.confidence }}</span></div>
+        {% if catalog.status == 'applied' %}<p>أضيفت إلى مكتبة العمليات برقم {{ item.operation_id or '—' }}.</p>{% else %}
+        <form method="post" action="/maintenance/catalog-imports/{{ catalog.id }}/items/{{ loop.index0 }}" class="form-grid" style="margin-top:12px">
+          <label>اسم العملية<input name="operation_name" value="{{ item.operation_name }}" required></label>
+          <label>تصنيف الشرط<select name="schedule_type"><option value="normal" {% if item.schedule_type == 'normal' %}selected{% endif %}>الشرط الأساسي</option><option value="severe_conditions" {% if item.schedule_type == 'severe_conditions' %}selected{% endif %}>شرط إضافي</option><option value="unclassified" {% if item.schedule_type == 'unclassified' %}selected{% endif %}>غير مصنف</option></select></label>
+          <label>قرار المراجعة<select name="review_state" {% if item.review_state == 'supplemental' %}disabled{% endif %}><option value="needs_review" {% if item.review_state == 'needs_review' %}selected{% endif %}>بانتظار المراجعة</option><option value="accepted" {% if item.review_state == 'accepted' %}selected{% endif %}>قبول العملية الأساسية</option><option value="rejected" {% if item.review_state == 'rejected' %}selected{% endif %}>رفض</option></select>{% if item.review_state == 'supplemental' %}<input type="hidden" name="review_state" value="supplemental">{% endif %}</label>
+          <label>تصنيف العملية<select name="group_id"><option value="">غير مصنف؛ يوضع في مجموعة العمليات المستوردة</option>{% for group in operation_groups %}<option value="{{ group.id }}" {% if item.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></label>
+          <label style="grid-column:1/-1">الشرط الأساسي (JSON): مثل {"interval_km":15000,"interval_days":365}<textarea name="corrected_condition" rows="2" placeholder='{"interval_km":15000,"interval_days":365}'>{% if item.corrected_condition %}{{ item.corrected_condition|tojson }}{% endif %}</textarea><small>الشهور الواردة في الجدول تحوّل إلى أيام تقريبية في المحلل؛ راجع القيمة قبل الإضافة.</small></label>
+          <label style="grid-column:1/-1">وصف الشرط من المصدر (عند غياب فاصل رقمي)<input name="condition_note" value="{{ item.condition_note or '' }}"></label>
+          <label style="grid-column:1/-1">ملاحظة المراجع<input name="review_note" value="{{ item.review_note or '' }}"></label>
+          <div><button type="submit" class="btn">حفظ المراجعة</button></div>
+        </form>
+        {% endif %}
+        <details style="margin-top:10px"><summary>بيانات المصدر المستخرجة</summary><pre style="white-space:pre-wrap;direction:ltr;text-align:left;max-height:180px;overflow:auto">{{ item.action_and_cells_raw or item.action_conditions_interval_raw or item.operation_name }}</pre></details>
+      </article>
+    {% else %}<p>لم يُستخرج صف عملية. راجع النص المحفوظ أو أعد المحاولة بعد تجهيز محلل مناسب لهذا التنسيق.</p>{% endfor %}
+    {% if catalog.status != 'applied' %}<form method="post" action="/maintenance/catalog-imports/{{ catalog.id }}/apply" onsubmit="return confirm('إضافة العمليات المقبولة وشروطها إلى مكتبة الصيانة؟')"><button class="btn primary" type="submit">إضافة المقبول إلى مكتبة العمليات</button></form>{% endif %}
+  </section>
+  <section class="panel" style="margin-top:18px"><details><summary>النص المستخرج الأصلي (للتدقيق)</summary><pre style="white-space:pre-wrap;max-height:420px;overflow:auto">{{ catalog.extracted_text }}</pre></details></section>
+</main>
+{% endblock %}

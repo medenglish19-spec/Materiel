@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, UniqueConstraint, CheckConstraint, Index, Table, event, select
+from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey, Text, Boolean, DateTime, LargeBinary, UniqueConstraint, CheckConstraint, Index, Table, event, select
 from sqlalchemy.orm import relationship
 from sqlalchemy import inspect
 
@@ -57,6 +57,38 @@ class MaintenanceOperationGroup(Base):
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
 
     operations = relationship("MaintenanceOperation", back_populates="group")
+
+
+class MaintenanceCatalogImport(Base):
+    """Versioned, reviewable manufacturer source; never an operational plan."""
+    __tablename__ = "maintenance_catalog_imports"
+    __table_args__ = (
+        UniqueConstraint("equipment_model_id", "content_sha256", name="uq_maintenance_catalog_model_sha256"),
+        CheckConstraint("status IN ('draft', 'reviewed', 'applied', 'rejected')", name="ck_maintenance_catalog_import_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", name="fk_maintenance_catalog_imports_equipment_model", ondelete="RESTRICT"), nullable=False, index=True)
+    version_number = Column(Integer, nullable=False)
+    manufacturer = Column(String(160), nullable=True)
+    document_title = Column(String(255), nullable=True)
+    document_version = Column(String(120), nullable=True)
+    filename = Column(String(255), nullable=False)
+    content_sha256 = Column(String(64), nullable=False, index=True)
+    file_type = Column(String(16), nullable=False)
+    source_file = Column(LargeBinary, nullable=False)
+    extracted_text = Column(Text, nullable=False, default="")
+    items_json = Column(Text, nullable=False, default="[]")
+    warnings_json = Column(Text, nullable=False, default="[]")
+    status = Column(String(20), nullable=False, default="draft", server_default="draft", index=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    reviewed_at = Column(DateTime, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id", name="fk_maintenance_catalog_imports_created_by", ondelete="SET NULL"), nullable=True, index=True)
+    reviewed_by_id = Column(Integer, ForeignKey("users.id", name="fk_maintenance_catalog_imports_reviewed_by", ondelete="SET NULL"), nullable=True, index=True)
+
+    equipment_model = relationship("EquipmentModel")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    reviewed_by = relationship("User", foreign_keys=[reviewed_by_id])
 
 
 class MaintenanceOperation(Base):
