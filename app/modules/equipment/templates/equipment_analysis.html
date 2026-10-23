@@ -4,14 +4,11 @@
 <div class="ax" dir="rtl">
 <header class="ax-head">
   <div>
-    <div class="eyebrow">MATERIEL · ANALYTICS</div>
     <h2>تحليل القدرة والجاهزية</h2>
-    <p>تحليل قائم على العلاقة بين التعداد المعتمد، الحالة الفنية، والوضعية التشغيلية. دون مؤشرات مركبة أو درجات افتراضية.</p>
+    <p>التعداد النظري المعتمد، الجاهزية الفنية، والإتاحة التشغيلية.</p>
   </div>
   <a href="/equipment" class="ax-link">← العتاد</a>
 </header>
-
-
 
 <section class="panel">
   <div class="ph"><h3>الاستغلال الفعلي</h3><span>المسافة من تاريخ العداد، مع سياق المهمات والوقود</span></div>
@@ -42,45 +39,29 @@
     <p class="explain">الوحدة التي تنتمي إلى نوع بلا تعداد نظري لا تُحسب نقصًا ولا فائضًا؛ تُعرض منفصلة حتى يتم اعتماد مرجعها.</p>
   </div>
   <div class="panel">
-    <div class="ph"><h3>القدرة التشغيلية الحالية</h3><span>لا تُختزل الجاهزية في رقم واحد</span></div>
+    <div class="ph"><h3>الحالة الفنية</h3><span>الجاهزية والقيود المسجلة</span></div>
     <div class="state-list">
       <div><span>جاهز فنيًا</span><b>{{ totals.ready }} <small>{{ totals.readiness_pct|round(1) }}%</small></b></div>
       <div><span>جاهز مع قيود</span><b>{{ totals.ready_restricted }} <small>{{ totals.restricted_pct|round(1) }}%</small></b></div>
       <div class="bad"><span>عاطل</span><b>{{ totals.broken }} <small>{{ totals.broken_pct|round(1) }}%</small></b></div>
-      <div><span>متاح تشغيليًا</span><b>{{ totals.available }} <small>{{ totals.available_pct|round(1) }}%</small></b></div>
     </div>
   </div>
 </section>
 
-<section class="panel finding-panel">
-  <div class="ph"><h3>ما الذي يستدعي الانتباه؟</h3><span>استنتاجات مشتقة من قواعد واضحة</span></div>
-  {% if findings %}
-  <div class="findings">
-    {% for f in findings %}
-    <article class="finding">
-      <div class="finding-state">{{ f.state }}</div>
-      <div><strong>{{ f.subject }}</strong><p>{{ f.meaning }}</p><small>الدليل: {{ f.evidence }}</small></div>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty">لا توجد حالة تحليلية مثبتة وفق البيانات الحالية.</div>
-  {% endif %}
-</section>
-
 <section class="panel">
-  <div class="ph"><h3>تفكيك القدرة حسب النوع</h3><span>هنا يظهر الفرق بين نقص العدد، القيد الفني، والقيد التشغيلي</span></div>
+  <div class="ph"><h3>القدرة حسب النوع</h3><span>الأرقام الحمراء تشير إلى نقص أو عطل مسجل</span></div>
   <div class="table-wrap mt-table-theme-green" data-mt-region>
     <table class="analysis-table">
       <thead><tr>
-        <th>التصنيف / النوع</th><th>النظري</th><th>المحقق</th><th>الاحتياج</th>
+        <th>النوع</th><th>النظري</th><th>المحقق</th><th>الاحتياج</th>
         <th>جاهز</th><th>جاهز مع قيود</th><th>عاطل</th><th>متاح</th><th>جاهز لكن غير متاح</th><th>غير محدد نظريًا</th>
       </tr></thead>
       <tbody>
       {% for c in categories %}
+        <tr class="analysis-category"><th colspan="10">{{ c.name }}</th></tr>
         {% for t in c.types %}
         <tr>
-          <td><strong>{{ c.name }}</strong><br><span>{{ t.name }}</span></td>
+          <td>{{ t.name }}</td>
           <td>{{ t.theoretical if t.known_requirement else "—" }}</td>
           <td>{{ t.actual }}</td>
           <td class="bad">{{ t.need if t.known_requirement and t.need else "—" }}</td>
@@ -100,28 +81,18 @@
   </div>
 </section>
 
-<section class="two-col">
-  <div class="panel">
-    <div class="ph"><h3>حالات التشغيل</h3><span>الوضعية الحالية لا تعني بالضرورة حالة فنية</span></div>
-    <div class="state-grid">
+<section class="panel">
+  <div class="ph"><h3>الوضع التشغيلي</h3><span>مستقل عن الجاهزية الفنية أعلاه</span></div>
+    <div class="state-grid operational-state-grid">
       <div><span>متاح</span><b>{{ totals.available }}</b></div>
       <div><span>في مهمة</span><b>{{ totals.in_mission }}</b></div>
       <div><span>في الصيانة</span><b>{{ totals.in_maintenance }}</b></div>
       <div><span>ورشة خارجية</span><b>{{ totals.in_external_workshop }}</b></div>
       <div><span>غير متاح</span><b>{{ totals.unavailable }}</b></div>
     </div>
-  </div>
-  <div class="panel">
-    <div class="ph"><h3>قواعد القراءة</h3><span>تعريفات التحليل الحالية</span></div>
-    <ul class="rules">
-      {% for key, value in definitions.items() %}
-      <li><b>{{ {"numerical_gap":"الفجوة العددية","technical_readiness":"الجاهزية الفنية","operational_availability":"الإتاحة التشغيلية","ready_available":"جاهز ومتاح","outside_requirement":"خارج المرجع النظري"}.get(key,key) }}</b><span>{{ value }}</span></li>
-      {% endfor %}
-    </ul>
-  </div>
 </section>
 
-<div class="ax-note"><strong>حدود التحليل الحالي:</strong> هذا المحور يقرأ الحالة الحالية فقط. لا يحكم على استيفاء المهام المؤسسية، ولا يثبت الاستمرارية أو سبب الأعطال. إضافة المتطلبات التشغيلية والتاريخ الزمني ستسمح لاحقًا بتحليل القدرة الفعلية والاتجاهات.</div>
+<div class="ax-note">يعرض التحليل الحالة الحالية المسجلة فقط؛ ولا يستنتج أسباب الأعطال أو استيفاء متطلبات المهام.</div>
 </div>
 
 <style>

@@ -64,6 +64,12 @@ def test_operational_analysis_route_uses_its_own_template():
     assert "build_operational_analysis" in source
 
 
+def test_capacity_analysis_does_not_build_unused_operational_findings():
+    source = inspect.getsource(router.equipment_analysis_page)
+    assert "build_operational_analysis" not in source
+    assert "maintenance_records" not in source
+
+
 def test_equipment_detail_template_is_actually_reachable():
     """القالب غير مهجور: دالة الراوتر تشير إليه."""
     assert 'name="equipment_detail.html"' in inspect.getsource(router.equipment_detail_page)

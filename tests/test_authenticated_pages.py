@@ -605,6 +605,26 @@ def test_dashboard_shows_the_seeded_equipment_with_arabic_labels(pages):
         assert f">{raw}<" not in body, f"مفتاح خام في اللوحة: {raw}"
 
 
+def test_equipment_analysis_pages_avoid_duplicate_sections_and_raw_states(pages):
+    client, _ = pages
+
+    capacity = client.get("/equipment/analysis")
+    assert capacity.status_code == 200
+    assert "القدرة حسب النوع" in capacity.text
+    assert "قواعد القراءة" not in capacity.text
+    assert "ما الذي يستدعي الانتباه؟" not in capacity.text
+    assert "جاهز فنيًا" in capacity.text
+    assert "في مهمة" in capacity.text
+
+    operational = client.get("/equipment/analysis/operational")
+    assert operational.status_code == 200
+    assert "تفاصيل عينة المقارنة متاحة داخل كل صف" in operational.text
+    assert "<summary>العينة</summary>" in operational.text
+    assert "مرجع الأعطال" not in operational.text
+    assert "جاهز / في مهمة" in operational.text
+    assert "ready / in_mission" not in operational.text
+
+
 def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     """العتاد مخزَّن `available` لكن لديه تصليح داخلي نشط ⇒ الواجهة تعرض الحالة الفعّالة."""
     client, ids = pages
