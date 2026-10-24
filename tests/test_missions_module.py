@@ -43,12 +43,15 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
     assert "تنبيهات صلاحية الرخص" not in drivers_page
     assert 'id="driverDialog"' in drivers_page
     assert "＋ إضافة سائق" in drivers_page
-    assert 'class="drivers-list-heading"' in drivers_page
+    assert 'class="drivers-list-actions"' in drivers_page
+    assert drivers_page.index("<h2>قائمة السائقين</h2>") < drivers_page.index('id="openDriverDialog"')
     assert 'id="openDriverDialog"' in drivers_page
     assert "open.addEventListener('click'" in drivers_page
     assert 'id="openUnassignedEquipment"' in drivers_page
     assert '({{ unassigned_equipment|length }})' in drivers_page
     assert 'id="unassignedEquipmentDialog"' in drivers_page
+    assert '<th>العتاد</th><th>رقم التسجيل</th><th>النوع</th><th>الطراز</th>' in drivers_page
+    assert '<th>رمز العتاد</th>' not in drivers_page
     assert 'data-add-driver-for="{{ item.id }}"' in drivers_page
     assert "assignedEquipment.value=addButton.getAttribute('data-add-driver-for')" in drivers_page
     assert "nav.insertBefore(addDriver,missionsLink.nextSibling)" not in drivers_page
