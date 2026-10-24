@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 import json
 from pathlib import Path
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -224,26 +224,39 @@ def create_spec_definition_form(name:str=Form(...),code:str=Form(""),data_type:s
 def delete_spec_definition_form(definition_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     services.delete_spec_definition(db,definition_id);return _redirect("تم حذف الخاصية من كل الطرازات المستخدمة فيها")
 @router.post("/equipment-types/models/create")
-async def create_model_form(request:Request,name:str=Form(...),equipment_type_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(False),image_url:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+async def create_model_form(request:Request,name:str=Form(...),equipment_type_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(False),image_url:str=Form(""),image:UploadFile|None=File(None),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+    uploaded_image_url = None
     try:
+        if image and image.filename:
+            uploaded_image_url = services.store_model_image(await image.read(5 * 1024 * 1024 + 1), image.filename)
         positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json);specs_data=json.loads(specs_json)
         if not isinstance(positions_data,list) or not isinstance(sizes_data,list) or not isinstance(specs_data,list):raise ValueError("بيانات المواضع أو المقاسات أو الخصائص غير صالحة")
         form=await request.form(); brand_raw=str(form.get("brand_id") or "").strip(); brand_value=int(brand_raw) if brand_raw else None
-        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=image_url.strip() or None))
+        services.create_model(db,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=uploaded_image_url or image_url.strip() or None))
     except (ValueError,TypeError) as exc:
-        db.rollback();return _redirect(str(exc),"warning")
+        db.rollback();services.remove_model_image(uploaded_image_url);return _redirect(str(exc),"warning")
+    except Exception:
+        db.rollback();services.remove_model_image(uploaded_image_url);raise
     return _redirect("تمت إضافة الطراز والمواصفات")
 @router.post("/equipment-types/models/{model_id}/update")
-async def update_model_form(request:Request,model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(False),image_url:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
+async def update_model_form(request:Request,model_id:int,name:str=Form(...),equipment_type_id:int=Form(...),has_tires:bool=Form(False),tire_positions_required:int=Form(0),axle_count:str=Form(""),tire_size:str=Form(""),positions_json:str=Form("[]"),sizes_json:str=Form("[]"),specs_json:str=Form("[]"),has_batteries:bool=Form(False),battery_count_required:int=Form(0),battery_capacity_ah:str=Form(""),battery_voltage_v:str=Form(""),mobility_type:str=Form("mobile"),requires_driver:bool=Form(False),image_url:str=Form(""),image:UploadFile|None=File(None),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj is None:raise HTTPException(status_code=404,detail="طراز العتاد غير موجود")
+    old_image_url = obj.image_url
+    uploaded_image_url = None
     try:
+        if image and image.filename:
+            uploaded_image_url = services.store_model_image(await image.read(5 * 1024 * 1024 + 1), image.filename)
         positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json);specs_data=json.loads(specs_json)
         if not isinstance(positions_data,list) or not isinstance(sizes_data,list) or not isinstance(specs_data,list):raise ValueError("بيانات المواضع أو المقاسات أو الخصائص غير صالحة")
         form=await request.form(); brand_raw=str(form.get("brand_id") or "").strip(); brand_value=int(brand_raw) if brand_raw else None
-        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=image_url.strip() or None))
+        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=uploaded_image_url or image_url.strip() or None))
     except (ValueError,TypeError) as exc:
-        db.rollback();return _redirect(str(exc),"warning")
+        db.rollback();services.remove_model_image(uploaded_image_url);return _redirect(str(exc),"warning")
+    except Exception:
+        db.rollback();services.remove_model_image(uploaded_image_url);raise
+    if uploaded_image_url and old_image_url != uploaded_image_url:
+        services.remove_model_image(old_image_url)
     return _redirect("تم حفظ تعديلات الطراز والمواصفات")
 @router.post("/equipment-types/models/{model_id}/move")
 def move_model_form(model_id:int,equipment_type_id:int=Form(...),db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
@@ -273,7 +286,10 @@ def unfreeze_model_form(model_id:int,db:Session=Depends(get_db),current_user:Use
 def delete_model_form(model_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     obj=services.get_model(db,model_id)
     if obj:
-        try:services.delete_model(db,obj)
+        image_url = obj.image_url
+        try:
+            services.delete_model(db,obj)
+            services.remove_model_image(image_url)
         except (ValueError,TypeError) as exc:return _redirect(str(exc),"warning")
     return _redirect("تم حذف الطراز بنجاح")
 @router.get("/api/equipment-types",response_model=list[EquipmentTypeOut])

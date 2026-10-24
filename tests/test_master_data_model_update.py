@@ -52,7 +52,7 @@ def _seed(db):
     return category, brand, second_brand, equipment_type, second_type, model
 
 
-def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tire_count=0, tire_size=None, has_batteries=False, battery_count=0, battery_ah=None, battery_v=None, positions=None, sizes=None):
+def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tire_count=0, tire_size=None, has_batteries=False, battery_count=0, battery_ah=None, battery_v=None, positions=None, sizes=None, image_url=None):
     return EquipmentModelCreate(
         name=name or model.name,
         equipment_type_id=type_id or model.equipment_type_id,
@@ -66,6 +66,7 @@ def _data(model, *, name=None, type_id=None, brand_id=None, has_tires=False, tir
         battery_voltage_v=battery_v,
         mobility_type="mobile",
         requires_driver=True,
+        image_url=image_url,
         positions=positions or [],
         sizes=sizes or [],
     )
@@ -106,6 +107,51 @@ def test_model_update_changes_reference_specs_atomically():
         assert updated.equipment_type_id == equipment_type.id
     finally:
         db.close()
+
+
+def test_model_image_url_is_saved_on_create_and_update():
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    db = Session()
+    try:
+        _, brand, _, equipment_type, _, model = _seed(db)
+        model.image_url = "/static/uploads/equipment-models/old.png"
+        db.commit()
+        preserved = services.update_model(db, model, _data(model))
+        assert preserved.image_url == "/static/uploads/equipment-models/old.png"
+        updated = services.update_model(db, model, _data(model, image_url="/static/uploads/equipment-models/new.png"))
+        assert updated.image_url == "/static/uploads/equipment-models/new.png"
+
+        created = services.create_model(db, EquipmentModelCreate(
+            name="طراز بصورة",
+            equipment_type_id=equipment_type.id,
+            brand_id=brand.id,
+            image_url="/static/uploads/equipment-models/created.png",
+        ))
+        assert created.image_url == "/static/uploads/equipment-models/created.png"
+    finally:
+        db.close()
+
+
+def test_model_image_storage_validates_and_removes_uploaded_image(tmp_path, monkeypatch):
+    from io import BytesIO
+    from PIL import Image
+
+    module_path = tmp_path / "app" / "modules" / "equipment_types" / "services.py"
+    module_path.parent.mkdir(parents=True)
+    module_path.touch()
+    monkeypatch.setattr(services, "__file__", str(module_path))
+    payload = BytesIO()
+    Image.new("RGB", (2, 2), color="green").save(payload, format="PNG")
+
+    image_url = services.store_model_image(payload.getvalue(), "model.png")
+    stored = tmp_path / "static" / "uploads" / "equipment-models" / image_url.rsplit("/", 1)[-1]
+    assert image_url.startswith("/static/uploads/equipment-models/")
+    assert stored.is_file()
+    services.remove_model_image(image_url)
+    assert not stored.exists()
+    with pytest.raises(ValueError, match="نوع الصورة غير مدعوم"):
+        services.store_model_image(payload.getvalue(), "model.svg")
 
 
 def test_model_update_rejects_duplicate_and_frozen_models():

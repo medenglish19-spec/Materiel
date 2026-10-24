@@ -128,7 +128,9 @@ def test_model_editor_form_preserves_battery_configuration_fields():
 def test_model_editor_is_tracked_with_a_form_scoped_baseline():
     template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
 
-    assert '<form id="modelForm" method="post" action="/equipment-types/models/create" data-em-root>' in template
+    assert '<form id="modelForm" method="post" enctype="multipart/form-data" action="/equipment-types/models/create" data-em-root>' in template
+    assert 'name="image" accept="image/jpeg,image/png,image/webp"' in template
+    assert "image:UploadFile|None=File(None)" in inspect.getsource(create_model_form)
     assert "EditManager.markFormBaseline($('modelForm'))" in template
     assert "EditManager.restoreForm($('modelForm'))" in template
 
