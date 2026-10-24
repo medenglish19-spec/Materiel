@@ -29,7 +29,9 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
     assert "[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]" in base
     assert "سجل المهمات" not in page
     assert "لا توجد مهمات مسجلة." in records_page
-    assert 'href="/missions">العودة إلى لوحة المهمات</a>' in records_page
+    assert "MATERIEL · MISSIONS" not in records_page
+    assert "عرض المهمات المسجلة ومعلومات العتاد والسائق والوجهة." not in records_page
+    assert "العودة إلى لوحة المهمات" not in records_page
     assert '<a class="mission-drivers-link" href="/missions/drivers">إدارة السائقين</a>' not in page
     assert '<section class="mission-overview"' in page
     assert "mission-metric" in page and "mission-overview>div" in page
