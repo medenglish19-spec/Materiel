@@ -484,7 +484,7 @@ const moduleNavigation=(function(){
     const currentLabel=p==='/document-import/preview'?'معاينة المستند':null;
     return unit('استيراد المستندات',[[uploadHref,'استيراد من مستند']],p==='/document-import/upload'?uploadHref:null,currentLabel);
   }
-  if(p.startsWith('/missions'))return unit('المهمات',[['/missions','سجل المهمات']]);
+  if(p.startsWith('/missions'))return unit('المهمات',[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]);
   if(p.startsWith('/users')&&!p.startsWith('/users/login'))return unit('المستخدمون',[['/users','إدارة المستخدمين']]);
   if(p.startsWith('/dashboard'))return unit('لوحة التحكم',[['/dashboard','الرئيسية']]);
   return null;

@@ -21,6 +21,7 @@ from app.modules.missions.router import (
     drivers_page,
     driver_history_page,
     edit_driver_page,
+    missions_page,
     update_center_column_label,
 )
 from app.modules.users.models import User
@@ -175,9 +176,15 @@ def test_license_dates_are_validated_and_expiry_alerts_include_day_30(db):
     assert [driver.id for driver in alerts["expired"]] == [expired.id]
     assert [driver.id for driver in alerts["expiring_soon"]] == [expiring.id]
     admin = User(username="admin", full_name="مدير النظام", hashed_password="unused", role="admin")
-    page = drivers_page(_request("/missions/drivers"), db, admin)
-    assert page.status_code == 200
-    assert "تنتهي خلال 30 يومًا" in page.body.decode("utf-8")
+    driver_page = drivers_page(_request("/missions/drivers"), db, admin)
+    assert driver_page.status_code == 200
+    assert "تنبيهات صلاحية الرخص" not in driver_page.body.decode("utf-8")
+    mission_page = missions_page(_request("/missions"), db, admin)
+    assert mission_page.status_code == 200
+    mission_html = mission_page.body.decode("utf-8")
+    assert "تنتهي خلال 30 يومًا" in mission_html
+    assert "منتهية</span>" in mission_html
+    assert expired.first_name in mission_html and expiring.last_name in mission_html
     edit = edit_driver_page(
         expiring.id,
         _request(f"/missions/drivers/{expiring.id}/edit"),
@@ -395,8 +402,10 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
         mission_page = client.get("/missions")
         assert "DRV-HTTP" in mission_page.text
         assert "مركز أ - سائق اختبار" in mission_page.text
-        assert "مركز الاختبار" in mission_page.text
-        assert "ملاحظة المهمة" in mission_page.text
+        records_page = client.get("/missions/records")
+        assert records_page.status_code == 200
+        assert "مركز الاختبار" in records_page.text
+        assert "ملاحظة المهمة" in records_page.text
         history = client.get("/missions/drivers/1")
         assert history.status_code == 200
         assert "اختبار سجل السائق" in history.text

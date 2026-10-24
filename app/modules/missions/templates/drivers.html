@@ -3,13 +3,20 @@
 {% block extra_head %}
 <style>
 .drivers-page{max-width:1240px;margin:0 auto}.drivers-page *{box-sizing:border-box}.drivers-page .drivers-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}.drivers-page h1{font-size:28px;margin:0 0 6px}.drivers-page .muted{color:#667085;line-height:1.7}.drivers-page .drivers-nav{display:flex;gap:8px;flex-wrap:wrap}.drivers-page .drivers-nav a,.drivers-page button,.drivers-page input,.drivers-page select,.drivers-page textarea{font:inherit}.drivers-page .drivers-nav a{padding:9px 13px;border:1px solid #e2e8f0;background:#fff;border-radius:9px;color:#172033;text-decoration:none;font-weight:700}.drivers-page .drivers-panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:18px;margin-top:14px;box-shadow:0 4px 18px rgba(15,23,42,.04)}.drivers-page .drivers-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.drivers-page h2{font-size:18px;margin:0}.drivers-page .drivers-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}.drivers-page .drivers-form label{display:grid;gap:6px;min-width:0;font-size:12px;color:#475467;font-weight:700}.drivers-page .drivers-form input,.drivers-page .drivers-form select,.drivers-page .drivers-form textarea{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid #d0d5dd;border-radius:8px;background:#fff}.drivers-page .wide{grid-column:1/-1}.drivers-page .primary{min-height:42px;padding:9px 15px;border:0;border-radius:8px;background:#315f42;color:#fff;font-weight:800;cursor:pointer}.drivers-page .label-settings{display:flex;align-items:center;gap:8px;font-size:12px}.drivers-page .label-settings input{width:150px;min-height:36px;padding:7px 9px;border:1px solid #d0d5dd;border-radius:7px}.drivers-page .small-button{padding:7px 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;cursor:pointer;font-weight:700}.drivers-page .danger{color:#9f2d2d}.drivers-page .table-wrap{overflow:auto;border:1px solid #e5e9f0;border-radius:10px}.drivers-page table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0}.drivers-page th,.drivers-page td{padding:11px 10px;border-bottom:1px solid #e5e9f0;text-align:right;vertical-align:middle;white-space:nowrap}.drivers-page th{background:#f8fafc;color:#475467;font-size:12px;font-weight:800}.drivers-page tbody tr:last-child td{border-bottom:0}.drivers-page .action-link{color:#276749;text-decoration:none;font-weight:800}.drivers-page .status{display:inline-flex;padding:4px 9px;border-radius:999px;background:#edf7f0;color:#22663a;font-size:12px;font-weight:800}.drivers-page .status.inactive{background:#f2f4f7;color:#667085}.drivers-page .status.expired{background:#fff1f1;color:#9f2d2d}.drivers-page .status.expiring{background:#fff6e8;color:#8a4b08}.drivers-page .empty{text-align:center;color:#667085;padding:28px}.drivers-page .label-editor{margin:0}.drivers-page .label-editor summary{cursor:pointer;color:#475467;font-size:12px;font-weight:700}.drivers-page .alert-counts{display:flex;gap:10px;flex-wrap:wrap}.drivers-page .alert-count{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e9f0;border-radius:9px;background:#fff;font-size:13px;font-weight:700}.drivers-page .alert-count b{font-size:17px}.drivers-page .alert-count.warning b{color:#a15c00}.drivers-page .alert-count.critical b{color:#b42318}@media(max-width:850px){.drivers-page .drivers-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.drivers-page .drivers-top{align-items:flex-start;flex-direction:column}.drivers-page h1{font-size:24px}.drivers-page .drivers-form{grid-template-columns:1fr}.drivers-page .wide{grid-column:auto}.drivers-page .drivers-panel{padding:13px}.drivers-page .drivers-head{align-items:flex-start;flex-direction:column}.drivers-page .label-settings{flex-wrap:wrap}}
+.drivers-page .mission-fixed-add-driver{margin-inline-start:4px;padding:8px 12px;border:1px solid #315f42;border-radius:8px;background:#315f42;color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.drivers-page .mission-fixed-add-driver:hover{background:#244b33}
+.drivers-page .driver-dialog{position:fixed;inset:0;margin:auto;width:min(820px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;box-shadow:0 24px 72px #10182855;direction:rtl}
+.drivers-page .driver-dialog::backdrop{background:#10182888}
+.drivers-page .driver-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.drivers-page .driver-dialog-head h2{margin:0}
+.drivers-page .driver-dialog-close{min-height:38px;padding:7px 12px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit;cursor:pointer}
+@media(max-width:560px){.drivers-page .driver-dialog{padding:15px}}
 </style>
 {% endblock %}
 {% block content %}
 <div class="drivers-page" dir="rtl">
   <header class="drivers-top">
     <div><h1>المهمات والسائقون</h1><div class="muted">إدارة بيانات السائقين وتعيينهم إلى العتاد الذي يتطلب سائقًا.</div></div>
-    <nav class="drivers-nav" aria-label="روابط وحدة المهمات والسائقين"><a href="/missions">المهمات</a></nav>
   </header>
   <section class="drivers-panel">
     <div class="drivers-head"><div><h2>العتاد الذي لا يوجد له سائق</h2><div class="muted">يشمل العتاد الذي يتطلب سائقًا ولا يرتبط بسائق نشط.</div></div><span class="status {% if unassigned_equipment %}expired{% endif %}">{{ unassigned_equipment|length }} عتاد</span></div>
@@ -20,21 +27,8 @@
       {% else %}<tr><td class="empty" colspan="5">لا يوجد عتاد يتطلب سائقًا دون سائق نشط.</td></tr>{% endfor %}</tbody>
     </table></div>
   </section>
-  <section class="drivers-panel">
-    <div class="drivers-head"><div><h2>تنبيهات صلاحية الرخص</h2><div class="muted">التنبيه للرخص النشطة التي تنتهي خلال 30 يومًا، مع عرض المنتهية أيضًا.</div></div>
-      <div class="alert-counts"><span class="alert-count critical">منتهية <b>{{ license_expiry_alerts.expired|length }}</b></span><span class="alert-count warning">تنتهي خلال 30 يومًا <b>{{ license_expiry_alerts.expiring_soon|length }}</b></span></div>
-    </div>
-    {% if license_expiry_alerts.rows %}
-    <div class="table-wrap" data-mt-region><table>
-      <thead><tr><th>السائق</th><th>صنف الرخصة</th><th>تاريخ نهاية الصلاحية</th><th>الحالة</th></tr></thead>
-      <tbody>{% for driver in license_expiry_alerts.rows %}
-        <tr><td>{{ driver.center ~ ' - ' if driver.center else '' }}{{ driver.first_name }} {{ driver.last_name }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_expiry_date }}</td><td><span class="status {% if driver.license_expiry_date < today %}expired{% else %}expiring{% endif %}">{% if driver.license_expiry_date < today %}منتهية{% else %}تنتهي خلال {{ (driver.license_expiry_date - today).days }} يومًا{% endif %}</span></td></tr>
-      {% endfor %}</tbody>
-    </table></div>
-    {% else %}<p class="muted">لا توجد رخص منتهية أو قريبة من الانتهاء.</p>{% endif %}
-  </section>
-  <section class="drivers-panel">
-    <div class="drivers-head"><div><h2>إضافة سائق</h2><div class="muted">يمكن ربط أكثر من سائق بالعتاد نفسه. تعطيل السجل يحفظ بياناته.</div></div></div>
+  <dialog class="driver-dialog" id="driverDialog" aria-labelledby="driverDialogTitle">
+    <div class="driver-dialog-head"><div><h2 id="driverDialogTitle">إضافة سائق</h2><div class="muted">يمكن ربط أكثر من سائق بالعتاد نفسه. تعطيل السجل يحفظ بياناته.</div></div><button class="driver-dialog-close" type="button" id="closeDriverDialog">إغلاق</button></div>
     <form method="post" action="/missions/drivers" class="drivers-form" data-em-root>
       <label>الاسم *<input name="first_name" maxlength="100" required></label>
       <label>اللقب *<input name="last_name" maxlength="100" required></label>
@@ -48,7 +42,7 @@
       <label class="wide">ملاحظات<input name="notes"></label>
       <button class="primary" type="submit" data-em-action="save">حفظ السائق</button>
     </form>
-  </section>
+  </dialog>
   <section class="drivers-panel">
     <div class="drivers-head">
       <h2>قائمة السائقين</h2>
@@ -87,4 +81,7 @@
     </div>
   </section>
 </div>
+<script>
+(function(){var dialog=document.getElementById('driverDialog');var close=document.getElementById('closeDriverDialog');if(!dialog||!close)return;close.addEventListener('click',function(){dialog.close();});dialog.addEventListener('click',function(event){if(event.target===dialog)dialog.close();});document.addEventListener('DOMContentLoaded',function(){var nav=document.getElementById('appModuleNav');if(!nav||nav.querySelector('.mission-fixed-add-driver'))return;var addDriver=document.createElement('button');addDriver.type='button';addDriver.className='mission-fixed-add-driver';addDriver.textContent='＋ إضافة سائق';addDriver.setAttribute('aria-haspopup','dialog');addDriver.addEventListener('click',function(){dialog.showModal();});var missionsLink=nav.querySelector('a[href="/missions/records"]');if(missionsLink&&missionsLink.nextSibling)nav.insertBefore(addDriver,missionsLink.nextSibling);else nav.appendChild(addDriver);});})();
+</script>
 {% endblock %}

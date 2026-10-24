@@ -26,14 +26,22 @@ def dec(value):
 @router.get("/missions", response_class=HTMLResponse)
 def missions_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     services.sync_mission_statuses(db)
-    missions = [{"mission": m, "status": services.mission_status(m)} for m in services.list_missions(db)]
+    drivers = services.list_drivers(db)
+    today = date.today()
     equipment = (
         db.query(Equipment)
         .options(joinedload(Equipment.equipment_model))
         .order_by(Equipment.registration_number, Equipment.id)
         .all()
     )
-    return templates.TemplateResponse(request=request, name="missions.html", context={"request": request, "user": current_user, "missions": missions, "equipment": equipment, "drivers": services.list_active_assigned_drivers(db), "counts": services.counts(db)})
+    return templates.TemplateResponse(request=request, name="missions.html", context={"request": request, "user": current_user, "equipment": equipment, "drivers": services.list_active_assigned_drivers(db), "driver_equipment": _driver_equipment_options(db), "counts": services.counts(db), "license_expiry_alerts": services.license_expiry_alerts(drivers, today=today), "today": today})
+
+
+@router.get("/missions/records", response_class=HTMLResponse)
+def mission_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    services.sync_mission_statuses(db)
+    missions = [{"mission": m, "status": services.mission_status(m)} for m in services.list_missions(db)]
+    return templates.TemplateResponse(request=request, name="mission_records.html", context={"request": request, "user": current_user, "missions": missions})
 
 
 def _driver_equipment_options(db: Session):
@@ -81,9 +89,7 @@ def drivers_page(request: Request, db: Session = Depends(get_db), current_user: 
             "drivers": drivers,
             "equipment": _driver_equipment_options(db),
             "unassigned_equipment": _unassigned_driver_equipment(db),
-            "license_expiry_alerts": services.license_expiry_alerts(drivers),
             "center_column_label": setting.center_column_label,
-            "today": date.today(),
         },
     )
 
