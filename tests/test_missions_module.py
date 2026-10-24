@@ -29,7 +29,7 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
     assert "[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]" in base
     assert "سجل المهمات" not in page
     assert "لا توجد مهمات مسجلة." in records_page
-    assert "mission-total" in records_page and "{{ missions|length }} مهمة" in records_page
+    assert "mission-total" in records_page and "<strong>{{ missions|length }}</strong>" in records_page
     assert 'href="/missions?open_mission=1"' in records_page
     assert "open_mission')==='1'" in page
     assert "MATERIEL · MISSIONS" not in records_page

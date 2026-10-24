@@ -2,16 +2,46 @@
 {% block title %}سجل المهمات{% endblock %}
 {% block extra_head %}
 <style>
-.mission-record-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.mission-total{display:flex;align-items:center;gap:9px;min-height:42px;padding:7px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#f8fafc;color:#475467;font-size:13px;font-weight:700}
-.mission-total b{color:#1f2937;font-size:18px}
-.mission-add-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:8px 14px;border:1px solid #315f42;border-radius:8px;background:#315f42;color:#fff;text-decoration:none;font-weight:800}
-.mission-add-button:hover{background:#244b33}
+.mission-record-page{max-width:1320px;margin:0 auto;direction:rtl}
+.mission-record-heading{margin:0 0 18px;padding:0 2px}
+.mission-record-heading h1{margin:0;color:#20352a;font-family:'Cairo',sans-serif;font-size:clamp(22px,2vw,28px);font-weight:750;line-height:1.4}
+.mission-record-card{overflow:hidden;border:1px solid #dfe7e1;border-radius:16px;background:#fff;box-shadow:0 5px 20px rgba(22,45,30,.06)}
+.mission-record-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid #e8eee9;background:linear-gradient(110deg,#fbfdfb,#f4f8f5)}
+.mission-record-card-head h2{margin:0;color:#263a2d;font-size:18px;font-weight:800}
+.mission-record-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mission-total{display:flex;align-items:center;gap:12px;min-height:46px;padding:6px 13px;border:1px solid #dce6de;border-radius:11px;background:#fff;color:#536258}
+.mission-total-label{font-size:12px;font-weight:700}
+.mission-total-value{display:flex;align-items:baseline;gap:5px;color:#254b32}
+.mission-total-value strong{font-size:21px;line-height:1;font-variant-numeric:tabular-nums}
+.mission-total-value span{font-size:12px;font-weight:700}
+.mission-add-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:46px;padding:9px 16px;border:1px solid #315f42;border-radius:10px;background:#315f42;color:#fff;text-decoration:none;font-size:14px;font-weight:800;box-shadow:0 2px 4px rgba(31,75,49,.12);transition:background .15s ease,transform .15s ease}
+.mission-add-button:hover{background:#244b33;transform:translateY(-1px)}
+.mission-add-button:focus-visible{outline:3px solid #9ac5a5;outline-offset:2px}
+.mission-record-table-wrap{width:100%;overflow:auto}
+.mission-record-table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;text-align:right}
+.mission-record-table th{padding:13px 14px;border-bottom:1px solid #dfe8e1;background:#edf4ef;color:#3d5545;font-size:12px;font-weight:800;white-space:nowrap}
+.mission-record-table td{padding:13px 14px;border-bottom:1px solid #edf1ee;color:#34443a;font-size:13px;line-height:1.6;vertical-align:middle}
+.mission-record-table tbody tr:nth-child(even){background:#fbfcfb}
+.mission-record-table tbody tr:hover{background:#f3f8f4}
+.mission-record-table tbody tr:last-child td{border-bottom:0}
+.mission-record-equipment{color:#315f42;font-weight:800}
+.mission-record-empty{text-align:center!important;padding:38px 16px!important;color:#69776d!important;font-size:14px!important}
+@media(max-width:760px){.mission-record-card-head{align-items:flex-start;flex-direction:column}.mission-record-toolbar{width:100%;justify-content:space-between}}
+@media(max-width:480px){.mission-record-card-head{padding:15px}.mission-record-toolbar{align-items:stretch}.mission-total,.mission-add-button{flex:1 1 auto;justify-content:center}.mission-total{gap:8px;padding:6px 9px}.mission-add-button{padding-inline:10px}}
 </style>
 {% endblock %}
 {% block content %}
-<div class="record-page missions-page" dir="rtl">
-  <header class="record-hero"><h2>سجل المهمات</h2></header>
-  <section class="record-panel"><div class="record-section-head"><h3>المهمات المسجلة</h3><div class="mission-record-actions"><div class="mission-total"><span>الإجمالي</span><b>{{ missions|length }} مهمة</b></div><a class="mission-add-button" href="/missions?open_mission=1">＋ إضافة مهمة</a></div></div><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b>{{ x.mission.equipment.equipment_model.name ~ ' - ' if x.mission.equipment and x.mission.equipment.equipment_model else '' }}{{ x.mission.equipment.registration_number or x.mission.equipment.vin or x.mission.equipment.asset_code if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ (x.mission.driver.center ~ ' - ' if x.mission.driver and x.mission.driver.center else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
+<div class="mission-record-page" dir="rtl">
+  <header class="mission-record-heading"><h1>سجل المهمات</h1></header>
+  <section class="mission-record-card" aria-labelledby="missionRecordsTitle">
+    <div class="mission-record-card-head">
+      <h2 id="missionRecordsTitle">المهمات المسجلة</h2>
+      <div class="mission-record-toolbar">
+        <div class="mission-total"><span class="mission-total-label">الإجمالي</span><span class="mission-total-value"><strong>{{ missions|length }}</strong><span>مهمة</span></span></div>
+        <a class="mission-add-button" href="/missions?open_mission=1"><span aria-hidden="true">＋</span> إضافة مهمة</a>
+      </div>
+    </div>
+    <div class="mission-record-table-wrap" data-mt-region><table class="mission-record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b class="mission-record-equipment">{{ x.mission.equipment.equipment_model.name ~ ' - ' if x.mission.equipment and x.mission.equipment.equipment_model else '' }}{{ x.mission.equipment.registration_number or x.mission.equipment.vin or x.mission.equipment.asset_code if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ (x.mission.driver.center ~ ' - ' if x.mission.driver and x.mission.driver.center else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="mission-record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div>
+  </section>
 </div>
 {% endblock %}
