@@ -1,8 +1,17 @@
 {% extends "base.html" %}
 {% block title %}سجل المهمات{% endblock %}
+{% block extra_head %}
+<style>
+.mission-record-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mission-total{display:flex;align-items:center;gap:9px;min-height:42px;padding:7px 12px;border:1px solid #e4e7ec;border-radius:10px;background:#f8fafc;color:#475467;font-size:13px;font-weight:700}
+.mission-total b{color:#1f2937;font-size:18px}
+.mission-add-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:8px 14px;border:1px solid #315f42;border-radius:8px;background:#315f42;color:#fff;text-decoration:none;font-weight:800}
+.mission-add-button:hover{background:#244b33}
+</style>
+{% endblock %}
 {% block content %}
 <div class="record-page missions-page" dir="rtl">
   <header class="record-hero"><h2>سجل المهمات</h2></header>
-  <section class="record-panel"><div class="record-section-head"><h3>المهمات المسجلة</h3><span class="record-badge">{{ missions|length }} مهمة</span></div><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b>{{ x.mission.equipment.equipment_model.name ~ ' - ' if x.mission.equipment and x.mission.equipment.equipment_model else '' }}{{ x.mission.equipment.registration_number or x.mission.equipment.vin or x.mission.equipment.asset_code if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ (x.mission.driver.center ~ ' - ' if x.mission.driver and x.mission.driver.center else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="record-panel"><div class="record-section-head"><h3>المهمات المسجلة</h3><div class="mission-record-actions"><div class="mission-total"><span>الإجمالي</span><b>{{ missions|length }} مهمة</b></div><a class="mission-add-button" href="/missions?open_mission=1">＋ إضافة مهمة</a></div></div><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b>{{ x.mission.equipment.equipment_model.name ~ ' - ' if x.mission.equipment and x.mission.equipment.equipment_model else '' }}{{ x.mission.equipment.registration_number or x.mission.equipment.vin or x.mission.equipment.asset_code if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ (x.mission.driver.center ~ ' - ' if x.mission.driver and x.mission.driver.center else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
 {% endblock %}
