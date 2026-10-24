@@ -15,6 +15,7 @@ from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel
 from app.modules.fuel import services
 from app.modules.fuel.model_rate_import import (
+    CONSUMPTION_UNIT_OPTIONS,
     FUEL_TYPE_OPTIONS,
     build_model_rate_template,
     list_models,
@@ -48,15 +49,48 @@ def fuel_page(request: Request, db: Session = Depends(get_db), current_user: Use
 def fuel_model_rates_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rates = (
         db.query(FuelModelConsumptionRate)
-        .options(joinedload(FuelModelConsumptionRate.equipment_model).joinedload(EquipmentModel.brand))
+        .options(joinedload(FuelModelConsumptionRate.equipment_model))
         .order_by(FuelModelConsumptionRate.equipment_model_id, FuelModelConsumptionRate.fuel_type)
         .all()
     )
     return templates.TemplateResponse(request=request, name="model_rates.html", context={
-        "request": request, "user": current_user, "rates": rates,
+        "request": request, "user": current_user, "rates": rates, "models": list_models(db),
+        "fuel_types": FUEL_TYPE_OPTIONS, "consumption_units": CONSUMPTION_UNIT_OPTIONS,
         "message": request.query_params.get("message"),
         "error": request.query_params.get("error"),
     })
+
+
+@router.post("/fuel/model-rates")
+def add_fuel_model_rate(
+    model_id: int = Form(...), fuel_type: str = Form(...),
+    consumption_rate: str = Form(...), measurement_unit: str = Form(...),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    try:
+        rate = Decimal(consumption_rate)
+        if not rate.is_finite() or rate <= 0:
+            raise ValueError("معدل الاستهلاك يجب أن يكون أكبر من صفر.")
+        if fuel_type not in FUEL_TYPE_OPTIONS:
+            raise ValueError("اختر نوع وقود من القائمة المعتمدة.")
+        if measurement_unit not in CONSUMPTION_UNIT_OPTIONS:
+            raise ValueError("اختر وحدة قياس من القائمة المعتمدة.")
+        if db.get(EquipmentModel, model_id) is None:
+            raise ValueError("الطراز المختار غير موجود.")
+        existing = db.query(FuelModelConsumptionRate).filter_by(
+            equipment_model_id=model_id, fuel_type=fuel_type
+        ).one_or_none()
+        save_model_rates(db, [{
+            "equipment_model_id": model_id,
+            "fuel_type": fuel_type,
+            "consumption_rate": rate,
+            "measurement_unit": measurement_unit,
+        }])
+        message = "حُدّث معدل الاستهلاك المسجل." if existing else "أُضيف معدل الاستهلاك بنجاح."
+        return RedirectResponse("/fuel/model-rates?message=" + quote(message), 303)
+    except (InvalidOperation, ValueError) as exc:
+        db.rollback()
+        return RedirectResponse("/fuel/model-rates?error=" + quote(str(exc)), 303)
 
 
 @router.get("/fuel/model-rates/template.xlsx")

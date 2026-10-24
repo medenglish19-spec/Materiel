@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}معدلات استهلاك الوقود حسب الطراز{% endblock %}
+{% block extra_head %}
+<style>
+.fuel-rate-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}.fuel-rate-actions button,.fuel-rate-actions summary,.fuel-rate-actions a,.fuel-rate-dialog button{font:inherit}.fuel-rate-add{border:1px solid #397a54;background:#397a54;color:#fff;padding:10px 15px;border-radius:9px;font-weight:800;cursor:pointer}.fuel-rate-import{position:relative}.fuel-rate-import>summary{list-style:none;cursor:pointer;border:1px solid #397a54;color:#286143;background:#fff;padding:10px 15px;border-radius:9px;font-weight:800}.fuel-rate-import>summary::-webkit-details-marker{display:none}.fuel-rate-import-menu{position:absolute;z-index:30;top:calc(100% + 6px);inset-inline-end:0;width:min(360px,calc(100vw - 32px));padding:14px;background:#fff;border:1px solid #d0d5dd;border-radius:12px;box-shadow:0 14px 38px #1018282b}.fuel-rate-import-menu>a{display:flex;justify-content:center;margin-bottom:12px;padding:9px 12px;border:1px solid #d0d5dd;border-radius:8px;color:#286143;text-decoration:none;font-weight:700}.fuel-rate-import-menu form{display:grid;gap:10px}.fuel-rate-import-menu label,.fuel-rate-dialog label{display:grid;gap:6px;color:#475467;font-size:13px;font-weight:700}.fuel-rate-import-menu input,.fuel-rate-dialog input,.fuel-rate-dialog select{min-height:42px;box-sizing:border-box;width:100%;padding:9px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit}.fuel-rate-import-menu button,.fuel-rate-dialog button{min-height:42px;border:1px solid #397a54;border-radius:8px;background:#397a54;color:#fff;padding:8px 13px;font-weight:800;cursor:pointer}.fuel-rate-dialog{width:min(560px,calc(100vw - 28px));max-width:none;max-height:88vh;padding:0;border:1px solid #d0d5dd;border-radius:16px;box-shadow:0 24px 72px #10182844;overflow:auto;direction:rtl}.fuel-rate-dialog::backdrop{background:#10182888}.fuel-rate-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #eaecf0}.fuel-rate-dialog header h3{margin:0}.fuel-rate-dialog header button{min-height:36px;background:#fff;border-color:#d0d5dd;color:#344054}.fuel-rate-dialog form{display:grid;gap:13px;padding:20px}.fuel-rate-dialog .rate-dialog-actions{display:flex;justify-content:flex-start;gap:8px;margin-top:4px}.fuel-rate-dialog .rate-dialog-cancel{background:#fff;border-color:#d0d5dd;color:#344054}
+</style>
+{% endblock %}
 {% block content %}
 <div class="record-page fuel-model-rates-page" dir="rtl">
   <a class="record-back" href="/fuel">← إدارة الوقود</a>
@@ -7,19 +12,45 @@
   {% if message %}<p class="record-notice" role="status">{{ message }}</p>{% endif %}
   {% if error %}<p class="record-notice" role="alert">{{ error }}</p>{% endif %}
   <section class="record-panel">
-    <div class="record-section-head"><h3>استيراد معدلات الاستهلاك</h3><a class="btn btn-outline" href="/fuel/model-rates/template.xlsx">تنزيل قالب Excel</a></div>
-    <p class="record-muted">يحتوي القالب ورقة «معدلات الاستهلاك» بالأعمدة: العلامة التجارية، الطراز، نوع الوقود، معدل الاستهلاك، وحدة القياس. اختر القيم من القوائم الموجودة في الملف ثم أعد استيراده.</p>
-    <form method="post" action="/fuel/model-rates/import" enctype="multipart/form-data" class="record-form" data-em-root>
-      <label class="record-wide">ملف Excel بصيغة .xlsx<input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required></label>
-      <button type="submit" data-em-action="save">استيراد المعدلات</button>
-    </form>
-    <p class="record-muted">عند استيراد معدل موجود للطراز ونوع الوقود نفسيهما، يُحدّث المعدل السابق.</p>
+    <div class="record-section-head"><h3>إدارة معدلات الاستهلاك</h3></div>
+    <div class="fuel-rate-actions">
+      <button class="fuel-rate-add" type="button" id="openFuelRateDialog">＋ إضافة معدل استهلاك</button>
+      <details class="fuel-rate-import">
+        <summary>استيراد معدلات استهلاك ▾</summary>
+        <div class="fuel-rate-import-menu">
+          <a href="/fuel/model-rates/template.xlsx">تنزيل قالب Excel</a>
+          <form method="post" action="/fuel/model-rates/import" enctype="multipart/form-data" data-em-root>
+            <label>ملف Excel<input type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required></label>
+            <button type="submit" data-em-action="save">استيراد الملف</button>
+          </form>
+        </div>
+      </details>
+    </div>
+    <dialog class="fuel-rate-dialog" id="fuelRateDialog" aria-labelledby="fuelRateDialogTitle">
+      <header><h3 id="fuelRateDialogTitle">إضافة معدل استهلاك</h3><button type="button" class="rate-dialog-cancel" data-close-fuel-rate>إغلاق</button></header>
+      <form method="post" action="/fuel/model-rates" data-em-root>
+        <label>الطراز<select name="model_id" required><option value="">اختر الطراز</option>{% for model in models %}<option value="{{ model.id }}">{{ model.brand.name if model.brand else 'بدون علامة تجارية' }} · {{ model.name }}</option>{% endfor %}</select></label>
+        <label>نوع الوقود<select name="fuel_type" required><option value="">اختر نوع الوقود</option>{% for kind in fuel_types %}<option value="{{ kind }}">{{ kind }}</option>{% endfor %}</select></label>
+        <label>معدل الاستهلاك<input type="number" name="consumption_rate" min="0.01" step="0.01" required></label>
+        <label>وحدة القياس<select name="measurement_unit" required><option value="">اختر الوحدة</option>{% for unit in consumption_units %}<option value="{{ unit }}">{{ unit }}</option>{% endfor %}</select></label>
+        <div class="rate-dialog-actions"><button type="submit" data-em-action="save">حفظ المعدل</button><button class="rate-dialog-cancel" type="button" data-close-fuel-rate>إلغاء</button></div>
+      </form>
+    </dialog>
   </section>
   <section class="record-panel">
     <div class="record-section-head"><h3>جدول المعدلات المسجلة</h3><span class="record-badge">{{ rates|length }} معدل</span></div>
-    <div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العلامة التجارية</th><th>الطراز</th><th>نوع الوقود</th><th>معدل الاستهلاك</th><th>وحدة القياس</th></tr></thead><tbody>
-      {% for row in rates %}<tr><td>{{ row.equipment_model.brand.name if row.equipment_model and row.equipment_model.brand else '—' }}</td><td>{{ row.equipment_model.name if row.equipment_model else 'طراز محذوف' }}</td><td>{{ row.fuel_type }}</td><td>{{ row.consumption_rate }}</td><td>{{ row.measurement_unit }}</td></tr>{% else %}<tr><td colspan="5" class="record-empty">لا توجد معدلات مسجلة. نزّل القالب وأدخل المعدلات حسب الطراز.</td></tr>{% endfor %}
+    <div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>الطراز</th><th>نوع الوقود</th><th>معدل الاستهلاك</th><th>وحدة القياس</th></tr></thead><tbody>
+      {% for row in rates %}<tr><td>{{ row.equipment_model.name if row.equipment_model else 'طراز محذوف' }}</td><td>{{ row.fuel_type }}</td><td>{{ row.consumption_rate }}</td><td>{{ row.measurement_unit }}</td></tr>{% else %}<tr><td colspan="4" class="record-empty">لا توجد معدلات مسجلة.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 </div>
+<script>
+(function(){
+  const dialog=document.getElementById('fuelRateDialog');
+  const open=document.getElementById('openFuelRateDialog');
+  if(!dialog||!open)return;
+  open.addEventListener('click',()=>dialog.showModal());
+  dialog.addEventListener('click',event=>{if(event.target===dialog||event.target.closest('[data-close-fuel-rate]'))dialog.close()});
+})();
+</script>
 {% endblock %}

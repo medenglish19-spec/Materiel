@@ -1,5 +1,6 @@
 """Excel template and validation for fuel consumption rates by model."""
 
+from collections import Counter
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
@@ -12,7 +13,7 @@ from app.modules.equipment_types.models import EquipmentModel
 from app.modules.fuel.models import FuelModelConsumptionRate
 
 
-MODEL_RATE_HEADERS = ("العلامة التجارية", "الطراز", "نوع الوقود", "معدل الاستهلاك", "وحدة القياس")
+MODEL_RATE_HEADERS = ("الطراز", "نوع الوقود", "معدل الاستهلاك", "وحدة القياس")
 FUEL_TYPE_OPTIONS = ("ديزل", "بنزين", "غاز بترولي مسال", "غاز طبيعي")
 CONSUMPTION_UNIT_OPTIONS = ("لتر/100 كم", "لتر/ساعة")
 
@@ -31,59 +32,53 @@ def model_label(model: EquipmentModel) -> str:
     return f"{brand} · {model.name}"
 
 
+def template_model_labels(models: list[EquipmentModel]) -> dict[str, EquipmentModel]:
+    name_counts = Counter(model.name.strip().casefold() for model in models if model.name)
+    labels = {}
+    for model in models:
+        name = model.name.strip()
+        label = f"{name} · رقم {model.id}" if name_counts[name.casefold()] > 1 else name
+        labels[label] = model
+    return labels
+
+
 def build_model_rate_template(models: list[EquipmentModel]) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "معدلات الاستهلاك"
     sheet.append(MODEL_RATE_HEADERS)
     sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = "A1:E501"
-    widths = (24, 28, 22, 20, 20)
+    sheet.auto_filter.ref = "A1:D501"
+    widths = (34, 22, 20, 20)
     for index, width in enumerate(widths, start=1):
         sheet.column_dimensions[chr(64 + index)].width = width
 
-    brands = sorted({model.brand.name for model in models if model.brand and model.brand.name})
-    model_names = sorted({model.name for model in models if model.name})
+    model_names = sorted(template_model_labels(models))
     lists = workbook.create_sheet("قوائم")
     lists.sheet_state = "hidden"
-    for row, value in enumerate(FUEL_TYPE_OPTIONS, start=1):
-        lists.cell(row=row, column=1, value=value)
-    for row, value in enumerate(CONSUMPTION_UNIT_OPTIONS, start=1):
-        lists.cell(row=row, column=2, value=value)
-    for row, value in enumerate(brands, start=1):
-        lists.cell(row=row, column=3, value=value)
     for row, value in enumerate(model_names, start=1):
-        lists.cell(row=row, column=4, value=value)
+        lists.cell(row=row, column=1, value=value)
+    for row, value in enumerate(FUEL_TYPE_OPTIONS, start=1):
+        lists.cell(row=row, column=2, value=value)
+    for row, value in enumerate(CONSUMPTION_UNIT_OPTIONS, start=1):
+        lists.cell(row=row, column=3, value=value)
 
-    workbook.defined_names.add(DefinedName(
-        "FuelTypes", attr_text=f"'قوائم'!$A$1:$A${len(FUEL_TYPE_OPTIONS)}"
-    ))
-    workbook.defined_names.add(DefinedName(
-        "FuelRateUnits", attr_text=f"'قوائم'!$B$1:$B${len(CONSUMPTION_UNIT_OPTIONS)}"
-    ))
+    if model_names:
+        workbook.defined_names.add(DefinedName(
+            "FuelRateModels", attr_text=f"'قوائم'!$A$1:$A${len(model_names)}"
+        ))
+    workbook.defined_names.add(DefinedName("FuelTypes", attr_text=f"'قوائم'!$B$1:$B${len(FUEL_TYPE_OPTIONS)}"))
+    workbook.defined_names.add(DefinedName("FuelRateUnits", attr_text=f"'قوائم'!$C$1:$C${len(CONSUMPTION_UNIT_OPTIONS)}"))
 
-    fuel_validation = DataValidation(type="list", formula1=f"'قوائم'!$A$1:$A${len(FUEL_TYPE_OPTIONS)}", allow_blank=False)
-    unit_validation = DataValidation(type="list", formula1=f"'قوائم'!$B$1:$B${len(CONSUMPTION_UNIT_OPTIONS)}", allow_blank=False)
-    if brands:
-        workbook.defined_names.add(DefinedName("FuelBrands", attr_text=f"'قوائم'!$C$1:$C${len(brands)}"))
-        brand_validation = DataValidation(type="list", formula1=f"'قوائم'!$C$1:$C${len(brands)}", allow_blank=False)
-        sheet.add_data_validation(brand_validation)
-        brand_validation.add("A2:A501")
+    fuel_validation = DataValidation(type="list", formula1="=FuelTypes", allow_blank=False)
+    unit_validation = DataValidation(type="list", formula1="=FuelRateUnits", allow_blank=False)
+    validations = [(fuel_validation, "B2:B501"), (unit_validation, "D2:D501")]
     if model_names:
-        workbook.defined_names.add(DefinedName("FuelModels", attr_text=f"'قوائم'!$D$1:$D${len(model_names)}"))
-        model_validation = DataValidation(type="list", formula1=f"'قوائم'!$D$1:$D${len(model_names)}", allow_blank=False)
-        sheet.add_data_validation(model_validation)
-        model_validation.add("B2:B501")
-    fuel_validation.formula1 = "=FuelTypes"
-    unit_validation.formula1 = "=FuelRateUnits"
-    if brands:
-        brand_validation.formula1 = "=FuelBrands"
-    if model_names:
-        model_validation.formula1 = "=FuelModels"
-    for validation, target in ((fuel_validation, "C2:C501"), (unit_validation, "E2:E501")):
+        validations.insert(0, (DataValidation(type="list", formula1="=FuelRateModels", allow_blank=False), "A2:A501"))
+    for validation, target in validations:
         sheet.add_data_validation(validation)
         validation.add(target)
-    sheet["D2"].number_format = "0.00"
+    sheet["C2"].number_format = "0.00"
     output = BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -101,20 +96,17 @@ def parse_model_rate_workbook(content: bytes, models: list[EquipmentModel]) -> l
     if headers != MODEL_RATE_HEADERS:
         raise ValueError("رأس الجدول غير مطابق لقالب معدلات استهلاك الوقود.")
 
-    model_map = {
-        ((model.brand.name if model.brand else "بدون علامة تجارية").strip().casefold(), model.name.strip().casefold()): model
-        for model in models
-    }
+    model_map = {label.strip().casefold(): model for label, model in template_model_labels(models).items()}
     rows: list[dict] = []
     seen: set[tuple[int, str]] = set()
     for row_number, values in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
-        values = tuple(values[:5])
+        values = tuple(values[:4])
         if not any(value not in (None, "") for value in values):
             continue
-        brand, model_name, fuel_type, raw_rate, unit = (str(value or "").strip() for value in values)
-        model = model_map.get((brand.casefold(), model_name.casefold()))
+        model_name, fuel_type, raw_rate, unit = (str(value or "").strip() for value in values)
+        model = model_map.get(model_name.casefold())
         if model is None:
-            raise ValueError(f"العلامة التجارية والطراز في الصف {row_number} غير موجودين في بيانات البرنامج.")
+            raise ValueError(f"الطراز في الصف {row_number} غير موجود في بيانات البرنامج. اختره من قائمة القالب.")
         if fuel_type not in FUEL_TYPE_OPTIONS:
             raise ValueError(f"نوع الوقود في الصف {row_number} غير مدرج في القائمة المعتمدة.")
         if unit not in CONSUMPTION_UNIT_OPTIONS:

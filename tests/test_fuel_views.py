@@ -110,6 +110,25 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             saved_fuel = client.post("/fuel", data=form_data, follow_redirects=False)
             assert saved_fuel.status_code == 303
 
+            rates_page = client.get("/fuel/model-rates")
+            assert rates_page.status_code == 200
+            assert 'id="fuelRateDialog"' in rates_page.text
+            assert 'id="openFuelRateDialog"' in rates_page.text
+            assert "تنزيل قالب Excel" in rates_page.text
+            assert 'name="file"' in rates_page.text
+            assert "العلامة التجارية" not in rates_page.text
+            assert "الإجمالي · عرض الكل" not in rates_page.text
+
+            added_rate = client.post("/fuel/model-rates", data={
+                "model_id": str(model_id),
+                "fuel_type": "ديزل",
+                "consumption_rate": "8.0",
+                "measurement_unit": "لتر/100 كم",
+            }, follow_redirects=True)
+            assert added_rate.status_code == 200
+            assert "أُضيف معدل الاستهلاك بنجاح." in added_rate.text
+            assert "8.00" in added_rate.text or ">8<" in added_rate.text
+
             rates_template = client.get("/fuel/model-rates/template.xlsx")
             assert rates_template.status_code == 200
             workbook = load_workbook(BytesIO(rates_template.content), read_only=True)
@@ -119,14 +138,16 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             workbook = load_workbook(BytesIO(rates_template.content))
             sheet = workbook["معدلات الاستهلاك"]
             assert sheet.freeze_panes == "A2"
-            assert sheet.data_validations.count == 4
+            assert sheet.data_validations.count == 3
+            assert workbook.defined_names.get("FuelRateModels") is not None
             assert workbook.defined_names.get("FuelTypes") is not None
+            assert "علامة اختبار الوقود" not in [value for row in workbook["قوائم"].iter_rows(values_only=True) for value in row]
             workbook.close()
 
             imported = BytesIO()
             workbook = load_workbook(BytesIO(rates_template.content))
             sheet = workbook["معدلات الاستهلاك"]
-            sheet.append(("علامة اختبار الوقود", "طراز اختبار الوقود", "ديزل", 12.5, "لتر/100 كم"))
+            sheet.append(("طراز اختبار الوقود", "ديزل", 12.5, "لتر/100 كم"))
             workbook.save(imported)
             workbook.close()
             response = client.post(
