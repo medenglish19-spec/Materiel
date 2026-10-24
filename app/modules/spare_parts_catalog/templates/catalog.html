@@ -3,11 +3,15 @@
 {% block content %}
 <style>
 .spcat{direction:rtl;max-width:1500px;margin:auto}.spcat .top,.spcat .actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.spcat h1{margin:0;color:#20352a}.spcat .panel{background:#fff;border:1px solid #e4eaf0;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 3px 14px rgba(20,55,80,.04)}.spcat .grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px}.spcat label{display:flex;flex-direction:column;gap:4px;font-size:12px}.spcat input,.spcat select,.spcat textarea{min-width:0;padding:8px;border:1px solid #d6dee6;border-radius:7px}.spcat table{width:100%;border-collapse:collapse}.spcat th,.spcat td{text-align:right;padding:9px;border-bottom:1px solid #edf1f4;vertical-align:top}.spcat th{background:#f7fafc}.spcat .scroll{overflow:auto}.spcat .part-img{width:46px;height:46px;object-fit:contain}.spcat details{min-width:280px}.spcat .notice{padding:10px;border-radius:8px;background:#fff1f1;color:#8a2222;margin:12px 0}.spcat .muted{color:#718096;font-size:12px}.spcat .btn{display:inline-block;padding:8px 12px;border:0;border-radius:7px;background:#397a54;color:white;text-decoration:none;cursor:pointer}.spcat .btn.secondary{background:#596b7a}.spcat .pager{display:flex;justify-content:center;gap:16px;padding:14px}.spcat .pill{display:inline-block;background:#eef5fb;border-radius:20px;padding:3px 8px;font-size:11px}@media(max-width:760px){.spcat .grid{grid-template-columns:repeat(2,minmax(0,1fr))}.spcat td{min-width:100px}}@media(max-width:480px){.spcat .grid{grid-template-columns:1fr}}
+.spcat table{min-width:900px}
+.spcat .catalog-dialog{position:fixed;inset:0;margin:auto;transform:none;width:min(900px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;border:1px solid #e4eaf0;border-radius:12px;padding:0;box-shadow:0 20px 60px #10182844}.spcat .catalog-dialog::backdrop{background:#10182888}.spcat .catalog-dialog .dialog-head{padding:16px 16px 0}.spcat .catalog-dialog>form{padding:16px}.spcat .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.spcat .dialog-head h2{margin:0}.spcat .dialog-head button{font:inherit}
+.spcat .category-manager{margin:0 16px 16px;border-top:1px solid #e4eaf0;padding-top:12px}.spcat .category-manager h3{margin:0 0 10px;font-size:15px}.spcat .category-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}.spcat .category-row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid #edf1f4}.spcat .category-row>strong{flex:1 1 180px}.spcat .category-row details{min-width:0}.spcat .category-edit-form{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-top:8px}.spcat .category-edit-form label{min-width:180px}.spcat .category-row .btn.danger{background:#b42318}.spcat .category-delete-form{margin:0}.spcat .category-empty{color:#718096;font-size:12px}
 </style>
 <main class="spcat">
-  <div class="top"><div><h1>كتالوج قطع الغيار</h1><div class="muted">سجل مركزي مرتبط بقطع الغيار المستخدمة في الطلبات والتصليحات.</div></div><div class="actions"><a class="btn" href="/spare-parts/catalog/import">استيراد كتالوج</a><a class="btn secondary" href="/spare-parts">وحدة قطع الغيار</a></div></div>
+  <div class="top"><div><h1>كتالوج قطع الغيار</h1><div class="muted">سجل مركزي مرتبط بقطع الغيار المستخدمة في الطلبات والتصليحات.</div></div><div class="actions"><button class="btn" id="openCatalogAdd" type="button">＋ إضافة قطعة</button><button class="btn secondary" id="openCategoryAdd" type="button">＋ إضافة تصنيف</button><a class="btn secondary" href="/spare-parts/catalog/import">استيراد الكتالوج</a><a class="btn secondary" href="/spare-parts">وحدة قطع الغيار</a></div></div>
   {% if error %}<div class="notice" role="alert">{{ error }}</div>{% endif %}
-  <section class="panel"><h2>إضافة قطعة</h2>
+  <dialog class="panel catalog-dialog" id="catalogAddDialog" aria-labelledby="catalogAddTitle">
+    <div class="dialog-head"><h2 id="catalogAddTitle">إضافة قطعة</h2><button class="btn secondary" id="closeCatalogAdd" type="button">إغلاق</button></div>
     <form action="/spare-parts/catalog/parts" method="post" enctype="multipart/form-data">
       <div class="grid">
         <label>الاسم المعروض<input name="name" maxlength="160" required></label>
@@ -15,19 +19,42 @@
         <label>الاسم بالفرنسية<input name="name_fr" maxlength="160"></label>
         <label>المرجع الأصلي<input name="reference" maxlength="120"></label>
         <label>الشركة المصنّعة<input name="manufacturer" maxlength="160"></label>
-        <label>التصنيف (استخدم / للفئات الفرعية)<input name="category" maxlength="255" placeholder="المحرك / المرشحات"></label>
+        <label>التصنيف<select name="category"><option value="">بدون تصنيف</option>{% for cat in categories %}<option value="{{ category_paths[cat.id] }}">{{ category_paths[cat.id] }}</option>{% endfor %}</select></label>
         <label>المصدر<input name="source" maxlength="255"></label>
         <label>الصورة الرئيسية<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
         <label style="grid-column:1/-1">الوصف والملاحظات<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
       </div><p class="muted">رمز الكتالوج الداخلي يُنشأ تلقائيًا. إضافة القطعة لا تنشئ استلامًا أو رصيد مخزون.</p><button class="btn" type="submit">حفظ القطعة</button>
     </form>
-  </section>
-  <section class="panel"><h2>التصنيفات</h2>
+  </dialog>
+  <dialog class="panel catalog-dialog" id="categoryAddDialog" aria-labelledby="categoryAddTitle">
+    <div class="dialog-head"><h2 id="categoryAddTitle">إضافة تصنيف</h2><button class="btn secondary" id="closeCategoryAdd" type="button">إغلاق</button></div>
     <form action="/spare-parts/catalog/categories" method="post" class="actions">
       <label>اسم التصنيف بالعربية<input name="name_ar" maxlength="120" required></label><label>الاسم بالفرنسية<input name="name_fr" maxlength="120"></label>
       <label>التصنيف الأب<select name="parent_id"><option value="">فئة رئيسية</option>{% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name_ar }}{% if cat.name_fr %} / {{ cat.name_fr }}{% endif %}</option>{% endfor %}</select></label><button class="btn" type="submit">إضافة تصنيف</button>
     </form>
-  </section>
+    <section class="category-manager" aria-labelledby="categoryManagerTitle">
+      <h3 id="categoryManagerTitle">التصنيفات الحالية</h3>
+      {% if categories %}
+      <ul class="category-list">
+        {% for cat in categories %}
+        <li class="category-row">
+          <strong>{{ category_paths[cat.id] }}</strong>
+          <details><summary class="btn secondary">تعديل</summary>
+            <form class="category-edit-form" action="/spare-parts/catalog/categories/{{ cat.id }}/update" method="post">
+              <label>اسم التصنيف بالعربية<input name="name_ar" value="{{ cat.name_ar }}" maxlength="120" required></label>
+              <label>الاسم بالفرنسية<input name="name_fr" value="{{ cat.name_fr or '' }}" maxlength="120"></label>
+              <button class="btn" type="submit">حفظ التعديل</button>
+            </form>
+          </details>
+          <form class="category-delete-form" action="/spare-parts/catalog/categories/{{ cat.id }}/delete" method="post" onsubmit="return confirm('سيُحذف التصنيف نهائيًا إذا لم يكن مرتبطًا بقطع أو تصنيفات فرعية. هل تريد المتابعة؟')">
+            <button class="btn danger" type="submit">حذف</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<div class="category-empty">لا توجد تصنيفات مسجلة بعد.</div>{% endif %}
+    </section>
+  </dialog>
   <section class="panel"><div class="top"><h2>القطع ({{ total }})</h2>
     <form action="/spare-parts/catalog" method="get" class="actions">
       <label>بحث<input name="q" value="{{ q }}" placeholder="اسم أو مرجع أو شركة"></label>
@@ -44,10 +71,31 @@
         <td>{% if details and not details.is_active %}<span class="pill">مؤرشفة</span>{% else %}<span class="pill">نشطة</span>{% endif %}<details><summary>تعديل</summary>
           <form action="/spare-parts/catalog/parts/{{ part.id }}/update" method="post" enctype="multipart/form-data">
             <label>الاسم المعروض<input name="name" value="{{ part.name }}" maxlength="160" required></label><label>الاسم بالعربية<input name="name_ar" value="{{ details.name_ar if details else '' }}" maxlength="160"></label><label>الاسم بالفرنسية<input name="name_fr" value="{{ details.name_fr if details else '' }}" maxlength="160"></label><label>المرجع الأصلي<input name="reference" value="{{ references.get(part.id, [])[0].reference if references.get(part.id) else '' }}" maxlength="120"></label><label>الشركة<input name="manufacturer" value="{{ details.manufacturer if details else '' }}" maxlength="160"></label><label>التصنيف<input name="category" value="{{ category_paths.get(details.category_id, '') if details and details.category_id else '' }}"></label><label>المصدر<input name="source" value="{{ details.source if details else '' }}" maxlength="255"></label><label>الوصف<textarea name="notes" maxlength="2000">{{ part.notes or '' }}</textarea></label><label>استبدال الصورة<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><label><input type="checkbox" name="remove_image" value="on"> إزالة الصورة</label><label><input type="checkbox" name="active" value="on" {% if not details or details.is_active %}checked{% endif %}> نشطة</label><button class="btn" type="submit">حفظ التعديل</button>
-          </form></details></td>
+          </form></details><form action="/spare-parts/catalog/parts/{{ part.id }}/delete" method="post" style="display:inline-block;margin-inline-start:6px" onsubmit="return confirm('\u0647\u0644 \u0623\u0646\u062a \u0645\u062a\u0623\u0643\u062f \u0645\u0646 \u062d\u0630\u0641 \u0647\u0630\u0647 \u0627\u0644\u0642\u0637\u0639\u0629\u061f')"><button class="btn secondary" type="submit">&#1581;&#1584;&#1601;</button></form></td>
       </tr>{% else %}<tr><td colspan="7" class="muted">لا توجد قطع مطابقة. أضف قطعة أو استورد كتالوجًا.</td></tr>{% endfor %}
     </tbody></table></div>
     <div class="pager">{% if page > 1 %}<a href="?q={{ q|urlencode }}&page={{ page - 1 }}&category_id={{ category_id or '' }}&manufacturer={{ manufacturer_filter or '' }}">السابق</a>{% endif %}<span>صفحة {{ page }} من {{ (total + page_size - 1) // page_size if total else 1 }}</span>{% if page * page_size < total %}<a href="?q={{ q|urlencode }}&page={{ page + 1 }}&category_id={{ category_id or '' }}&manufacturer={{ manufacturer_filter or '' }}">التالي</a>{% endif %}</div>
   </section>
 </main>
+<script>
+(function(){
+  const dialog=document.getElementById('catalogAddDialog');
+  const open=document.getElementById('openCatalogAdd');
+  const close=document.getElementById('closeCatalogAdd');
+  const categoryDialog=document.getElementById('categoryAddDialog');
+  const openCategory=document.getElementById('openCategoryAdd');
+  const closeCategory=document.getElementById('closeCategoryAdd');
+  if(dialog&&open&&close){
+    open.addEventListener('click',()=>dialog.showModal());
+    close.addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+  }
+  if(categoryDialog&&openCategory&&closeCategory){
+    openCategory.addEventListener('click',()=>categoryDialog.showModal());
+    closeCategory.addEventListener('click',()=>categoryDialog.close());
+    categoryDialog.addEventListener('click',event=>{if(event.target===categoryDialog)categoryDialog.close()});
+  }
+  {% if active_dialog == 'category' %}if(categoryDialog)categoryDialog.showModal();{% elif active_dialog == 'part' %}if(dialog)dialog.showModal();{% endif %}
+})();
+</script>
 {% endblock %}

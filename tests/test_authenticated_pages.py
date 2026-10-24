@@ -221,14 +221,87 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     page = client.get("/spare-parts/catalog")
     assert page.status_code == 200
     assert "كتالوج قطع الغيار" in page.text
+    assert 'id="openCatalogAdd"' in page.text
+    assert 'id="openCategoryAdd"' in page.text
+    assert 'id="catalogAddDialog"' in page.text
+    assert 'id="categoryAddDialog"' in page.text
+    assert 'id="closeCategoryAdd"' in page.text
+    assert '<select name="category">' in page.text
+    assert 'action="/spare-parts/catalog/categories"' in page.text
+    assert page.text.index('id="openCatalogAdd"') < page.text.index('id="openCategoryAdd"')
+    assert 'action="/spare-parts/catalog/parts"' in page.text
+    assert 'href="/spare-parts/catalog/import">استيراد الكتالوج</a>' in page.text
+    navigation = page.text.split('id="appModuleNav"', 1)[1].split("</nav>", 1)[0]
+    assert 'href="/spare-parts/catalog/import"' not in navigation
+    assert "['/spare-parts/catalog/import','استيراد الكتالوج']" not in page.text
+
+    category = client.post(
+        "/spare-parts/catalog/categories",
+        data={"name_ar": "تصنيف صفحة تجريبي", "name_fr": "Catégorie de test"},
+        follow_redirects=False,
+    )
+    assert category.status_code == 303
+    category_page = client.get("/spare-parts/catalog")
+    assert 'option value="تصنيف صفحة تجريبي">تصنيف صفحة تجريبي</option>' in category_page.text
+    category_form = next(
+        form for form in re.findall(r'<form class="category-edit-form"[^>]*>.*?</form>', category_page.text, re.DOTALL)
+        if 'value="تصنيف صفحة تجريبي"' in form
+    )
+    category_id = re.search(r'action="/spare-parts/catalog/categories/(\d+)/update"', category_form).group(1)
+    assert f'action="/spare-parts/catalog/categories/{category_id}/delete"' in category_page.text
+
+    child_category = client.post(
+        "/spare-parts/catalog/categories",
+        data={"name_ar": "تصنيف فرعي تجريبي", "parent_id": category_id},
+        follow_redirects=False,
+    )
+    assert child_category.status_code == 303
+    blocked_parent_delete = client.post(f"/spare-parts/catalog/categories/{category_id}/delete", follow_redirects=False)
+    assert blocked_parent_delete.status_code == 409
+    assert "يحتوي تصنيفات فرعية" in blocked_parent_delete.text
+    category_page = client.get("/spare-parts/catalog")
+    child_form = next(
+        form for form in re.findall(r'<form class="category-edit-form"[^>]*>.*?</form>', category_page.text, re.DOTALL)
+        if 'value="تصنيف فرعي تجريبي"' in form
+    )
+    child_id = re.search(r'action="/spare-parts/catalog/categories/(\d+)/update"', child_form).group(1)
+    deleted_child = client.post(f"/spare-parts/catalog/categories/{child_id}/delete", follow_redirects=False)
+    assert deleted_child.status_code == 303
+
+    updated_category = client.post(
+        f"/spare-parts/catalog/categories/{category_id}/update",
+        data={"name_ar": "تصنيف صفحة معدل", "name_fr": "Catégorie modifiée"},
+        follow_redirects=False,
+    )
+    assert updated_category.status_code == 303
+    category_page = client.get("/spare-parts/catalog")
+    assert 'option value="تصنيف صفحة معدل">تصنيف صفحة معدل</option>' in category_page.text
 
     created = client.post(
         "/spare-parts/catalog/parts",
-        data={"name": "فلتر تجريبي", "name_ar": "فلتر", "reference": "PAGE-001", "manufacturer": "شركة اختبار"},
+        data={"name": "فلتر تجريبي", "name_ar": "فلتر", "reference": "PAGE-001", "manufacturer": "شركة اختبار", "category": "تصنيف صفحة معدل"},
         follow_redirects=False,
     )
     assert created.status_code == 303
-    assert "فلتر" in client.get("/spare-parts/catalog").text
+    catalog_page = client.get("/spare-parts/catalog")
+    assert "فلتر" in catalog_page.text
+    assert "تصنيف صفحة معدل" in catalog_page.text
+    blocked_delete = client.post(f"/spare-parts/catalog/categories/{category_id}/delete", follow_redirects=False)
+    assert blocked_delete.status_code == 409
+    assert "مرتبط بقطع غيار" in blocked_delete.text
+
+    unused_category = client.post(
+        "/spare-parts/catalog/categories",
+        data={"name_ar": "تصنيف صفحة للحذف"},
+        follow_redirects=False,
+    )
+    assert unused_category.status_code == 303
+    category_page = client.get("/spare-parts/catalog")
+    delete_ids = re.findall(r'action="/spare-parts/catalog/categories/(\d+)/delete"', category_page.text)
+    unused_category_id = max(map(int, delete_ids))
+    deleted_category = client.post(f"/spare-parts/catalog/categories/{unused_category_id}/delete", follow_redirects=False)
+    assert deleted_category.status_code == 303
+    assert "تصنيف صفحة للحذف" not in client.get("/spare-parts/catalog").text
 
     preview = client.post(
         "/spare-parts/catalog/import",
@@ -236,7 +309,6 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     )
     assert preview.status_code == 200, preview.text
     assert "حشية" in preview.text
-    import re
     batch_id = re.search(r"/spare-parts/catalog/import/(\d+)/apply", preview.text).group(1)
     result = client.post(
         f"/spare-parts/catalog/import/{batch_id}/apply",
@@ -245,6 +317,96 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     assert result.status_code == 200, result.text
     assert "أضيف 1" in result.text
     assert "PAGE-002" in client.get("/spare-parts/catalog").text
+
+
+def test_spare_parts_catalog_can_delete_an_unused_part_from_its_row(pages):
+    client, _ = pages
+    created = client.post(
+        "/spare-parts/catalog/parts",
+        data={"name": "قطعة قابلة للحذف", "reference": "PAGE-DELETE-001"},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+
+    page = client.get("/spare-parts/catalog")
+    assert page.status_code == 200
+    part_rows = re.findall(r"<tr>(.*?)</tr>", page.text, re.DOTALL)
+    part_row = next((row for row in part_rows if "PAGE-DELETE-001" in row), None)
+    assert part_row, "the newly created catalog item is missing from its row"
+    delete_action = re.search(
+        r'<form action="/spare-parts/catalog/parts/(\d+)/delete"[^>]*onsubmit="return confirm\(',
+        part_row,
+    )
+    assert delete_action, "the catalog row is missing its confirmed delete action"
+    part_id = delete_action.group(1)
+
+    deleted = client.post(f"/spare-parts/catalog/parts/{part_id}/delete", follow_redirects=False)
+    assert deleted.status_code == 303
+    assert "PAGE-DELETE-001" not in client.get("/spare-parts/catalog").text
+
+
+def test_spare_parts_home_removes_duplicate_workflow_cards_and_bolds_indicators(pages):
+    client, _ = pages
+    response = client.get("/spare-parts")
+
+    assert response.status_code == 200
+    modules = response.text.split('<div class="modules">', 1)[1].split("</div>\n<section", 1)[0]
+    assert modules.count('class="module-card"') == 1
+    assert 'href="/spare-parts/catalog"' in modules
+    for path in (
+        "/spare-parts-requests",
+        "/spare-parts-received",
+        "/spare-parts-distribution",
+        "/spare-parts-return",
+    ):
+        assert path not in modules
+    assert ".spm .label{font-size:11px;font-weight:800" in response.text
+    assert '<div class="overview">' in response.text
+    assert ".spm .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))" in response.text
+
+
+def test_spare_parts_catalog_delete_preserves_parts_used_in_requests_or_repairs():
+    from app.modules.faults_repairs.models import RepairPart, SparePart
+    from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+
+    with _isolated_app() as (app, TestingSession, ids):
+        with TestClient(app) as client:
+            login = client.post(
+                "/login",
+                data={"username": SEEDED_USERNAME, "password": SEEDED_PASSWORD},
+                follow_redirects=False,
+            )
+            assert login.status_code in (302, 303)
+
+            with TestingSession() as db:
+                repair_part = SparePart(part_number="CAT-USED-REPAIR", name="قطعة إصلاح")
+                request_part = SparePart(part_number="CAT-USED-REQUEST", name="قطعة طلب")
+                db.add_all([repair_part, request_part])
+                db.flush()
+                db.add(RepairPart(
+                    repair_id=ids["repair"],
+                    spare_part_id=repair_part.id,
+                    quantity=1,
+                    distribution_document="PAGE-REPAIR-DISTRIBUTION",
+                ))
+                request = db.query(SparePartRequest).filter_by(request_number="SPR-PAGE-1").one()
+                db.add(SparePartRequestItem(
+                    request_id=request.id,
+                    spare_part_id=request_part.id,
+                    requested_quantity=1,
+                ))
+                db.commit()
+                part_ids = [repair_part.id, request_part.id]
+
+            for part_id in part_ids:
+                response = client.post(
+                    f"/spare-parts/catalog/parts/{part_id}/delete",
+                    follow_redirects=False,
+                )
+                assert response.status_code == 409
+
+            with TestingSession() as db:
+                assert all(db.get(SparePart, part_id) is not None for part_id in part_ids)
 
 
 def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
@@ -276,7 +438,7 @@ def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
 
     battery_invalid = client.post("/batteries", data={"battery_type": "AGM", "acquisition_document": "UNKNOWN"})
     assert battery_invalid.status_code == 400
-    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "model": "Model", "acquisition_document": "E2E-BATTERY-RECEIPT"}, follow_redirects=False)
+    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "capacity": "60 Ah", "acquisition_document": "E2E-BATTERY-RECEIPT"}, follow_redirects=False)
     assert battery_created.status_code == 303
     batteries_html = client.get("/batteries").text
     assert "AGM" in batteries_html

@@ -407,6 +407,8 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
         assert "مركز أ - سائق اختبار" in mission_page.text
         records_page = client.get("/missions/records")
         assert records_page.status_code == 200
+        assert "<th>العتاد</th><th>رقم التسجيل</th><th>السائق</th>" in records_page.text
+        assert "<td>DRV-HTTP</td>" in records_page.text
         assert "مركز الاختبار" in records_page.text
         assert "ملاحظة المهمة" in records_page.text
         history = client.get("/missions/drivers/1")

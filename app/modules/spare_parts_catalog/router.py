@@ -22,7 +22,7 @@ router = APIRouter()
 templates = get_module_templates("app/modules/spare_parts_catalog/templates")
 
 
-def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manufacturer=None, source=None, active=None, error=None, notice=None):
+def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manufacturer=None, source=None, active=None, error=None, notice=None, active_dialog=None):
     query = db.query(SparePart, SparePartCatalogDetails).outerjoin(
         SparePartCatalogDetails, SparePartCatalogDetails.spare_part_id == SparePart.id
     )
@@ -61,7 +61,7 @@ def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manuf
         category_paths[category.id] = " / ".join(reversed(names))
     manufacturers = [row[0] for row in db.query(SparePartCatalogDetails.manufacturer).filter(SparePartCatalogDetails.manufacturer.is_not(None)).distinct().order_by(SparePartCatalogDetails.manufacturer).all()]
     sources = [row[0] for row in db.query(SparePartCatalogDetails.source).filter(SparePartCatalogDetails.source.is_not(None)).distinct().order_by(SparePartCatalogDetails.source).all()]
-    return {"request": request, "user": user, "items": items, "references": references, "categories": categories, "category_paths": category_paths, "manufacturers": manufacturers, "sources": sources, "q": q, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "manufacturer_filter": manufacturer, "source_filter": source, "active_filter": active, "error": error, "notice": notice}
+    return {"request": request, "user": user, "items": items, "references": references, "categories": categories, "category_paths": category_paths, "manufacturers": manufacturers, "sources": sources, "q": q, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "manufacturer_filter": manufacturer, "source_filter": source, "active_filter": active, "error": error, "notice": notice, "active_dialog": active_dialog}
 
 
 @router.get("/spare-parts/catalog", response_class=HTMLResponse)
@@ -73,16 +73,56 @@ def catalog_page(request: Request, q: str = "", page: int = 1, category_id: int 
 def create_category(request: Request, name_ar: str = Form(...), name_fr: str = Form(""), parent_id: int | None = Form(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
     name_ar = name_ar.strip()
     if not name_ar or len(name_ar) > 120 or len(name_fr) > 120:
-        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="اسم التصنيف بالعربية مطلوب وبحد أقصى 120 حرفًا."), status_code=422)
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="اسم التصنيف بالعربية مطلوب وبحد أقصى 120 حرفًا.", active_dialog="category"), status_code=422)
     parent = db.get(SparePartCategory, parent_id) if parent_id else None
     if parent_id and not parent:
         raise HTTPException(404, "التصنيف الأب غير موجود.")
     query = db.query(SparePartCategory).filter(SparePartCategory.name_ar == name_ar)
     query = query.filter(SparePartCategory.parent_id == (parent.id if parent else None))
     if query.first():
-        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="يوجد تصنيف بهذا الاسم ضمن المستوى نفسه."), status_code=409)
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="يوجد تصنيف بهذا الاسم ضمن المستوى نفسه.", active_dialog="category"), status_code=409)
     db.add(SparePartCategory(name_ar=name_ar, name_fr=name_fr.strip() or None, parent_id=parent.id if parent else None))
     db.commit()
+    return RedirectResponse("/spare-parts/catalog", status_code=303)
+
+
+@router.post("/spare-parts/catalog/categories/{category_id}/update")
+def update_category(category_id: int, request: Request, name_ar: str = Form(...), name_fr: str = Form(""), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+    category = db.get(SparePartCategory, category_id)
+    if not category:
+        raise HTTPException(404, "التصنيف غير موجود.")
+    name_ar = name_ar.strip()
+    name_fr = name_fr.strip()
+    if not name_ar or len(name_ar) > 120 or len(name_fr) > 120:
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="اسم التصنيف بالعربية مطلوب وبحد أقصى 120 حرفًا.", active_dialog="category"), status_code=422)
+    duplicate = db.query(SparePartCategory.id).filter(
+        SparePartCategory.name_ar == name_ar,
+        SparePartCategory.parent_id == category.parent_id,
+        SparePartCategory.id != category.id,
+    ).first()
+    if duplicate:
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="يوجد تصنيف بهذا الاسم ضمن المستوى نفسه.", active_dialog="category"), status_code=409)
+    category.name_ar = name_ar
+    category.name_fr = name_fr or None
+    db.commit()
+    return RedirectResponse("/spare-parts/catalog", status_code=303)
+
+
+@router.post("/spare-parts/catalog/categories/{category_id}/delete")
+def delete_category(category_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+    category = db.get(SparePartCategory, category_id)
+    if not category:
+        raise HTTPException(404, "التصنيف غير موجود.")
+    if db.query(SparePartCategory.id).filter(SparePartCategory.parent_id == category.id).first():
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="لا يمكن حذف التصنيف لأنه يحتوي تصنيفات فرعية.", active_dialog="category"), status_code=409)
+    if db.query(SparePartCatalogDetails.id).filter(SparePartCatalogDetails.category_id == category.id).first():
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="لا يمكن حذف التصنيف لأنه مرتبط بقطع غيار.", active_dialog="category"), status_code=409)
+    db.delete(category)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error="تعذر حذف التصنيف بسبب ارتباطه ببيانات أخرى.", active_dialog="category"), status_code=409)
     return RedirectResponse("/spare-parts/catalog", status_code=303)
 
 
@@ -129,7 +169,7 @@ async def create_part(request: Request, name: str = Form(""), name_ar: str = For
     except ValueError as exc:
         db.rollback()
         services.remove_image(image_path)
-        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error=str(exc)), status_code=422)
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error=str(exc), active_dialog="part"), status_code=422)
     except Exception:
         db.rollback()
         services.remove_image(image_path)
@@ -186,7 +226,7 @@ async def update_part(part_id: int, request: Request, name: str = Form(...), nam
     except ValueError as exc:
         db.rollback()
         services.remove_image(uploaded_image_path)
-        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error=str(exc)), status_code=422)
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error=str(exc), active_dialog="part"), status_code=422)
     except Exception:
         db.rollback()
         services.remove_image(uploaded_image_path)
