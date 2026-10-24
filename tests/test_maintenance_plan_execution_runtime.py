@@ -133,7 +133,7 @@ def test_plan_execution_creates_one_record_per_active_operation():
         )
         db.add(scheduled)
         db.commit()
-        assert latest_records(db)[(equipment.id, oil.id)].id == records[0].id
+        assert latest_records(db)[(equipment.id, "general", oil.id)].id == records[0].id
 
         saved = db.query(MaintenanceRecord).filter(
             MaintenanceRecord.equipment_id == equipment.id,

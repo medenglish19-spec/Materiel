@@ -69,11 +69,11 @@
             <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="record-menu-{{ r.id }}">⋯</button>
             <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
               <button type="button" role="menuitem" data-menu-action="record-details" data-id="{{ r.id }}">◉ عرض التفاصيل</button>
-              {% if can_manage_records and r.operation_id %}<button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>{% endif %}
+              {% if can_manage_records and (r.operation_id or r.model_operation_id) %}<button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>{% endif %}
               {% if can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed') %}<button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف سجل الصيانة</button>{% endif %}
             </div>
           </span>
-          <span class="record-operation-name">{{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</span>
+          <span class="record-operation-name">{{ r.operation.name if r.operation else (r.model_operation.name if r.model_operation else (r.rule.name if r.rule else 'سجل قديم')) }}</span>
         </td>
         <td>{{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</td>
         <td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td>
@@ -84,7 +84,7 @@
       <tr id="record-details-{{ r.id }}" class="record-details-row" data-mt-filter-auxiliary hidden>
         <td colspan="{{ 13 if can_manage_records else 12 }}">
           <strong>تفاصيل سجل الصيانة #{{ r.id }}</strong>
-          <span>العملية: {{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</span>
+          <span>العملية: {{ r.operation.name if r.operation else (r.model_operation.name if r.model_operation else (r.rule.name if r.rule else 'سجل قديم')) }}</span>
           <span>الخطة: {{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</span>
           <span>الحالة: {{ 'موعد مجدول غير منفذ' if r.is_scheduled and r.status == 'scheduled' else 'تنفيذ فعلي محفوظ' }}</span>
           <span>الأعمال المنجزة: {{ r.description or '—' }}</span>
@@ -96,13 +96,13 @@
   </section>
 
   {% if edit_record and can_manage_records %}
-    {% if edit_record.operation_id %}
+    {% if edit_record.operation_id or edit_record.model_operation_id %}
     <section class="panel" id="editRecord" style="margin-top:16px">
       <div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>التعديل يظل خاضعًا لشروط العملية والطراز وتسلسل العداد.</p></div></div>
       <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
         <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
-        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-model-ids="{{ operation_model_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ 'model:' if link.model_operation_id else 'general:' }}{{ link.model_operation_id or link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.value }}" data-model-ids="{{ operation_model_ids.get(o.value, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.value, '') }}" {% if (edit_record.model_operation_id and o.source == 'model' and o.id == edit_record.model_operation_id) or (edit_record.operation_id and o.source == 'general' and o.id == edit_record.operation_id) %}selected{% endif %}>{{ o.name }}{% if o.source == 'model' %} — عملية خاصة بالطراز{% endif %}</option>{% endfor %}</select>
         <input class="m-input" name="maintenance_date" id="maintenanceEditDate" type="date" required value="{{ edit_record.maintenance_date }}">
         <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="قراءة العداد">
         <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" value="{{ edit_record.work_order or '' }}" placeholder="رقم أمر العمل">
@@ -124,8 +124,8 @@
     <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
       <select class="m-select" name="equipment_id" id="equipmentSelect" required disabled><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
-      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية</option>{% for o in operations %}<option value="{{ o.id }}" data-model-ids="{{ operation_model_ids.get(o.id, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.id, '') }}">{{ o.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ 'model:' if link.model_operation_id else 'general:' }}{{ link.model_operation_id or link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية</option>{% for o in operations %}<option value="{{ o.value }}" data-model-ids="{{ operation_model_ids.get(o.value, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.value, '') }}">{{ o.name }}{% if o.source == 'model' %} — عملية خاصة بالطراز{% endif %}</option>{% endfor %}</select>
       <div id="operationEmptyHint" class="muted" style="min-width:200px;align-self:center" hidden>لا توجد عمليات صيانة مرتبطة بهذا الطراز</div>
       <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="قراءة العداد"><div id="currentMeterHint" class="muted" style="min-width:180px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
       <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" placeholder="رقم أمر العمل">

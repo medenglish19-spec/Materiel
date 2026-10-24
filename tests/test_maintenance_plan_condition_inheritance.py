@@ -440,5 +440,7 @@ def test_router_exposes_plan_and_standalone_workspace_endpoints():
     assert '@router.delete("/api/maintenance/plans/{plan_id}/operations/{operation_id}"' in source
     assert '@router.post("/api/maintenance/plans/{plan_id}/approve"' in source
     assert '@router.put("/api/maintenance/operations/{operation_id}"' in source
-    # بوابة التوافق القديمة أُزيلت من مسار الإضافة.
-    assert "check_plan_operation_condition_compatibility(plan" not in source
+    # إضافة العمليات تستخدم بوابة موحدة تقرأ شرط العملية بحسب مصدرها.
+    assert "def _operation_condition_mismatch(plan: MaintenancePlan, operation, db: Session)" in source
+    assert "return check_plan_operation_condition_compatibility(plan, condition)" in source
+    assert "mismatch = _operation_condition_mismatch(plan, operation, db)" in source

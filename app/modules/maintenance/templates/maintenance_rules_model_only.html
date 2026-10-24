@@ -2,6 +2,7 @@
 {% block title %}مكتبة عمليات الصيانة{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
 {% block content %}
+{% set selected_library_model_id = selected_library_model_id|default('', true) %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading">
@@ -10,6 +11,8 @@
     </div>
     <div class="hero-actions">
       <a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a>
+      <a class="m-btn" href="/maintenance/rules/operation-template.xlsx">⬇ &nbsp;تحميل قالب Excel</a>
+      <button class="m-btn" type="button" id="importOperationsBtn">استيراد العمليات من ملف Excel</button>
       <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
     </div>
   </div>
@@ -20,6 +23,29 @@
     <a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a>
     <a href="/maintenance/due">5. الصيانة المستحقة</a>
   </nav>
+
+  {% if import_error %}
+  <div class="alert danger" role="alert" style="margin-bottom:16px">{{ import_error }}</div>
+  {% elif imported_count %}
+  <div class="alert success" role="status" style="margin-bottom:16px">تم استيراد {{ imported_count }} عملية إلى مكتبة الطراز: {{ imported_model_name or 'المحدد' }}.</div>
+  {% endif %}
+
+  <section class="panel" id="importPanel" style="margin-bottom:16px;display:none">
+    <div class="panel-head">
+      <div>
+        <h3>استيراد العمليات من ملف Excel</h3>
+        <p>حمّل القالب، وأدخل بيانات العملية واختر وحدتي الإنذار والشرط من القائمتين، ثم استوردها مباشرة إلى مكتبة الطراز المحدد.</p>
+      </div>
+    </div>
+    <form action="/maintenance/rules/import" method="post" enctype="multipart/form-data" class="toolbar" style="padding:0 16px 16px;gap:10px;flex-wrap:wrap" data-em-root>
+      <input type="hidden" name="model_id" id="importModelId" value="{{ selected_library_model_id }}">
+      <label style="display:flex;flex-direction:column;gap:5px;min-width:260px">
+        <span>ملف القالب المعبأ</span>
+        <input class="m-input" type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+      </label>
+      <button class="m-btn primary" type="submit">استيراد إلى مكتبة الطراز المحدد</button>
+    </form>
+  </section>
 
   <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
   <div id="planModeBar" class="plan-mode-bar">
@@ -50,21 +76,33 @@
   <section class="panel">
     <div class="panel-head">
       <div>
-        <h3>العمليات الفنية</h3>
-        <p>هذه المكتبة هي المرجع الفني للعمليات. العملية العامة في المكتبة تُعرَّف مرة واحدة بلا شرط استحقاق ولا إنذار؛ تُربط بالطرازات وتُضبط شروطها لاحقًا من خلال خطط الصيانة.</p>
+        <h3 id="libraryTitle">مكتبة العمليات العامة</h3>
+        <p id="libraryDescription">عمليات عامة قابلة لإعادة الاستخدام في خطط الطرازات. يحدد شرط الاستحقاق في الخطة.</p>
       </div>
-      <span class="badge info" id="operationCount">0 عملية</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px">
+          <span>المكتبة</span>
+          <select class="m-select" id="libraryTypeFilter" aria-label="اختر مكتبة العمليات">
+            <option value="general">مكتبة العمليات العامة</option>
+            <option value="model">مكتبة العمليات الخاصة بطراز محدد</option>
+          </select>
+        </label>
+        <label id="libraryModelFilterWrap" style="display:none;align-items:center;gap:8px">
+          <span>اختر الطراز</span>
+          <select class="m-select" id="libraryModelFilter" aria-label="اختر الطراز">
+            <option value="">اختر الطراز</option>
+            {% for model in models %}
+            <option value="{{ model.id }}" {% if selected_library_model_id|int == model.id %}selected{% endif %}>{{ model.brand.name if model.brand else '' }} {{ model.name }}{% if model.equipment_type %} — {{ model.equipment_type.name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <span class="badge info" id="operationCount">0 عملية</span>
+      </div>
     </div>
     <div class="table-wrap mt-table-theme-green" data-mt-region>
       <table class="m-table" id="operationsTable">
-        <thead><tr>
-  <th class="mt-actions-th" aria-label="إجراءات"><input type="checkbox" id="selectAllOperations" aria-label="حدد الكل"></th>
-  <th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>
-  <th class="filter-head" data-filter-col="status">الحالة <button class="col-filter" type="button" title="تصفية">▼</button></th>
-</tr></thead>
-        <tbody id="operationsBody"><tr><td colspan="5" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
+        <thead id="operationsHead"></thead>
+        <tbody id="operationsBody"><tr><td colspan="7" class="muted">جارٍ تحميل المكتبة...</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -73,7 +111,7 @@
     <div class="panel-head">
       <div>
         <h3 id="editorTitle">إضافة عملية صيانة</h3>
-        <p>العملية العامة في المكتبة تُعرَّف بلا شرط استحقاق ولا إنذار؛ تُربط بالطرازات وتُضبط شروطها لاحقًا من خلال خطط الصيانة.</p>
+        <p id="editorDescription">أدخل بيانات العملية العامة لإتاحتها في خطط الطرازات.</p>
       </div>
     </div>
     <form id="operationForm" style="padding:18px" data-em-root>
@@ -85,11 +123,24 @@
         <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input type="checkbox" id="operationActive" checked> مفعلة</label>
       </div>
 
-      <div class="toolbar" style="flex-wrap:wrap;gap:10px;margin-top:10px">
+      <div class="toolbar" id="globalWarningEditor" style="display:none;flex-wrap:wrap;gap:10px;margin-top:10px">
         <label style="display:flex;align-items:center;gap:8px;font-weight:600">
           <span>إنذار العملية (موحد عند الربط بالطراز):</span>
           <input class="m-input" id="operationWarningKm" type="number" min="0" step="0.1" placeholder="إنذار قبل كم" style="width:160px">
           <input class="m-input" id="operationWarningDays" type="number" min="0" step="1" placeholder="إنذار قبل أيام" style="width:160px">
+        </label>
+      </div>
+
+      <div class="toolbar" id="modelConditionEditor" style="display:none;flex-wrap:wrap;gap:10px;margin-top:10px">
+        <strong id="modelEditorLabel">شرط وإنذار العملية الخاصة</strong>
+        <div id="modelConditionRows" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"></div>
+        <button class="m-btn" id="addModelConditionAxis" type="button">＋ إضافة محور شرط</button>
+        <label style="display:flex;align-items:center;gap:8px">
+          <span>الإنذار</span>
+          <input class="m-input" id="modelWarningValue" type="number" min="0" step="0.1" style="width:150px" placeholder="اختياري">
+          <select class="m-select" id="modelWarningUnit" aria-label="وحدة الإنذار">
+            <option value="km">كم</option><option value="days">يوم</option>
+          </select>
         </label>
       </div>
 
@@ -168,8 +219,9 @@
 {% raw %}
 (function(){
   const api='/api/maintenance';
-  const state={groups:[],operations:[],hasLoadedOperations:false,planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),loadState:'loading',loadError:null};
-  const columnFilters={name:new Set(),group:new Set(),warning:new Set(),status:new Set()};
+  const startupParams=new URLSearchParams(window.location.search);
+  const state={groups:[],operations:[],hasLoadedOperations:false,planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set(),planModelId:null,editorMode:'general',libraryType:(startupParams.get('view_model_id')||startupParams.get('model_id'))?'model':'general',loadState:'loading',loadError:null};
+  const columnFilters={name:new Set(),description:new Set(),group:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
   let openFilterMenu=null;
   const $=id=>document.getElementById(id);
   const alertBox=$('libraryAlert');
@@ -191,15 +243,143 @@
   function summaryOf(op){
     return op.condition_summary || {models_count:0,warning:null,has_multiple_warnings:false};
   }
+  function selectedModelId(){return Number($('libraryModelFilter')?.value)||null}
+  function isModelLibrary(){return !isPlanMode()&&state.libraryType==='model'}
+  function conditionForModel(op,modelId=selectedModelId()){
+    return (op.model_conditions||[]).find(item=>Number(item.model_id)===Number(modelId))||null;
+  }
+  function conditionText(op){
+    if(op?.condition_text)return op.condition_text;
+    const parts=[];
+    if(op?.interval_km!=null)parts.push(Number(op.interval_km)+' كم');
+    if(op?.interval_hours!=null)parts.push(Number(op.interval_hours)+' ساعة تشغيل');
+    if(op?.interval_days!=null)parts.push(Number(op.interval_days)+' يوم');
+    return parts.length?parts.join(' أو '):'—';
+  }
+  function conditionPayload(condition){
+    return {
+      model_id:Number(condition?.model_id||selectedModelId()), condition_source:'model',
+      interval_km:condition?.interval_km??null,
+      interval_hours:condition?.interval_hours??null,
+      interval_days:condition?.interval_days??null
+    };
+  }
+  function setEditorMode(mode){
+    state.editorMode=mode;
+    const modelMode=mode==='model';
+    $('globalWarningEditor').style.display='none';
+    $('modelConditionEditor').style.display=modelMode?'flex':'none';
+    document.querySelectorAll('.model-condition-value').forEach(input=>{input.required=modelMode;input.disabled=!modelMode});
+    ['operationName','operationGroup','operationDescription','operationActive'].forEach(id=>$(id).disabled=false);
+    $('modelEditorLabel').textContent='شرط وإنذار الطراز';
+    const modelName=$('libraryModelFilter')?.selectedOptions?.[0]?.textContent?.trim()||'الطراز المحدد';
+    $('editorDescription').textContent=modelMode
+      ?`هذه العملية خاصة بمكتبة ${modelName} ولا تظهر في مكتبات الطرازات الأخرى.`
+      :'أدخل بيانات العملية العامة لإتاحتها للطرازات والخطط.';
+    $('editorTitle').textContent=modelMode&&$('operationId').value
+          ?'تعديل عملية مكتبة الطراز'
+          :modelMode?'إضافة عملية إلى مكتبة الطراز'
+          :$('operationId').value?'تعديل عملية صيانة':'إضافة عملية صيانة';
+  }
+  const conditionUnits=[
+    {unit:'km',field:'interval_km',label:'كم'},
+    {unit:'hours',field:'interval_hours',label:'ساعة تشغيل'},
+    {unit:'days',field:'interval_days',label:'يوم'}
+  ];
+  function syncModelConditionRows(){
+    const rows=[...$('modelConditionRows').querySelectorAll('.model-condition-row')];
+    const selectedUnits=rows.map(row=>row.querySelector('.model-condition-unit').value);
+    rows.forEach((row,index)=>{
+      const select=row.querySelector('.model-condition-unit');
+      const input=row.querySelector('.model-condition-value');
+      const remove=row.querySelector('.model-condition-remove');
+      [...select.options].forEach(option=>{
+        option.disabled=selectedUnits.includes(option.value)&&option.value!==select.value;
+      });
+      input.min=select.value==='days'?'1':'0.1';
+      input.step=select.value==='days'?'1':'0.1';
+      input.setAttribute('aria-label',`قيمة الشرط ${index+1}`);
+      remove.disabled=rows.length<=1;
+      remove.style.display=rows.length<=1?'none':'';
+    });
+    $('addModelConditionAxis').disabled=rows.length>=conditionUnits.length;
+  }
+  function addModelConditionRow(unit='km',value=''){
+    const container=$('modelConditionRows');
+    if(container.querySelectorAll('.model-condition-row').length>=conditionUnits.length)return false;
+    const row=document.createElement('div');
+    row.className='model-condition-row';
+    row.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap';
+    const label=document.createElement('span');
+    label.textContent='الشرط *';
+    const input=document.createElement('input');
+    input.className='m-input model-condition-value';
+    input.type='number';input.min=unit==='days'?'1':'0.1';input.step=unit==='days'?'1':'0.1';input.required=state.editorMode==='model';
+    input.style.width='140px';input.placeholder='قيمة الشرط';input.value=value??'';
+    const select=document.createElement('select');
+    select.className='m-select model-condition-unit';select.setAttribute('aria-label','وحدة الشرط');
+    conditionUnits.forEach(item=>{
+      const option=document.createElement('option');option.value=item.unit;option.textContent=item.label;select.appendChild(option);
+    });
+    select.value=unit;
+    select.addEventListener('change',syncModelConditionRows);
+    const remove=document.createElement('button');
+    remove.type='button';remove.className='m-btn model-condition-remove';remove.textContent='حذف المحور';
+    remove.setAttribute('aria-label','حذف محور الشرط');
+    row.append(label,input,select,remove);container.appendChild(row);syncModelConditionRows();
+    return true;
+  }
+  function setConditionFields(condition){
+    const selected=conditionUnits
+      .filter(item=>condition?.[item.field]!=null)
+      .map(item=>[item.unit,condition[item.field]]);
+    $('modelConditionRows').innerHTML='';
+    (selected.length?selected:[['km','']]).forEach(([unit,value])=>addModelConditionRow(unit,value));
+  }
+  function conditionFieldsPayload(){
+    const condition={interval_km:null,interval_hours:null,interval_days:null};
+    const rows=[...$('modelConditionRows').querySelectorAll('.model-condition-row')];
+    if(!rows.length)throw new Error('شرط العملية مطلوب.');
+    const usedUnits=new Set();
+    rows.forEach((row,index)=>{
+      const value=row.querySelector('.model-condition-value').value.trim();
+      if(!value)throw new Error(`قيمة محور الشرط ${index+1} مطلوبة.`);
+      const numeric=Number(value);
+      if(!Number.isFinite(numeric)||numeric<=0)throw new Error('قيمة الشرط يجب أن تكون أكبر من صفر.');
+      const unit=row.querySelector('.model-condition-unit').value;
+      if(usedUnits.has(unit))throw new Error('لا يمكن تكرار وحدة الشرط.');
+      usedUnits.add(unit);
+      if(unit==='days'&&!Number.isInteger(numeric))throw new Error('قيمة شرط الأيام يجب أن تكون عددًا صحيحًا.');
+      const field=conditionUnits.find(item=>item.unit===unit)?.field;
+      if(!field)throw new Error('وحدة الشرط غير صالحة.');
+      condition[field]=numeric;
+    });
+    return condition;
+  }
+  $('addModelConditionAxis').addEventListener('click',()=>{
+    const used=new Set([...$('modelConditionRows').querySelectorAll('.model-condition-unit')].map(select=>select.value));
+    const next=conditionUnits.find(item=>!used.has(item.unit));
+    if(next)addModelConditionRow(next.unit,'');
+  });
+  $('modelConditionRows').addEventListener('click',event=>{
+    const button=event.target.closest('.model-condition-remove');
+    if(!button)return;
+    button.closest('.model-condition-row').remove();syncModelConditionRows();
+  });
   function warningCell(op){
+    if(op?.source==='model'){
+      const warning=[op.warning_km!=null?Number(op.warning_km)+' كم':null,op.warning_days!=null?Number(op.warning_days)+' يوم':null].filter(Boolean).join(' أو ')||'—';
+      return warning==='—'?'<span class="condition-link none">—</span>':'<span class="condition-link">'+escapeHtml(warning)+'</span>';
+    }
     const s=summaryOf(op);
-    // عملية عامة بلا ربط بطراز: لا يوجد إنذار محسوب.
-    if(!s.models_count) return '<span class="condition-link none" title="لا يوجد إنذار لعملية عامة">—</span>';
+    if(!s.warning) return '<span class="condition-link none" title="لا يوجد إنذار مضبوط">—</span>';
     return `<span class="condition-link${s.has_multiple_warnings?' multi':''}" title="إعداد الإنذار الموحد للعملية">${escapeHtml(s.warning||'—')}</span>`;
   }
   function filterValue(op,col){
     if(col==='name') return op.name||'';
+    if(col==='description') return op.description||'—';
     if(col==='group') return groupName(op.group_id);
+    if(col==='condition') return conditionText(op);
     if(col==='warning') return summaryOf(op).warning||'—';
     if(col==='status') return op.is_active?'مفعلة':'متوقفة';
     return '';
@@ -220,7 +400,8 @@
   }
   function renderTableMessage(message,cssClass){
     $('operationCount').textContent='0 عملية';
-    $('operationsBody').innerHTML=`<tr><td colspan="5" class="${cssClass}">${escapeHtml(message)}</td></tr>`;
+    const span=isModelLibrary()?7:5;
+    $('operationsBody').innerHTML=`<tr><td colspan="${span}" class="${cssClass}">${escapeHtml(message)}</td></tr>`;
   }
   function passesColumnFilters(op){
     return Object.entries(columnFilters).every(([col,set])=>!set.size||set.has(filterValue(op,col)));
@@ -288,6 +469,28 @@
   function render(){
     if(state.loadState==='loading'&&!state.hasLoadedOperations){ renderTableMessage('جارٍ تحميل المكتبة...','muted'); return; }
     if(state.loadState==='error'&&!state.hasLoadedOperations){ renderTableMessage('خطأ في التحميل: '+(state.loadError||'تعذر تحميل بيانات المكتبة.'),'muted danger'); return; }
+    const modelMode=isModelLibrary();
+    $('libraryTitle').textContent=modelMode?'مكتبة العمليات الخاصة بطراز محدد':'مكتبة العمليات العامة';
+    $('libraryDescription').textContent=modelMode
+      ?'عمليات مستوردة ومخصصة للطراز المحدد، لكل منها شرط وإنذار بوحدتهما.'
+      :'عمليات عامة قابلة لإعادة الاستخدام في خطط الطرازات. يحدد شرط الاستحقاق في الخطة.';
+    $('libraryModelFilterWrap').style.display=state.libraryType==='model'?'flex':'none';
+    $('importOperationsBtn').style.display=modelMode?'inline-flex':'none';
+    $('importPanel').style.display=modelMode&&$('importPanel').dataset.open==='true'?'':'none';
+    $('newOperationBtn').textContent=modelMode?'＋ إضافة عملية إلى مكتبة الطراز':'＋ إضافة عملية عامة';
+    const headers=['<th class="mt-actions-th"><input type="checkbox" id="selectAllOperations" aria-label="حدد الكل"></th>',
+      '<th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>',
+      '<th class="filter-head" data-filter-col="description">الوصف <button class="col-filter" type="button" title="تصفية">▼</button></th>',
+      '<th class="filter-head" data-filter-col="group">المجموعة <button class="col-filter" type="button" title="تصفية">▼</button></th>'];
+    if(modelMode)headers.push('<th class="filter-head" data-filter-col="condition">الشرط <button class="col-filter" type="button" title="تصفية">▼</button></th>','<th class="filter-head" data-filter-col="warning">الإنذار <button class="col-filter" type="button" title="تصفية">▼</button></th>');
+    headers.push('<th class="filter-head" data-filter-col="status">الحالة <button class="col-filter" type="button" title="تصفية">▼</button></th>');
+    $('operationsHead').innerHTML='<tr>'+headers.join('')+'</tr>';
+    document.querySelectorAll('.filter-head .col-filter').forEach(btn=>btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)});
+    if(modelMode&&!selectedModelId()){
+      state.operations=[];
+      renderTableMessage('اختر الطراز لعرض مكتبته الخاصة.','muted');
+      return;
+    }
     try {
       const rows=state.operations.filter(op=>passesColumnFilters(op));
       $('operationCount').textContent=rows.length+' عملية';
@@ -297,8 +500,8 @@
         const groupId = op.group_id || '';
         return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
         <td class="mt-actions-td"><input type="checkbox" class="operation-checkbox" data-operation-id="${op.id}" ${selected?'checked':''} aria-label="${escapeHtml(op.name)}"></td>
-        <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
-        <td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td><td class="num">${warningCell(op)}</td>
+        <td><strong>${escapeHtml(op.name)}</strong>${modelMode?'<span class="badge info">خاصة بالطراز</span>':''}${selected?'<span class="plan-selected-mark">✓ ضمن الخطة</span>':''}</td>
+        <td>${escapeHtml(op.description||'—')}</td><td data-group-id="${groupId}" style="cursor:pointer">${escapeHtml(groupName(op.group_id))}</td>${modelMode?`<td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${warningCell(op)}</td>`:''}
         <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'مفعلة':'متوقفة'}</span></td>
       </tr>`;
       }).join('');
@@ -356,32 +559,52 @@
     // Clear operation-level warning fields
     $('operationWarningKm').value = '';
     $('operationWarningDays').value = '';
-    $('editorTitle').textContent='إضافة عملية صيانة'; $('operationEditor').style.display='';
+    setConditionFields(null);
+    $('modelWarningValue').value=''; $('modelWarningUnit').value='km';
+    state.editorMode=isModelLibrary()?'model':'general';
+    setEditorMode(state.editorMode);
+    $('operationEditor').style.display='';
     syncMeterFields();if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
   }
   function editOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
     $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
     $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
-    // Load operation-level warning fields (unified across all models)
+    state.editorMode=op.source==='model'?'model':'general';
+    setEditorMode(state.editorMode);
+    // General operations have no condition or warning fields.
     $('operationWarningKm').value = op.warning_km ?? '';
     $('operationWarningDays').value = op.warning_days ?? '';
-    $('editorTitle').textContent='تعديل عملية الصيانة'; $('operationEditor').style.display='';
+    if(state.editorMode==='model'){
+      setConditionFields(op);
+      const warningAxis=op.warning_days!=null?'days':'km';
+      $('modelWarningUnit').value=warningAxis;
+      $('modelWarningValue').value=warningAxis==='days'?(op.warning_days??''):(op.warning_km??'');
+    }
+    $('operationEditor').style.display='';
     window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
   }
   async function toggleOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
     try{
-      const payload=operationPayload(op,{is_active:!op.is_active});
-      await request(`${api}/operations/${id}`,{method:'PUT',body:JSON.stringify(payload)});
+      const modelMode=op.source==='model';
+      const payload=modelMode?{
+        name:op.name,description:op.description??null,group_id:op.group_id??null,is_active:!op.is_active,
+        interval_km:op.interval_km??null,interval_hours:op.interval_hours??null,interval_days:op.interval_days??null,
+        warning_km:op.warning_km??null,warning_days:op.warning_days??null,
+      }:{name:op.name,description:op.description??null,group_id:op.group_id??null,is_active:!op.is_active};
+      const endpoint=modelMode?`${api}/model-operations/${id}`:`${api}/operations/${id}`;
+      await request(endpoint,{method:'PUT',body:JSON.stringify(payload)});
       showAlert(op.is_active?'تم تعطيل العملية.':'تم تفعيل العملية.');
       await load();
     }catch(e){showAlert(e.message,'danger')}
   }
   async function deleteOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    const endpoint=op.source==='model'?`${api}/model-operations/${id}`:`${api}/operations/${id}`;
     if(!confirm('سيتم حذف العملية نهائيًا. إذا كانت مرتبطة بخطة أو سجل صيانة سيُرفض الحذف. هل أنت متأكد؟'))return;
     try{
-      await request(`${api}/operations/${id}`,{method:'DELETE'});
+      await request(endpoint,{method:'DELETE'});
       showAlert('تم حذف العملية.');
       await load();
     }catch(e){showAlert(e.message,'danger')}
@@ -394,20 +617,21 @@
     ];
   }
   function operationPayload(op,overrides){
-    return {
+    const payload={
       name:op.name,
       group_id:op.group_id??null,
       description:op.description??null,
       is_active:op.is_active,
-      warning_km: Number($('operationWarningKm').value) || null,
-      warning_days: Number($('operationWarningDays').value) || null,
+      warning_km:op.warning_km??null,
+      warning_days:op.warning_days??null,
       ...(overrides||{})
     };
+    return payload;
   }
   async function loadPlanContext(){
     const params=new URLSearchParams(window.location.search); state.planId=Number(params.get("plan_id"))||null;
     if(!state.planId){$("planModeBar").classList.remove("active");return}
-    const plans=await request(api+"/plans"); const plan=plans.find(x=>Number(x.id)===state.planId); if(!plan)throw new Error("خطة الصيانة غير موجودة."); state.planName=plan.name||("خطة #"+state.planId);
+    const plans=await request(api+"/plans"); const plan=plans.find(x=>Number(x.id)===state.planId); if(!plan)throw new Error("خطة الصيانة غير موجودة."); state.planName=plan.name||("خطة #"+state.planId);state.planModelId=Number(plan.equipment_model_id);
     const links=await request(api+"/plans/"+state.planId+"/operations"); state.planOps=new Set(links.map(x=>Number(x.operation_id))); state.initialPlanOps=new Set(state.planOps);
     $("planModeTitle").textContent="إضافة عمليات إلى الخطة: "+state.planName; $("planModeBar").classList.add("active"); $("planSelectedCount").textContent=state.planOps.size+" محددة";
   }
@@ -426,19 +650,35 @@
   async function load(){
     state.loadState='loading'; state.loadError=null; render();
     try{
-      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
+      const groups=await request(`${api}/operation-groups`);
+      await loadPlanContext();
+      const libraryModelId=selectedModelId();
+      const modelMode=!isPlanMode()&&state.libraryType==='model';
+      $('importModelId').value=libraryModelId||'';
+      if(modelMode&&!libraryModelId){
+        state.groups=Array.isArray(groups)?groups:[];state.operations=[];state.hasLoadedOperations=true;state.loadState='ready';
+        renderGroups();renderTableMessage('اختر الطراز لعرض مكتبته الخاصة.','muted');return true;
+      }
+      const operationsUrl=modelMode
+        ?`${api}/model-operations?equipment_model_id=${libraryModelId}`
+        :`${api}/operations`;
+      const operations=await request(operationsUrl);
       // البيانات تُقرأ من الـAPI كما هي؛ الحماية هنا تمنع سقوط العرض لو أرجعت
       // إحدى الواجهات شكلًا غير متوقع، ولا تخترع أي صف.
       state.groups=Array.isArray(groups)?groups:[];
-      // ضمان إتاحة العمليات حتى لو كانت بلا طراز أو شرط (general operations)
-      state.operations=Array.isArray(operations)?operations:[];
+      state.operations=Array.isArray(operations)?operations.map(operation=>({
+        ...operation,
+        source:modelMode?'model':'general',
+        operation_id:modelMode?null:operation.id,
+        model_operation_id:modelMode?operation.id:null,
+        equipment_model_id:modelMode?libraryModelId:operation.equipment_model_id,
+      })):[];
       state.hasLoadedOperations=true;
       // سجل_debugging_short: التأكد من نوع البيانات المستلمة
       if (!Array.isArray(state.operations)) {
         console.warn('Load: operations is not an array, resetting to []', typeof state.operations, state.operations);
         state.operations = [];
       }
-      await loadPlanContext();
       if(isPlanMode()){
         EditManager.register('maintenance-plan-selection',{
           label:'عمليات الخطة',
@@ -472,14 +712,34 @@
       group_id:$('operationGroup').value?Number($('operationGroup').value):null,
       description:$('operationDescription').value.trim()||null,
       is_active:$('operationActive').checked,
-      warning_km: Number($('operationWarningKm').value) || null,
-      warning_days: Number($('operationWarningDays').value) || null,
     };
     try{
-      await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      let url=id?`${api}/operations/${id}`:`${api}/operations`;
+      let method=id?'PUT':'POST';
+      if(state.editorMode==='model'){
+        const modelId=selectedModelId();
+        if(!modelId)throw new Error('اختر الطراز قبل إضافة عملية خاصة به.');
+        const condition=conditionFieldsPayload();
+        const warningValue=$('modelWarningValue').value.trim();
+        let warningKm=null,warningDays=null;
+        if(warningValue){
+          const numeric=Number(warningValue);
+          if(!Number.isFinite(numeric)||numeric<0)throw new Error('قيمة الإنذار يجب أن تكون صفرًا أو أكبر.');
+          if($('modelWarningUnit').value==='days'){
+            if(!Number.isInteger(numeric))throw new Error('قيمة إنذار الأيام يجب أن تكون عددًا صحيحًا.');
+            warningDays=numeric;
+          }else warningKm=numeric;
+        }
+        Object.assign(payload,{equipment_model_id:modelId,warning_km:warningKm,warning_days:warningDays,...condition});
+        url=id?`${api}/model-operations/${id}`:`${api}/model-operations`;
+      }else{
+        await request(url,{method,body:JSON.stringify(payload)});
+      }
       if(window.EditManager)EditManager.markSavedForm($('operationForm'));
-      showAlert(id?'تم تعديل العملية.':'تمت إضافة العملية.');
-      $('operationEditor').style.display='none'; await load();
+      const successMessage=id?'تم تعديل العملية.':'تمت إضافة العملية.';
+      showAlert(successMessage);
+      $('operationEditor').style.display='none';
+      await load();
     }catch(err){showAlert(err.message,'danger')}
   });
   // Dropdown handling for management menu
@@ -697,6 +957,10 @@
   });
 
   $('newOperationBtn').onclick = resetEditor;
+  $('importOperationsBtn').onclick=()=>{
+    if(!selectedModelId())return showAlert('اختر الطراز قبل فتح استيراد Excel.','danger');
+    $('importPanel').dataset.open='true';$('importPanel').style.display='';$('importModelId').value=selectedModelId();$('importPanel').scrollIntoView({behavior:'smooth',block:'start'});
+  };
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
   $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
@@ -746,7 +1010,8 @@
     this.disabled = true;
     this.textContent = 'جاري الحذف...';
     try {
-      const response = await fetch('/api/maintenance/bulk-delete', {
+      const deleteUrl=isModelLibrary()?`${api}/model-operations/bulk-delete`:`/api/maintenance/bulk-delete`;
+      const response = await fetch(deleteUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({operation_ids: operationIds})
@@ -792,6 +1057,22 @@
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
   $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
   $('groupFilter').onchange = render; $('statusFilter').onchange = render;
+  $('libraryTypeFilter').value=state.libraryType;
+  $('libraryTypeFilter').addEventListener('change', event => {
+    const params=new URLSearchParams();
+    if(event.target.value==='model'){
+      params.set('view_model_id',$('libraryModelFilter').value||'');
+      if(!$('libraryModelFilter').value){$('libraryModelFilterWrap').style.display='flex';$('importPanel').style.display='none';state.libraryType='model';render();return}
+    }
+    const query=params.toString();window.location.href='/maintenance/rules'+(query?'?'+query:'');
+  });
+  $('libraryModelFilter').addEventListener('change', event => {
+    const params = new URLSearchParams();
+    if (event.target.value) params.set('view_model_id', event.target.value);
+    const query = params.toString();
+    window.location.href = '/maintenance/rules' + (query ? '?' + query : '');
+  });
+  if(state.libraryType==='model'&&selectedModelId())$('importModelId').value=selectedModelId();
   load();
 })();
 {% endraw %}

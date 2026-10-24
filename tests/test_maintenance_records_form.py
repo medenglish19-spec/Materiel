@@ -63,7 +63,7 @@ def _link_operation_to_model(db, operation, model, interval_km=Decimal("5000")):
 
 def _operation_option(body, option_id):
     """مقطع خيار العملية فقط (يحمل data-model-ids) لا خيار طراز/عتاد/خطة."""
-    marker = f'<option value="{option_id}" data-model-ids='
+    marker = f'<option value="general:{option_id}" data-model-ids='
     start = body.index(marker)
     return body[start:body.index(">", start)]
 
@@ -243,7 +243,7 @@ def test_plan_option_carries_its_model_and_linked_operations(api):
     client, ids = api
     body = client.get("/maintenance/records").text
     assert "تنفيذ مستقل — بدون خطة" in body
-    assert f'data-operation-ids="{ids["operation_a"]},"' in body
+    assert f'data-operation-ids="general:{ids["operation_a"]},"' in body
     assert f'value="{ids["plan_a"]}"' in body
 
 

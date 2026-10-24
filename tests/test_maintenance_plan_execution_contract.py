@@ -12,9 +12,10 @@ def test_plan_execution_endpoint_is_operation_first_and_atomic():
 
     assert "MaintenancePlanExecutionCreate" in source
     assert "MaintenancePlanOperation" in source
-    assert "MaintenanceOperation.is_active.is_(True)" in source
     assert "for link in links:" in source
-    assert "operation_id=operation.id" in source
+    assert "selected_refs =" in source
+    assert 'model_operation_id=operation.id if source == "model" else None' in source
+    assert 'operation_id=operation.id if source == "general" else None' in source
     assert "plan_id=plan.id" in source
     assert "db.commit()" in source
     assert "db.rollback()" in source

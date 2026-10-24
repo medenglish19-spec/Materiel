@@ -169,6 +169,69 @@ class MaintenanceOperationOut(MaintenanceOperationBase):
     condition_source: Literal["model_conditions", "none"] = "none"
 
 
+class MaintenanceModelOperationBase(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: Optional[str] = None
+    group_id: Optional[int] = None
+    interval_km: Optional[Decimal] = None
+    interval_hours: Optional[Decimal] = None
+    interval_days: Optional[int] = None
+    warning_km: Optional[Decimal] = None
+    warning_days: Optional[int] = None
+    is_active: bool = True
+
+    @field_validator("interval_km")
+    @classmethod
+    def private_interval_km_valid(cls, value):
+        return _positive(value, "فترة الكيلومترات")
+
+    @field_validator("interval_hours")
+    @classmethod
+    def private_interval_hours_valid(cls, value):
+        return _positive(value, "فترة ساعات التشغيل")
+
+    @field_validator("interval_days")
+    @classmethod
+    def private_interval_days_valid(cls, value):
+        return _positive(value, "فترة الأيام")
+
+    @field_validator("warning_km")
+    @classmethod
+    def private_warning_km_valid(cls, value):
+        return _nonnegative(value, "إنذار الكيلومترات")
+
+    @field_validator("warning_days")
+    @classmethod
+    def private_warning_days_valid(cls, value):
+        return _nonnegative(value, "إنذار الأيام")
+
+    def _validate_condition(self):
+        axes = sum(value is not None for value in (self.interval_km, self.interval_hours, self.interval_days))
+        if axes == 0:
+            raise ValueError("حدد محور شرط واحدًا على الأقل مع وحدته لكل عملية خاصة")
+        return self
+
+
+class MaintenanceModelOperationCreate(MaintenanceModelOperationBase):
+    equipment_model_id: int
+
+    @model_validator(mode="after")
+    def require_condition(self):
+        return self._validate_condition()
+
+
+class MaintenanceModelOperationUpdate(MaintenanceModelOperationBase):
+    @model_validator(mode="after")
+    def require_condition(self):
+        return self._validate_condition()
+
+
+class MaintenanceModelOperationOut(MaintenanceModelOperationBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    equipment_model_id: int
+
+
 class MaintenancePlanBase(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     equipment_model_id: int
@@ -255,15 +318,23 @@ class MaintenanceRecordBulkDelete(BaseModel):
 
 class MaintenancePlanOperationBase(BaseModel):
     plan_id: int
-    operation_id: int
+    operation_id: Optional[int] = None
+    model_operation_id: Optional[int] = None
     sort_order: int = 0
+
+    @model_validator(mode="after")
+    def require_exactly_one_operation_source(self):
+        if (self.operation_id is None) == (self.model_operation_id is None):
+            raise ValueError("حدد عملية عامة أو عملية خاصة بطراز، وليس كليهما")
+        return self
 
 class MaintenancePlanOperationCreate(MaintenancePlanOperationBase):
     pass
 
 
 class MaintenancePlanOperationsBulkCreate(BaseModel):
-    operation_ids: list[int] = Field(min_length=1)
+    operation_ids: list[int] = Field(default_factory=list)
+    model_operation_ids: list[int] = Field(default_factory=list)
 
     @field_validator("operation_ids")
     @classmethod
@@ -273,6 +344,21 @@ class MaintenancePlanOperationsBulkCreate(BaseModel):
         if len(value) != len(set(value)):
             raise ValueError("لا يمكن تكرار معرّف العملية في الطلب نفسه")
         return value
+
+    @field_validator("model_operation_ids")
+    @classmethod
+    def model_operation_ids_are_unique_positive(cls, value):
+        if any(operation_id <= 0 for operation_id in value):
+            raise ValueError("معرّفات العمليات الخاصة يجب أن تكون موجبة")
+        if len(value) != len(set(value)):
+            raise ValueError("لا يمكن تكرار معرّف العملية الخاصة في الطلب نفسه")
+        return value
+
+    @model_validator(mode="after")
+    def require_operations(self):
+        if not self.operation_ids and not self.model_operation_ids:
+            raise ValueError("حدد عملية واحدة على الأقل")
+        return self
 
 
 class MaintenanceOperationModelConditionSave(BaseModel):
@@ -311,11 +397,14 @@ class MaintenanceOperationModelConditionSave(BaseModel):
 class MaintenancePlanOperationOut(MaintenancePlanOperationBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    source: Literal["general", "model"] = "general"
+    operation_name: Optional[str] = None
 
 
 class MaintenanceRecordCreate(BaseModel):
     equipment_id: int
     operation_id: Optional[int] = None
+    model_operation_id: Optional[int] = None
     plan_id: Optional[int] = None
     maintenance_date: date
     reported_date: Optional[date] = None
@@ -335,17 +424,16 @@ class MaintenanceRecordCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_source(self):
-        if self.operation_id is None:
-            raise ValueError("يجب تحديد عملية الصيانة")
-        if self.plan_id is not None and self.operation_id is None:
-            raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة")
+        if (self.operation_id is None) == (self.model_operation_id is None):
+            raise ValueError("يجب تحديد عملية الصيانة العامة أو الخاصة بالطراز")
         return self
 
 
 class MaintenancePlanExecutionCreate(BaseModel):
     equipment_id: int
     plan_id: int
-    operation_ids: list[int] = Field(min_length=1)
+    operation_ids: list[int] = Field(default_factory=list)
+    model_operation_ids: list[int] = Field(default_factory=list)
     maintenance_date: date
     meter_value: Optional[Decimal] = None
     reported_date: Optional[date] = None
@@ -360,6 +448,14 @@ class MaintenancePlanExecutionCreate(BaseModel):
     @classmethod
     def meter_valid(cls, value):
         return _nonnegative(value, "قراءة العداد")
+
+    @model_validator(mode="after")
+    def require_operations(self):
+        if not self.operation_ids and not self.model_operation_ids:
+            raise ValueError("حدد عملية واحدة على الأقل تم تنفيذها فعليًا")
+        if len(self.operation_ids) != len(set(self.operation_ids)) or len(self.model_operation_ids) != len(set(self.model_operation_ids)):
+            raise ValueError("لا يمكن تكرار العملية في طلب التنفيذ")
+        return self
 
 
 class MaintenanceRecordOut(MaintenanceRecordCreate):

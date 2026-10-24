@@ -36,6 +36,10 @@ def _library_rows(client) -> list:
     return response.json()
 
 
+def test_rules_template_defaults_missing_selected_model_context():
+    assert "{% set selected_library_model_id = selected_library_model_id|default('', true) %}" in _template()
+
+
 # ------------------------------------------------- 1) حفظ عملية عامة
 
 
@@ -126,15 +130,13 @@ def test_operations_without_models_are_all_listed_with_an_explicit_general_state
 
 
 def test_the_template_renders_a_general_operation_row_instead_of_skipping_it():
-    """القالب يعرض صفًا للعملية العامة ولا يتخطاه، ويسمّيها «عملية عامة»."""
+    """القالب يعرض العملية العامة ويُبقيها منفصلة عن صفوف مكتبات الطراز."""
     template = _template()
-    # كل عملية في الحالة تُبنى إلى صف واحد، بلا شرط على وجود طرازات.
+    # كل عملية في القائمة تُبنى إلى صف واحد، وتظل العامة متاحة في وضعها.
     assert "state.operations.filter(op=>passesColumnFilters(op))" in template
     assert "rows.map(op=>{" in template
-    assert "عملية عامة" in template
-    # ولا شرط في العرض يمنع صفًا بلا طراز.
-    assert "op.model_conditions.length&&" not in template
-    assert "if(!op.model_conditions" not in template
+    assert "modelMode?'<span class=\"badge info\">خاصة بالطراز</span>':''" in template
+    assert "source:modelMode?'model':'general'" in template
 
 
 # ------------------------------------------------- 4) قائمة الطرازات
@@ -153,14 +155,13 @@ def test_the_model_picker_loads_from_the_equipment_models_endpoint(api):
         assert set(model) >= {"id", "name", "type", "brand"}
 
 
-def test_the_library_template_has_no_model_picker():
+def test_the_library_template_switches_between_general_and_model_libraries():
     template = _template()
-    # المكتبة العامة لم تعد تُحمّل قائمة طرازات ولا تبني قائمة اختيار.
-    assert "request(`${api}/equipment/models`)" not in template
-    assert "function modelOptions(" not in template
-    assert "لا توجد طرازات محمّلة" not in template
-    assert "editorModelsBody" not in template
-    assert "equipment_model_conditions" not in template
+    assert 'id="libraryModelFilter"' in template
+    assert "العمليات العامة" in template
+    assert "scope_model_id" not in template
+    assert "${api}/model-operations?equipment_model_id=${libraryModelId}" in template
+    assert "مكتبة العمليات الخاصة بطراز محدد" in template
 
 
 def test_the_router_exposes_the_model_picker_endpoint():
@@ -208,15 +209,13 @@ def test_a_model_row_without_a_condition_is_stored_as_unset_not_rejected(api):
     assert condition["condition_text"] == "—"
 
 
-def test_the_general_operation_is_saved_without_any_model_input():
-    """المحرر لا يحمل أي صف طراز: الاسم وحده يكفي لحفظ العملية العامة."""
+def test_the_general_operation_is_saved_without_scoping_it_to_a_model():
+    """المحرر يدعم النمطين؛ إنشاء العملية العامة لا يرسل نطاق طراز."""
     template = _template()
-    # لا وجود لاختيار طراز أو صفوف شروط في محرر المكتبة.
-    assert "rawModel" not in template
-    assert "addModelRow" not in template
-    assert "editorModelsBody" not in template
-    assert "equipment_model_conditions" not in template
-    # والاسم وحده هو شرط الصلاحية.
+    assert "if(state.editorMode==='model')" in template
+    assert "url=id?`${api}/model-operations/${id}`:`${api}/model-operations`" in template
+    assert "equipment_model_id:modelId" in template
+    # والاسم وحده يكفي لعملية عامة، كما تؤكد اختبارات API أعلاه.
     assert "if(!name){ showAlert('اسم العملية مطلوب.'" in template
 
 

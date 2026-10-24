@@ -120,7 +120,7 @@ def test_get_all_notifications_merges_by_key_and_sorts_by_severity(monkeypatch):
 def test_maintenance_provider_reports_overdue_operations(monkeypatch):
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record})
     monkeypatch.setattr(
         providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation()]
     )
@@ -132,7 +132,7 @@ def test_maintenance_provider_reports_overdue_operations(monkeypatch):
 
     assert len(notes) == 1
     note = notes[0]
-    assert note["key"] == "maintenance:5:3"
+    assert note["key"] == "maintenance:5:general:3"
     assert note["severity"] == "overdue"
     assert note["module"] == "maintenance"
     assert note["url"] == "/maintenance/periodic"
@@ -143,7 +143,7 @@ def test_maintenance_provider_reports_overdue_operations(monkeypatch):
 def test_maintenance_provider_reports_upcoming_inside_warning_window(monkeypatch):
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record})
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
@@ -162,7 +162,7 @@ def test_maintenance_provider_reports_upcoming_inside_warning_window(monkeypatch
 def test_maintenance_provider_stays_silent_within_schedule(monkeypatch):
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record})
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
@@ -177,7 +177,7 @@ def test_maintenance_provider_does_not_invent_a_condition_for_an_unset_model(mon
     """بلا شرط محفوظ للطراز لا يُبنى إنذار من القيمة القديمة على العملية."""
     record = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record})
     monkeypatch.setattr(
         providers,
         "effective_operations_for_equipment",
@@ -201,7 +201,7 @@ def test_maintenance_provider_queries_operations_once_per_model(monkeypatch):
         return [_operation()]
 
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record, (6, 3): record})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record, (6, "general", 3): record})
     def _operations_with_warning(db, eq, **kwargs):
         calls.append(eq.equipment_model_id)
         return [_operation(warning_km=Decimal("1000"))]
@@ -226,7 +226,7 @@ def test_maintenance_provider_uses_each_equipment_own_model_condition(monkeypatc
     record_5 = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     record_6 = SimpleNamespace(meter_value=Decimal("0"), maintenance_date=date(2026, 1, 1))
     monkeypatch.setattr(providers, "latest_readings", lambda db: {})
-    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, 3): record_5, (6, 3): record_6})
+    monkeypatch.setattr(providers, "latest_records", lambda db: {(5, "general", 3): record_5, (6, "general", 3): record_6})
     monkeypatch.setattr(
         providers, "effective_operations_for_equipment", lambda db, eq, **kwargs: [_operation(warning_km=Decimal("1000"))]
     )
@@ -254,8 +254,8 @@ def test_maintenance_provider_uses_each_equipment_own_model_condition(monkeypatc
     assert seen == [11, 12], "شرط كل عتاد يُقرأ من طرازه"
     # الطراز 11 على بعد 500 كم، والطراز 12 تجاوز فاصله البالغ 100 كم.
     assert {(note["key"], note["severity"]) for note in notes} == {
-        ("maintenance:5:3", "upcoming"),
-        ("maintenance:6:3", "overdue"),
+        ("maintenance:5:general:3", "upcoming"),
+        ("maintenance:6:general:3", "overdue"),
     }
 
 

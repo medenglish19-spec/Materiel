@@ -57,6 +57,7 @@ class MaintenanceOperationGroup(Base):
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
 
     operations = relationship("MaintenanceOperation", back_populates="group")
+    model_operations = relationship("MaintenanceModelOperation", back_populates="group")
 
 
 class MaintenanceCatalogImport(Base):
@@ -130,6 +131,40 @@ class MaintenanceOperation(Base):
         return [m.id for m in self.equipment_models]
 
 
+class MaintenanceModelOperation(Base):
+    """An operation imported into exactly one equipment model's private library."""
+    __tablename__ = "maintenance_model_operations"
+    __table_args__ = (
+        CheckConstraint("interval_km IS NULL OR interval_km > 0", name="ck_maintenance_model_operation_interval_km_positive"),
+        CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_model_operation_interval_hours_positive"),
+        CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_model_operation_interval_days_positive"),
+        CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_model_operation_warning_km_nonnegative"),
+        CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_model_operation_warning_days_nonnegative"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    equipment_model_id = Column(
+        Integer,
+        ForeignKey("equipment_models.id", name="fk_maintenance_model_operations_equipment_model", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(120), nullable=False)
+    description = Column(Text, nullable=True)
+    group_id = Column(Integer, ForeignKey("maintenance_operation_groups.id", name="fk_maintenance_model_operations_group", ondelete="SET NULL"), nullable=True, index=True)
+    interval_km = Column(Numeric(10, 1), nullable=True)
+    interval_hours = Column(Numeric(10, 1), nullable=True)
+    interval_days = Column(Integer, nullable=True)
+    warning_km = Column(Numeric(10, 1), nullable=True)
+    warning_days = Column(Integer, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="1", index=True)
+
+    equipment_model = relationship("EquipmentModel")
+    group = relationship("MaintenanceOperationGroup", back_populates="model_operations")
+    plan_operations = relationship("MaintenancePlanOperation", back_populates="model_operation")
+    records = relationship("MaintenanceRecord", back_populates="model_operation")
+
+
 class MaintenancePlan(Base):
     __tablename__ = "maintenance_plans"
     __table_args__ = (
@@ -167,6 +202,12 @@ class MaintenancePlanOperation(Base):
     __tablename__ = "maintenance_plan_operations"
     __table_args__ = (
         UniqueConstraint("plan_id", "operation_id", name="uq_maintenance_plan_operation"),
+        UniqueConstraint("plan_id", "model_operation_id", name="uq_maintenance_plan_model_operation"),
+        CheckConstraint(
+            "(operation_id IS NOT NULL AND model_operation_id IS NULL) OR "
+            "(operation_id IS NULL AND model_operation_id IS NOT NULL)",
+            name="ck_maintenance_plan_operation_one_source",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -179,18 +220,30 @@ class MaintenancePlanOperation(Base):
     operation_id = Column(
         Integer,
         ForeignKey("maintenance_operations.id", name="fk_maintenance_plan_operations_operation", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    model_operation_id = Column(
+        Integer,
+        ForeignKey("maintenance_model_operations.id", name="fk_maintenance_plan_operations_model_operation", ondelete="RESTRICT"),
+        nullable=True,
         index=True,
     )
     sort_order = Column(Integer, nullable=False, default=0, server_default="0")
     plan = relationship("MaintenancePlan", back_populates="plan_operations")
     operation = relationship("MaintenanceOperation", back_populates="plan_operations")
+    model_operation = relationship("MaintenanceModelOperation", back_populates="plan_operations")
 
 
 class MaintenanceRecord(Base):
     __tablename__ = "maintenance_records"
     __table_args__ = (
         Index("uq_maintenance_record_equipment_operation_date", "equipment_id", "operation_id", "maintenance_date", unique=True),
+        Index("uq_maintenance_record_equipment_model_operation_date", "equipment_id", "model_operation_id", "maintenance_date", unique=True),
+        CheckConstraint(
+            "operation_id IS NULL OR model_operation_id IS NULL",
+            name="ck_maintenance_record_one_operation_source",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -198,6 +251,12 @@ class MaintenanceRecord(Base):
     operation_id = Column(
         Integer,
         ForeignKey("maintenance_operations.id", name="fk_maintenance_records_operation", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    model_operation_id = Column(
+        Integer,
+        ForeignKey("maintenance_model_operations.id", name="fk_maintenance_records_model_operation", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )
@@ -231,6 +290,7 @@ class MaintenanceRecord(Base):
 
     equipment = relationship("Equipment", back_populates="maintenance_records")
     operation = relationship("MaintenanceOperation", back_populates="records", foreign_keys=[operation_id])
+    model_operation = relationship("MaintenanceModelOperation", back_populates="records", foreign_keys=[model_operation_id])
     plan = relationship("MaintenancePlan", back_populates="records")
     technician = relationship("Technician", foreign_keys=[technician_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
@@ -249,12 +309,11 @@ class MaintenanceRecord(Base):
 def _validate_record(connection, target, exclude_id=None):
     if target.equipment_id is None:
         raise ValueError("يجب تحديد العتاد قبل تسجيل الصيانة.")
-    if getattr(target, "operation_id", None) is None:
-        raise ValueError("يجب تحديد عملية الصيانة قبل تسجيل السجل.")
     operation_id = getattr(target, "operation_id", None)
+    model_operation_id = getattr(target, "model_operation_id", None)
+    if (operation_id is None) == (model_operation_id is None):
+        raise ValueError("يجب تحديد عملية الصيانة قبل تسجيل السجل.")
     plan_id = getattr(target, "plan_id", None)
-    if plan_id is not None and operation_id is None:
-        raise ValueError("خطة الصيانة لا يمكن ربطها بسجل تنفيذ دون تحديد عملية الصيانة.")
     if target.maintenance_date is None:
         raise ValueError("يجب تحديد تاريخ الصيانة.")
     if target.maintenance_date > datetime.now(timezone.utc).date():
@@ -308,32 +367,60 @@ def _validate_record(connection, target, exclude_id=None):
             select(MaintenancePlanOperation.id)
             .where(MaintenancePlanOperation.operation_id == operation_id)
         ).first() is not None
+    else:
+        operation_row = connection.execute(
+            select(MaintenanceModelOperation.id, MaintenanceModelOperation.is_active, MaintenanceModelOperation.equipment_model_id)
+            .where(MaintenanceModelOperation.id == model_operation_id)
+        ).first()
+        if operation_row is None:
+            raise ValueError("عملية الصيانة الخاصة المحددة غير موجودة.")
+        if not operation_row[1]:
+            raise ValueError("عملية الصيانة الخاصة غير مفعلة.")
+        if operation_row[2] != equipment_model_id:
+            raise ValueError("عملية الصيانة الخاصة لا تخص طراز العتاد المحدد.")
+        membership = connection.execute(
+            select(MaintenancePlanOperation.id)
+            .join(MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id)
+            .where(
+                MaintenancePlanOperation.model_operation_id == model_operation_id,
+                MaintenancePlan.equipment_model_id == equipment_model_id,
+                MaintenancePlan.is_active.is_(True),
+            )
+        ).first()
+        has_any_membership = connection.execute(
+            select(MaintenancePlanOperation.id)
+            .where(MaintenancePlanOperation.model_operation_id == model_operation_id)
+        ).first() is not None
 
-        if membership is None and has_any_membership and plan_id is None:
-            raise ValueError("عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز.")
-        if membership is None and not has_any_membership and plan_id is not None:
-            raise ValueError("لا يمكن ربط عملية مستقلة بخطة دون إدراجها فيها.")
+    if membership is None and has_any_membership and plan_id is None:
+        raise ValueError("عملية الصيانة لا تنتمي إلى خطة مفعلة لهذا الطراز.")
+    if membership is None and not has_any_membership and plan_id is not None:
+        raise ValueError("لا يمكن ربط عملية مستقلة بخطة دون إدراجها فيها.")
 
-        if plan_id is not None:
-            plan_row = connection.execute(
-                select(MaintenancePlan.equipment_model_id, MaintenancePlan.is_active)
-                .where(MaintenancePlan.id == plan_id)
-            ).first()
-            if plan_row is None:
-                raise ValueError("خطة الصيانة المحددة غير موجودة.")
-            if not plan_row[1]:
-                raise ValueError("خطة الصيانة غير مفعلة.")
-            if plan_row[0] != equipment_model_id:
-                raise ValueError("خطة الصيانة لا تخص طراز العتاد المحدد.")
-            linked = connection.execute(
-                select(MaintenancePlanOperation.id)
-                .where(
-                    MaintenancePlanOperation.plan_id == plan_id,
-                    MaintenancePlanOperation.operation_id == operation_id,
-                )
-            ).first()
-            if linked is None:
-                raise ValueError("عملية الصيانة غير مرتبطة بالخطة المحددة.")
+    if plan_id is not None:
+        plan_row = connection.execute(
+            select(MaintenancePlan.equipment_model_id, MaintenancePlan.is_active)
+            .where(MaintenancePlan.id == plan_id)
+        ).first()
+        if plan_row is None:
+            raise ValueError("خطة الصيانة المحددة غير موجودة.")
+        if not plan_row[1]:
+            raise ValueError("خطة الصيانة غير مفعلة.")
+        if plan_row[0] != equipment_model_id:
+            raise ValueError("خطة الصيانة لا تخص طراز العتاد المحدد.")
+        operation_filter = (
+            MaintenancePlanOperation.operation_id == operation_id
+            if operation_id is not None
+            else MaintenancePlanOperation.model_operation_id == model_operation_id
+        )
+        linked = connection.execute(
+            select(MaintenancePlanOperation.id).where(
+                MaintenancePlanOperation.plan_id == plan_id,
+                operation_filter,
+            )
+        ).first()
+        if linked is None:
+            raise ValueError("عملية الصيانة غير مرتبطة بالخطة المحددة.")
 
     if target.meter_value is None:
         return
@@ -389,7 +476,7 @@ def _sync_maintenance_record_insert(mapper, connection, target):
 def _validate_maintenance_record_update(mapper, connection, target):
     target.reported_date = target.maintenance_date
     state = inspect(target)
-    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "operation_id", "maintenance_date")):
+    if any(state.attrs[name].history.has_changes() for name in ("equipment_id", "operation_id", "model_operation_id", "maintenance_date")):
         _validate_record(connection, target, exclude_id=target.id)
 
 

@@ -24,6 +24,7 @@ from app.modules.maintenance.services import (
     latest_readings,
     latest_records,
     measurement_unit,
+    operation_reference,
     operation_condition_meta,
 )
 from app.modules.notifications.services import register_provider
@@ -83,7 +84,7 @@ def maintenance_due_provider(db) -> list[dict]:
             operations_by_model[model_id] = effective_operations_for_equipment(db, eq, include_standalone=False)
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in operations_by_model[model_id]:
-            record = records.get((eq.id, operation.id))
+            record = records.get((eq.id, *operation_reference(operation)))
             # شرط الطراز الفعلي هو المرجع؛ شرط غير محدد لا يولّد إنذارًا ولا يُخترع له بديل.
             condition = condition_for_equipment(db, operation, eq)
             state, css, remaining, meta = operation_condition_meta(
@@ -93,7 +94,7 @@ def maintenance_due_provider(db) -> list[dict]:
                 continue
             notes.append(
                 {
-                    "key": f"maintenance:{eq.id}:{operation.id}",
+                    "key": f"maintenance:{eq.id}:{operation_reference(operation)[0]}:{operation.id}",
                     "severity": "overdue" if css == "danger" else "upcoming",
                     "module": "maintenance",
                     "title": f"{operation.name} — {_equipment_label(eq)}",

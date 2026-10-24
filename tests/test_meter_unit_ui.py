@@ -33,8 +33,10 @@ def test_maintenance_conditions_library_keeps_the_operation_level_warning_fields
     # حقول الإنذار الموحّدة على مستوى العملية تبقى في المكتبة.
     assert "إنذار قبل كم" in rules
     assert "إنذار قبل أيام" in rules
-    # المكتبة العامة لم تعد تختار طرازًا ولا تحرّر شروطًا لكل طراز.
-    assert "equipment_model_conditions" not in rules
-    assert "editorModelsBody" not in rules
+    # المكتبة العامة تبقى مستقلة، مع واجهة إضافية لإدارة مكتبة كل طراز.
+    assert 'id="libraryModelFilter"' in rules
+    assert "${api}/model-operations?equipment_model_id=" in rules
+    assert "id=\"modelConditionRows\"" in rules
+    assert "مكتبة الطراز" in rules
     # Updated page title
     assert "مكتبة عمليات الصيانة" in rules

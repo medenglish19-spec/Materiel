@@ -4,12 +4,13 @@ from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.maintenance.models import (
     MaintenanceRecord,
     MaintenanceOperation,
+    MaintenanceModelOperation,
     MaintenancePlanOperation,
     MaintenancePlan,
     maintenance_operation_models,
@@ -66,10 +67,19 @@ def latest_records(db: Session):
         desc(MaintenanceRecord.id),
     ).all()
     for row in rows:
-        key = (row.equipment_id, row.operation_id)
+        source = "model" if row.model_operation_id is not None else "general"
+        operation_id = row.model_operation_id if row.model_operation_id is not None else row.operation_id
+        key = (row.equipment_id, source, operation_id)
         if key not in result:
             result[key] = row
     return result
+
+
+def operation_reference(operation) -> tuple[str, int]:
+    """Stable identity for an operation across the two independent libraries."""
+    if isinstance(operation, MaintenanceModelOperation):
+        return "model", operation.id
+    return "general", operation.id
 
 
 def measurement_unit(equipment):
@@ -240,11 +250,17 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
         .all()
     )
 
+    private_rows = db.query(MaintenanceModelOperation).filter(
+        MaintenanceModelOperation.equipment_model_id == model_id,
+        MaintenanceModelOperation.is_active.is_(True),
+    ).order_by(MaintenanceModelOperation.name, MaintenanceModelOperation.id).all()
+
     seen = set()
     result = []
-    for operation in rows:
-        if operation.id not in seen:
-            seen.add(operation.id)
+    for operation in [*rows, *private_rows]:
+        ref = operation_reference(operation)
+        if ref not in seen:
+            seen.add(ref)
             result.append(operation)
 
     # Standalone operations (not linked to any model) are NOT included by default.
@@ -260,11 +276,12 @@ def effective_operations_for_equipment(db: Session, equipment, include_standalon
             .all()
         )
         for operation in standalone:
-            if operation.id not in seen:
-                seen.add(operation.id)
+            ref = operation_reference(operation)
+            if ref not in seen:
+                seen.add(ref)
                 result.append(operation)
 
-    return sorted(result, key=lambda operation: (operation.name, operation.id))
+    return sorted(result, key=lambda operation: (operation.name, *operation_reference(operation)))
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +397,15 @@ def condition_for_equipment(db: Session, operation, equipment) -> ModelCondition
     carries each plan's condition explicitly.
     """
     model_id = getattr(equipment, "equipment_model_id", None)
+    if isinstance(operation, MaintenanceModelOperation):
+        return ModelCondition(
+            operation_id=operation.id,
+            equipment_model_id=model_id,
+            condition_source=CONDITION_MODEL,
+            interval_km=operation.interval_km,
+            interval_hours=operation.interval_hours,
+            interval_days=operation.interval_days,
+        )
     return operation_condition_for_model(db, getattr(operation, "id", None), model_id)
 
 
@@ -460,24 +486,24 @@ def operation_tasks_for_model(db: Session, equipment_model_id: int | None) -> li
         plan_by_id = {plan.id: plan for plan in plans}
         links = (
             db.query(MaintenancePlanOperation)
-            .options(joinedload(MaintenancePlanOperation.operation))
-            .join(
-                MaintenanceOperation,
-                MaintenanceOperation.id == MaintenancePlanOperation.operation_id,
+            .options(
+                joinedload(MaintenancePlanOperation.operation),
+                joinedload(MaintenancePlanOperation.model_operation),
             )
             .filter(
                 MaintenancePlanOperation.plan_id.in_(list(plan_by_id)),
-                MaintenanceOperation.is_active.is_(True),
             )
             .order_by(MaintenancePlanOperation.sort_order, MaintenancePlanOperation.id)
             .all()
         )
         for link in links:
             plan = plan_by_id.get(link.plan_id)
-            operation = link.operation
-            if plan is None or operation is None:
+            operation = link.operation or link.model_operation
+            if plan is None or operation is None or not operation.is_active:
                 continue
-            planned_operation_ids.add(operation.id)
+            if isinstance(operation, MaintenanceModelOperation) and operation.equipment_model_id != equipment_model_id:
+                continue
+            planned_operation_ids.add(operation_reference(operation))
             tasks.append(
                 MaintenanceTask(
                     operation=operation,
@@ -499,9 +525,10 @@ def operation_tasks_for_model(db: Session, equipment_model_id: int | None) -> li
     standalone: list = []
     seen: set = set()
     for operation in linked_operations:
-        if operation.id in planned_operation_ids or operation.id in seen:
+        ref = operation_reference(operation)
+        if ref in planned_operation_ids or ref in seen:
             continue
-        seen.add(operation.id)
+        seen.add(ref)
         standalone.append(operation)
 
     conditions = operation_conditions_by_model(db, [operation.id for operation in standalone])
@@ -509,6 +536,23 @@ def operation_tasks_for_model(db: Session, equipment_model_id: int | None) -> li
         condition = conditions.get(
             (operation.id, equipment_model_id),
             ModelCondition(operation_id=operation.id, equipment_model_id=equipment_model_id),
+        )
+        tasks.append(MaintenanceTask(operation=operation, plan=None, condition=condition))
+
+    private_operations = db.query(MaintenanceModelOperation).filter(
+        MaintenanceModelOperation.equipment_model_id == equipment_model_id,
+        MaintenanceModelOperation.is_active.is_(True),
+    ).order_by(MaintenanceModelOperation.name, MaintenanceModelOperation.id).all()
+    for operation in private_operations:
+        if operation_reference(operation) in planned_operation_ids:
+            continue
+        condition = ModelCondition(
+            operation_id=operation.id,
+            equipment_model_id=equipment_model_id,
+            condition_source=CONDITION_MODEL,
+            interval_km=operation.interval_km,
+            interval_hours=operation.interval_hours,
+            interval_days=operation.interval_days,
         )
         tasks.append(MaintenanceTask(operation=operation, plan=None, condition=condition))
 
@@ -944,6 +988,11 @@ def validate_operation_applicable_to_equipment(db: Session, operation: Maintenan
     equipment_model_id = getattr(equipment, "equipment_model_id", None)
     if equipment_model_id is None:
         return "طراز العتاد غير محدد."
+
+    if isinstance(operation, MaintenanceModelOperation):
+        if operation.equipment_model_id != equipment_model_id:
+            return "عملية الصيانة الخاصة لا تخص طراز هذا العتاد."
+        return None
     
     model_linked = any(m.id == equipment_model_id for m in operation.equipment_models)
     if not model_linked:

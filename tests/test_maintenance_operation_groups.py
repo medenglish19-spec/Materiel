@@ -5,13 +5,15 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database.base import Base
-from app.modules.maintenance.models import MaintenanceOperation, MaintenanceOperationGroup
+from app.modules.maintenance.models import MaintenanceModelOperation, MaintenanceOperation, MaintenanceOperationGroup
 from app.modules.maintenance.router import api_operation_group_delete, api_operation_group_delete_impact, router
 
 
 def _session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine, tables=[MaintenanceOperationGroup.__table__, MaintenanceOperation.__table__])
+    Base.metadata.create_all(engine, tables=[
+        MaintenanceOperationGroup.__table__, MaintenanceOperation.__table__, MaintenanceModelOperation.__table__,
+    ])
     return sessionmaker(bind=engine)()
 
 
@@ -51,7 +53,10 @@ def test_group_delete_preview_counts_operations_that_will_be_unlinked():
         ])
         db.commit()
         impact = api_operation_group_delete_impact(group.id, db=db, current_user=None)
-        assert impact["effects"] == [{"label": "عمليات الصيانة التي ستبقى بلا مجموعة", "count": 2, "kind": "unlink"}]
+        assert impact["effects"] == [
+            {"label": "العمليات العامة التي ستبقى بلا مجموعة", "count": 2, "kind": "unlink"},
+            {"label": "عمليات الطراز التي ستبقى بلا مجموعة", "count": 0, "kind": "unlink"},
+        ]
     finally:
         db.close()
 

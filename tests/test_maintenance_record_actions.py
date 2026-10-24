@@ -663,7 +663,7 @@ def test_records_table_exposes_row_actions_and_bulk_selection():
     assert '<th>الإجراءات</th>' not in template
     assert 'class="record-details-row" data-mt-filter-auxiliary hidden' in template
     assert '"record-details":()=>{' in template
-    assert "can_manage_records and r.operation_id" in template
+    assert "can_manage_records and (r.operation_id or r.model_operation_id)" in template
     assert "can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed')" in template
     assert 'class="record-check"' in template  # Per-row and bulk selection stays available.
 

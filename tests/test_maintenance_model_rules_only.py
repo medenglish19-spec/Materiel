@@ -114,15 +114,19 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert 'id="groupForm" style="padding:18px" data-em-root' in template
     assert "EditManager.markFormBaseline($('operationForm'))" in template
     assert "EditManager.restoreForm($('groupForm'))" in template
-    # المكتبة لا تعدّل شروط الطرازات ولا تعرضها: لا محرر ولا عمود شرط ولا نافذة تفاصيل.
-    assert "equipment_model_conditions" not in template
+    # المكتبتان منفصلتان، والعمليات الخاصة تحمل شرطها وإنذارها مباشرة.
+    assert "${api}/model-operations?equipment_model_id=" in template
     assert "editorModelsBody" not in template
     assert "modelOptions" not in template
-    assert 'data-filter-col="condition"' not in template
+    assert 'data-filter-col="condition"' in template
+    assert 'id="libraryModelFilter"' in template
     assert "conditionDetails" not in template
-    assert "الشرط غير محدد" not in template
-    # وحقول الإنذار الموحّد على مستوى العملية تبقى في المكتبة.
-    assert "operationWarningKm" in template
+    assert 'id="modelConditionEditor"' in template
+    assert 'id="modelConditionRows"' in template
+    assert "function addModelConditionRow" in template
+    assert "function setConditionFields(condition)" in template
+    assert "function conditionFieldsPayload()" in template
+    assert "modelWarningValue" in template
     assert "maintenance/rules/create" not in router
     assert "exceptions/create" not in router
     assert "parent_rule" not in router

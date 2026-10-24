@@ -12,12 +12,16 @@
 * ترحيل الأعمدة الجديدة دون فقدان صفوف العلاقة.
 """
 
+import re
+from io import BytesIO
+from html import unescape
 from datetime import date
 from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -47,6 +51,7 @@ from app.modules.maintenance.services import (
     warning_setting_text,
 )
 from app.modules.maintenance.models import MaintenanceOperation
+from app.modules.maintenance.operation_excel_import import OPERATION_IMPORT_HEADERS
 from app.modules.users.models import User
 
 engine = create_engine(
@@ -161,15 +166,16 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     # أساسيات الصفحة: الجدول وأعمدة الإنذار والحالة ونموذج الإدخال.
     assert 'id="operationsTable"' in page
     assert 'data-filter-col="warning"' in page
-    # المكتبة العامة لا تعرض شروط الطرازات: لا عمود شرط ولا نافذة تفاصيل شروط.
-    assert 'data-filter-col="condition"' not in page
+    # صفحة العمليات تعرض الشرط وتتيح الانتقال إلى مكتبة أي طراز.
+    assert 'data-filter-col="condition"' in page
+    assert 'id="libraryModelFilter"' in page
     assert 'id="conditionDetailsBody"' not in page
     assert 'id="editorModelsBody"' not in page
 
     # مصدر البيانات: واجهات المكتبة الحقيقية.
     assert "const api='/api/maintenance'" in page
     assert "${api}/operations`" in page
-    assert "equipment_model_conditions" not in page
+    assert "${api}/model-operations?equipment_model_id=" in page
 
     # لا يستخدم القالب حقلًا غير موجود في الصفحة (كان يُسقط التحميل سابقًا).
     assert "$('operationModels')" not in page
@@ -181,9 +187,9 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     assert "خطأ في التحميل" in page
     assert "state.loadState=state.hasLoadedOperations?'ready':'error'" in page
 
-    # المكتبة لا تعرض شرط الطراز: لا نص «الشرط غير محدد» ولا قراءة model_conditions.
-    assert "الشرط غير محدد" not in page
-    assert "model_conditions" not in page
+    # مكتبة الطراز تعرض عملياتها الخاصة وشرطها المحفوظ لكل عملية.
+    assert "scope_model_id" not in page
+    assert "model_operation_id" in page
     assert "conditionDetails" not in page
 
 
@@ -204,6 +210,118 @@ def test_rules_page_lists_every_operation_with_its_model_summary(api):
     assert operations.status_code == 200
     names = [item["name"] for item in operations.json()]
     assert "عملية ظاهرة في الصفحة" in names
+
+
+def test_scoped_library_excel_import_and_general_library_remain_separate(api):
+    """Real HTTP workbook upload creates private model operations without changing the general plan library."""
+    client, ids = api
+    template = client.get("/maintenance/rules/operation-template.xlsx")
+    assert template.status_code == 200
+    assert "spreadsheetml.sheet" in template.headers["content-type"]
+
+    workbook = load_workbook(BytesIO(template.content))
+    sheet = workbook["العمليات"]
+    assert tuple(cell.value for cell in sheet[1]) == OPERATION_IMPORT_HEADERS
+    sheet.append(("تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة", 500, "كم", 20000, "كم"))
+    stream = BytesIO()
+    workbook.save(stream)
+    workbook.close()
+
+    upload = client.post(
+        "/maintenance/rules/import",
+        data={"model_id": str(ids["model_a"])},
+        files={"file": ("micra-operations.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        follow_redirects=False,
+    )
+    assert upload.status_code == 303
+    assert f"model_id={ids['model_a']}" in upload.headers["location"]
+    assert "imported=1" in upload.headers["location"]
+
+    imported_page = client.get(upload.headers["location"])
+    assert imported_page.status_code == 200
+    assert f'<option value="{ids["model_a"]}" selected>' in imported_page.text
+    assert 'id="libraryModelFilter"' in imported_page.text
+    assert 'id="modelConditionEditor"' in imported_page.text
+
+    imported = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}")
+    assert imported.status_code == 200
+    private_operation = next(item for item in imported.json() if item["name"] == "تبديل مرشح الهواء")
+    assert private_operation["equipment_model_id"] == ids["model_a"]
+    assert float(private_operation["interval_km"]) == 20000
+
+    # A different model cannot see this model-scoped operation.
+    other_model = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_b']}")
+    assert all(item["name"] != "تبديل مرشح الهواء" for item in other_model.json())
+
+    # The old plan flow still reads only the reusable public library.
+    public_create = client.post("/api/maintenance/operations", json={"name": "عملية عامة للخطة"})
+    assert public_create.status_code == 201, public_create.text
+    public_names = {item["name"] for item in client.get("/api/maintenance/operations").json()}
+    assert "عملية عامة للخطة" in public_names
+    assert "تبديل مرشح الهواء" not in public_names
+    assert "تبديل مرشح الهواء" not in {
+        item["name"] for item in client.get("/api/maintenance/model-operations?equipment_model_id=" + str(ids["model_b"])).json()
+    }
+
+    # A second upload with a duplicate scoped name is rejected atomically.
+    duplicate = client.post(
+        "/maintenance/rules/import",
+        data={"model_id": str(ids["model_a"])},
+        files={"file": ("micra-operations.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        follow_redirects=False,
+    )
+    assert duplicate.status_code == 303
+    assert "import_error=" in duplicate.headers["location"]
+    after_duplicate = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}").json()
+    assert sum(item["name"] == "تبديل مرشح الهواء" for item in after_duplicate) == 1
+
+
+def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
+    client, ids = api
+    payload = {
+        "name": "تغيير سائل التبريد",
+        "equipment_model_id": ids["model_a"],
+        "interval_hours": 250,
+        "warning_days": 30,
+    }
+    created = client.post("/api/maintenance/model-operations", json=payload)
+    assert created.status_code == 201, created.text
+    operation = created.json()
+    assert operation["equipment_model_id"] == ids["model_a"]
+    assert float(operation["interval_hours"]) == 250
+
+    page = client.get(f"/maintenance/rules?view_model_id={ids['model_a']}")
+    assert page.status_code == 200
+    assert f'<option value="{ids["model_a"]}" selected>' in page.text
+
+    updated_payload = {
+        "name": "تغيير سائل التبريد وتفقده",
+        "description": "تعديل خاص بالطراز المحدد",
+        "group_id": None,
+        "warning_km": None,
+        "warning_days": 20,
+        "is_active": False,
+        "interval_km": None,
+        "interval_hours": None,
+        "interval_days": 180,
+    }
+    updated = client.put(f"/api/maintenance/model-operations/{operation['id']}", json=updated_payload)
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["name"] == "تغيير سائل التبريد وتفقده"
+    assert updated.json()["is_active"] is False
+    assert updated.json()["interval_days"] == 180
+
+    activated = client.put(
+        f"/api/maintenance/model-operations/{operation['id']}",
+        json={**updated_payload, "is_active": True},
+    )
+    assert activated.status_code == 200
+    assert activated.json()["is_active"] is True
+    assert client.delete(f"/api/maintenance/model-operations/{operation['id']}").status_code == 204
+    assert all(
+        item["name"] != "تغيير سائل التبريد وتفقده"
+        for item in client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}").json()
+    )
 
 
 def test_plans_page_carries_the_model_condition_from_the_service(api):
@@ -229,8 +347,8 @@ def test_plans_page_carries_the_model_condition_from_the_service(api):
     assert f'"{created["id"]}:{ids["model_b"]}"' in body
     assert '"is_defined": true' in body
     assert '"is_defined": false' in body
-    # الشاشة لم تعد تقرأ القيمة القديمة من العملية.
-    assert "o.interval_km!=null" not in body
+    # شروط العمليات الخاصة تظهر في المكتبة المختارة؛ شرط الخطة يبقى المرجع عند التنفيذ.
+    assert "o.source==='model'" in body
     # ونص «غير محدد» يُبنى في العميل من نفس الخريطة.
     assert "الشرط غير محدد لهذا الطراز" in body
 
@@ -479,6 +597,71 @@ def test_general_operation_is_absent_from_the_periodic_and_due_pages(api):
         assert "عملية عامة لا تظهر" not in page
     # وخيار تصفية «الشرط غير محدد» قائم في الصفحة الدورية للحالة المقابلة.
     assert CONDITION_UNSET_LABEL in periodic
+
+
+def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
+    client, ids = api
+    db = Session()
+    try:
+        operations = [
+            MaintenanceOperation(name=f"عملية ترقيم {index:03d}", is_active=True)
+            for index in range(205)
+        ]
+        db.add_all(operations)
+        db.flush()
+        for operation in operations:
+            _link(
+                db,
+                operation,
+                db.get(EquipmentModel, ids["model_a"]),
+                interval_km=5000,
+            )
+        db.commit()
+    finally:
+        db.close()
+
+    first = client.get("/maintenance/periodic")
+    assert first.status_code == 200
+    assert first.text.count('data-status="') == 100
+    assert "205" in first.text
+    next_link = re.search(r'<a class="m-btn" href="([^"]+)">التالي</a>', first.text)
+    assert next_link is not None
+
+    second = client.get(unescape(next_link.group(1)))
+    assert second.status_code == 200
+    assert second.text.count('data-status="') == 100
+    assert "عملية ترقيم 000" not in second.text
+    assert "عملية ترقيم 100" in second.text
+    previous_link = re.search(r'<a class="m-btn" href="([^"]+)">السابق</a>', second.text)
+    assert previous_link is not None
+    final_link = re.search(r'<a class="m-btn" href="([^"]+)">التالي</a>', second.text)
+    assert final_link is not None
+
+    final_page = client.get(unescape(final_link.group(1)))
+    assert final_page.status_code == 200
+    assert final_page.text.count('data-status="') == 5
+    assert "عملية ترقيم 204" in final_page.text
+    final_previous = re.search(r'<a class="m-btn" href="([^"]+)">السابق</a>', final_page.text)
+    assert final_previous is not None
+    assert "عملية ترقيم 100" in client.get(unescape(final_previous.group(1))).text
+
+    returned = client.get(unescape(previous_link.group(1)))
+    assert returned.status_code == 200
+    assert returned.text.count('data-status="') == 100
+    assert "عملية ترقيم 000" in returned.text
+
+    filtered = client.get("/maintenance/periodic", params={"state": "بلا سجل"})
+    assert filtered.status_code == 200
+    assert 'value="بلا سجل" selected' in filtered.text
+    assert "عرض 100 من 205 متابعة مطابقة" in filtered.text
+    search = client.get("/maintenance/periodic", params={"q": "MODEL-COND-A"})
+    assert search.status_code == 200
+    assert "عرض 100 من 205 متابعة مطابقة" in search.text
+    no_matches = client.get("/maintenance/periodic", params={"q": "NO-SUCH-EQUIPMENT"})
+    assert no_matches.status_code == 200
+    assert "عرض 0 من 0 متابعة مطابقة" in no_matches.text
+    assert "إجمالي المتابعات</div><div class=\"kpi-value\">205" in no_matches.text
+    assert client.get("/maintenance/periodic?after=invalid").status_code == 400
 
 
 def test_operation_is_not_applicable_to_a_model_without_a_relation():
