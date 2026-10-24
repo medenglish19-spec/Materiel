@@ -1,16 +1,12 @@
 {% extends "base.html" %}
 {% block title %}مكتبة عمليات الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=library-actions-compact-20261024">{% endblock %}
 {% block content %}
 {% set selected_library_model_id = selected_library_model_id|default('', true) %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading">
       <h2>مكتبة عمليات الصيانة</h2>
-    </div>
-    <div class="hero-actions">
-      <button class="m-btn" type="button" id="importOperationsBtn">استيراد العمليات من ملف Excel</button>
-      <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
     </div>
   </div>
 
@@ -63,29 +59,35 @@
   </div>
 
   <section class="panel">
-    <div class="panel-head">
-      <div>
+    <div class="panel-head library-panel-head">
+      <div class="library-panel-heading">
         <h3 id="libraryTitle">مكتبة العمليات العامة</h3>
         <p id="libraryDescription">عمليات عامة قابلة لإعادة الاستخدام في خطط الطرازات. يحدد شرط الاستحقاق في الخطة.</p>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:8px">
-          <span>المكتبة</span>
-          <select class="m-select" id="libraryTypeFilter" aria-label="اختر مكتبة العمليات">
-            <option value="general">مكتبة العمليات العامة</option>
-            <option value="model">مكتبة العمليات الخاصة بطراز محدد</option>
-          </select>
-        </label>
-        <label id="libraryModelFilterWrap" style="display:none;align-items:center;gap:8px">
-          <span>اختر الطراز</span>
-          <select class="m-select" id="libraryModelFilter" aria-label="اختر الطراز">
-            <option value="">اختر الطراز</option>
-            {% for model in models %}
-            <option value="{{ model.id }}" {% if selected_library_model_id|int == model.id %}selected{% endif %} data-model-name="{{ model.name }}">{{ model.brand.name if model.brand else '' }} {{ model.name }}{% if model.equipment_type %} — {{ model.equipment_type.name }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <span class="badge info" id="operationCount">0 عملية</span>
+      <div class="library-panel-toolbar">
+        <div class="library-panel-filters">
+          <label class="library-filter-field">
+            <span>المكتبة</span>
+            <select class="m-select" id="libraryTypeFilter" aria-label="اختر مكتبة العمليات">
+              <option value="general">مكتبة العمليات العامة</option>
+              <option value="model">مكتبة العمليات الخاصة بطراز محدد</option>
+            </select>
+          </label>
+          <label class="library-filter-field" id="libraryModelFilterWrap" style="display:none">
+            <span>اختر الطراز</span>
+            <select class="m-select" id="libraryModelFilter" aria-label="اختر الطراز">
+              <option value="">اختر الطراز</option>
+              {% for model in models %}
+              <option value="{{ model.id }}" {% if selected_library_model_id|int == model.id %}selected{% endif %} data-model-name="{{ model.name }}">{{ model.brand.name if model.brand else '' }} {{ model.name }}{% if model.equipment_type %} — {{ model.equipment_type.name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <span class="badge info" id="operationCount">0 عملية</span>
+        </div>
+        <div class="library-panel-actions">
+          <button class="m-btn" type="button" id="importOperationsBtn">استيراد العمليات من ملف Excel</button>
+          <button class="m-btn primary" type="button" id="newOperationBtn">＋ &nbsp;إضافة عملية صيانة</button>
+        </div>
       </div>
     </div>
     <div class="table-wrap mt-table-theme-green" data-mt-region>

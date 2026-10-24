@@ -65,6 +65,30 @@ def test_rules_page_avoids_duplicate_navigation_and_operation_creation_paths():
     assert "/maintenance/rules/operation-template.xlsx" not in template
 
 
+def test_model_library_actions_stay_inside_library_header_on_desktop_and_mobile():
+    css = Path("static/css/maintenance.css").read_text(encoding="utf-8")
+    template = _template()
+    library_header_start = template.index('<div class="panel-head library-panel-head">')
+    library_header_end = template.index('<div class="table-wrap mt-table-theme-green"', library_header_start)
+    library_header = template[library_header_start:library_header_end]
+    page_heading = template[:template.index('<section class="panel" id="importPanel"')]
+
+    assert 'class="library-panel-toolbar"' in library_header
+    assert 'class="library-panel-actions"' in library_header
+    assert 'id="importOperationsBtn"' in library_header
+    assert 'id="newOperationBtn"' in library_header
+    assert 'id="importOperationsBtn"' not in page_heading
+    assert 'id="newOperationBtn"' not in page_heading
+    assert ".maintenance-page .library-panel-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}" in css
+    assert ".maintenance-page .library-panel-filters{display:grid;grid-template-columns:minmax(170px,1fr) minmax(210px,1.2fr) auto;align-items:end;gap:8px;flex:1 1 470px;min-width:0}" in css
+    assert ".maintenance-page .library-panel-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:0 1 auto;min-width:0}" in css
+    assert ".maintenance-page .library-panel-toolbar{flex-direction:column;align-items:stretch}" in css
+    assert ".maintenance-page .library-panel-filters{grid-template-columns:minmax(0,1fr);width:100%;flex-basis:auto}" in css
+    assert ".maintenance-page .library-panel-actions{width:100%;flex-direction:column;align-items:flex-start}" in css
+    assert ".maintenance-page .library-panel-actions .m-btn{width:auto;box-sizing:border-box}" in css
+    assert ".maintenance-page .library-panel-actions .m-btn{height:auto;min-height:32px;max-width:100%;min-width:0;padding:6px 10px;font-size:11px;line-height:1.35;white-space:normal}" in css
+
+
 def test_library_selection_updates_the_current_page_without_navigation():
     template = _template()
     selection_handler = template[template.index("function updateLibrarySelection()"):]
