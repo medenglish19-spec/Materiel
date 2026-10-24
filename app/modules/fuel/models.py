@@ -1,10 +1,30 @@
 from datetime import date
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
+from app.shared.mixins import TimestampMixin
+
+
+class FuelModelConsumptionRate(Base, TimestampMixin):
+    __tablename__ = "fuel_model_consumption_rates"
+    __table_args__ = (
+        UniqueConstraint("equipment_model_id", "fuel_type", name="uq_fuel_model_rate_model_type"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    equipment_model_id = Column(
+        Integer,
+        ForeignKey("equipment_models.id", ondelete="CASCADE", name="fk_fuel_model_rate_model"),
+        nullable=False,
+        index=True,
+    )
+    fuel_type = Column(String(40), nullable=False)
+    consumption_rate = Column(Numeric(10, 2), nullable=False)
+    measurement_unit = Column(String(30), nullable=False)
+    equipment_model = relationship("EquipmentModel")
 
 
 class FuelRecord(Base, AuditMixin):

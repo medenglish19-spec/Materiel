@@ -10,11 +10,11 @@ from app.shared.mixins import AuditMixin
 class Battery(Base, AuditMixin):
     __tablename__ = "batteries"
     id = Column(Integer, primary_key=True, index=True)
-    # Kept nullable for legacy records; battery identity is type/model, not a serial.
+    # Kept nullable for legacy records; battery identity is type/capacity, not a serial.
     serial_number = Column(String(80), unique=True, nullable=True, index=True)
     battery_type = Column(String(100), nullable=True)
     brand = Column(String(80), nullable=True)
-    model = Column(String(80), nullable=True)
+    capacity = Column(String(80), nullable=True)
     manufacture_date = Column(Date, nullable=True)
     receipt_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True, index=True)

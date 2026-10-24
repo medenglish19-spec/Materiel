@@ -5,6 +5,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
+from app.modules.equipment_types.models import EquipmentModel
 from app.modules.fuel.models import FuelRecord
 from app.modules.meter_readings.services import sync_current_meter, validate_meter_observation
 from app.modules.meter_readings.models import MeterReading
@@ -13,7 +14,11 @@ ABNORMAL_FACTOR = Decimal("1.20")
 
 
 def list_records(db: Session):
-    return db.query(FuelRecord).options(joinedload(FuelRecord.equipment)).order_by(
+    return db.query(FuelRecord).options(
+        joinedload(FuelRecord.equipment)
+        .joinedload(Equipment.equipment_model)
+        .joinedload(EquipmentModel.brand)
+    ).order_by(
         FuelRecord.fueling_date.desc(), FuelRecord.id.desc()
     ).all()
 

@@ -79,7 +79,7 @@ def test_first_battery_page_load_uses_bounded_queries(db):
     for index in range(24):
         add_battery(db, {
             "battery_type": "AGM",
-            "model": f"batch-{index % 4}",
+            "capacity": f"{40 + (index % 4) * 5} Ah",
             "acquisition_document": "REC-B-PERF",
         })
 
