@@ -157,6 +157,7 @@ def status_for(obj, equipment, record, current_value, plan_operation=None, today
     
     # Warning settings are unified at the operation level (or plan level for plans)
     warning_km = getattr(obj, "warning_km", None)
+    warning_hours = getattr(obj, "warning_hours", None)
     warning_days = getattr(obj, "warning_days", None)
     unit = measurement_unit(equipment)
     current = Decimal(str(current_value)) if current_value is not None else None
@@ -169,14 +170,16 @@ def status_for(obj, equipment, record, current_value, plan_operation=None, today
     remaining_days = (next_date - today).days if next_date is not None else None
     remaining_meter = remaining_km if unit == "km" else remaining_hours
     warning_meter = warning_km if unit == "km" else None
+    warning_hours_meter = warning_hours if unit == "hours" else None
     overdue_meter = remaining_meter is not None and remaining_meter <= 0
     overdue_days = remaining_days is not None and remaining_days <= 0
     near_meter = warning_meter is not None and remaining_meter is not None and remaining_meter <= Decimal(str(warning_meter))
+    near_hours = warning_hours_meter is not None and remaining_hours is not None and remaining_hours <= Decimal(str(warning_hours_meter))
     near_days = warning_days is not None and remaining_days is not None and remaining_days <= int(warning_days)
     meta = {"remaining_days": remaining_days, "next_meter": next_km if unit == "km" else next_hours, "next_date": next_date, "remaining_km": remaining_km, "remaining_hours": remaining_hours}
     if overdue_meter or overdue_days:
         return "مستحقة الآن", "danger", remaining_meter, meta
-    if near_meter or near_days:
+    if near_meter or near_hours or near_days:
         return "تقترب", "warning", remaining_meter, meta
     return "ضمن الموعد", "success", remaining_meter, meta
 
@@ -664,12 +667,15 @@ def warning_setting_text(operation, condition: ModelCondition | None, reference:
         if operation is None:
             return "—"
         warning_km = getattr(operation, "warning_km", None)
+        warning_hours = getattr(operation, "warning_hours", None)
         warning_days = getattr(operation, "warning_days", None)
-        if warning_km is None and warning_days is None:
+        if warning_km is None and warning_hours is None and warning_days is None:
             return NO_WARNING_LABEL
         parts = []
         if warning_km is not None:
             parts.append(f"{_number(warning_km)} كم")
+        if warning_hours is not None:
+            parts.append(f"{_number(warning_hours)} ساعة تشغيل")
         if warning_days is not None:
             parts.append(f"{warning_days} يوم")
         if not parts:
@@ -685,13 +691,16 @@ def warning_setting_text(operation, condition: ModelCondition | None, reference:
         return "—"
     
     warning_km = getattr(operation, "warning_km", None)
+    warning_hours = getattr(operation, "warning_hours", None)
     warning_days = getattr(operation, "warning_days", None)
     
-    if warning_km is None and warning_days is None:
+    if warning_km is None and warning_hours is None and warning_days is None:
         return NO_WARNING_LABEL
     parts = []
     if warning_km is not None:
         parts.append(f"{_number(warning_km)} كم")
+    if warning_hours is not None:
+        parts.append(f"{_number(warning_hours)} ساعة تشغيل")
     if warning_days is not None:
         parts.append(f"{warning_days} يوم")
     if not parts:
@@ -855,13 +864,14 @@ def operations_payload(db: Session, operations: list) -> list:
         
         # Operation-level warning settings (unified across all models)
         warning_km = getattr(operation, "warning_km", None)
+        warning_hours = getattr(operation, "warning_hours", None)
         warning_days = getattr(operation, "warning_days", None)
         
         # Build condition summary, then override warning with operation-level warning if applicable
         condition_summary = summarize_operation_conditions(details)
         # If operation has a warning, use operation warning (warnings are unified at operation level)
         # This applies even when there are no linked models
-        if warning_km is not None or warning_days is not None:
+        if warning_km is not None or warning_hours is not None or warning_days is not None:
             op_warning = warning_setting_text(operation, None)  # None condition -> returns operation warning
             condition_summary["warning"] = op_warning
             condition_summary["warning_state"] = "shared"
@@ -875,6 +885,7 @@ def operations_payload(db: Session, operations: list) -> list:
                 "description": operation.description,
                 "is_active": bool(operation.is_active),
                 "warning_km": _to_float(warning_km),
+                "warning_hours": _to_float(warning_hours),
                 "warning_days": _to_float(warning_days),
                 "model_conditions": details,
                 "condition_summary": condition_summary,

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}مكتبة عمليات الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=library-actions-compact-20261024">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=library-table-controls-20261024">{% endblock %}
 {% block content %}
 {% set selected_library_model_id = selected_library_model_id|default('', true) %}
 <div class="maintenance-page" dir="rtl">
@@ -39,25 +39,6 @@
     <div class="plan-mode-actions"><span class="badge info" id="planSelectedCount">0 محددة</span><button class="m-btn primary" type="button" id="savePlanOperations">✓ حفظ عمليات الخطة</button><button class="m-btn" type="button" id="cancelPlanMode">← العودة إلى الخطط</button></div>
   </div>
 
-  <div class="toolbar-card">
-    <div class="toolbar" style="justify-content:flex-end;gap:12px;flex-wrap:wrap">
-      <div class="dropdown" id="managementDropdown" style="position:relative">
-        <button class="m-btn" type="button" id="managementBtn" aria-haspopup="true" aria-expanded="false">⚙️ إدارة عمليات الصيانة ▾</button>
-        <div class="dropdown-menu" id="managementMenu" role="menu" style="display:none;position:fixed;z-index:1000;min-width:220px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:6px;">
-          <button type="button" class="dropdown-item" id="menuNewGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">📁 &nbsp;إضافة مجموعة</button>
-          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">✏️ &nbsp;تعديل المجموعة</button>
-          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap">🗑 &nbsp;حذف المجموعة</button>
-          <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">↻ &nbsp;تحديث الجدول</button>
-        </div>
-      </div>
-      <div id="bulkActionBar" style="display:flex;align-items:center;gap:8px;flex-wrap:white-space:nowrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 12px;min-width:160px">
-        <input type="checkbox" id="selectAllOperations" style="margin-right:6px" aria-label="حدد الكل">
-        <span id="selectedCount" class="muted" style="min-width:20px">0 محددة</span>
-        <button id="bulkDeleteBtn" class="m-btn danger" type="button" style="display:none;min-width:100px">حذف المحدد (0)</button>
-      </div>
-    </div>
-  </div>
-
   <section class="panel">
     <div class="panel-head library-panel-head">
       <div class="library-panel-heading">
@@ -90,6 +71,22 @@
         </div>
       </div>
     </div>
+    <div class="library-table-toolbar" aria-label="إجراءات جدول عمليات الصيانة">
+      <div class="dropdown" id="managementDropdown" style="position:relative">
+        <button class="m-btn" type="button" id="managementBtn" aria-haspopup="true" aria-expanded="false">⚙️ إدارة عمليات الصيانة ▾</button>
+        <div class="dropdown-menu" id="managementMenu" role="menu" style="display:none;position:fixed;z-index:1000;min-width:220px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:6px;">
+          <button type="button" class="dropdown-item" id="menuNewGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">📁 &nbsp;إضافة مجموعة</button>
+          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">✏️ &nbsp;تعديل المجموعة</button>
+          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap">🗑 &nbsp;حذف المجموعة</button>
+          <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">↻ &nbsp;تحديث الجدول</button>
+        </div>
+      </div>
+      <div id="bulkActionBar" class="library-bulk-actions" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <input type="checkbox" id="selectAllOperations" style="margin-right:6px" aria-label="حدد الكل">
+        <span id="selectedCount" class="muted" style="min-width:20px">0 محددة</span>
+        <button id="bulkDeleteBtn" class="m-btn danger" type="button" style="display:none;min-width:100px">حذف المحدد (0)</button>
+      </div>
+    </div>
     <div class="table-wrap mt-table-theme-green" data-mt-region>
       <table class="m-table" id="operationsTable">
         <thead id="operationsHead"></thead>
@@ -98,12 +95,14 @@
     </div>
   </section>
 
-  <section class="panel" id="operationEditor" style="display:none;margin-top:16px">
+  <dialog class="maintenance-operation-dialog" id="operationEditor" aria-labelledby="editorTitle">
+    <section class="panel">
     <div class="panel-head">
       <div>
         <h3 id="editorTitle">إضافة عملية صيانة</h3>
         <p id="editorDescription">أدخل بيانات العملية العامة لإتاحتها في خطط الطرازات.</p>
       </div>
+      <button class="m-btn dialog-close" type="button" id="closeOperationEditor" aria-label="إغلاق">×</button>
     </div>
     <form id="operationForm" style="padding:18px" data-em-root>
       <input type="hidden" id="operationId">
@@ -135,22 +134,30 @@
           </tbody>
           <tbody id="modelConditionRows" style="display:none"></tbody>
           <tbody>
-            <tr id="modelWarningRow" style="display:none">
-              <th scope="row"><label for="modelWarningValue">الإنذار</label></th>
-              <td><input class="m-input" id="modelWarningValue" type="number" min="0" step="0.1" placeholder="اختياري"></td>
-              <td>
-                <select class="m-select" id="modelWarningUnit" aria-label="وحدة الإنذار">
-                  <option value="km">كم</option><option value="days">يوم</option>
-                </select>
-              </td>
+            <tr id="modelWarningHint" style="display:none">
+              <th scope="row">الإنذار (إلزامي)</th>
+              <td colspan="2">أدخل قيمة واحدة على الأقل؛ يمكن الجمع بين المحاور، ويظهر التنبيه عند تحقق أي منها.</td>
+            </tr>
+            <tr id="modelWarningKmRow" style="display:none">
+              <th scope="row"><label for="modelWarningKm">إنذار كم</label></th>
+              <td colspan="2"><input class="m-input" id="modelWarningKm" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+            </tr>
+            <tr id="modelWarningHoursRow" style="display:none">
+              <th scope="row"><label for="modelWarningHours">إنذار ساعة تشغيل</label></th>
+              <td colspan="2"><input class="m-input" id="modelWarningHours" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+            </tr>
+            <tr id="modelWarningDaysRow" style="display:none">
+              <th scope="row"><label for="modelWarningDays">إنذار أيام</label></th>
+              <td colspan="2"><input class="m-input" id="modelWarningDays" type="number" min="0" step="1" placeholder="قيمة الإنذار"></td>
             </tr>
             <tr id="globalWarningEditor" style="display:none">
-              <th scope="row">إنذار العملية</th>
+              <th scope="row">إنذار العملية (إلزامي)</th>
               <td>
-                <input class="m-input" id="operationWarningKm" type="number" min="0" step="0.1" placeholder="إنذار المسافة">
-                <input class="m-input" id="operationWarningDays" type="number" min="0" step="1" placeholder="إنذار الأيام">
+                <input class="m-input" id="operationWarningKm" type="number" min="0" step="0.1" placeholder="إنذار كم">
+                <input class="m-input" id="operationWarningHours" type="number" min="0" step="0.1" placeholder="إنذار ساعة تشغيل">
+                <input class="m-input" id="operationWarningDays" type="number" min="0" step="1" placeholder="إنذار أيام">
               </td>
-              <td>كم / يوم</td>
+              <td>أدخل قيمة واحدة على الأقل؛ يمكن الجمع بين المحاور، ويظهر التنبيه عند تحقق أي منها.</td>
             </tr>
           </tbody>
         </table>
@@ -161,7 +168,8 @@
         <button class="m-btn" type="button" id="cancelEditor">إلغاء</button>
       </div>
     </form>
-  </section>
+    </section>
+  </dialog>
 
   <!-- Group Editor Modal -->
   <div id="groupEditor" class="condition-details" style="display:none" role="dialog" aria-modal="true" aria-labelledby="groupEditorTitle">
@@ -279,13 +287,22 @@
       interval_days:condition?.interval_days??null
     };
   }
+  function warningValue(inputId,label,integerOnly=false){
+    const raw=$(inputId).value.trim();
+    if(!raw)return null;
+    const value=Number(raw);
+    if(!Number.isFinite(value)||value<0)throw new Error(`${label} يجب أن تكون صفرًا أو أكبر.`);
+    if(integerOnly&&!Number.isInteger(value))throw new Error(`${label} يجب أن تكون عددًا صحيحًا.`);
+    return value;
+  }
   function setEditorMode(mode){
     state.editorMode=mode;
     const modelMode=mode==='model';
-    $('globalWarningEditor').style.display='none';
+    $('globalWarningEditor').style.display=modelMode?'none':'table-row';
     $('modelConditionEditor').style.display=modelMode?'table-row-group':'none';
     $('modelConditionRows').style.display=modelMode?'table-row-group':'none';
-    $('modelWarningRow').style.display=modelMode?'table-row':'none';
+    $('modelWarningHint').style.display=modelMode?'table-row':'none';
+    ['modelWarningKmRow','modelWarningHoursRow','modelWarningDaysRow'].forEach(id=>$(id).style.display=modelMode?'table-row':'none');
     document.querySelectorAll('.model-condition-value').forEach(input=>{input.disabled=!modelMode});
     ['operationName','operationGroup','operationDescription','operationActive'].forEach(id=>$(id).disabled=false);
     $('modelEditorLabel').textContent='شرط وإنذار الطراز';
@@ -348,7 +365,7 @@
   }
   function warningCell(op){
     if(op?.source==='model'){
-      const warning=[op.warning_km!=null?Number(op.warning_km)+' كم':null,op.warning_days!=null?Number(op.warning_days)+' يوم':null].filter(Boolean).join(' أو ')||'—';
+      const warning=[op.warning_km!=null?Number(op.warning_km)+' كم':null,op.warning_hours!=null?Number(op.warning_hours)+' ساعة تشغيل':null,op.warning_days!=null?Number(op.warning_days)+' يوم':null].filter(Boolean).join(' أو ')||'—';
       return warning==='—'?'<span class="condition-link none">—</span>':'<span class="condition-link">'+escapeHtml(warning)+'</span>';
     }
     const s=summaryOf(op);
@@ -542,18 +559,24 @@
     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
     document.querySelectorAll('.meter-hours-field').forEach(el=>{el.style.display='';});
   }
+  function openOperationEditor(){
+    const dialog=$('operationEditor');
+    if(!dialog.open)dialog.showModal();
+    $('operationName').focus();
+  }
   function resetEditor(){
     $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
     $('operationDescription').value=''; $('operationActive').checked=true;
     // Clear operation-level warning fields
     $('operationWarningKm').value = '';
+    $('operationWarningHours').value = '';
     $('operationWarningDays').value = '';
     setConditionFields(null);
-    $('modelWarningValue').value=''; $('modelWarningUnit').value='km';
+    $('modelWarningKm').value=''; $('modelWarningHours').value=''; $('modelWarningDays').value='';
     state.editorMode=isModelLibrary()?'model':'general';
     setEditorMode(state.editorMode);
-    $('operationEditor').style.display='';
     syncMeterFields();if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
+    openOperationEditor();
   }
   function editOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
@@ -561,17 +584,18 @@
     $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
     state.editorMode=op.source==='model'?'model':'general';
     setEditorMode(state.editorMode);
-    // General operations have no condition or warning fields.
+    // General operations use shared warning fields instead of model conditions.
     $('operationWarningKm').value = op.warning_km ?? '';
+    $('operationWarningHours').value = op.warning_hours ?? '';
     $('operationWarningDays').value = op.warning_days ?? '';
     if(state.editorMode==='model'){
       setConditionFields(op);
-      const warningAxis=op.warning_days!=null?'days':'km';
-      $('modelWarningUnit').value=warningAxis;
-      $('modelWarningValue').value=warningAxis==='days'?(op.warning_days??''):(op.warning_km??'');
+      $('modelWarningKm').value=op.warning_km??'';
+      $('modelWarningHours').value=op.warning_hours??'';
+      $('modelWarningDays').value=op.warning_days??'';
     }
-    $('operationEditor').style.display='';
-    window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
+    if(window.EditManager)EditManager.markFormBaseline($('operationForm'));
+    openOperationEditor();
   }
   async function toggleOperation(id){
     const op=state.operations.find(x=>x.id===id); if(!op)return;
@@ -580,8 +604,11 @@
       const payload=modelMode?{
         name:op.name,description:op.description??null,group_id:op.group_id??null,is_active:!op.is_active,
         interval_km:op.interval_km??null,interval_hours:op.interval_hours??null,interval_days:op.interval_days??null,
-        warning_km:op.warning_km??null,warning_days:op.warning_days??null,
-      }:{name:op.name,description:op.description??null,group_id:op.group_id??null,is_active:!op.is_active};
+        warning_km:op.warning_km??null,warning_hours:op.warning_hours??null,warning_days:op.warning_days??null,
+      }:{
+        name:op.name,description:op.description??null,group_id:op.group_id??null,is_active:!op.is_active,
+        warning_km:op.warning_km??null,warning_hours:op.warning_hours??null,warning_days:op.warning_days??null,
+      };
       const endpoint=modelMode?`${api}/model-operations/${id}`:`${api}/operations/${id}`;
       await request(endpoint,{method:'PUT',body:JSON.stringify(payload)});
       showAlert(op.is_active?'تم تعطيل العملية.':'تم تفعيل العملية.');
@@ -612,6 +639,7 @@
       description:op.description??null,
       is_active:op.is_active,
       warning_km:op.warning_km??null,
+      warning_hours:op.warning_hours??null,
       warning_days:op.warning_days??null,
       ...(overrides||{})
     };
@@ -709,24 +737,24 @@
         const modelId=selectedModelId();
         if(!modelId)throw new Error('اختر الطراز قبل إضافة عملية خاصة به.');
         const condition=conditionFieldsPayload();
-        const warningValue=$('modelWarningValue').value.trim();
-        let warningKm=null,warningDays=null;
-        if(warningValue){
-          const numeric=Number(warningValue);
-          if(!Number.isFinite(numeric)||numeric<0)throw new Error('قيمة الإنذار يجب أن تكون صفرًا أو أكبر.');
-          if($('modelWarningUnit').value==='days'){
-            if(!Number.isInteger(numeric))throw new Error('قيمة إنذار الأيام يجب أن تكون عددًا صحيحًا.');
-            warningDays=numeric;
-          }else warningKm=numeric;
-        }
-        Object.assign(payload,{equipment_model_id:modelId,warning_km:warningKm,warning_days:warningDays,...condition});
+        const warningKm=warningValue('modelWarningKm','قيمة إنذار الكيلومترات');
+        const warningHours=warningValue('modelWarningHours','قيمة إنذار ساعات التشغيل');
+        const warningDays=warningValue('modelWarningDays','قيمة إنذار الأيام',true);
+        if(warningKm===null&&warningHours===null&&warningDays===null)throw new Error('أدخل قيمة إنذار واحدة على الأقل.');
+        Object.assign(payload,{equipment_model_id:modelId,warning_km:warningKm,warning_hours:warningHours,warning_days:warningDays,...condition});
         url=id?`${api}/model-operations/${id}`:`${api}/model-operations`;
+      }else{
+        payload.warning_km=warningValue('operationWarningKm','قيمة إنذار الكيلومترات');
+        payload.warning_hours=warningValue('operationWarningHours','قيمة إنذار ساعات التشغيل');
+        payload.warning_days=warningValue('operationWarningDays','قيمة إنذار الأيام',true);
+        if(payload.warning_km===null&&payload.warning_hours===null&&payload.warning_days===null)throw new Error('أدخل قيمة إنذار واحدة على الأقل.');
+        url=id?`${api}/operations/${id}`:`${api}/operations`;
       }
       await request(url,{method,body:JSON.stringify(payload)});
       if(window.EditManager)EditManager.markSavedForm($('operationForm'));
       const successMessage=id?'تم تعديل العملية.':'تمت إضافة العملية.';
       showAlert(successMessage);
-      $('operationEditor').style.display='none';
+      $('operationEditor').close();
       await load();
     }catch(err){showAlert(err.message,'danger')}
   });
@@ -950,7 +978,10 @@
   };
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
-  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
+  $('cancelEditor').onclick = () => { $('operationEditor').close(); if(window.EditManager)EditManager.restoreForm($('operationForm')); };
+  $('closeOperationEditor').onclick = () => { $('operationEditor').close(); if(window.EditManager)EditManager.restoreForm($('operationForm')); };
+  $('operationEditor').addEventListener('click', event => { if(event.target===$('operationEditor'))$('operationEditor').close(); });
+  $('operationEditor').addEventListener('close', () => { if(window.EditManager)EditManager.restoreForm($('operationForm')); });
   $('groupFilter').onchange = render; $('statusFilter').onchange = render;
 
   // Bulk selection handling
@@ -1042,7 +1073,7 @@
   $('newOperationBtn').onclick = resetEditor;
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
-  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; if(window.EditManager)EditManager.restoreForm($('operationForm')); };
+  $('cancelEditor').onclick = () => { $('operationEditor').close(); if(window.EditManager)EditManager.restoreForm($('operationForm')); };
   $('groupFilter').onchange = render; $('statusFilter').onchange = render;
   $('libraryTypeFilter').value=state.libraryType;
   function updateLibrarySelection(){
@@ -1050,7 +1081,7 @@
     if(state.libraryType==='model'&&selectedModelId())params.set('view_model_id',selectedModelId());
     const query=params.toString();
     window.history.replaceState(null,'','/maintenance/rules'+(query?'?'+query:''));
-    $('operationEditor').style.display='none';
+    if($('operationEditor').open)$('operationEditor').close();
     $('importPanel').dataset.open='false';
     $('importPanel').style.display='none';
     if(window.EditManager)EditManager.restoreForm($('operationForm'));

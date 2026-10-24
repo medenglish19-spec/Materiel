@@ -17,6 +17,11 @@ def _nonnegative(value, field_name):
     return value
 
 
+def _require_warning(values):
+    if all(value is None for value in values):
+        raise ValueError("أدخل قيمة إنذار واحدة على الأقل.")
+
+
 class MaintenanceOperationGroupBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     sort_order: int = 0
@@ -105,6 +110,7 @@ class MaintenanceOperationBase(BaseModel):
     interval_hours: Optional[Decimal] = None
     interval_days: Optional[int] = None
     warning_km: Optional[Decimal] = None
+    warning_hours: Optional[Decimal] = None
     warning_days: Optional[int] = None
     is_active: bool = True
     description: Optional[str] = None
@@ -132,6 +138,11 @@ class MaintenanceOperationBase(BaseModel):
     def warning_km_valid(cls, value):
         return _nonnegative(value, "تنبيه الكيلومترات")
 
+    @field_validator("warning_hours")
+    @classmethod
+    def warning_hours_valid(cls, value):
+        return _nonnegative(value, "تنبيه ساعات التشغيل")
+
     @field_validator("warning_days")
     @classmethod
     def warning_days_valid(cls, value):
@@ -139,7 +150,10 @@ class MaintenanceOperationBase(BaseModel):
 
 
 class MaintenanceOperationCreate(MaintenanceOperationBase):
-    pass
+    @model_validator(mode="after")
+    def require_warning(self):
+        _require_warning((self.warning_km, self.warning_hours, self.warning_days))
+        return self
 
 
 class MaintenanceOperationUpdate(MaintenanceOperationBase):
@@ -147,6 +161,11 @@ class MaintenanceOperationUpdate(MaintenanceOperationBase):
     # الحقل يعني «لا تلمس ارتباطات الطرازات الحالية»، وليس «احذفها». الـAPI
     # يبقى قادرًا على حذف ربط صريح عند إرسال قائمة فعلية.
     equipment_model_conditions: Optional[list[MaintenanceOperationModelConditionIn]] = None
+
+    @model_validator(mode="after")
+    def require_warning(self):
+        _require_warning((self.warning_km, self.warning_hours, self.warning_days))
+        return self
 
 
 class MaintenanceOperationOut(MaintenanceOperationBase):
@@ -157,8 +176,9 @@ class MaintenanceOperationOut(MaintenanceOperationBase):
     interval_km: Optional[Decimal] = Field(default=None, exclude=True)
     interval_hours: Optional[Decimal] = Field(default=None, exclude=True)
     interval_days: Optional[int] = Field(default=None, exclude=True)
-    # warning_km و warning_days هي حقول الإنذار الموحدة على مستوى العملية — تُعرض في الاستجابة.
+    # حقول الإنذار الموحدة على مستوى العملية — تُعرض في الاستجابة.
     warning_km: Optional[Decimal] = None
+    warning_hours: Optional[Decimal] = None
     warning_days: Optional[int] = None
     # شروط الطرازات: تُبنى في الـ router/الخدمة، لا من خصائص ORM مباشرة.
     model_conditions: list[MaintenanceOperationModelConditionOut] = Field(default_factory=list)
@@ -177,6 +197,7 @@ class MaintenanceModelOperationBase(BaseModel):
     interval_hours: Optional[Decimal] = None
     interval_days: Optional[int] = None
     warning_km: Optional[Decimal] = None
+    warning_hours: Optional[Decimal] = None
     warning_days: Optional[int] = None
     is_active: bool = True
 
@@ -200,6 +221,11 @@ class MaintenanceModelOperationBase(BaseModel):
     def private_warning_km_valid(cls, value):
         return _nonnegative(value, "إنذار الكيلومترات")
 
+    @field_validator("warning_hours")
+    @classmethod
+    def private_warning_hours_valid(cls, value):
+        return _nonnegative(value, "إنذار ساعات التشغيل")
+
     @field_validator("warning_days")
     @classmethod
     def private_warning_days_valid(cls, value):
@@ -217,13 +243,23 @@ class MaintenanceModelOperationCreate(MaintenanceModelOperationBase):
 
     @model_validator(mode="after")
     def require_condition(self):
+        self.require_warning()
         return self._validate_condition()
+
+    def require_warning(self):
+        _require_warning((self.warning_km, self.warning_hours, self.warning_days))
+        return self
 
 
 class MaintenanceModelOperationUpdate(MaintenanceModelOperationBase):
     @model_validator(mode="after")
     def require_condition(self):
+        self.require_warning()
         return self._validate_condition()
+
+    def require_warning(self):
+        _require_warning((self.warning_km, self.warning_hours, self.warning_days))
+        return self
 
 
 class MaintenanceModelOperationOut(MaintenanceModelOperationBase):

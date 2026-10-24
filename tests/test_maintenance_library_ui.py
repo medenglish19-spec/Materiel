@@ -40,12 +40,19 @@ def test_rules_template_defaults_missing_selected_model_context():
     assert "{% set selected_library_model_id = selected_library_model_id|default('', true) %}" in _template()
 
 
-def test_operation_editor_uses_a_compact_table_with_explicit_alarm_unit_column():
+def test_operation_editor_exposes_independent_alarm_thresholds():
     template = _template()
     assert template.index('id="operationName"') < template.index('id="operationGroup"')
     assert '<th scope="col">الحقل</th><th scope="col">القيمة</th><th scope="col">الوحدة</th>' in template
-    assert 'id="modelWarningValue"' in template
-    assert 'id="modelWarningUnit"' in template
+    assert 'id="modelWarningKm"' in template
+    assert 'id="modelWarningHours"' in template
+    assert 'id="modelWarningDays"' in template
+    assert "warning_hours:warningHours" in template
+    assert "أدخل قيمة إنذار واحدة على الأقل." in template
+    assert "warningValue('modelWarningKm'" in template
+    assert "warningValue('modelWarningHours'" in template
+    assert "warningValue('modelWarningDays'" in template
+    assert "globalWarningEditor').style.display=modelMode?'none':'table-row'" in template
     assert "＋ إضافة محور شرط" not in template
     assert "conditionUnits.forEach(({unit,field,label})=>" in template
     assert "input.placeholder='اختياري'" in template
@@ -89,6 +96,36 @@ def test_model_library_actions_stay_inside_library_header_on_desktop_and_mobile(
     assert ".maintenance-page .library-panel-actions .m-btn{height:auto;min-height:32px;max-width:100%;min-width:0;padding:6px 10px;font-size:11px;line-height:1.35;white-space:normal}" in css
 
 
+def test_table_management_controls_are_inline_above_the_library_table():
+    template = _template()
+    library_panel = template[template.index('<section class="panel">', template.index('id="planModeBar"')):]
+    toolbar_start = library_panel.index('<div class="library-table-toolbar"')
+    management_button = library_panel.index('id="managementBtn"')
+    bulk_actions = library_panel.index('id="bulkActionBar"')
+    table_start = library_panel.index('<div class="table-wrap mt-table-theme-green"')
+    assert '<div class="panel-head library-panel-head">' in library_panel[:toolbar_start]
+    assert toolbar_start < management_button < table_start
+    assert toolbar_start < bulk_actions < table_start
+    assert 'class="toolbar-card"' not in library_panel[:table_start]
+    assert ".maintenance-page .library-table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 13px;border-bottom:1px solid #e9eef3;background:#fbfdfb}" in Path("static/css/maintenance.css").read_text(encoding="utf-8")
+
+
+def test_operation_editor_opens_as_a_modal_dialog():
+    template = _template()
+    editor_start = template.index('<dialog class="maintenance-operation-dialog" id="operationEditor"')
+    editor_end = template.index("</dialog>", editor_start)
+    editor = template[editor_start:editor_end]
+    assert 'id="editorTitle"' in editor
+    assert 'id="operationForm"' in editor
+    assert 'id="closeOperationEditor"' in editor
+    assert "function openOperationEditor()" in template
+    assert "dialog.showModal()" in template
+    assert "$('newOperationBtn').onclick = resetEditor;" in template
+    assert "$('operationEditor').addEventListener('click', event => { if(event.target===$('operationEditor'))$('operationEditor').close(); });" in template
+    assert ".maintenance-operation-dialog::backdrop" in Path("static/css/maintenance.css").read_text(encoding="utf-8")
+    assert "$('operationEditor').style.display" not in template
+
+
 def test_library_selection_updates_the_current_page_without_navigation():
     template = _template()
     selection_handler = template[template.index("function updateLibrarySelection()"):]
@@ -113,11 +150,11 @@ def test_operation_editor_sends_requests_for_both_general_and_model_operations()
 
 
 def test_a_general_operation_is_created_without_any_model_or_condition(api):
-    """الاسم وحده يكفي لحفظ العملية العامة: لا طراز ولا شرط استحقاق."""
+    """لا يُشترط طراز أو شرط استحقاق، مع إنذار تشغيلي إلزامي."""
     client, _ = api
     response = client.post(
         "/api/maintenance/operations",
-        json={"name": "عملية عامة بلا طراز", "equipment_model_conditions": []},
+        json={"name": "عملية عامة بلا طراز", "equipment_model_conditions": [], "warning_km": 0},
     )
     assert response.status_code == 201, response.text
     body = response.json()
@@ -125,14 +162,14 @@ def test_a_general_operation_is_created_without_any_model_or_condition(api):
     assert body["model_conditions"] == []
     assert body["condition_source"] == "none"
     assert body["condition_summary"]["condition"] is None
-    # ولا قيمة قديمة تُكتب على العملية.
+    # ولا قيمة شرط قديمة تُكتب على العملية.
     assert body["equipment_model_conditions"] == []
 
 
 def test_the_create_request_may_omit_the_model_conditions_field_entirely(api):
     """الواجهة لا تحتاج إرسال حقل شروط الطرازات أصلًا لعملية عامة."""
     client, _ = api
-    response = client.post("/api/maintenance/operations", json={"name": "عملية عامة بحقل محذوف"})
+    response = client.post("/api/maintenance/operations", json={"name": "عملية عامة بحقل محذوف", "warning_km": 0})
     assert response.status_code == 201, response.text
     assert response.json()["model_conditions"] == []
 
@@ -140,7 +177,7 @@ def test_the_create_request_may_omit_the_model_conditions_field_entirely(api):
 def test_a_general_operation_is_not_forced_to_carry_an_interval(api):
     """لا يُشترط فاصل على سجل العملية العامة (القيد القديم أُزيل)."""
     client, _ = api
-    created = client.post("/api/maintenance/operations", json={"name": "عملية بلا فاصل"}).json()
+    created = client.post("/api/maintenance/operations", json={"name": "عملية بلا فاصل", "warning_km": 0}).json()
     db = TestSession()
     try:
         from app.modules.maintenance.models import MaintenanceOperation
@@ -158,7 +195,7 @@ def test_a_general_operation_is_not_forced_to_carry_an_interval(api):
 
 def test_the_new_general_operation_appears_in_the_library_list(api):
     client, _ = api
-    created = client.post("/api/maintenance/operations", json={"name": "عملية تظهر في الجدول"}).json()
+    created = client.post("/api/maintenance/operations", json={"name": "عملية تظهر في الجدول", "warning_km": 0}).json()
     names = [row["name"] for row in _library_rows(client)]
     assert "عملية تظهر في الجدول" in names
     row = next(item for item in _library_rows(client) if item["id"] == created["id"])
@@ -169,8 +206,8 @@ def test_the_new_general_operation_appears_in_the_library_list(api):
 def test_the_library_query_does_not_exclude_operations_without_models(api):
     """استعلام المكتبة لا يستبعد عملية لمجرد أنها بلا طراز أو بلا شرط."""
     client, ids = api
-    client.post("/api/maintenance/operations", json={"name": "عامة أ"})
-    client.post("/api/maintenance/operations", json={"name": "عامة ب"})
+    client.post("/api/maintenance/operations", json={"name": "عامة أ", "warning_km": 0})
+    client.post("/api/maintenance/operations", json={"name": "عامة ب", "warning_km": 0})
     client.post(
         "/api/maintenance/operations",
         json=_operation_payload("مرتبطة", [{"model_id": ids["model_a"], "interval_km": 5000}]),
@@ -186,7 +223,7 @@ def test_operations_without_models_are_all_listed_with_an_explicit_general_state
     """العمليات القديمة غير المرتبطة بطراز تظهر، وحالتها «عملية عامة» لا خطأ عرض."""
     client, ids = api
     for name in ("قديمة 1", "قديمة 2", "قديمة 3"):
-        assert client.post("/api/maintenance/operations", json={"name": name}).status_code == 201
+        assert client.post("/api/maintenance/operations", json={"name": name, "warning_km": 0}).status_code == 201
 
     rows = _library_rows(client)
     old_rows = [row for row in rows if row["name"].startswith("قديمة")]
@@ -392,7 +429,7 @@ def test_a_general_operation_appears_in_no_due_view_and_no_alert(api, monkeypatc
 
 def test_equipment_with_the_model_only_sees_operations_linked_to_it(api):
     client, ids = api
-    client.post("/api/maintenance/operations", json={"name": "عامة لا تنطبق"})
+    client.post("/api/maintenance/operations", json={"name": "عامة لا تنطبق", "warning_km": 0})
     client.post(
         "/api/maintenance/operations",
         json=_operation_payload("مرتبطة تنطبق", [{"model_id": ids["model_a"], "interval_days": 7}]),
@@ -426,6 +463,7 @@ def test_no_legacy_interval_or_warning_field_is_returned_by_the_api(api):
             "interval_hours": 250,
             "interval_days": 90,
             "warning_km": 500,
+            "warning_hours": 12.5,
             "warning_days": 30,
             "equipment_model_conditions": [{"model_id": ids["model_a"], "interval_km": 7000}],
         },
@@ -435,12 +473,15 @@ def test_no_legacy_interval_or_warning_field_is_returned_by_the_api(api):
     assert legacy_interval_fields.isdisjoint(created.json().keys())
     # Warning fields ARE returned at operation level (unified warnings)
     assert "warning_km" in created.json()
+    assert "warning_hours" in created.json()
     assert "warning_days" in created.json()
+    assert float(created.json()["warning_hours"]) == 12.5
     for row in _library_rows(client):
         # Legacy interval fields should not be returned
         assert legacy_interval_fields.isdisjoint(row.keys())
         # Warning fields ARE returned at operation level (unified warnings)
         assert "warning_km" in row
+        assert "warning_hours" in row
         assert "warning_days" in row
         for condition in row["model_conditions"]:
             assert condition.get("is_defined") in (True, False)
@@ -450,7 +491,7 @@ def test_the_created_row_keeps_its_legacy_columns_empty(api):
     client, _ = api
     created = client.post(
         "/api/maintenance/operations",
-        json={"name": "عملية بلا قيم قديمة", "interval_km": 5000},
+        json={"name": "عملية بلا قيم قديمة", "interval_km": 5000, "warning_hours": 0},
     ).json()
     from app.modules.maintenance.models import MaintenanceOperation
 
@@ -529,8 +570,8 @@ def test_the_warning_text_helper_tolerates_the_removed_reference_keyword():
 def test_the_operations_list_still_answers_200_for_every_row(api):
     """القائمة كاملة تُبنى لكل صف بلا استثناء — لا صف واحد يُسقط الاستجابة."""
     client, ids = api
-    client.post("/api/maintenance/operations", json={"name": "عامة أولى"})
-    client.post("/api/maintenance/operations", json={"name": "عامة ثانية"})
+    client.post("/api/maintenance/operations", json={"name": "عامة أولى", "warning_km": 0})
+    client.post("/api/maintenance/operations", json={"name": "عامة ثانية", "warning_km": 0})
     client.post(
         "/api/maintenance/operations",
         json=_operation_payload(

@@ -23,13 +23,13 @@ OPERATION_IMPORT_HEADERS = (
     "العملية",
     "الوصف",
     "المجموعة",
-    "قيمة الإنذار",
-    "وحدة الإنذار",
+    "إنذار كم",
+    "إنذار ساعة تشغيل",
+    "إنذار يوم",
     "قيمة الشرط",
     "وحدة الشرط",
 )
 
-WARNING_UNITS = ("كم", "يوم")
 CONDITION_UNITS = ("كم", "ساعة تشغيل", "يوم")
 GROUP_NO_VALUE = "بدون مجموعة"
 MAX_OPERATION_IMPORT_ROWS = 2000
@@ -105,7 +105,7 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
         rows: list[dict] = []
         seen_names: set[str] = set()
         row_count = 0
-        for row_number, values in enumerate(sheet.iter_rows(min_row=2, max_col=7, values_only=True), start=2):
+        for row_number, values in enumerate(sheet.iter_rows(min_row=2, max_col=8, values_only=True), start=2):
             values = list(values)
             if not any(_clean_text(value) for value in values):
                 continue
@@ -116,10 +116,11 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
             name = _clean_text(values[0] if len(values) > 0 else None)
             description = _clean_text(values[1] if len(values) > 1 else None)
             group_name = _clean_text(values[2] if len(values) > 2 else None)
-            warning_value_cell = values[3] if len(values) > 3 else None
-            warning_unit_cell = values[4] if len(values) > 4 else None
-            condition_value_cell = values[5] if len(values) > 5 else None
-            condition_unit_cell = values[6] if len(values) > 6 else None
+            warning_km_value = _number(values[3] if len(values) > 3 else None, field="إنذار الكيلومترات", row_number=row_number)
+            warning_hours_value = _number(values[4] if len(values) > 4 else None, field="إنذار ساعات التشغيل", row_number=row_number)
+            warning_days_value = _number(values[5] if len(values) > 5 else None, field="إنذار الأيام", row_number=row_number)
+            condition_value_cell = values[6] if len(values) > 6 else None
+            condition_unit_cell = values[7] if len(values) > 7 else None
 
             if not name:
                 raise ValueError(f"الصف {row_number}: اسم العملية مطلوب.")
@@ -139,12 +140,10 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
                     raise ValueError(f"الصف {row_number}: المجموعة «{group_name}» غير موجودة في مكتبة البرنامج.")
                 group_id = group_lookup[group_key]
 
-            warning_value = _number(warning_value_cell, field="قيمة الإنذار", row_number=row_number)
-            warning_unit = _validate_unit(
-                warning_unit_cell, field="الإنذار", allowed=WARNING_UNITS, row_number=row_number,
-            )
-            if (warning_value is None) != (warning_unit is None):
-                raise ValueError(f"الصف {row_number}: أدخل قيمة الإنذار ووحدته معًا، أو اتركهما فارغين.")
+            if all(value is None for value in (warning_km_value, warning_hours_value, warning_days_value)):
+                raise ValueError(f"الصف {row_number}: أدخل قيمة إنذار واحدة على الأقل.")
+            if warning_days_value is not None and warning_days_value != warning_days_value.to_integral_value():
+                raise ValueError(f"الصف {row_number}: قيمة إنذار الأيام يجب أن تكون عددًا صحيحًا.")
 
             condition_value = _number(condition_value_cell, field="قيمة الشرط", row_number=row_number)
             condition_unit = _validate_unit(
@@ -152,15 +151,6 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
             )
             if condition_value is None or condition_unit is None:
                 raise ValueError(f"الصف {row_number}: شرط الطراز مطلوب؛ أدخل قيمته واختر وحدته.")
-
-            warning_km = None
-            warning_days = None
-            if warning_unit == "كم":
-                warning_km = warning_value
-            elif warning_unit == "يوم":
-                if warning_value != warning_value.to_integral_value():
-                    raise ValueError(f"الصف {row_number}: قيمة إنذار الأيام يجب أن تكون عددًا صحيحًا.")
-                warning_days = int(warning_value)
 
             condition = {"interval_km": None, "interval_hours": None, "interval_days": None}
             if condition_unit == "كم":
@@ -176,8 +166,9 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
                 "name": name,
                 "description": description or None,
                 "group_id": group_id,
-                "warning_km": warning_km,
-                "warning_days": warning_days,
+                "warning_km": warning_km_value,
+                "warning_hours": warning_hours_value,
+                "warning_days": int(warning_days_value) if warning_days_value is not None else None,
                 "condition": condition,
             })
 
@@ -220,6 +211,7 @@ def import_model_operations(db: Session, *, model_id: int, data: bytes) -> int:
                 description=row["description"],
                 group_id=row["group_id"],
                 warning_km=row["warning_km"],
+                warning_hours=row["warning_hours"],
                 warning_days=row["warning_days"],
                 interval_km=row["condition"]["interval_km"],
                 interval_hours=row["condition"]["interval_hours"],

@@ -125,14 +125,16 @@ def test_maintenance_conditions_workspace_uses_operation_library():
     assert 'id="modelConditionRows"' in template
     assert 'class="m-table operation-editor-table"' in template
     assert 'id="operationName"' in template
-    assert 'id="modelWarningUnit"' in template
+    assert 'id="modelWarningKm"' in template
+    assert 'id="modelWarningHours"' in template
+    assert 'id="modelWarningDays"' in template
     assert "＋ إضافة محور شرط" not in template
     assert "function addModelConditionRow" not in template
     assert "conditionUnits.forEach(({unit,field,label})=>" in template
     assert "if(!hasCondition)throw new Error('أدخل قيمة شرط واحدة على الأقل.')" in template
     assert "function setConditionFields(condition)" in template
     assert "function conditionFieldsPayload()" in template
-    assert "modelWarningValue" in template
+    assert "أدخل قيمة إنذار واحدة على الأقل." in template
     assert "maintenance/rules/create" not in router
     assert "exceptions/create" not in router
     assert "parent_rule" not in router

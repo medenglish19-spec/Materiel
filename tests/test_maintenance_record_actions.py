@@ -86,6 +86,7 @@ def _create_operation(client, model_id, name="عملية للحذف", interval_k
         "/api/maintenance/operations",
         json={
             "name": name,
+            "warning_km": 0,
             "equipment_model_conditions": [
                 {"model_id": model_id, "condition_source": "model", "interval_km": interval_km}
             ],

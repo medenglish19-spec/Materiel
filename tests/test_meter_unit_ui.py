@@ -31,8 +31,8 @@ def test_maintenance_conditions_library_keeps_the_operation_level_warning_fields
     rules = read("app/modules/maintenance/templates/maintenance_rules_model_only.html")
 
     # حقول الإنذار الموحّدة على مستوى العملية تبقى في المكتبة.
-    assert "إنذار قبل كم" in rules
-    assert "إنذار قبل أيام" in rules
+    assert "إنذار كم" in rules
+    assert "إنذار أيام" in rules
     # المكتبة العامة تبقى مستقلة، مع واجهة إضافية لإدارة مكتبة كل طراز.
     assert 'id="libraryModelFilter"' in rules
     assert "${api}/model-operations?equipment_model_id=" in rules

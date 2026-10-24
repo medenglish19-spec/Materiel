@@ -70,6 +70,35 @@ def test_hours_uses_hours_interval_and_does_not_apply_km_warning_threshold():
     assert meta["remaining_days"] == 30
 
 
+def test_hours_warning_triggers_when_remaining_operating_hours_reach_threshold():
+    r = rule(interval_km=None, interval_hours=Decimal("500"), interval_days=None, warning_hours=Decimal("25"))
+    state, css, remaining, meta = status_for(r, equipment("hours"), record(meter=1000), Decimal("1475"))
+    assert state == "تقترب"
+    assert css == "warning"
+    assert remaining == Decimal("25")
+    assert meta["remaining_hours"] == Decimal("25")
+
+
+def test_any_configured_warning_axis_can_trigger_the_shared_notification():
+    r = rule(
+        interval_km=None,
+        interval_hours=Decimal("500"),
+        interval_days=30,
+        warning_hours=Decimal("25"),
+        warning_days=3,
+    )
+    state, css, _, meta = status_for(
+        r,
+        equipment("hours"),
+        record(days_ago=27, meter=1000),
+        Decimal("1470"),
+    )
+    assert meta["remaining_hours"] == Decimal("30")
+    assert meta["remaining_days"] == 3
+    assert state == "تقترب"
+    assert css == "warning"
+
+
 def test_priority_puts_due_before_near_and_missing_record():
     assert priority_for("مستحقة الآن", Decimal("-1"), {}) == 1
     assert priority_for("تقترب", Decimal("200"), {}) == 2

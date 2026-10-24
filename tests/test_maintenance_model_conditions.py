@@ -15,7 +15,7 @@
 import re
 from io import BytesIO
 from html import unescape
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -51,7 +51,7 @@ from app.modules.maintenance.services import (
     warning_setting_text,
 )
 from app.modules.maintenance.models import MaintenanceOperation
-from app.modules.maintenance.operation_excel_import import OPERATION_IMPORT_HEADERS
+from app.modules.maintenance.operation_excel_import import OPERATION_IMPORT_HEADERS, parse_operation_workbook
 from app.modules.users.models import User
 
 engine = create_engine(
@@ -221,7 +221,7 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     sheet = workbook.active
     sheet.title = "العمليات"
     sheet.append(OPERATION_IMPORT_HEADERS)
-    sheet.append(("تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة", 500, "كم", 20000, "كم"))
+    sheet.append(("تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة", 500, 12.5, None, 20000, "كم"))
     stream = BytesIO()
     workbook.save(stream)
     workbook.close()
@@ -247,13 +247,18 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     private_operation = next(item for item in imported.json() if item["name"] == "تبديل مرشح الهواء")
     assert private_operation["equipment_model_id"] == ids["model_a"]
     assert float(private_operation["interval_km"]) == 20000
+    assert float(private_operation["warning_km"]) == 500
+    assert float(private_operation["warning_hours"]) == 12.5
 
     # A different model cannot see this model-scoped operation.
     other_model = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_b']}")
     assert all(item["name"] != "تبديل مرشح الهواء" for item in other_model.json())
 
     # The old plan flow still reads only the reusable public library.
-    public_create = client.post("/api/maintenance/operations", json={"name": "عملية عامة للخطة"})
+    public_create = client.post(
+        "/api/maintenance/operations",
+        json={"name": "عملية عامة للخطة", "warning_km": 0},
+    )
     assert public_create.status_code == 201, public_create.text
     public_names = {item["name"] for item in client.get("/api/maintenance/operations").json()}
     assert "عملية عامة للخطة" in public_names
@@ -275,19 +280,74 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     assert sum(item["name"] == "تبديل مرشح الهواء" for item in after_duplicate) == 1
 
 
+def test_excel_import_accepts_operating_hours_warning():
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "العمليات"
+    sheet.append(OPERATION_IMPORT_HEADERS)
+    sheet.append(("فحص مضخة الوقود", "", "بدون مجموعة", 500, 12.5, 3, 250, "ساعة تشغيل"))
+    stream = BytesIO()
+    workbook.save(stream)
+    workbook.close()
+
+    rows = parse_operation_workbook(stream.getvalue(), [])
+    assert rows[0]["warning_km"] == Decimal("500")
+    assert rows[0]["warning_hours"] == Decimal("12.5")
+    assert rows[0]["warning_days"] == 3
+
+
+def test_excel_import_requires_at_least_one_warning_value():
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "العمليات"
+    sheet.append(OPERATION_IMPORT_HEADERS)
+    sheet.append(("فحص مضخة الوقود", "", "بدون مجموعة", None, None, None, 250, "ساعة تشغيل"))
+    stream = BytesIO()
+    workbook.save(stream)
+    workbook.close()
+
+    with pytest.raises(ValueError, match="قيمة إنذار واحدة على الأقل"):
+        parse_operation_workbook(stream.getvalue(), [])
+
+
 def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
     client, ids = api
+    missing_warning = client.post(
+        "/api/maintenance/model-operations",
+        json={
+            "name": "عملية بلا إنذار",
+            "equipment_model_id": ids["model_a"],
+            "interval_hours": 250,
+        },
+    )
+    assert missing_warning.status_code == 422
+    assert "إنذار واحدة على الأقل" in missing_warning.text
+
     payload = {
         "name": "تغيير سائل التبريد",
         "equipment_model_id": ids["model_a"],
         "interval_hours": 250,
         "warning_days": 30,
+        "warning_hours": 12.5,
     }
     created = client.post("/api/maintenance/model-operations", json=payload)
     assert created.status_code == 201, created.text
     operation = created.json()
     assert operation["equipment_model_id"] == ids["model_a"]
     assert float(operation["interval_hours"]) == 250
+    assert float(operation["warning_hours"]) == 12.5
+
+    cleared_warnings = client.put(
+        f"/api/maintenance/model-operations/{operation['id']}",
+        json={
+            "name": operation["name"],
+            "interval_hours": 250,
+            "warning_km": None,
+            "warning_hours": None,
+            "warning_days": None,
+        },
+    )
+    assert cleared_warnings.status_code == 422
 
     page = client.get(f"/maintenance/rules?view_model_id={ids['model_a']}")
     assert page.status_code == 200
@@ -298,6 +358,7 @@ def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
         "description": "تعديل خاص بالطراز المحدد",
         "group_id": None,
         "warning_km": None,
+        "warning_hours": 20,
         "warning_days": 20,
         "is_active": False,
         "interval_km": None,
@@ -309,6 +370,7 @@ def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
     assert updated.json()["name"] == "تغيير سائل التبريد وتفقده"
     assert updated.json()["is_active"] is False
     assert updated.json()["interval_days"] == 180
+    assert float(updated.json()["warning_hours"]) == 20
 
     activated = client.put(
         f"/api/maintenance/model-operations/{operation['id']}",
@@ -321,6 +383,95 @@ def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
         item["name"] != "تغيير سائل التبريد وتفقده"
         for item in client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}").json()
     )
+
+
+def test_operating_hours_warning_reaches_the_maintenance_notification_provider(api):
+    client, ids = api
+    db = Session()
+    try:
+        equipment = db.get(Equipment, ids["equipment_a"])
+        equipment.equipment_type.measurement_unit = "hours"
+        db.commit()
+    finally:
+        db.close()
+
+    created = client.post(
+        "/api/maintenance/model-operations",
+        json={
+            "name": "إنذار ساعات التشغيل",
+            "equipment_model_id": ids["model_a"],
+            "interval_hours": 500,
+            "warning_hours": 25,
+        },
+    )
+    assert created.status_code == 201, created.text
+    execution = client.post(
+        "/api/maintenance/execution",
+        json={
+            "equipment_id": ids["equipment_a"],
+            "model_operation_id": created.json()["id"],
+            "maintenance_date": str(date.today() - timedelta(days=1)),
+            "meter_value": 1000,
+        },
+    )
+    assert execution.status_code == 201, execution.text
+
+    from app.modules.meter_readings.services import create_reading
+
+    db = Session()
+    try:
+        create_reading(
+            db,
+            ids["equipment_a"],
+            hours=1475,
+            reading_date=datetime.now(),
+        )
+    finally:
+        db.close()
+
+    from app.modules.maintenance.services import (
+        condition_for_equipment,
+        current_meter_value,
+        effective_operations_for_equipment,
+        latest_readings,
+        latest_records,
+        operation_condition_meta,
+        operation_reference,
+    )
+    from app.modules.notifications.providers import maintenance_due_provider
+
+    db = Session()
+    try:
+        equipment = db.get(Equipment, ids["equipment_a"])
+        assert equipment.equipment_type.measurement_unit == "hours"
+        assert equipment.current_hours == Decimal("1475")
+        operations = effective_operations_for_equipment(db, equipment)
+        operation = next(item for item in operations if item.id == created.json()["id"])
+        assert operation.interval_hours == Decimal("500.0")
+        assert operation.warning_hours == Decimal("25.0")
+        records = latest_records(db)
+        record = records.get((equipment.id, *operation_reference(operation)))
+        assert record is not None
+        assert record.meter_value == Decimal("1000.0")
+        current_value = current_meter_value(equipment, latest_readings(db).get(equipment.id))
+        assert current_value == Decimal("1475")
+        state, css, _, _ = operation_condition_meta(
+            operation,
+            condition_for_equipment(db, operation, equipment),
+            equipment,
+            record,
+            current_value,
+        )
+        assert state == "تقترب"
+        assert css == "warning"
+        note = next(
+            item for item in maintenance_due_provider(db)
+            if item["title"].startswith("إنذار ساعات التشغيل")
+        )
+    finally:
+        db.close()
+    assert note["severity"] == "upcoming"
+    assert "تقترب" in note["detail"]
 
 
 def test_plans_page_carries_the_model_condition_from_the_service(api):
@@ -416,10 +567,12 @@ def test_condition_axes_and_unit_text_cover_the_three_supported_units():
         {"interval_km": Decimal("5000"), "interval_hours": Decimal("250"), "interval_days": 90},
     )
     # Create a mock operation with warnings
-    operation = MaintenanceOperation(warning_km=Decimal("500"), warning_days=30)
+    operation = MaintenanceOperation(
+        warning_km=Decimal("500"), warning_hours=Decimal("25"), warning_days=30
+    )
     assert condition_axis_text(condition) == "5000 كم أو 250 ساعة أو 90 يوم"
     assert condition_unit_text(condition) == "كم / ساعة / يوم"
-    assert warning_setting_text(operation, condition) == "500 كم / 30 يوم"
+    assert warning_setting_text(operation, condition) == "500 كم / 25 ساعة تشغيل / 30 يوم"
 
 
 def test_condition_without_any_axis_is_reported_as_defined_but_empty():
@@ -576,15 +729,13 @@ def test_general_operation_is_absent_from_the_periodic_and_due_pages(api):
     client, ids = api
     client.post(
         "/api/maintenance/operations",
-        json={
-            "name": "عملية عامة لا تظهر",
-            "equipment_model_conditions": [],
-        },
+        json={"name": "عملية عامة لا تظهر", "equipment_model_conditions": [], "warning_km": 0},
     )
     assert client.post(
         "/api/maintenance/operations",
         json={
             "name": "عملية مرتبطة تظهر",
+            "warning_km": 0,
             "equipment_model_conditions": [{"model_id": ids["model_a"], "interval_km": 5000}],
         },
     ).status_code == 201
@@ -774,6 +925,9 @@ def _operation_payload(name, conditions, warning_km=None, warning_days=None, **o
         "name": name,
         "equipment_model_conditions": conditions,
     }
+    warning_hours = overrides.get("warning_hours")
+    if warning_km is None and warning_days is None and warning_hours is None:
+        warning_km = 0
     if warning_km is not None:
         payload["warning_km"] = warning_km
     if warning_days is not None:

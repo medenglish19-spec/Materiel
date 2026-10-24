@@ -27,6 +27,8 @@
 .maintenance-page .library-filter-field{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0;font-size:11px;font-weight:700}
 .maintenance-page .library-filter-field .m-select{min-width:0}
 .maintenance-page .library-panel-filters #operationCount{align-self:end}
+.maintenance-page .library-table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 13px;border-bottom:1px solid #e9eef3;background:#fbfdfb}
+.maintenance-page .library-bulk-actions{min-width:0;color:#718477;font-size:11px;font-weight:700}
 .maintenance-page .badge{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-width:58px;padding:4px 8px;border-radius:5px;font-size:9px;font-weight:900;white-space:nowrap}.maintenance-page .badge:before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}.maintenance-page .badge.danger{color:#c72f38;background:#fff0f1}.maintenance-page .badge.warning{color:#b77908;background:#fff5df}.maintenance-page .badge.success{color:#278253;background:#eaf8f0}.maintenance-page .badge.neutral{color:#697887;background:#f0f3f6}.maintenance-page .badge.info{color:#2469a9;background:#e9f3ff}
 .maintenance-page .row-actions{display:flex;gap:4px;align-items:center}.maintenance-page .icon-btn{width:28px;height:28px;display:grid;place-items:center;border:1px solid #cbd8e3;border-radius:5px;background:#fff;color:#397a54;font-size:13px;cursor:pointer}.maintenance-page .icon-btn:hover{background:#eaf2ec;border-color:#91ad98}.maintenance-page .icon-btn.danger{color:#cf3c44;border-color:#efc9cd}.maintenance-page .icon-btn.danger:hover{background:#fff0f1}
 .maintenance-page .priority{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:10px}.maintenance-page .priority.p1{background:#ffe8ea;color:#c72f38}.maintenance-page .priority.p2{background:#fff1d4;color:#b77908}.maintenance-page .priority.p3{background:#e6f2ff;color:#2469a9}.maintenance-page .priority.p4{background:#eaf8f0;color:#278253}
@@ -68,6 +70,12 @@
 .maintenance-record-dialog #maintenanceRecordForm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:16px}
 .maintenance-record-dialog #maintenanceRecordForm textarea{min-height:72px}
 @media(max-width:680px){.maintenance-record-dialog{width:calc(100vw - 16px);max-height:94vh}.maintenance-record-dialog>.panel{max-height:94vh}.maintenance-record-dialog #maintenanceRecordForm{grid-template-columns:1fr}}
+.maintenance-operation-dialog{width:min(760px,calc(100vw - 24px));max-width:none;max-height:90vh;padding:0;border:0;border-radius:10px;background:transparent;overflow:visible}
+.maintenance-operation-dialog::backdrop{background:rgba(15,35,55,.48);backdrop-filter:blur(2px)}
+.maintenance-operation-dialog>.panel{max-height:90vh;margin:0;overflow-y:auto;box-shadow:0 20px 60px rgba(15,35,55,.28)}
+.maintenance-operation-dialog .panel-head{position:sticky;top:0;z-index:1;background:#fff}
+.maintenance-operation-dialog .dialog-close{width:34px;height:34px;padding:0;font-size:23px;line-height:1}
+@media(max-width:680px){.maintenance-operation-dialog{width:calc(100vw - 16px);max-height:94vh}.maintenance-operation-dialog>.panel{max-height:94vh}}
 .maintenance-model-dialog{width:min(680px,calc(100vw - 24px));max-width:none;max-height:88vh;padding:0;border:0;border-radius:10px;background:transparent;overflow:visible}
 .maintenance-model-dialog::backdrop{background:rgba(15,35,55,.48);backdrop-filter:blur(2px)}
 .maintenance-model-dialog>.panel{max-height:88vh;margin:0;overflow-y:auto;box-shadow:0 20px 60px rgba(15,35,55,.28)}

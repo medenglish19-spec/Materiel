@@ -285,6 +285,8 @@ def test_plan_condition_is_derived_at_read_time_and_never_persisted(ctx):
 
 def _operation_payload(name, conditions=None, **extra):
     payload = {"name": name, "equipment_model_conditions": conditions or []}
+    if not any(key in extra for key in ("warning_km", "warning_hours", "warning_days")):
+        payload["warning_km"] = 0
     payload.update(extra)
     return payload
 

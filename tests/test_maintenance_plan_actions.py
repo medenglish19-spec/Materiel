@@ -85,6 +85,7 @@ def _create_operation(client, model_id, name="عملية حذف الخطة", int
         "/api/maintenance/operations",
         json={
             "name": name,
+            "warning_km": 0,
             "equipment_model_conditions": [
                 {"model_id": model_id, "condition_source": "model", "interval_km": interval_km}
             ],
@@ -313,7 +314,7 @@ def _create_operation_with_multiple_models(client, model_ids, name="عملية �
     ]
     response = client.post(
         "/api/maintenance/operations",
-        json={"name": name, "equipment_model_conditions": conditions},
+        json={"name": name, "warning_km": 0, "equipment_model_conditions": conditions},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -723,6 +724,7 @@ def test_bulk_plan_operation_add_keeps_compatible_items_and_reports_each_rejecti
         "/api/maintenance/operations",
         json={
             "name": "عملية دفعة",
+            "warning_km": 0,
             "equipment_model_conditions": [
                 {"model_id": ids["model_a"], "condition_source": "model", "interval_km": 900}
             ],
@@ -730,7 +732,10 @@ def test_bulk_plan_operation_add_keeps_compatible_items_and_reports_each_rejecti
     )
     assert operation.status_code == 201, operation.text
     operation_id = operation.json()["id"]
-    second_operation = client.post("/api/maintenance/operations", json={"name": "عملية دفعة ثانية"})
+    second_operation = client.post(
+        "/api/maintenance/operations",
+        json={"name": "عملية دفعة ثانية", "warning_km": 0},
+    )
     assert second_operation.status_code == 201, second_operation.text
     second_operation_id = second_operation.json()["id"]
 
@@ -776,6 +781,7 @@ def test_private_model_operation_is_separate_and_plans_enforce_model_and_conditi
         "name": "عملية مستوردة خاصة بالطراز أ",
         "equipment_model_id": ids["model_a"],
         "interval_km": 15000,
+        "warning_km": 0,
     })
     assert private.status_code == 201, private.text
     operation_id = private.json()["id"]
@@ -811,7 +817,10 @@ def test_private_model_operation_is_separate_and_plans_enforce_model_and_conditi
     assert mismatched.status_code == 409
     assert "لا يطابق شرط الخطة" in mismatched.json()["detail"]
 
-    general = client.post("/api/maintenance/operations", json={"name": "عملية عامة صالحة"})
+    general = client.post(
+        "/api/maintenance/operations",
+        json={"name": "عملية عامة صالحة", "warning_km": 0},
+    )
     assert general.status_code == 201, general.text
     accepted = client.post(
         f"/api/maintenance/plans/{plan_a['id']}/operations",
@@ -824,6 +833,7 @@ def test_private_model_operation_is_separate_and_plans_enforce_model_and_conditi
         "name": "عملية خاصة متوافقة",
         "equipment_model_id": ids["model_a"],
         "interval_km": 10000,
+        "warning_km": 0,
     })
     assert matching.status_code == 201, matching.text
 
@@ -847,6 +857,7 @@ def test_private_operation_editor_and_plan_keep_all_condition_axes(api):
         "equipment_model_id": ids["model_a"],
         "interval_km": 12000,
         "interval_days": 183,
+        "warning_km": 0,
     }
     created = client.post("/api/maintenance/model-operations", json=operation_payload)
     assert created.status_code == 201, created.text
@@ -938,7 +949,10 @@ def test_private_plan_operation_is_shown_and_recorded_in_execution_history(api):
 def test_standalone_model_condition_is_separate_from_plan_condition(api):
     client, ids = api
     plan = _create_plan(client, ids["model_a"])
-    operation_response = client.post("/api/maintenance/operations", json={"name": "عملية مستقلة وخطة"})
+    operation_response = client.post(
+        "/api/maintenance/operations",
+        json={"name": "عملية مستقلة وخطة", "warning_km": 0},
+    )
     assert operation_response.status_code == 201, operation_response.text
     operation_id = operation_response.json()["id"]
     linked = client.post(

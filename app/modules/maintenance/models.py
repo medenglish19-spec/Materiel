@@ -102,6 +102,7 @@ class MaintenanceOperation(Base):
         CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_operation_interval_hours_positive"),
         CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_operation_interval_days_positive"),
         CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_operation_warning_km_nonnegative"),
+        CheckConstraint("warning_hours IS NULL OR warning_hours >= 0", name="ck_maintenance_operation_warning_hours_nonnegative"),
         CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_operation_warning_days_nonnegative"),
     )
 
@@ -111,6 +112,7 @@ class MaintenanceOperation(Base):
     interval_hours = Column(Numeric(10, 1), nullable=True)
     interval_days = Column(Integer, nullable=True)
     warning_km = Column(Numeric(10, 1), nullable=True)
+    warning_hours = Column(Numeric(10, 1), nullable=True)
     warning_days = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
     description = Column(Text, nullable=True)
@@ -139,6 +141,7 @@ class MaintenanceModelOperation(Base):
         CheckConstraint("interval_hours IS NULL OR interval_hours > 0", name="ck_maintenance_model_operation_interval_hours_positive"),
         CheckConstraint("interval_days IS NULL OR interval_days > 0", name="ck_maintenance_model_operation_interval_days_positive"),
         CheckConstraint("warning_km IS NULL OR warning_km >= 0", name="ck_maintenance_model_operation_warning_km_nonnegative"),
+        CheckConstraint("warning_hours IS NULL OR warning_hours >= 0", name="ck_maintenance_model_operation_warning_hours_nonnegative"),
         CheckConstraint("warning_days IS NULL OR warning_days >= 0", name="ck_maintenance_model_operation_warning_days_nonnegative"),
     )
 
@@ -156,6 +159,7 @@ class MaintenanceModelOperation(Base):
     interval_hours = Column(Numeric(10, 1), nullable=True)
     interval_days = Column(Integer, nullable=True)
     warning_km = Column(Numeric(10, 1), nullable=True)
+    warning_hours = Column(Numeric(10, 1), nullable=True)
     warning_days = Column(Integer, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, server_default="1", index=True)
 

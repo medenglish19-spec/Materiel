@@ -71,10 +71,15 @@ def _private_operation_payload(operation: MaintenanceModelOperation) -> dict:
     else:
         condition_text = f"{operation.interval_days} يوم"
     warning_text = "—"
+    warning_parts = []
     if operation.warning_km is not None:
-        warning_text = f"{operation.warning_km:g} كم"
-    elif operation.warning_days is not None:
-        warning_text = f"{operation.warning_days} يوم"
+        warning_parts.append(f"{operation.warning_km:g} كم")
+    if operation.warning_hours is not None:
+        warning_parts.append(f"{operation.warning_hours:g} ساعة تشغيل")
+    if operation.warning_days is not None:
+        warning_parts.append(f"{operation.warning_days} يوم")
+    if warning_parts:
+        warning_text = " أو ".join(warning_parts)
     condition = {
         "model_id": operation.equipment_model_id,
         "model_name": operation.equipment_model.name if operation.equipment_model else None,
@@ -100,6 +105,7 @@ def _private_operation_payload(operation: MaintenanceModelOperation) -> dict:
         "interval_hours": float(operation.interval_hours) if operation.interval_hours is not None else None,
         "interval_days": operation.interval_days,
         "warning_km": float(operation.warning_km) if operation.warning_km is not None else None,
+        "warning_hours": float(operation.warning_hours) if operation.warning_hours is not None else None,
         "warning_days": operation.warning_days,
         "is_active": operation.is_active,
         "model_conditions": [condition],
@@ -1706,7 +1712,7 @@ def api_operation_create(payload: MaintenanceOperationCreate, db: Session = Depe
     equipment_model_conditions = data.pop("equipment_model_conditions", [])
     # Legacy interval fields on the operation are not used; they remain None.
     # The authoritative conditions are stored per-model in maintenance_operation_models.
-    # warning_km and warning_days are the unified warning fields at operation level - KEEP them.
+    # Warning fields are unified at operation level - KEEP them.
     for field in ("interval_km", "interval_hours", "interval_days"):
         data.pop(field, None)
 
@@ -1738,7 +1744,7 @@ def api_operation_update(operation_id: int, payload: MaintenanceOperationUpdate,
 
     # Legacy interval fields on the operation are not used; they remain unchanged.
     # The authoritative conditions are stored per-model in maintenance_operation_models.
-    # warning_km and warning_days are the unified warning fields at operation level - KEEP them.
+    # Warning fields are unified at operation level - KEEP them.
     for field in ("interval_km", "interval_hours", "interval_days"):
         data.pop(field, None)
 
