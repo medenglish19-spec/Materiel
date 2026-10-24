@@ -79,14 +79,14 @@ def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db,name): raise ValueError("نوع العتاد موجود مسبقًا")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id);db.add(obj);db.commit();db.refresh(obj);return obj
 def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->EquipmentType:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
     name=data.name.strip()
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     if db.query(EquipmentType).filter(EquipmentType.id!=obj.id,EquipmentType.name==name).first(): raise ValueError("نوع العتاد موجود مسبقًا")
     if data.measurement_unit != obj.measurement_unit:
         from app.modules.equipment.models import Equipment
@@ -139,7 +139,7 @@ def _option_list_copy(unit: Optional[str], options: Optional[str]) -> bool:
     return bool(left) and left==right
 
 
-def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
+def create_spec_definition(db: Session, data: SpecDefinitionCreate, commit: bool = True) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
     if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first():
@@ -169,7 +169,13 @@ def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> Equipment
         category_id=data.category_id,
         sort_order=db.query(EquipmentModelSpecDefinition).count(),
     )
-    db.add(obj);db.commit();db.refresh(obj);return obj
+    db.add(obj)
+    if commit:
+        db.commit()
+        db.refresh(obj)
+    else:
+        db.flush()
+    return obj
 
 def delete_spec_definition(db: Session, definition_id: int) -> None:
     obj=db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.id==definition_id).first()

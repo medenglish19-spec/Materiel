@@ -20,6 +20,9 @@ class MeterReading(Base):
     odometer = Column(Numeric(10, 1), nullable=True)
     hours = Column(Numeric(10, 1), nullable=True)
     source = Column(String(50), nullable=False, default="manual")
+    # Stable, polymorphic pointer to the domain event that supplied this reading.
+    # It deliberately has no FK: readings remain historical when the source row is deleted.
+    source_reference = Column(String(120), nullable=True, unique=True, index=True)
     equipment_status = Column(String(30), nullable=False, default="available", server_default="available")
     notes = Column(String(300), nullable=True)
     equipment = relationship("Equipment")
@@ -75,6 +78,8 @@ def _validate_meter_payload(connection, target, exclude_id=None):
             continue
         if target.reading_date.date() > existing_date.date() and value < existing_value:
             raise ValueError(f"قراءة العداد الجديدة ({value:g}) أقل من قراءة سابقة ({existing_value:g})؛ لا يمكن أن يعود العداد إلى الخلف.")
+        if target.reading_date.date() < existing_date.date() and value > existing_value:
+            raise ValueError(f"قراءة العداد الجديدة ({value:g}) أكبر من قراءة لاحقة ({existing_value:g})؛ القراءة غير منطقية.")
         if target.reading_date.date() == existing_date.date():
             if value == existing_value:
                 date_text = target.reading_date.strftime("%d/%m/%Y")

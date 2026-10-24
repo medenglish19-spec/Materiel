@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}مراجعة كتالوج الصيانة{% endblock %}
+{% block content %}
+<main class="maintenance-page" dir="rtl">
+  <div class="page-top"><div class="page-heading"><h2>مراجعة كتالوج الصيانة</h2><div class="breadcrumb"><a href="/maintenance">الصيانة</a> › <a href="/maintenance/catalog-imports">الكتالوجات</a> › <span class="current">{{ catalog.document_title or catalog.filename }}</span></div></div></div>
+  {% if duplicate %}<div class="panel" style="margin-top:16px;border-inline-start:4px solid #2684c7">هذا الملف مستورد للطراز نفسه مسبقًا؛ عُرض الإصدار الموجود دون إنشاء نسخة جديدة.</div>{% endif %}
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>{{ catalog.document_title or catalog.filename }}</h3><p>{{ catalog.manufacturer or 'الشركة غير محددة' }} · {{ catalog.equipment_model.name }} · الإصدار الداخلي {{ catalog.version_number }}{% if catalog.document_version %} · إصدار الوثيقة {{ catalog.document_version }}{% endif %}</p></div><span class="badge info">{{ {'draft':'قيد المراجعة','reviewed':'مراجع','applied':'أضيف للمكتبة','rejected':'مرفوض'}.get(catalog.status, catalog.status) }}</span></div>
+    <p>المقارنة مع الإصدار السابق: {% if version_diff.previous_version %}الإصدار {{ version_diff.previous_version }}؛ {{ version_diff.added }} عملية مضافة، {{ version_diff.removed }} محذوفة، {{ version_diff.changed }} متغيرة.{% else %}لا يوجد إصدار سابق لهذا الطراز.{% endif %}</p>
+    <p class="muted">تُحفظ أسماء العمليات بلغتها الأصلية. يُعرض كل فاصل ومصدره وسياق جدول الصيانة منفصلًا، وتبقى النتائج مسودة حتى مراجعتها. لا تُعدّل الخطط المعتمدة أو سجلات التنفيذ.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><span class="badge info">كل الصفوف: {{ items_total }}</span><span class="badge success">الجدول القياسي: {{ normal_count }}</span><span class="badge warning">الظروف القاسية: {{ severe_count }}</span><span class="badge">بانتظار المراجعة: {{ pending_count }}</span></div>
+    {% for warning in warnings %}<div class="alert warning">{{ warning }}</div>{% endfor %}
+  </section>
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>صفوف جدول الصيانة ({{ filtered_total }} من {{ items_total }})</h3><p>تُستخرج العملية وفاصل المسافة والزمن من العمود نفسه. لا يُقبل أي صف آليًا.</p></div></div>
+    <form method="get" action="/maintenance/catalog-imports/{{ catalog.id }}" class="form-grid" style="align-items:end;margin-bottom:14px">
+      <label>بحث في العمليات والمصدر<input name="q" value="{{ query_text }}" placeholder="اسم العملية أو الصفحة أو الفاصل"></label>
+      <label>سياق الجدول<select name="schedule_type"><option value="">كل السياقات</option><option value="normal" {% if schedule_type_filter == 'normal' %}selected{% endif %}>الجدول القياسي</option><option value="severe_conditions" {% if schedule_type_filter == 'severe_conditions' %}selected{% endif %}>ظروف قاسية</option><option value="unclassified" {% if schedule_type_filter == 'unclassified' %}selected{% endif %}>غير مصنف</option></select></label>
+      <div><button class="btn" type="submit">تطبيق التصفية</button> <a class="btn" href="/maintenance/catalog-imports/{{ catalog.id }}">مسح</a></div>
+    </form>
+    {% if catalog.status != 'applied' and items %}
+      <form id="catalogReviewSelection" method="post" action="/maintenance/catalog-imports/{{ catalog.id }}/review-selection">
+        <input type="hidden" name="page" value="{{ page }}"><input type="hidden" name="q" value="{{ query_text }}"><input type="hidden" name="schedule_type" value="{{ schedule_type_filter }}">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 16px">
+          <label style="display:flex;gap:8px;align-items:center"><input id="selectVisibleCatalogRows" type="checkbox"> تحديد صفوف الصفحة</label>
+          <button class="btn primary" type="submit" name="review_state" value="accepted" onclick="return confirm('تأكيد قبول الصفوف المحددة بعد مراجعة أسماء العمليات وشروطها؟')">قبول المحدد</button>
+          <button class="btn" type="submit" name="review_state" value="rejected" onclick="return confirm('تأكيد رفض الصفوف المحددة؟')">رفض المحدد</button>
+        </div>
+      </form>
+    {% endif %}
+    <p class="muted">عرض {{ page_start + 1 if filtered_total else 0 }}–{{ [page_start + items|length, filtered_total]|min }} من {{ filtered_total }} · الصفحة {{ page }} من {{ page_count }}</p>
+    {% for item in items %}
+      {% set item_index = item_indices[loop.index0] %}
+      <article id="item-{{ item_index }}" class="panel" style="margin:14px 0;padding:14px">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          {% if catalog.status != 'applied' %}<label title="تحديد الصف للمراجعة الجماعية"><input class="catalog-row-check" type="checkbox" name="item_indices" value="{{ item_index }}" form="catalogReviewSelection"></label>{% endif %}
+          <strong>صفحة {{ item.source_page or 'غير محددة' }} · {{ 'الجدول القياسي' if item.schedule_type == 'normal' else 'ظروف قاسية' if item.schedule_type == 'severe_conditions' else item.section or 'غير مصنف' }}</strong>
+          <span class="badge {% if item.review_state == 'accepted' %}success{% elif item.review_state == 'supplemental' %}info{% else %}warning{% endif %}">{{ {'needs_review':'بانتظار المراجعة','accepted':'مقبول','rejected':'مرفوض','supplemental':'شرط إضافي محفوظ'}.get(item.review_state, item.review_state) }}</span>
+          {% if item.source_interval %}<span class="badge info">{{ '{:,}'.format(item.source_interval.km) }} كم · {{ item.source_interval.months }} شهر · {{ '{:,}'.format(item.source_interval.miles) }} ميل</span>{% endif %}
+          <span class="muted">{{ item.confidence }}</span>
+        </div>
+        {% if catalog.status == 'applied' %}<p>{{ item.operation_name }} — رقم العملية {{ item.operation_id or '—' }}.</p>{% else %}
+        <form method="post" action="/maintenance/catalog-imports/{{ catalog.id }}/items/{{ item_index }}?page={{ page }}&q={{ query_text|urlencode }}&schedule_type={{ schedule_type_filter|urlencode }}" class="form-grid" style="margin-top:12px">
+          <label>اسم العملية كما في المصدر<input name="operation_name" value="{{ item.operation_name }}" maxlength="120" required></label>
+          <label>تصنيف الشرط<select name="schedule_type"><option value="normal" {% if item.schedule_type == 'normal' %}selected{% endif %}>الشرط الأساسي</option><option value="severe_conditions" {% if item.schedule_type == 'severe_conditions' %}selected{% endif %}>ظروف قاسية</option><option value="unclassified" {% if item.schedule_type == 'unclassified' %}selected{% endif %}>غير مصنف</option></select></label>
+          <label>قرار المراجعة<select name="review_state" {% if item.review_state == 'supplemental' %}disabled{% endif %}><option value="needs_review" {% if item.review_state == 'needs_review' %}selected{% endif %}>بانتظار المراجعة</option><option value="accepted" {% if item.review_state == 'accepted' %}selected{% endif %}>قبول العملية</option><option value="rejected" {% if item.review_state == 'rejected' %}selected{% endif %}>رفض</option></select>{% if item.review_state == 'supplemental' %}<input type="hidden" name="review_state" value="supplemental">{% endif %}</label>
+          <label>تصنيف العملية<select name="group_id"><option value="">غير مصنف؛ يوضع في مجموعة العمليات المستوردة</option>{% for group in operation_groups %}<option value="{{ group.id }}" {% if item.group_id == group.id %}selected{% endif %}>{{ group.name }}</option>{% endfor %}</select></label>
+          <label style="grid-column:1/-1">الشرط العددي<input name="corrected_condition" value="{% if item.corrected_condition %}{{ item.corrected_condition|tojson }}{% endif %}" placeholder='{"interval_km":12000,"interval_days":183}'><small>راجع القيم مقابل المصدر قبل القبول. التوقيت في المصدر محسوب كعدد أيام تقريبي.</small></label>
+          <label style="grid-column:1/-1">وصف الشرط<input name="condition_note" value="{{ item.condition_note or '' }}"></label>
+          <label style="grid-column:1/-1">ملاحظة المراجع<input name="review_note" value="{{ item.review_note or '' }}"></label>
+          <div><button type="submit" class="btn">حفظ الصف</button></div>
+        </form>
+        {% endif %}
+        <details style="margin-top:10px"><summary>موضع الصف ودليل الاستخراج</summary><pre style="white-space:pre-wrap;direction:ltr;text-align:left;max-height:180px;overflow:auto">{{ item.source_excerpt or item.action_and_cells_raw or item.action_conditions_interval_raw or item.operation_name }}</pre></details>
+      </article>
+    {% else %}<p>لا توجد صفوف تطابق عوامل التصفية.</p>{% endfor %}
+    {% if page_count > 1 %}<nav aria-label="صفحات المراجعة" style="display:flex;gap:10px;align-items:center;justify-content:center;margin:18px 0">
+      {% if page > 1 %}<a class="btn" href="?page={{ page - 1 }}&q={{ query_text|urlencode }}&schedule_type={{ schedule_type_filter|urlencode }}">السابق</a>{% endif %}
+      <span>صفحة {{ page }} من {{ page_count }}</span>
+      {% if page < page_count %}<a class="btn" href="?page={{ page + 1 }}&q={{ query_text|urlencode }}&schedule_type={{ schedule_type_filter|urlencode }}">التالي</a>{% endif %}
+    </nav>{% endif %}
+    {% if catalog.status != 'applied' %}<form method="post" action="/maintenance/catalog-imports/{{ catalog.id }}/apply" onsubmit="return confirm('إضافة العمليات المقبولة وشروطها إلى مكتبة هذا الطراز؟')"><button class="btn primary" type="submit">إضافة المقبول إلى مكتبة عمليات الطراز</button></form>{% endif %}
+  </section>
+  <section class="panel" style="margin-top:18px"><details><summary>نص صفحات جدول الصيانة المستخرجة (للتدقيق)</summary><pre style="white-space:pre-wrap;max-height:420px;overflow:auto;direction:ltr;text-align:left">{{ catalog.extracted_text }}</pre></details></section>
+</main>
+<script>
+  document.getElementById('selectVisibleCatalogRows')?.addEventListener('change', event => {
+    document.querySelectorAll('.catalog-row-check').forEach(input => { input.checked = event.target.checked; });
+  });
+</script>
+{% endblock %}

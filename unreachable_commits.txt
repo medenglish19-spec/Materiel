@@ -1,0 +1,82 @@
+2026-09-30 17:40:11 +0100 | 73006a8f9bb2fed75ca298449619e9109bb1de13 | docs(project): record three known UI label defects as pending
+2026-10-06 08:47:11 +0100 | eb03a69f8af2b875620c3980a6fc012b3bfb7266 | WIP on (no branch): 01462d1 test(migrations): target historical stage revisions
+2026-10-08 18:55:48 +0100 | 9904bc560ce67b1887a35b29d6fa3b3a426aba62 | merge: resolve master data workspace conflict
+2026-10-02 22:15:22 +0100 | d7083ec82c947c2ca128729fb88163708d96ae2b | ui: searchable spare part picker in request items
+2026-10-01 19:22:24 +0100 | df0cd7fa745ea3e395869c5533d799a2895f7c1f | index on stage3-maintenance-operations: 38fa4fb fix(analytics): restore repair finding structure
+2026-10-01 13:49:46 +0100 | c10f38d328a915791046e990184c85ea90ce6545 | On stage3-maintenance-operations: materiel-equipment-types-local
+2026-09-30 14:59:20 +0100 | 8112b112c78c018cec397f7005fe4343225f8520 | fix(ui): add responsive design for sidebar on small screens
+2026-09-22 22:06:38 +0100 | ec1301d7eb14d1f0776763f81df5cc78f58276f0 | WIP on main: bf2fec3 ui(master-data): enable smooth tree expand collapse
+2026-09-30 14:03:16 +0100 | 8115de3cecf6019542d161b91d92cb50a0f6d65d | feat(missions): sync equipment operational status with mission lifecycle
+2026-09-30 17:18:04 +0100 | 111c0a5cb3b503d091de0a73305464500c7792b7 | feat(notifications): wire the notifications module to the dashboard
+2026-10-04 08:56:51 +0100 | 0a1dc7a9cb1d9823aeb85ef3c0c13a3a691add52 | الرقم نصٌّ حرّ، وومنع التكرار حتى مع المسافات الطرفية
+2026-10-03 09:08:21 +0100 | 6321d5b51d5fdba4b7c353f6a7cdcea8b5c3324e | On stage3-maintenance-operations: keep operational analysis link
+2026-09-30 14:49:11 +0100 | 5e23f6346baf6990af9447bd7e71e7a5754fc20f | fix(ui): remove sidebar scrollbar
+2026-09-30 13:40:54 +0100 | 33240199c9a1494d5d81eb5671c11aff0b1a7103 | fix(equipment): add missing results-count element to equipment list page
+2026-10-02 22:41:11 +0100 | 6127e76fad26030464d79679456c0c6a69a176d7 | ui: show request fields and item table on row click
+2026-10-01 11:26:21 +0100 | c92be31094311a10ba28edd0fb6b7b5810e6eaf1 | On stage3-maintenance-operations: local-before-sync
+2026-10-04 19:27:44 +0100 | 0c2ef2d4320c60fb8b67d1dd30cce5bbd4ca2a06 | index on stage3-maintenance-operations: fdf7922 fix(migrations): merge the two spare-parts heads
+2026-10-03 07:07:52 +0100 | b33294c040e594141b3cf9b9f046644041cd3a2a | WIP on main: 8033489 Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-10-02 08:12:24 +0100 | 84345162244fa6e358dbc62d50db3ba87ed55a65 | index on stage3-maintenance-operations: 950b548 test: align authenticated page status contracts
+2026-10-01 19:22:24 +0100 | 3937eb45dd64752186cb6b2ec8549a8f1b3303bc | untracked files on stage3-maintenance-operations: 38fa4fb fix(analytics): restore repair finding structure
+2026-10-06 08:54:16 +0100 | 1639373082689396e40b8f168e724016eaed75a8 | index on (no branch): 01462d1 test(migrations): target historical stage revisions
+2026-10-02 08:12:24 +0100 | e43b6d39fcf78f2fb29a36925fb9acfd1172f1ca | untracked files on stage3-maintenance-operations: 950b548 test: align authenticated page status contracts
+2026-09-30 17:39:47 +0100 | fd3b2c4ed9a7ee28ec2ddf06b874585a54d18cc2 | fix(ui): translate dashboard status cards and surface the broken count
+2026-10-06 06:56:39 +0100 | 01462d18b8804183b431c5bb60bd9945479c4ed9 | test(migrations): target historical stage revisions
+2026-09-30 13:51:13 +0100 | 6546f92aa0a3926472f3be8780d0ce908795c4e3 | fix(equipment): use list_user_types in equipment list to match user library
+2026-10-04 12:02:09 +0100 | 904f14a925e9811fad93558fb59050fac654d76d | feat(spare-parts): a mistaken receipt can be undone
+2026-10-03 07:05:11 +0100 | e0508b02d402e0ff191d93b3b614588883d4db6c | WIP on main: 80860cd Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-09-23 15:53:15 +0100 | d453db0b0fc7127a48fef20379e1cef09585fc06 | On main: backup-local-master-data-before-pull
+2026-09-29 00:09:56 +0100 | 045556547cc96ed02ce242b18df7b23c0fbbaf8a | fix(maintenance): repair JS syntax errors in plans page
+2026-09-30 17:18:28 +0100 | e95e17013e0534e02df1c09b8ca962efe9fae5c3 | docs(project): add PROJECT_MAP external memory
+2026-09-23 15:53:15 +0100 | 005f8b7acb494c3dd08eac22bb4818ad93618ba3 | untracked files on main: 8d6a5d1 fix(master-data): escape CSS selectors from Jinja comments
+2026-10-01 11:26:21 +0100 | 15683c822857bed7070b081324357fccfc99646f | index on stage3-maintenance-operations: 740af48 feat(analytics): add meter-based utilization analysis
+2026-10-03 09:33:24 +0100 | 546ca1dc3f8098322ae8d7324739bfd79dcaaedb | fix(spare-parts): restore item lookup and page-wide pathname guard
+2026-10-04 08:57:08 +0100 | 8d6f546341a629828c3e924690261b2a7c8c5c70 | الرقم نصٌّ حرّ، ومنع التكرار حتى مع المسافات الطرفية
+2026-10-06 06:56:37 +0100 | 3d75ef669a7d9a5619ef36c8117affa20fd37d13 | On stage3-maintenance-operations: before-sync-stage3
+2026-10-01 12:38:30 +0100 | e675e3fe0665b0980c694275f00acd92c7810586 | fix(equipment): restore equipment routes deleted by the analytics work
+2026-10-06 08:47:11 +0100 | 33768101c73ba6b4e4f6b4988af854fd5a0ec29c | index on (no branch): 01462d1 test(migrations): target historical stage revisions
+2026-10-01 12:24:11 +0100 | f577ecae0f6e27bc84d7cffbf1fdf36d7d919a40 | fix(equipment): restore equipment routes deleted by the analytics work
+2026-10-03 07:48:23 +0100 | 7680bc9e2298eb6ff6179aa933c68ddf077e300a | index on main: 036ab87 Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-10-04 19:27:44 +0100 | 6981a32f4f42f2a829292beedf8e29b44689359d | untracked files on stage3-maintenance-operations: fdf7922 fix(migrations): merge the two spare-parts heads
+2026-10-06 08:53:18 +0100 | 748207aaa90ec1452f1d6de21e393e944ebe669b | index on (no branch): 01462d1 test(migrations): target historical stage revisions
+2026-10-05 20:15:28 +0100 | 118750bb8a343c42f815bf4cacd151411d07f7de | test(migrations): target historical stage revisions
+2026-09-23 15:53:15 +0100 | 7588bf6732f360c75fb69c9402baed827ac720c9 | index on main: 8d6a5d1 fix(master-data): escape CSS selectors from Jinja comments
+2026-10-05 20:20:47 +0100 | 3e89b2a7c86e853886c50f71bb762446887a36a7 | index on stage3-maintenance-operations: 0cd0194 fix(spare-parts): track received quantities for returns
+2026-09-30 17:18:15 +0100 | f892fe9907f7d37b4fbd3bca36296af9cc71a69d | feat(logging): add a non-blocking logging layer and drop print()
+2026-10-01 19:22:24 +0100 | 1f93c68f6f6ea074debe11264f701bd829413428 | On stage3-maintenance-operations: local work before layout update
+2026-09-30 14:16:19 +0100 | ff939c1d015453c67a927727dbbef16424d40230 | feat(ui): redesign with modern light green theme
+2026-09-30 14:07:35 +0100 | d29708a7ca8a67a4918a0aef33cb97edf89373f6 | fix(faults): set operational_status to unavailable when equipment is broken
+2026-10-01 12:25:41 +0100 | b7a35e0e0935ae25fafd7fee2bb1f62bdd345b26 | fix(equipment): restore equipment routes deleted by the analytics work
+2026-10-06 06:56:37 +0100 | 0da8d7469dbaa70323465fe493e37c47e07a5b67 | index on stage3-maintenance-operations: 0cd0194 fix(spare-parts): track received quantities for returns
+2026-10-01 13:49:46 +0100 | 62aa78ad88618d85159ee615e79e283942c9701d | index on stage3-maintenance-operations: 547c91b fix(analytics): satisfy external repair demo constraint
+2026-10-05 06:26:26 +0100 | d7aad10e325013dc3d1c3960a431031579c72907 | fix(logging) keep records when rotation is denied
+2026-10-06 06:56:37 +0100 | 59b0ba2cd54eadc41d4e55ac044b8072fd635ef6 | untracked files on stage3-maintenance-operations: 0cd0194 fix(spare-parts): track received quantities for returns
+2026-10-03 09:08:21 +0100 | 95b0af8f05a87113a2cd71b4fff2c2afbad2a3b6 | index on stage3-maintenance-operations: 63746a8 revert(spare-parts): restore request page before typed-name changes
+2026-09-30 17:17:27 +0100 | 84b42cac723c876e505c3496ba4e738ffa4e2d7c | feat(deps): upgrade stack to FastAPI 0.142 / Starlette 1.7 and fix breaking changes
+2026-10-03 09:23:26 +0100 | 0ab5b9845b8355e1f9ea1881713b180434687e45 | WIP on stage3-maintenance-operations: 18dd1f5 fix(equipment): remove accidental module navigation
+2026-10-01 07:28:18 +0100 | f0bca9435c75a1ef2c86d9a50926077c8bd16b00 | fix(equipment): show only the selected value for select technical properties
+2026-10-04 19:27:44 +0100 | a1bfedb3fc637f225b9c8f888ad67e5a5b737f52 | On stage3-maintenance-operations: fix visible migration failures
+2026-09-30 15:17:58 +0100 | e9bf7afb1771c25223ea7785d5cd7d896763efbe | fix(ui): stop sidebar and top bar from covering page content
+2026-10-06 08:53:18 +0100 | 88cabef92ac27f0a54a239a67edd29fe53bfe555 | untracked files on (no branch): 01462d1 test(migrations): target historical stage revisions
+2026-10-01 19:15:19 +0100 | 67cd4eebae9c36d6b20ba5e165ab49459d1d6b50 | ui: make master data workspace responsive and scrollable
+2026-10-06 08:53:18 +0100 | 49ced34bc7b95dcd0ad5a276333ae2215d70f77d | On (no branch): wip spare parts movements before sync
+2026-10-05 20:17:45 +0100 | 0cd0194ca6a6ad9be8fb6879e251f3d6cd5be2bc | fix(spare-parts): track received quantities for returns
+2026-10-01 08:57:31 +0100 | efd5fc778ed9eaa380853983033a6ae3cf11e597 | feat(equipment): label the registration, VIN and status chips in the detail hero
+2026-10-06 08:54:16 +0100 | 15d614a43630056ddc5849db3e610dbe206672dd | On (no branch): wip spare parts movements before sync
+2026-10-02 08:12:24 +0100 | a3d926a87797ae25492a617b87e212c61ede566c | On stage3-maintenance-operations: before-full-sync
+2026-09-30 17:18:27 +0100 | 89dabe6d23d48eb734f1031638cb6fc7d4ca7ab7 | docs(readme): replace the auto-update log with real project documentation
+2026-10-05 20:20:47 +0100 | f8dc830e4af9a0b6bc0bee99cfc850e73c4ef834 | WIP on stage3-maintenance-operations: 0cd0194 fix(spare-parts): track received quantities for returns
+2026-09-22 22:06:38 +0100 | 42dd0a16597ce19d7a15583235bbd376af4bbd09 | index on main: bf2fec3 ui(master-data): enable smooth tree expand collapse
+2026-10-06 22:14:48 +0100 | cdde472a8b1425b603adc52283454d9f1c1ce273 | fix(ui): await centralized edit saves safely
+2026-10-03 07:48:23 +0100 | 2adf96e9f0dd51bbc4d928d21c937d643938d805 | WIP on main: 036ab87 Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-10-03 07:05:11 +0100 | fae0084fd6537925d5f8226cfa0a57d196fe3d49 | index on main: 80860cd Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-09-30 14:32:11 +0100 | 45e1fefe476fc34007602054af1aea9c8e8739ef | feat(ui): add model images, card-based equipment list, and modern green design
+2026-10-05 06:26:14 +0100 | 32e74b62610785b45d0394d696ef516b13f71351 | ﻿fix(logging) keep records when rotation is denied
+2026-09-30 16:33:50 +0100 | 66e7b357ff1244c3d4af303392e1c5ae08396323 | feat(ui): rebuild master data workspace with modern green design
+2026-10-03 07:07:52 +0100 | a9f100f14c5f83a4ff6f003b9ec9dfc9b5adf7d7 | index on main: 8033489 Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel
+2026-10-02 22:45:03 +0100 | 25f46b242099bb05060a86013644d93582ed001b | ui: show the internal equipment code in the equipment column
+2026-10-03 09:23:26 +0100 | a7f50b1c48c628893fadcd115a4120576e92e8ac | index on stage3-maintenance-operations: 18dd1f5 fix(equipment): remove accidental module navigation
+2026-10-02 22:49:30 +0100 | 04f9a0b41944e9409246aba975c9d30f58bd5388 | fix: align the received register columns with their headers
+2026-10-01 09:04:22 +0100 | 56fb01d4d2e720c95a97da35ce8ba976781b2996 | Merge branch 'stage3-maintenance-operations' of https://github.com/medenglish19-spec/Materiel into stage3-maintenance-operations
+2026-10-01 11:26:21 +0100 | a7fe5db5f785d6a2040dca3b34d808fd8f3dd63f | untracked files on stage3-maintenance-operations: 740af48 feat(analytics): add meter-based utilization analysis
+2026-10-06 08:54:16 +0100 | 07ff9738934fc7cc193fc67395ed838b3732c4f4 | untracked files on (no branch): 01462d1 test(migrations): target historical stage revisions

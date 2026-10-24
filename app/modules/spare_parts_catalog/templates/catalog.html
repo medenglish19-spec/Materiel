@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}كتالوج قطع الغيار{% endblock %}
+{% block content %}
+<style>
+.spcat{direction:rtl;max-width:1500px;margin:auto}.spcat .top,.spcat .actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.spcat h1{margin:0;color:#20352a}.spcat .panel{background:#fff;border:1px solid #e4eaf0;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 3px 14px rgba(20,55,80,.04)}.spcat .grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px}.spcat label{display:flex;flex-direction:column;gap:4px;font-size:12px}.spcat input,.spcat select,.spcat textarea{min-width:0;padding:8px;border:1px solid #d6dee6;border-radius:7px}.spcat table{width:100%;border-collapse:collapse}.spcat th,.spcat td{text-align:right;padding:9px;border-bottom:1px solid #edf1f4;vertical-align:top}.spcat th{background:#f7fafc}.spcat .scroll{overflow:auto}.spcat .part-img{width:46px;height:46px;object-fit:contain}.spcat details{min-width:280px}.spcat .notice{padding:10px;border-radius:8px;background:#fff1f1;color:#8a2222;margin:12px 0}.spcat .muted{color:#718096;font-size:12px}.spcat .btn{display:inline-block;padding:8px 12px;border:0;border-radius:7px;background:#397a54;color:white;text-decoration:none;cursor:pointer}.spcat .btn.secondary{background:#596b7a}.spcat .pager{display:flex;justify-content:center;gap:16px;padding:14px}.spcat .pill{display:inline-block;background:#eef5fb;border-radius:20px;padding:3px 8px;font-size:11px}@media(max-width:760px){.spcat .grid{grid-template-columns:repeat(2,minmax(0,1fr))}.spcat td{min-width:100px}}@media(max-width:480px){.spcat .grid{grid-template-columns:1fr}}
+</style>
+<main class="spcat">
+  <div class="top"><div><h1>كتالوج قطع الغيار</h1><div class="muted">سجل مركزي مرتبط بقطع الغيار المستخدمة في الطلبات والتصليحات.</div></div><div class="actions"><a class="btn" href="/spare-parts/catalog/import">استيراد كتالوج</a><a class="btn secondary" href="/spare-parts">وحدة قطع الغيار</a></div></div>
+  {% if error %}<div class="notice" role="alert">{{ error }}</div>{% endif %}
+  <section class="panel"><h2>إضافة قطعة</h2>
+    <form action="/spare-parts/catalog/parts" method="post" enctype="multipart/form-data">
+      <div class="grid">
+        <label>الاسم المعروض<input name="name" maxlength="160" required></label>
+        <label>الاسم بالعربية<input name="name_ar" maxlength="160"></label>
+        <label>الاسم بالفرنسية<input name="name_fr" maxlength="160"></label>
+        <label>المرجع الأصلي<input name="reference" maxlength="120"></label>
+        <label>الشركة المصنّعة<input name="manufacturer" maxlength="160"></label>
+        <label>التصنيف (استخدم / للفئات الفرعية)<input name="category" maxlength="255" placeholder="المحرك / المرشحات"></label>
+        <label>المصدر<input name="source" maxlength="255"></label>
+        <label>الصورة الرئيسية<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label>
+        <label style="grid-column:1/-1">الوصف والملاحظات<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+      </div><p class="muted">رمز الكتالوج الداخلي يُنشأ تلقائيًا. إضافة القطعة لا تنشئ استلامًا أو رصيد مخزون.</p><button class="btn" type="submit">حفظ القطعة</button>
+    </form>
+  </section>
+  <section class="panel"><h2>التصنيفات</h2>
+    <form action="/spare-parts/catalog/categories" method="post" class="actions">
+      <label>اسم التصنيف بالعربية<input name="name_ar" maxlength="120" required></label><label>الاسم بالفرنسية<input name="name_fr" maxlength="120"></label>
+      <label>التصنيف الأب<select name="parent_id"><option value="">فئة رئيسية</option>{% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name_ar }}{% if cat.name_fr %} / {{ cat.name_fr }}{% endif %}</option>{% endfor %}</select></label><button class="btn" type="submit">إضافة تصنيف</button>
+    </form>
+  </section>
+  <section class="panel"><div class="top"><h2>القطع ({{ total }})</h2>
+    <form action="/spare-parts/catalog" method="get" class="actions">
+      <label>بحث<input name="q" value="{{ q }}" placeholder="اسم أو مرجع أو شركة"></label>
+      <label>التصنيف<select name="category_id"><option value="">كل التصنيفات</option>{% for cat in categories %}<option value="{{ cat.id }}" {% if category_id == cat.id %}selected{% endif %}>{{ cat.name_ar }}</option>{% endfor %}</select></label>
+      <label>الشركة<select name="manufacturer"><option value="">كل الشركات</option>{% for maker in manufacturers %}<option value="{{ maker }}" {% if manufacturer_filter == maker %}selected{% endif %}>{{ maker }}</option>{% endfor %}</select></label>
+      <label>المصدر<select name="source"><option value="">كل المصادر</option>{% for source in sources %}<option value="{{ source }}" {% if source_filter == source %}selected{% endif %}>{{ source }}</option>{% endfor %}</select></label><label>الحالة<select name="active"><option value="">الكل</option><option value="true" {% if active_filter is sameas true %}selected{% endif %}>نشطة</option><option value="false" {% if active_filter is sameas false %}selected{% endif %}>مؤرشفة</option></select></label><button class="btn" type="submit">تصفية</button>
+    </form></div>
+    <div class="scroll"><table><thead><tr><th>الصورة</th><th>الاسم</th><th>المرجع</th><th>الشركة</th><th>التصنيف</th><th>المصدر</th><th>الحالة / تعديل</th></tr></thead><tbody>
+      {% for part, details in items %}<tr>
+        <td>{% if details and details.image_path %}<img class="part-img" src="{{ details.image_path }}" alt="صورة {{ part.name }}">{% else %}—{% endif %}</td>
+        <td><strong>{{ details.name_ar if details and details.name_ar else part.name }}</strong>{% if details and details.name_fr %}<br><span class="muted">{{ details.name_fr }}</span>{% endif %}{% if details and details.original_name and details.original_name != part.name %}<br><span class="muted">{{ details.original_name }}</span>{% endif %}</td>
+        <td>{% for ref in references.get(part.id, []) %}<span class="pill">{{ ref.reference }}</span>{% else %}<span class="muted">{{ part.part_number }}</span>{% endfor %}</td>
+        <td>{{ details.manufacturer if details and details.manufacturer else '—' }}</td><td>{{ category_paths.get(details.category_id, '—') if details and details.category_id else '—' }}</td><td>{{ details.source if details and details.source else '—' }}</td>
+        <td>{% if details and not details.is_active %}<span class="pill">مؤرشفة</span>{% else %}<span class="pill">نشطة</span>{% endif %}<details><summary>تعديل</summary>
+          <form action="/spare-parts/catalog/parts/{{ part.id }}/update" method="post" enctype="multipart/form-data">
+            <label>الاسم المعروض<input name="name" value="{{ part.name }}" maxlength="160" required></label><label>الاسم بالعربية<input name="name_ar" value="{{ details.name_ar if details else '' }}" maxlength="160"></label><label>الاسم بالفرنسية<input name="name_fr" value="{{ details.name_fr if details else '' }}" maxlength="160"></label><label>المرجع الأصلي<input name="reference" value="{{ references.get(part.id, [])[0].reference if references.get(part.id) else '' }}" maxlength="120"></label><label>الشركة<input name="manufacturer" value="{{ details.manufacturer if details else '' }}" maxlength="160"></label><label>التصنيف<input name="category" value="{{ category_paths.get(details.category_id, '') if details and details.category_id else '' }}"></label><label>المصدر<input name="source" value="{{ details.source if details else '' }}" maxlength="255"></label><label>الوصف<textarea name="notes" maxlength="2000">{{ part.notes or '' }}</textarea></label><label>استبدال الصورة<input type="file" name="image" accept="image/jpeg,image/png,image/webp"></label><label><input type="checkbox" name="remove_image" value="on"> إزالة الصورة</label><label><input type="checkbox" name="active" value="on" {% if not details or details.is_active %}checked{% endif %}> نشطة</label><button class="btn" type="submit">حفظ التعديل</button>
+          </form></details></td>
+      </tr>{% else %}<tr><td colspan="7" class="muted">لا توجد قطع مطابقة. أضف قطعة أو استورد كتالوجًا.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <div class="pager">{% if page > 1 %}<a href="?q={{ q|urlencode }}&page={{ page - 1 }}&category_id={{ category_id or '' }}&manufacturer={{ manufacturer_filter or '' }}">السابق</a>{% endif %}<span>صفحة {{ page }} من {{ (total + page_size - 1) // page_size if total else 1 }}</span>{% if page * page_size < total %}<a href="?q={{ q|urlencode }}&page={{ page + 1 }}&category_id={{ category_id or '' }}&manufacturer={{ manufacturer_filter or '' }}">التالي</a>{% endif %}</div>
+  </section>
+</main>
+{% endblock %}

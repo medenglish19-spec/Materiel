@@ -12,6 +12,7 @@ core/permissions.py
 from enum import Enum
 from fastapi import Depends, HTTPException, status
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.modules.users.models import User
 
@@ -39,6 +40,10 @@ def require_role(*allowed_roles: Role):
     """
 
     def checker(current_user: User = Depends(get_current_user)) -> User:
+        # تعطيل مؤقت لاشتراط الصلاحية (انظر app/core/config.py).
+        # عند إعادة المصادقة: DEV_DISABLE_AUTH=false فتعود هذه الفحوص كما كانت.
+        if settings.DEV_DISABLE_AUTH:
+            return current_user
         if current_user.role not in [r.value for r in allowed_roles]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -53,6 +58,9 @@ def require_min_role(min_role: Role):
     """نسخة بديلة: يسمح لأي دور مستواه >= الدور المطلوب."""
 
     def checker(current_user: User = Depends(get_current_user)) -> User:
+        # تعطيل مؤقت لاشتراط الصلاحية (انظر app/core/config.py).
+        if settings.DEV_DISABLE_AUTH:
+            return current_user
         user_level = ROLE_HIERARCHY.get(Role(current_user.role), 0)
         required_level = ROLE_HIERARCHY[min_role]
         if user_level < required_level:

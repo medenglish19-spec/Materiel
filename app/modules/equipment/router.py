@@ -1,18 +1,20 @@
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
+from app.modules.equipment import bulk_import as equipment_bulk_import
 from app.modules.equipment.analytics import build_capacity_readiness_analysis, build_utilization_analysis
 from app.modules.equipment.operational_analysis import build_operational_analysis
 from app.modules.equipment.models import Equipment
-from app.modules.equipment.schemas import EquipmentCreate, EquipmentOut, EquipmentUpdate
+from app.modules.equipment.schemas import EquipmentBulkDelete, EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.equipment_types.models import EquipmentModelSpecValue
@@ -21,11 +23,14 @@ from app.modules.meter_readings import services as meter_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.missions.models import Mission
 from app.modules.fuel.models import FuelRecord
-from app.modules.faults_repairs.models import Fault, Repair
+from app.modules.faults_repairs.models import Fault, Repair, RepairPart, TechnicianIntervention
 from app.modules.maintenance.models import MaintenanceRecord
-from app.modules.meter_readings.audit import MeterReadingChange, utc_now
+from app.modules.meter_readings.audit import MeterReadingChange, MeterReadingOperation, utc_now
 from app.modules.tires import services as tire_services
 from app.modules.batteries import services as battery_services
+from app.modules.tires.models import TireMovement
+from app.modules.batteries.models import BatteryMovement
+from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
 router = APIRouter(); templates = get_module_templates("app/modules/equipment/templates")
 @router.get("/equipment", response_class=HTMLResponse)
 def equipment_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -56,6 +61,7 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
         "spec_definitions_data": spec_definitions_data,
         "equipment_specs_map": equipment_specs_map,
         "operational_statuses": operational_statuses,
+        "can_delete_equipment": settings.DEV_DISABLE_AUTH or current_user.role == Role.ADMIN.value,
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
 def equipment_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -73,15 +79,11 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
     meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     missions = db.query(Mission).filter(Mission.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
     utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
-    operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
     return templates.TemplateResponse(
         request=request,
         name="equipment_analysis.html",
-        context={"request": request, "user": current_user, **analysis, "utilization": utilization, "operational": operational},
+        context={"request": request, "user": current_user, **analysis, "utilization": utilization},
     )
 
 
@@ -169,10 +171,43 @@ def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
 @router.post("/equipment/create")
-def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),current_odometer:str=Form("0"),current_hours:str=Form("0"),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
-    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,current_odometer=current_odometer or 0,current_hours=current_hours or 0,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
+def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),first_service_date:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    from datetime import date
+    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,first_service_date=date.fromisoformat(first_service_date) if first_service_date else None,acquisition_date=date.fromisoformat(acquisition_date) if acquisition_date else None,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
     except ValueError: pass
     return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/equipment/import/template")
+def equipment_import_template(db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    from io import BytesIO
+    content = equipment_bulk_import.build_template(db)
+    return StreamingResponse(BytesIO(content), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="equipment-import-template.xlsx"'})
+
+
+async def _equipment_import_rows(file: UploadFile) -> list[dict]:
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="ارفع ملف Excel بصيغة .xlsx.")
+    try:
+        return equipment_bulk_import.parse_workbook(await file.read(equipment_bulk_import.MAX_FILE_BYTES + 1))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/equipment/import/preview")
+async def equipment_import_preview(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    rows = await _equipment_import_rows(file)
+    results = equipment_bulk_import.preview(db, rows)
+    return {"total": len(results), "valid": sum(1 for row in results if row["ok"]), "rejected": sum(1 for row in results if not row["ok"]), "rows": results}
+
+
+@router.post("/equipment/import/confirm")
+async def equipment_import_confirm(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+    rows = await _equipment_import_rows(file)
+    result = equipment_bulk_import.import_rows(db, rows, current_user.id)
+    created_count = len(result["created"])
+    rejected_count = len(result["rejected"])
+    return JSONResponse({"ok": rejected_count == 0, "created": created_count, "rejected": rejected_count, "rows": result["rejected"], "message": f"تمت إضافة {created_count} عتاد." + (f" تعذر إضافة {rejected_count} صف؛ راجع أسباب الرفض أدناه." if rejected_count else "")})
 @router.post("/equipment/{equipment_id}/edit")
 def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
@@ -186,11 +221,108 @@ def equipment_delete_form(equipment_id:int,db:Session=Depends(get_db),current_us
     item=services.get_equipment(db,equipment_id)
     if item: services.delete_equipment(db,item)
     return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+
+@router.get("/api/equipment/{equipment_id}/delete-impact")
+def equipment_delete_impact(equipment_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_role(Role.ADMIN))):
+    """Return a live, server-calculated summary before deleting one equipment item."""
+    item = services.get_equipment(db, equipment_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+
+    def count(query):
+        return int(query.count())
+
+    fault_ids = [row[0] for row in db.query(Fault.id).filter(Fault.equipment_id == item.id).all()]
+    repair_count = count(db.query(Repair.id).filter(Repair.fault_id.in_(fault_ids))) if fault_ids else 0
+    repair_ids = [row[0] for row in db.query(Repair.id).filter(Repair.fault_id.in_(fault_ids)).all()] if fault_ids else []
+    request_filter = SparePartRequest.equipment_id == item.id
+    if fault_ids:
+        request_filter = request_filter | SparePartRequest.fault_id.in_(fault_ids)
+    if repair_ids:
+        request_filter = request_filter | SparePartRequest.repair_id.in_(repair_ids)
+    request_ids = [row[0] for row in db.query(SparePartRequest.id).filter(request_filter).all()]
+    request_count = len(request_ids)
+    request_item_ids = [row[0] for row in db.query(SparePartRequestItem.id).filter(SparePartRequestItem.request_id.in_(request_ids)).all()] if request_ids else []
+    rows = [
+        ("المهام التي ستحذف", Mission, Mission.equipment_id == item.id),
+        ("سجلات الصيانة التي ستحذف", MaintenanceRecord, MaintenanceRecord.equipment_id == item.id),
+        ("الأعطال التي ستحذف", Fault, Fault.equipment_id == item.id),
+        ("سجلات الوقود التي ستحذف", FuelRecord, FuelRecord.equipment_id == item.id),
+        ("قراءات العداد التي ستحذف", MeterReading, MeterReading.equipment_id == item.id),
+    ]
+    effects = [{"label": label, "count": count(db.query(model.id).filter(condition))} for label, model, condition in rows]
+    effects.extend([
+        {"label": "سجلات تدقيق القراءات التي ستبقى محفوظة", "count": count(db.query(MeterReadingChange.id).filter(MeterReadingChange.equipment_id == item.id)), "kind": "remain"},
+        {"label": "عمليات استيراد/تصحيح العداد التي ستبقى دون ارتباط بالعتاد", "count": count(db.query(MeterReadingOperation.id).filter(MeterReadingOperation.equipment_id == item.id)), "kind": "unlink"},
+        {"label": "الإصلاحات التابعة للأعطال التي ستحذف", "count": repair_count},
+        {"label": "تدخلات الفنيين التابعة للإصلاحات التي ستحذف", "count": count(db.query(TechnicianIntervention.id).filter(TechnicianIntervention.repair_id.in_(repair_ids))) if repair_ids else 0},
+        {"label": "بنود قطع الغيار المصروفة المسجلة ضمن الإصلاحات التي ستحذف", "count": count(db.query(RepairPart.id).filter(RepairPart.repair_id.in_(repair_ids))) if repair_ids else 0},
+        {"label": "طلبات الغيار المرتبطة بالعتاد التي ستبقى دون ارتباط بالعتاد", "count": request_count, "kind": "unlink"},
+        {"label": "بنود طلبات الغيار التي ستبقى محفوظة", "count": len(request_item_ids), "kind": "remain"},
+        {"label": "حركات الإطارات التي ستبقى دون ارتباط بالعتاد", "count": count(db.query(TireMovement.id).filter(TireMovement.equipment_id == item.id)), "kind": "unlink"},
+        {"label": "حركات البطاريات التي ستبقى دون ارتباط بالعتاد", "count": count(db.query(BatteryMovement.id).filter(BatteryMovement.equipment_id == item.id)), "kind": "unlink"},
+    ])
+    return {"label": item.registration_number or item.asset_code, "effects": [row for row in effects if row["count"]]}
+
+@router.post("/api/equipment/bulk-delete", response_model=dict)
+def api_equipment_bulk_delete(
+    payload: EquipmentBulkDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    equipment_ids = list(dict.fromkeys(payload.equipment_ids))
+    items = {
+        item.id: item
+        for item in db.query(Equipment).filter(Equipment.id.in_(equipment_ids)).all()
+    }
+    deleted_ids = []
+    rejected = []
+    try:
+        for equipment_id in equipment_ids:
+            item = items.get(equipment_id)
+            if item is None:
+                rejected.append({
+                    "equipment_id": equipment_id,
+                    "equipment_label": f"عتاد #{equipment_id}",
+                    "reason": "العتاد غير موجود.",
+                })
+                continue
+            db.delete(item)
+            deleted_ids.append(equipment_id)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="تعذر حذف العتاد والسجلات المرتبطة به.") from exc
+    return {"success": len(deleted_ids), "deleted_ids": deleted_ids, "rejected": rejected}
+
 @router.get("/equipment/{equipment_id}/meters",response_class=HTMLResponse)
 def equipment_meters_page(equipment_id:int,request:Request,page:int=1,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item,readings,total_readings,total_pages,current_page=meter_services.history_rows(db,equipment_id,page=page,page_size=20)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_meters.html", context={"request":request,"item":item,"readings":readings,"total_readings":total_readings,"total_pages":total_pages,"current_page":current_page,"user":current_user})
+
+@router.get("/api/equipment/{equipment_id}/meters/{reading_id}/delete-impact")
+def equipment_meter_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    item = services.get_equipment(db, equipment_id)
+    reading = db.query(MeterReading).filter(MeterReading.id == reading_id, MeterReading.equipment_id == equipment_id).first()
+    if not item or not reading:
+        raise HTTPException(status_code=404, detail="قراءة العداد غير موجودة")
+    unit = meter_services._unit(item)
+    later_count = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"قراءة {meter_services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "القراءة التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستُراجع فروقها", "count": later_count},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها من السجلات المتبقية", "count": 1, "kind": "recalculate"},
+            {"label": "سجل تدقيق الحذف سيبقى محفوظًا", "count": 1, "kind": "remain"},
+        ],
+    }
+
 @router.post("/equipment/{equipment_id}/meters/create")
 def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)

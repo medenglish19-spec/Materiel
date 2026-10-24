@@ -14,6 +14,7 @@ from app.modules.equipment import services as equipment_services
 from app.modules.equipment_types import services as type_services
 from app.modules.meter_readings import services
 from app.modules.meter_readings.models import MeterReading
+from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.meter_readings.audit_service import add_validation_details, create_operation
 from app.modules.meter_readings.excel_reader import load_meter_workbook
 from app.modules.users.models import User
@@ -105,7 +106,7 @@ def meter_readings_bulk_create(payload: dict = Body(...), db: Session = Depends(
     if not isinstance(raw_rows, list): raise HTTPException(status_code=400, detail="بيانات اللصق غير صحيحة.")
     valid_rows, parse_errors = _prepare_paste_rows(raw_rows, db)
     try:
-        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
+        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows, source="paste"); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
         if raw_rows: _finish_operation(db, current_user, "paste", None, len(raw_rows), reading_ids, rejected_total, errors, warnings)
     except SQLAlchemyError:
         db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": len(raw_rows), "errors": [_error_card("تعذر حفظ القراءات بسبب خطأ في قاعدة البيانات.")]})
@@ -175,15 +176,7 @@ def _reading_context(db: Session, equipment_id: int, reading_id: int):
 def _validate_updated_reading(db: Session, equipment_id: int, reading_id: int, reading_date: datetime, value: Decimal, unit: str):
     if reading_date.date() > datetime.now().astimezone().date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي")
     if value < 0: raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
-    for other in services.list_readings(db, equipment_id):
-        if other.id == reading_id: continue
-        other_value = services._value(other, unit)
-        if other_value is None: continue
-        other_value = Decimal(other_value)
-        if other.reading_date < reading_date and other_value > value:
-            raise ValueError(f"القيمة ({value:g}) أقل من القراءة المسجلة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
-        if other.reading_date > reading_date and other_value < value:
-            raise ValueError(f"القيمة ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
+    services._validate_reading_position(db, equipment_id, reading_date, value, unit, exclude_reading_id=reading_id)
 @router.post("/history/{equipment_id}/update")
 def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment); unit = services._unit(equipment)
@@ -201,10 +194,37 @@ def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading
 def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment)
     try:
+        unit = services._unit(equipment)
+        db.add(MeterReadingChange(
+            reading_id=reading.id, equipment_id=equipment_id, changed_at=utc_now(),
+            action="delete", source=reading.source or "manual", reading_date=reading.reading_date,
+            unit=unit, old_value=services._value(reading, unit), new_value=None,
+            actor_id=current_user.id if current_user else None, details="حذف قراءة مسجلة.",
+        ))
         db.delete(reading); db.flush(); services._refresh_equipment_current(db, equipment, services._unit(equipment)); db.commit()
         return JSONResponse({"ok": True, "message": "تم حذف القراءة بنجاح"})
     except SQLAlchemyError:
         db.rollback(); return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. تعذر حذف القراءة بسبب خطأ في قاعدة البيانات."})
+
+
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
 @router.get("/history/{equipment_id}", response_class=HTMLResponse)
 def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)

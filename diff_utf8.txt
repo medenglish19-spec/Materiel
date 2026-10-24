@@ -1,0 +1,431 @@
+﻿diff --git a/app/modules/maintenance/templates/maintenance_rules_model_only.html b/app/modules/maintenance/templates/maintenance_rules_model_only.html
+index 7b3d69a1..98bf12d7 100644
+--- a/app/modules/maintenance/templates/maintenance_rules_model_only.html
++++ b/app/modules/maintenance/templates/maintenance_rules_model_only.html
+@@ -1,24 +1,26 @@
+-´╗┐{% extends "base.html" %}
+-{% block title %}┘à┘âÏ¬Ï¿Ï® Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®{% endblock %}
++{% extends "base.html" %}
++{% block title %}┘à┘âÏ¬Ï¿Ï® Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®{% endblock %}
+ {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+ {% block content %}
+ <div class="maintenance-page" dir="rtl">
+-  <nav class="module-tabs" aria-label="┘êÏ¡Ï»Ï® Ïº┘äÏÁ┘èÏº┘åÏ®">
+-    <a href="/maintenance/periodic">1. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</a>
+-    <a class="active" href="/maintenance/rules">2. Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®</a>
+-    <a href="/maintenance/plans">3. Ï«ÏÀÏÀ Ïº┘äÏÁ┘èÏº┘åÏ®</a><a href="/maintenance/records">4. Ï│Ï¼┘ä Ïº┘äÏÁ┘èÏº┘åÏ®</a>
+-    <a href="/maintenance/due">5. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘ä┘àÏ│Ï¬Ï¡┘éÏ®</a>
+-  </nav>
+   <div class="page-top">
+     <div class="page-heading">
+-      <h2>┘à┘âÏ¬Ï¿Ï® Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®</h2>
+-      <div class="breadcrumb"><a href="/">Ïº┘äÏ▒Ïª┘èÏ│┘èÏ®</a> ÔÇ║ <a href="/maintenance">Ïº┘äÏÁ┘èÏº┘åÏ®</a> ÔÇ║ <span class="current">┘à┘âÏ¬Ï¿Ï® Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®</span></div>
++      <h2>┘à┘âÏ¬Ï¿Ï® Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</h2>
++      <div class="breadcrumb"><a href="/">Ïº┘äÏ▒Ïª┘èÏ│┘èÏ®</a> ÔÇ║ <a href="/maintenance">Ïº┘äÏÁ┘èÏº┘åÏ®</a> ÔÇ║ <span class="current">┘à┘âÏ¬Ï¿Ï® Ïº┘äÏ┤Ï▒┘êÏÀ</span></div>
+     </div>
+     <div class="hero-actions">
+       <a class="m-btn" href="/maintenance/periodic">ÔåÉ &nbsp;Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</a>
++      <button class="m-btn primary" type="button" id="newOperationBtn">´╝ï &nbsp;ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</button>
+     </div>
+   </div>
+ 
++  <nav class="module-tabs" aria-label="┘êÏ¡Ï»Ï® Ïº┘äÏÁ┘èÏº┘åÏ®">
++    <a href="/maintenance/periodic">1. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</a>
++    <a class="active" href="/maintenance/rules">2. Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ®</a>
++    <a href="/maintenance/plans">3. Ï«ÏÀÏÀ Ïº┘äÏÁ┘èÏº┘åÏ®</a><a href="/maintenance/records">4. Ï│Ï¼┘ä Ïº┘äÏÁ┘èÏº┘åÏ®</a>
++    <a href="/maintenance/due">5. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘ä┘àÏ│Ï¬Ï¡┘éÏ®</a>
++  </nav>
++
+   <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
+   <div id="planModeBar" class="plan-mode-bar">
+     <div><strong id="planModeTitle">ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏºÏ¬ ÏÑ┘ä┘ë Ïº┘äÏ«ÏÀÏ®</strong><div class="muted">ÏºÏÂÏ║ÏÀ Ï╣┘ä┘ë Ïº┘äÏ╣┘à┘ä┘èÏ® ┘äÏ¬Ï¡Ï»┘èÏ»┘çÏº. Ïº┘äÏ╣┘à┘ä┘èÏºÏ¬ Ïº┘ä┘àÏ¡Ï»Ï»Ï® Ï¬Ï©┘çÏ▒ Ï¿┘ä┘ê┘å Ï«┘ü┘è┘ü.</div></div>
+@@ -26,17 +28,14 @@
+   </div>
+ 
+   <div class="toolbar-card">
+-    <div class="toolbar" style="justify-content:flex-end;gap:12px;flex-wrap:wrap">
+-      <div class="dropdown" id="managementDropdown" style="position:relative">
+-        <button class="m-btn" type="button" id="managementBtn" aria-haspopup="true" aria-expanded="false">ÔÜÖ´©Å ÏÑÏ»ÏºÏ▒Ï® Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ® Ôû¥</button>
+-        <div class="dropdown-menu" id="managementMenu" role="menu" style="display:none;position:fixed;z-index:1000;min-width:220px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:6px;">
+-          <button type="button" class="dropdown-item" id="menuNewOperation" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#2b9a62;white-space:nowrap">Ô×ò &nbsp;ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</button>
+-          <button type="button" class="dropdown-item" id="menuNewGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">­ƒôü &nbsp;ÏÑÏÂÏº┘üÏ® ┘àÏ¼┘à┘êÏ╣Ï®</button>
+-          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap;opacity:.45;cursor:not-allowed">Ô£Å´©Å &nbsp;Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+-          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap;opacity:.45;cursor:not-allowed">­ƒùæ &nbsp;Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+-          <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">Ôå╗ &nbsp;Ï¬Ï¡Ï»┘èÏ½ Ïº┘äÏ¼Ï»┘ê┘ä</button>
+-        </div>
+-      </div>
++    <div class="toolbar">
++      <div class="search-wrap"><span class="search-icon">Ôîò</span><input id="operationSearch" class="m-input" placeholder="Ï¿Ï¡Ï½ ┘ü┘è Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®..."></div>
++      <select id="groupFilter" class="m-select"><option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option></select>
++      <button class="m-btn" type="button" id="newGroupBtn">´╝ï &nbsp;┘àÏ¼┘à┘êÏ╣Ï®</button>
++      <button class="m-btn" type="button" id="editGroupBtn" disabled>Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
++      <button class="m-btn" type="button" id="deleteGroupBtn" disabled>­ƒùæ Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
++      <select id="statusFilter" class="m-select"><option value="">┘â┘ä Ïº┘äÏ¡Ïº┘äÏºÏ¬</option><option value="active">┘à┘üÏ╣┘äÏ®</option><option value="inactive">┘àÏ¬┘ê┘é┘üÏ®</option></select>
++      <button class="m-btn" type="button" id="refreshLibrary">Ôå╗ &nbsp;Ï¬Ï¡Ï»┘èÏ½</button>
+     </div>
+   </div>
+ 
+@@ -48,17 +47,16 @@
+       </div>
+       <span class="badge info" id="operationCount">0 Ï╣┘à┘ä┘èÏ®</span>
+     </div>
+-    <div class="table-wrap" data-mt-region>
++    <div class="table-wrap">
+       <table class="m-table" id="operationsTable">
+         <thead><tr>
+-  <th class="mt-actions-th" aria-label="ÏÑÏ¼Ï▒ÏºÏíÏºÏ¬"></th>
++  <th>#</th>
+   <th class="filter-head" data-filter-col="name">Ïº┘äÏ╣┘à┘ä┘èÏ® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+   <th class="filter-head" data-filter-col="group">Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+-  <th class="filter-head" data-filter-col="models">Ïº┘äÏÀÏ▒ÏºÏ▓ÏºÏ¬ <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+   <th class="filter-head" data-filter-col="condition">Ïº┘äÏ┤Ï▒ÏÀ <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+-  <th>Ïº┘ä┘êÏ¡Ï»Ï®</th>
+   <th class="filter-head" data-filter-col="warning">Ïº┘äÏÑ┘åÏ░ÏºÏ▒ <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+   <th class="filter-head" data-filter-col="status">Ïº┘äÏ¡Ïº┘äÏ® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
++  <th>Ïº┘äÏÑÏ¼Ï▒ÏºÏíÏºÏ¬</th>
+ </tr></thead>
+         <tbody id="operationsBody"><tr><td colspan="7" class="muted">Ï¼ÏºÏ▒┘ì Ï¬Ï¡┘à┘è┘ä Ïº┘ä┘à┘âÏ¬Ï¿Ï®...</td></tr></tbody>
+       </table>
+@@ -71,8 +69,6 @@
+       <input type="hidden" id="operationId">
+       <input class="m-input" id="operationName" required placeholder="ÏºÏ│┘à Ïº┘äÏ╣┘à┘ä┘èÏ®">
+       <select class="m-select" id="operationGroup"><option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option></select>
+-      <select class="m-select" id="operationModels" multiple style="min-height:100px"><option value="">ÏºÏ«Ï¬Ï▒ Ïº┘äÏÀÏ▒ÏºÏ▓ÏºÏ¬...</option></select>
+-      <small class="muted">Ïº┘äÏÀÏ▒ÏºÏ▓ÏºÏ¬ Ïº┘äÏ¬┘è Ï¬┘åÏÀÏ¿┘é Ï╣┘ä┘è┘çÏº ┘çÏ░┘ç Ïº┘äÏ╣┘à┘ä┘èÏ®. ÏÑÏ░Ïº Ï¬Ï▒┘âÏ¬ ┘üÏºÏ▒Ï║┘ïÏºÏî ┘ä┘å Ï¬┘â┘ê┘å Ïº┘äÏ╣┘à┘ä┘èÏ® ┘àÏ¬ÏºÏ¡Ï® ┘äÏú┘è Ï╣Ï¬ÏºÏ».</small>
+       <input class="m-input meter-km-field" id="intervalKm" type="number" min="0.01" step="any" placeholder="┘â┘ä ┘â┘à">
+       <input class="m-input meter-hours-field" id="intervalHours" type="number" min="0.01" step="any" placeholder="┘â┘ä Ï│ÏºÏ╣Ï® Ï¬Ï┤Ï║┘è┘ä">
+       <input class="m-input" id="intervalDays" type="number" min="1" step="1" placeholder="┘â┘ä ┘â┘à ┘è┘ê┘à">
+@@ -84,9 +80,6 @@
+       <button class="m-btn" type="button" id="cancelEditor">ÏÑ┘äÏ║ÏºÏí</button>
+     </form>
+   </section>
+-  <!-- Hidden filters for edit/delete group functionality -->
+-  <select id="groupFilter" class="m-select" style="display:none"><option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option></select>
+-  <select id="statusFilter" class="m-select" style="display:none"><option value="">┘â┘ä Ïº┘äÏ¡Ïº┘äÏºÏ¬</option><option value="active">┘à┘üÏ╣┘äÏ®</option><option value="inactive">┘àÏ¬┘ê┘é┘üÏ®</option></select>
+ </div>
+ 
+ <style>
+@@ -108,14 +101,12 @@
+   .excel-filter-values{max-height:260px;overflow:auto;border-top:1px solid #eee;padding-top:6px}
+   .excel-filter-values label{display:flex;align-items:center;gap:7px;padding:5px 3px;cursor:pointer}
+   .excel-filter-values label:hover{background:#f5f6f8}
+-  /* Row-action column, Ôï« trigger and context menu come from the shared
+-     /static/css/mt-tables.css component (classes: mt-actions-*, mt-row-*). */
+ </style>
+ <script>
+ (function(){
+   const api='/api/maintenance';
+   const state={groups:[],operations:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set()};
+-  const columnFilters={name:new Set(),group:new Set(),models:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
++  const columnFilters={name:new Set(),group:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
+   let openFilterMenu=null;
+   const $=id=>document.getElementById(id);
+   const alertBox=$('libraryAlert');
+@@ -140,17 +131,6 @@
+     if(op.interval_days!=null)a.push(op.interval_days+' ┘è┘ê┘à');
+     return a.length?a.join(' Ïú┘ê '):'ÔÇö';
+   }
+-  function modelsText(op){
+-    if(!op.equipment_model_ids || !op.equipment_model_ids.length) return '<span class="muted">ÔÇö ┘äÏº Ï¬┘êÏ¼Ï» ÏÀÏ▒ÏºÏ▓ÏºÏ¬</span>';
+-    return op.equipment_model_ids.map(id => `<span class="badge info" style="font-size:11px;padding:2px 6px;margin:1px;">${escapeHtml(id)}</span>`).join(' ');
+-  }
+-  function unitText(op){
+-    const a=[];
+-    if(op.interval_km!=null)a.push('┘â┘à');
+-    if(op.interval_hours!=null)a.push('Ï│ÏºÏ╣Ï®');
+-    if(op.interval_days!=null)a.push('┘è┘ê┘à');
+-    return a.length?a.join(' / '):'ÔÇö';
+-  }
+   function warningText(op){
+     const a=[];
+     if(op.warning_km!=null)a.push(Number(op.warning_km).toLocaleString('ar-DZ')+' ┘â┘à');
+@@ -159,23 +139,19 @@
+   }
+   function renderGroups(){
+     const filter=$('groupFilter'), editor=$('operationGroup');
+-    const currentEditor=editor.value;
+-    editor.innerHTML='<option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option>';
+-    state.groups.forEach(g=>{
+-      editor.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+-    });
+-    // Also populate the hidden groupFilter for edit/delete group functionality
++    const currentFilter=filter.value, currentEditor=editor.value;
+     filter.innerHTML='<option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option>';
++    editor.innerHTML='<option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option>';
+     state.groups.forEach(g=>{
+       filter.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
++      editor.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+     });
+-    editor.value=currentEditor;
++    filter.value=currentFilter; editor.value=currentEditor;
+   }
+   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+   function filterValue(op,col){
+     if(col==='name') return op.name||'';
+     if(col==='group') return groupName(op.group_id);
+-    if(col==='models') return modelsText(op);
+     if(col==='condition') return conditionText(op);
+     if(col==='warning') return warningText(op);
+     if(col==='status') return op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®';
+@@ -197,7 +173,7 @@
+   function openColumnFilter(col,button){
+     closeFilterMenu();
+     const values=[...new Set(state.operations.map(op=>filterValue(op,col)))].sort((a,b)=>a.localeCompare(b,'ar'));
+-    const selected=columnFilters[col] || new Set();
++    const selected=columnFilters[col];
+     const menu=document.createElement('div');
+     menu.className='excel-filter-menu';
+     menu.innerHTML=`
+@@ -245,41 +221,25 @@
+     });
+   }
+   function render(){
+-    try {
+-      const rows=state.operations.filter(op=>passesColumnFilters(op));
+-      $('operationCount').textContent=rows.length+' Ï╣┘à┘ä┘èÏ®';
+-      $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
+-        const selected=isPlanMode() && state.planOps.has(op.id);
+-        return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
+-        <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="ÏÑÏ¼Ï▒ÏºÏíÏºÏ¬ Ïº┘äÏ╣┘à┘ä┘èÏ®">Ôï«</button></td>
+-        <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">Ô£ô ÏÂ┘à┘å Ïº┘äÏ«ÏÀÏ®</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+-        <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+-        <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®'}</span></td>
+-      </tr>`;
+-      }).join(''):'<tr><td colspan="8" class="muted">┘äÏº Ï¬┘êÏ¼Ï» Ï╣┘à┘ä┘èÏºÏ¬ ┘àÏÀÏºÏ¿┘éÏ®.</td></tr>';
+-      if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' ┘àÏ¡Ï»Ï»Ï®';
+-      updateFilterButtons();
+-    } catch(e) {
+-      console.error('Render error:', e);
+-      $('operationsBody').innerHTML=`<tr><td colspan="8" class="muted danger">Ï«ÏÀÏú ┘ü┘è Ïº┘äÏ╣Ï▒ÏÂ: ${escapeHtml(e.message)}</td></tr>`;
+-    }
+-  }
+-  function rowMenuItems(op){
+-    return [
+-      {label:'Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä', onSelect:()=>editOperation(op.id)},
+-      {label:op.is_active?'ÔÅ© Ï¬Ï╣ÏÀ┘è┘ä':'ÔûÂ Ï¬┘üÏ╣┘è┘ä', onSelect:()=>toggleOperation(op.id)},
+-      {label:'­ƒùæ Ï¡Ï░┘ü', danger:true, onSelect:()=>deleteOperation(op.id)}
+-    ];
++    const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
++    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
++    $('operationCount').textContent=rows.length+' Ï╣┘à┘ä┘èÏ®';
++    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
++      const selected=isPlanMode() && state.planOps.has(op.id);
++      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}">
++      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">Ô£ô ÏÂ┘à┘å Ïº┘äÏ«ÏÀÏ®</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
++      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
++      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®'}</span></td>
++      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'ÔÅ© Ï¬Ï╣ÏÀ┘è┘ä':'ÔûÂ Ï¬┘üÏ╣┘è┘ä'}</button><button class="m-btn" type="button" data-delete="${op.id}">­ƒùæ Ï¡Ï░┘ü</button></td>
++    </tr>`;
++    }).join(''):'<tr><td colspan="7" class="muted">┘äÏº Ï¬┘êÏ¼Ï» Ï╣┘à┘ä┘èÏºÏ¬ ┘àÏÀÏºÏ¿┘éÏ®.</td></tr>';
++    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
++    document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
++    document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
++    if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' ┘àÏ¡Ï»Ï»Ï®';
++    updateFilterButtons();
+   }
+   $('operationsBody').addEventListener('click',e=>{
+-    const menuBtn=e.target.closest('.mt-row-btn[data-menu]');
+-    if(menuBtn){
+-      e.stopPropagation();
+-      const id=Number(menuBtn.dataset.menu);
+-      const op=state.operations.find(x=>x.id===id);
+-      if(op) MaterielTables.openRowMenu({trigger:menuBtn,items:rowMenuItems(op)});
+-      return;
+-    }
+     if(!isPlanMode())return;
+     if(e.target.closest('button,a,input,select'))return;
+     const row=e.target.closest('tr[data-plan-select]');
+@@ -291,26 +251,15 @@
+   document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
+     btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};
+   });
+-  $('operationsBody').addEventListener('contextmenu',e=>{
+-    const row=e.target.closest('tr[data-operation-id]');
+-    if(!row)return;
+-    e.preventDefault();
+-    const op=state.operations.find(x=>x.id===Number(row.dataset.operationId));
+-    if(op) MaterielTables.openRowMenu({x:e.clientX,y:e.clientY,items:rowMenuItems(op)});
+-  });
+   document.addEventListener('click',e=>{
+     if(openFilterMenu && !openFilterMenu.contains(e.target) && !e.target.closest('.col-filter')) closeFilterMenu();
+   });
+-  document.addEventListener('keydown',e=>{
+-    if(e.key==='Escape' && openFilterMenu) closeFilterMenu();
+-  });
+   function syncMeterFields(){
+     document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
+     document.querySelectorAll('.meter-hours-field').forEach(el=>{el.style.display='';});
+   }
+   function resetEditor(){
+     $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
+-    $('operationModels').value='';
+     $('intervalKm').value=''; $('intervalHours').value=''; $('intervalDays').value='';
+     $('warningKm').value=''; $('warningDays').value=''; $('operationDescription').value=''; $('operationActive').checked=true;
+     $('editorTitle').textContent='ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®'; $('operationEditor').style.display='';
+@@ -319,14 +268,6 @@
+   function editOperation(id){
+     const op=state.operations.find(x=>x.id===id); if(!op)return;
+     $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
+-    // Set equipment models
+-    if(op.equipment_model_ids && op.equipment_model_ids.length){
+-      Array.from($('operationModels').options).forEach(opt => {
+-        opt.selected = op.equipment_model_ids.includes(Number(opt.value));
+-      });
+-    } else {
+-      $('operationModels').value='';
+-    }
+     $('intervalKm').value=op.interval_km??''; $('intervalHours').value=op.interval_hours??''; $('intervalDays').value=op.interval_days??'';
+     $('warningKm').value=op.warning_km??''; $('warningDays').value=op.warning_days??'';
+     $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
+@@ -370,14 +311,8 @@
+   }
+   async function load(){
+     try{
+-      const [groups,operations,models]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`),request(`${api}/equipment/models`)]);
+-      console.log('Loaded:', groups.length, 'groups,', operations.length, 'operations,', models.length, 'models');
+-      state.groups=groups; state.operations=operations; state.models=models;
+-      // Populate equipment models select
+-      const modelSelect=$('operationModels');
+-      modelSelect.innerHTML='<option value="">ÏºÏ«Ï¬Ï▒ Ïº┘äÏÀÏ▒ÏºÏ▓ÏºÏ¬...</option>';
+-      models.forEach(m=>{modelSelect.insertAdjacentHTML('beforeend',`<option value="${m.id}">${escapeHtml(m.name)}</option>`);});
+-      await loadPlanContext();
++      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
++      state.groups=groups; state.operations=operations; await loadPlanContext();
+       if(isPlanMode()){
+         EditManager.register('maintenance-plan-selection',{
+           label:'Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏ«ÏÀÏ®',
+@@ -387,15 +322,11 @@
+         });
+       }
+       renderGroups(); render(); syncGroupButtons();
+-    }catch(e){
+-      console.error('Load error:', e);
+-      $('operationsBody').innerHTML=`<tr><td colspan="8" class="muted danger">Ï«ÏÀÏú ┘ü┘è Ïº┘äÏ¬Ï¡┘à┘è┘ä: ${escapeHtml(e.message)}</td></tr>`;
+-    }
++    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
+   }
+   $('operationForm').addEventListener('submit',async e=>{
+     e.preventDefault();
+     const id=$('operationId').value;
+-    const selectedModels=Array.from($('operationModels').selectedOptions).map(opt=>Number(opt.value));
+     const payload={
+       name:$('operationName').value.trim(),group_id:$('operationGroup').value?Number($('operationGroup').value):null,
+       interval_km:$('intervalKm').value?Number($('intervalKm').value):null,
+@@ -403,8 +334,7 @@
+       interval_days:$('intervalDays').value?Number($('intervalDays').value):null,
+       warning_km:$('warningKm').value?Number($('warningKm').value):null,
+       warning_days:$('warningDays').value?Number($('warningDays').value):null,
+-      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked,
+-      equipment_model_ids:selectedModels
++      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked
+     };
+     try{
+       await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+@@ -412,97 +342,17 @@
+       $('operationEditor').style.display='none'; await load();
+     }catch(err){showAlert(err.message,'danger')}
+   });
+-  // Dropdown handling for management menu
+-  const managementBtn = $('managementBtn');
+-  const managementMenu = $('managementMenu');
+-  let managementMenuOpen = false;
+-
+-  function openManagementMenu() {
+-    const rect = managementBtn.getBoundingClientRect();
+-    managementMenu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - managementMenu.offsetWidth - 8)) + 'px';
+-    managementMenu.style.top = Math.min(rect.bottom + 4, window.innerHeight - managementMenu.offsetHeight - 8) + 'px';
+-    managementMenu.style.display = 'block';
+-    managementBtn.setAttribute('aria-expanded', 'true');
+-    managementMenuOpen = true;
+-  }
+-
+-  function closeManagementMenu() {
+-    managementMenu.style.display = 'none';
+-    managementBtn.setAttribute('aria-expanded', 'false');
+-    managementMenuOpen = false;
+-  }
+-
+-  function toggleManagementMenu() {
+-    if (managementMenuOpen) closeManagementMenu();
+-    else openManagementMenu();
+-  }
+-
+-  managementBtn.onclick = (e) => { e.stopPropagation(); toggleManagementMenu(); };
+-
+-  // Close dropdown on outside click
+-  document.addEventListener('click', (e) => {
+-    if (managementMenuOpen && !managementMenu.contains(e.target) && !managementBtn.contains(e.target)) {
+-      closeManagementMenu();
+-    }
+-  });
+-
+-  // Close dropdown on Escape
+-  document.addEventListener('keydown', (e) => {
+-    if (e.key === 'Escape' && managementMenuOpen) closeManagementMenu();
+-  });
+-
+-  // Close dropdown on scroll
+-  document.addEventListener('scroll', () => { if (managementMenuOpen) closeManagementMenu(); }, true);
+-
+-  // Menu item handlers (reusing existing functions)
+-  $('menuNewOperation').onclick = () => { closeManagementMenu(); resetEditor(); };
+-  $('menuNewGroup').onclick = async () => {
+-    closeManagementMenu();
+-    const name = (prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® Ïº┘äÏ¼Ï»┘èÏ»Ï®:') || '').trim();
+-    if (!name) return;
+-    try {
+-      await request(`${api}/operation-groups`, {method: 'POST', body: JSON.stringify({name, sort_order: state.groups.length})});
+-      showAlert('Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
+-      await load();
+-    } catch (err) { showAlert(err.message, 'danger'); }
+-  };
+-  $('menuEditGroup').onclick = async () => {
+-    closeManagementMenu();
+-    const g = selectedGroup();
+-    if (!g) return;
+-    const name = (prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®:', g.name) || '').trim();
+-    if (!name || name === g.name) return;
+-    try {
+-      await request(`${api}/operation-groups/${g.id}`, {method: 'PUT', body: JSON.stringify({name, sort_order: g.sort_order})});
+-      showAlert('Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
+-      await load();
+-    } catch (err) { showAlert(err.message, 'danger'); }
+-  };
+-  $('menuDeleteGroup').onclick = async () => {
+-    closeManagementMenu();
+-    const g = selectedGroup();
+-    if (!g) return;
+-    if (!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® ┘ü┘éÏÀÏî ┘êÏ│Ï¬Ï¿┘é┘ë Ï╣┘à┘ä┘èÏºÏ¬┘çÏº Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ')) return;
+-    try {
+-      await request(`${api}/operation-groups/${g.id}`, {method: 'DELETE'});
+-      showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
+-      await load();
+-    } catch (err) { showAlert(err.message, 'danger'); }
+-  };
+-  $('menuRefresh').onclick = () => { closeManagementMenu(); load(); };
+-
++  $('newGroupBtn').onclick=async()=>{const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® Ïº┘äÏ¼Ï»┘èÏ»Ï®:')||'').trim();if(!name)return;try{await request(`${api}/operation-groups`,{method:'POST',body:JSON.stringify({name,sort_order:state.groups.length})});showAlert('Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+   function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
+-  function syncGroupButtons(){
+-    const has = !!selectedGroup();
+-    const menuEditBtn = $('menuEditGroup'), menuDeleteBtn = $('menuDeleteGroup');
+-    if (menuEditBtn) { menuEditBtn.disabled = !has; menuEditBtn.style.opacity = has ? '' : '.45'; menuEditBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
+-    if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '.45' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
+-  }
+-  $('groupFilter').addEventListener('change', syncGroupButtons);
+-  $('savePlanOperations').onclick = savePlanOperations;
+-  $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
+-  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; };
+-  $('groupFilter').onchange = render; $('statusFilter').onchange = render;
++  function syncGroupButtons(){const has=!!selectedGroup();$('editGroupBtn').disabled=!has;$('deleteGroupBtn').disabled=!has}
++  $('groupFilter').addEventListener('change',syncGroupButtons);
++  $('editGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®:',g.name)||'').trim();if(!name||name===g.name)return;try{await request(`${api}/operation-groups/${g.id}`,{method:'PUT',body:JSON.stringify({name,sort_order:g.sort_order})});showAlert('Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
++  $('deleteGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;if(!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® ┘ü┘éÏÀÏî ┘êÏ│Ï¬Ï¿┘é┘ë Ï╣┘à┘ä┘èÏºÏ¬┘çÏº Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ'))return;try{await request(`${api}/operation-groups/${g.id}`,{method:'DELETE'});showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
++  $('newOperationBtn').onclick=resetEditor;
++  $('savePlanOperations').onclick=savePlanOperations;
++  $('cancelPlanMode').onclick=()=>{window.location.href='/maintenance/plans'};
++  $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
++  $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
+   load();
+ })();
+ </script>

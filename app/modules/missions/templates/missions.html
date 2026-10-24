@@ -1,15 +1,43 @@
 {% extends "base.html" %}
 {% block title %}المهمات{% endblock %}
+{% block extra_head %}
+<style>
+.missions-page .mission-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:end}
+.missions-page .mission-field{display:flex;min-width:0;flex-direction:column;gap:6px}
+.missions-page .mission-field label{font-size:12px;font-weight:700;color:#374151}
+.missions-page .mission-field input,.missions-page .mission-field select{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#111827;font:inherit}
+.missions-page .mission-field input:focus,.missions-page .mission-field select:focus{outline:2px solid #9ca3af;outline-offset:1px;border-color:#4b5563}
+.missions-page .mission-field-wide{grid-column:1/-1}
+.missions-page .mission-submit{min-height:42px;padding:9px 16px;border:0;border-radius:8px;background:#374151;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.missions-page .mission-submit:hover{background:#1f2937}
+.missions-page .mission-drivers-link{display:inline-flex;align-items:center;min-height:40px;padding:8px 13px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#1f2937;text-decoration:none;font-weight:700}
+@media(max-width:900px){.missions-page .mission-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.missions-page .mission-form{grid-template-columns:minmax(0,1fr);gap:11px}.missions-page .mission-field-wide{grid-column:auto}.missions-page .record-panel{padding:14px}}
+</style>
+{% endblock %}
 {% block content %}
 <div class="record-page missions-page" dir="rtl">
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div></header>
+  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div><a class="mission-drivers-link" href="/missions/drivers">إدارة السائقين</a></header>
   <section class="record-panel"><div class="record-summary"><div class="record-box"><span>مخططة</span><b>{{ counts.planned }}</b></div><div class="record-box"><span>جارية</span><b>{{ counts.running }}</b></div><div class="record-box"><span>منتهية</span><b>{{ counts.completed }}</b></div></div></section>
   <section class="record-panel"><div class="record-section-head"><h3>تسجيل مهمة</h3><div class="record-hint">أدخل بيانات المهمة الأساسية وقراءات العداد إن توفرت.</div></div>
-    <form method="post" action="/missions" class="record-form">
-      <label>العتاد *<select name="equipment_id" required><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select></label>
-      <label>السائق<input name="driver_name" placeholder="اسم السائق"></label><label>وثيقة المهمة<input name="mission_document" placeholder="رقم الوثيقة"></label><label>الغرض<input name="purpose" placeholder="الغرض من المهمة"></label><label>الوجهة<input name="destination" placeholder="الوجهة"></label><label>تاريخ البداية *<input type="date" name="start_date" required></label><label>تاريخ النهاية<input type="date" name="end_date"></label><label>عداد الانطلاق<input type="number" step="0.1" name="departure_meter" placeholder="قراءة العداد"></label><label>عداد العودة<input type="number" step="0.1" name="return_meter" placeholder="قراءة العداد"></label><label>ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label><button>حفظ المهمة</button>
+    <form method="post" action="/missions" class="mission-form" data-em-root>
+      <div class="mission-field"><label for="missionEquipment">العتاد *</label><select id="missionEquipment" name="equipment_id" required><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.equipment_model.name ~ ' - ' if e.equipment_model else '' }}{{ e.registration_number or e.vin or e.asset_code }}</option>{% endfor %}</select></div>
+      <div class="mission-field"><label for="missionDriverId">السائق المسجل</label><select id="missionDriverId" name="driver_id"><option value="">غير مسجل</option>{% for driver in drivers %}<option value="{{ driver.id }}" data-equipment-id="{{ driver.assigned_equipment_id }}">{{ driver.center ~ ' - ' if driver.center else '' }}{{ driver.first_name }} {{ driver.last_name }}</option>{% endfor %}</select></div>
+      <div class="mission-field"><label for="missionDriver">اسم سائق غير مسجل (اختياري)</label><input id="missionDriver" name="driver_name" placeholder="اسم السائق"></div>
+      <div class="mission-field"><label for="missionDocument">رقم المهمة</label><input id="missionDocument" name="mission_document" placeholder="رقم المهمة"></div>
+      <div class="mission-field"><label for="missionPurpose">الغرض</label><input id="missionPurpose" name="purpose" placeholder="الغرض من المهمة"></div>
+      <div class="mission-field"><label for="missionDestination">الوجهة</label><input id="missionDestination" name="destination" placeholder="الوجهة"></div>
+      <div class="mission-field"><label for="missionStartDate">تاريخ الذهاب *</label><input id="missionStartDate" type="date" name="start_date" required></div>
+      <div class="mission-field"><label for="missionEndDate">تاريخ العودة</label><input id="missionEndDate" type="date" name="end_date"></div>
+      <div class="mission-field"><label for="missionDepartureMeter">عداد الانطلاق</label><input id="missionDepartureMeter" type="number" min="0" step="0.1" name="departure_meter" placeholder="قراءة العداد"></div>
+      <div class="mission-field"><label for="missionReturnMeter">عداد العودة</label><input id="missionReturnMeter" type="number" min="0" step="0.1" name="return_meter" placeholder="قراءة العداد"></div>
+      <div class="mission-field mission-field-wide"><label for="missionNotes">ملاحظات</label><input id="missionNotes" name="notes" placeholder="ملاحظات إضافية"></div>
+      <button class="mission-submit" type="submit" data-em-action="save">حفظ المهمة</button>
     </form>
   </section>
-  <section class="record-panel"><div class="record-section-head"><h3>سجل المهمات</h3></div><div class="record-table-wrap"><table class="record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>البداية</th><th>النهاية</th><th>الحالة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b>{{ x.mission.equipment.registration_number if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ x.mission.driver_name or '-' }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td><span class="record-badge {% if x.status == 'running' %}installed{% elif x.status == 'completed' %}good{% else %}stock{% endif %}">{% if x.status == 'running' %}جارية{% elif x.status == 'completed' %}منتهية{% else %}مخططة{% endif %}</span></td></tr>{% else %}<tr><td colspan="7" class="record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="record-panel"><div class="record-section-head"><h3>سجل المهمات</h3></div><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العتاد</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b>{{ x.mission.equipment.equipment_model.name ~ ' - ' if x.mission.equipment and x.mission.equipment.equipment_model else '' }}{{ x.mission.equipment.registration_number or x.mission.equipment.vin or x.mission.equipment.asset_code if x.mission.equipment else x.mission.equipment_id }}</b></td><td>{{ (x.mission.driver.center ~ ' - ' if x.mission.driver and x.mission.driver.center else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="7" class="record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
+<script>
+(function(){var equipment=document.getElementById('missionEquipment');var driver=document.getElementById('missionDriverId');if(!equipment||!driver)return;var options=Array.prototype.slice.call(driver.options);function syncDrivers(){options.forEach(function(option){if(!option.value)return;var available=!equipment.value||option.getAttribute('data-equipment-id')===equipment.value;option.hidden=!available;option.disabled=!available;if(!available&&driver.value===option.value)driver.value='';});}equipment.addEventListener('change',syncDrivers);syncDrivers();})();
+</script>
 {% endblock %}

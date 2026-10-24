@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import subprocess
 from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import make_url
 
+from app.core.branding import load_splash_content
 from app.core.config import security_warnings, settings
 from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
+from app.core.templating import get_module_templates
 from app.database.init_db import create_default_admin, init_db
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.equipment.router import router as equipment_router
@@ -16,32 +20,67 @@ from app.modules.equipment_maintenance.router import router as equipment_mainten
 from app.modules.equipment_types.router import router as equipment_types_router
 from app.modules.faults_repairs.router import router as faults_repairs_router
 from app.modules.spare_parts_requests.router import router as spare_parts_requests_router
-from app.modules.spare_parts_requests.routes import received_page, requests_page
+from app.modules.spare_parts_requests.routes import received_page, requests_page, spare_parts_page
+from app.modules.spare_parts_movements.router import router as spare_parts_movements_router
+from app.modules.spare_parts_movements.routes import router as spare_parts_movements_pages_router
 from app.modules.faults_repairs.routes import router as faults_repairs_pages_router
 from app.modules.maintenance.router import router as maintenance_router
 from app.modules.meter_readings.audit_router import router as meter_reading_audit_router
 from app.modules.meter_readings.router import router as meter_readings_router
 from app.modules.tires.router import router as tires_router
 from app.modules.batteries.router import router as batteries_router
+from app.modules.document_import.router import router as document_import_router
+from app.modules.spare_parts_catalog.router import router as spare_parts_catalog_router
 from app.modules.fuel.router import router as fuel_router
 from app.modules.missions.router import router as missions_router
 from app.modules.users.router import router as users_router
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATIC_DIR = PROJECT_ROOT / "static"
 
 logger = get_logger(__name__)
+splash_templates = get_module_templates("web/templates")
 
 
 def _database_file() -> str | None:
     """مسار ملف SQLite من DATABASE_URL، أو None لقاعدة غير ملفاتية."""
-    prefix = "sqlite:///"
-    if not settings.DATABASE_URL.startswith(prefix):
+    url = make_url(settings.DATABASE_URL)
+    if not url.drivername.startswith("sqlite"):
         return None
-    tail = settings.DATABASE_URL[len(prefix) :]
-    if tail in ("", ":memory:"):
+    database_file = url.database
+    if database_file in (None, "", ":memory:") or database_file.startswith("file:"):
         return None
-    return tail
+    return database_file
+
+
+def _git_commit() -> str:
+    """The commit this process is running, or a marker when git cannot say."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return done.stdout.strip() or "unknown"
+
+
+def _route_count(app: FastAPI) -> int:
+    """Every endpoint, including the ones inside included routers.
+
+    This FastAPI keeps include_router() results as _IncludedRouter wrappers
+    that carry no .path, so counting app.routes on its own reports only the
+    handful registered directly and hides everything else -- which is how a
+    server that never picked up a new route can look complete.
+    """
+    total = 0
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        total += 1
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            pending.extend(original.routes)
+    return total
 
 
 def create_app() -> FastAPI:
@@ -49,14 +88,27 @@ def create_app() -> FastAPI:
     async def lifespan(_app: FastAPI):
         configure_logging()
         logger.info("Starting %s (%s)", settings.APP_NAME, settings.ENV)
-        init_db()
-        create_default_admin()
-        # تحذيرات ما قبل النشر: تُسجَّل ولا توقف الإقلاع (انظر core/config.py).
-        for warning in security_warnings(_database_file()):
-            logger.warning("[security] %s", warning)
-        yield
-        logger.info("Shutting down %s", settings.APP_NAME)
-        shutdown_logging()
+        # shutdown_logging() drains the log queue, so it has to run even when
+        # startup fails -- otherwise the traceback of a failed migration is
+        # still queued when the process dies and never reaches stderr or app.log.
+        try:
+            init_db()
+            create_default_admin()
+            # What this process actually is. A server left running across
+            # commits serves old routes while the working tree has moved on,
+            # and the resulting 404 looks like a missing route in the code
+            # rather than a stale process. One line settles it.
+            logger.info(
+                "Startup facts: commit=%s routes=%d database=%s",
+                _git_commit(), _route_count(_app), settings.DATABASE_URL,
+            )
+            # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
+            for warning in security_warnings(_database_file()):
+                logger.warning("[security] %s", warning)
+            yield
+            logger.info("Shutting down %s", settings.APP_NAME)
+        finally:
+            shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -78,7 +130,8 @@ def create_app() -> FastAPI:
                     target += "?" + parsed.query
                 separator="&" if parsed.query else "?"
                 detail=str(exc.detail) if exc.detail else "تعذر تنفيذ العملية. راجع البيانات وحاول مرة أخرى."
-                target += separator + "notice_type=warning&notice=" + quote(detail)
+                notice_type = "danger" if exc.status_code >= 500 else "warning"
+                target += separator + "notice_type=" + notice_type + "&notice=" + quote(detail)
                 return RedirectResponse(url=target,status_code=303)
         return JSONResponse(status_code=exc.status_code,content={"detail":exc.detail},headers=exc.headers)
 
@@ -102,11 +155,19 @@ def create_app() -> FastAPI:
     app.include_router(faults_repairs_router, tags=["faults_repairs"])
     app.include_router(faults_repairs_pages_router, tags=["faults_repairs_pages"])
     app.include_router(spare_parts_requests_router, tags=["spare_parts_requests"])
+    app.include_router(spare_parts_movements_router, tags=["spare_parts_movements"])
+    app.include_router(spare_parts_movements_pages_router, tags=["spare_parts_movements_pages"])
+    app.add_api_route("/spare-parts", spare_parts_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_page", tags=["spare_parts_pages"])
     app.add_api_route("/spare-parts-requests", requests_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_requests_page", tags=["spare_parts_requests_pages"])
     app.add_api_route("/spare-parts-received", received_page, methods=["GET"], response_class=HTMLResponse, name="spare_parts_received_page", tags=["spare_parts_requests_pages"])
+    # /spare-parts-distribution, /spare-parts-return and /spare-parts-history are
+    # served by spare_parts_movements_pages_router above; registering them a
+    # second time here only gave every page two routes to one URL.
     app.include_router(tires_router, tags=["tires"])
     app.include_router(batteries_router, tags=["batteries"])
     app.include_router(fuel_router, tags=["fuel"])
+    app.include_router(document_import_router, tags=["document_import"])
+    app.include_router(spare_parts_catalog_router, tags=["spare_parts_catalog"])
     app.include_router(missions_router, tags=["missions"])
 
     @app.get("/health")
@@ -115,12 +176,17 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
+        continue_url = "/dashboard" if settings.DEV_DISABLE_AUTH else "/login"
         token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-        if token:
+        if not settings.DEV_DISABLE_AUTH and token:
             payload = decode_access_token(token)
             if payload and payload.get("sub"):
-                return RedirectResponse(url="/dashboard")
-        return RedirectResponse(url="/login")
+                continue_url = "/dashboard"
+        return splash_templates.TemplateResponse(
+            request=request,
+            name="splash.html",
+            context={"continue_url": continue_url, **load_splash_content()},
+        )
 
     return app
 
