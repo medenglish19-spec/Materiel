@@ -7,10 +7,7 @@ from io import BytesIO
 import unicodedata
 import zipfile
 
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.workbook.defined_name import DefinedName
+from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -82,103 +79,20 @@ def _validate_unit(value, *, field: str, allowed: tuple[str, ...], row_number: i
     return unit
 
 
-def create_operation_template(group_names: list[str]) -> bytes:
-    """Create the user-facing workbook with dropdowns matching program values."""
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "العمليات"
-    sheet.sheet_view.rightToLeft = True
-    sheet.freeze_panes = "A2"
-    sheet.append(OPERATION_IMPORT_HEADERS)
-    sheet.auto_filter.ref = f"A1:G{MAX_OPERATION_IMPORT_ROWS + 1}"
-
-    header_fill = PatternFill("solid", fgColor="28674A")
-    for cell in sheet[1]:
-        cell.fill = header_fill
-        cell.font = Font(name="Arial", color="FFFFFF", bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    sheet.row_dimensions[1].height = 32
-    for column, width in {
-        "A": 36, "B": 46, "C": 26, "D": 16, "E": 18, "F": 16, "G": 20,
-    }.items():
-        sheet.column_dimensions[column].width = width
-    for row in range(2, MAX_OPERATION_IMPORT_ROWS + 2):
-        sheet.cell(row, 4).number_format = "0.##"
-        sheet.cell(row, 6).number_format = "0.##"
-
-    lists = workbook.create_sheet("القوائم")
-    lists.sheet_view.rightToLeft = True
-    lists.append(["المجموعات", "وحدات الإنذار", "وحدات الشرط"])
-    groups = [GROUP_NO_VALUE, *sorted({name.strip() for name in group_names if name and name.strip()})]
-    for index, value in enumerate(groups, start=2):
-        cell = lists.cell(index, 1, value)
-        cell.data_type = "s"
-    for index, value in enumerate(WARNING_UNITS, start=2):
-        lists.cell(index, 2, value)
-    for index, value in enumerate(CONDITION_UNITS, start=2):
-        lists.cell(index, 3, value)
-    lists.sheet_state = "hidden"
-
-    workbook.defined_names.add(DefinedName(
-        "MaintenanceGroupOptions",
-        attr_text=f"'القوائم'!$A$2:$A${max(2, len(groups) + 1)}",
-    ))
-    workbook.defined_names.add(DefinedName(
-        "MaintenanceWarningUnits",
-        attr_text=f"'القوائم'!$B$2:$B${len(WARNING_UNITS) + 1}",
-    ))
-    workbook.defined_names.add(DefinedName(
-        "MaintenanceConditionUnits",
-        attr_text=f"'القوائم'!$C$2:$C${len(CONDITION_UNITS) + 1}",
-    ))
-
-    group_validation = DataValidation(type="list", formula1="=MaintenanceGroupOptions", allow_blank=True)
-    group_validation.errorTitle = "مجموعة غير معتمدة"
-    group_validation.error = "اختر مجموعة من القائمة الموجودة في البرنامج أو اترك الحقل فارغًا."
-    group_validation.showErrorMessage = True
-    sheet.add_data_validation(group_validation)
-    group_validation.add(f"C2:C{MAX_OPERATION_IMPORT_ROWS + 1}")
-
-    warning_units = DataValidation(type="list", formula1="=MaintenanceWarningUnits", allow_blank=True)
-    warning_units.errorTitle = "وحدة غير معتمدة"
-    warning_units.error = "اختر كم أو يومًا من القائمة."
-    warning_units.showErrorMessage = True
-    sheet.add_data_validation(warning_units)
-    warning_units.add(f"E2:E{MAX_OPERATION_IMPORT_ROWS + 1}")
-
-    condition_units = DataValidation(type="list", formula1="=MaintenanceConditionUnits", allow_blank=True)
-    condition_units.errorTitle = "وحدة غير معتمدة"
-    condition_units.error = "اختر كم أو ساعة تشغيل أو يومًا من القائمة."
-    condition_units.showErrorMessage = True
-    sheet.add_data_validation(condition_units)
-    condition_units.add(f"G2:G{MAX_OPERATION_IMPORT_ROWS + 1}")
-
-    positive_number = DataValidation(type="decimal", operator="greaterThan", formula1="0", allow_blank=True)
-    positive_number.errorTitle = "قيمة غير صالحة"
-    positive_number.error = "أدخل رقمًا أكبر من صفر."
-    positive_number.showErrorMessage = True
-    sheet.add_data_validation(positive_number)
-    positive_number.add(f"D2:D{MAX_OPERATION_IMPORT_ROWS + 1}")
-    positive_number.add(f"F2:F{MAX_OPERATION_IMPORT_ROWS + 1}")
-
-    output = BytesIO()
-    workbook.save(output)
-    return output.getvalue()
-
-
 def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup]) -> list[dict]:
-    """Validate the fixed template and return normalized rows without writing."""
+    """Validate the expected workbook structure and return normalized rows."""
     try:
         workbook = load_workbook(BytesIO(data), read_only=True, data_only=True)
     except (InvalidFileException, ValueError, zipfile.BadZipFile, OSError) as exc:
-        raise ValueError("تعذر قراءة الملف. ارفع قالب Excel بصيغة .xlsx.") from exc
+        raise ValueError("تعذر قراءة الملف. ارفع ملف Excel صالحًا بصيغة .xlsx.") from exc
     try:
         if "العمليات" not in workbook.sheetnames:
-            raise ValueError("الملف لا يحتوي على ورقة «العمليات» من القالب المعتمد.")
+            raise ValueError("يجب أن يحتوي الملف على ورقة باسم «العمليات».")
         sheet = workbook["العمليات"]
         headers = tuple(_clean_text(cell) for cell in next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ()))
         if headers != OPERATION_IMPORT_HEADERS:
-            raise ValueError("رؤوس الأعمدة لا تطابق قالب عمليات الصيانة المعتمد. نزّل قالبًا جديدًا من البرنامج.")
+            expected_headers = "، ".join(OPERATION_IMPORT_HEADERS)
+            raise ValueError(f"رؤوس الأعمدة أو ترتيبها غير مطابق. استخدم الترتيب التالي: {expected_headers}.")
 
         group_lookup: dict[str, int] = {}
         ambiguous_groups: set[str] = set()
@@ -197,7 +111,7 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
                 continue
             row_count += 1
             if row_count > MAX_OPERATION_IMPORT_ROWS:
-                raise ValueError(f"القالب يقبل حتى {MAX_OPERATION_IMPORT_ROWS} عملية في الملف الواحد.")
+                raise ValueError(f"الحد الأقصى {MAX_OPERATION_IMPORT_ROWS} عملية في الملف الواحد.")
 
             name = _clean_text(values[0] if len(values) > 0 else None)
             description = _clean_text(values[1] if len(values) > 1 else None)

@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import desc, delete
 from sqlalchemy.orm import Session, joinedload
 
@@ -24,9 +24,7 @@ from app.modules.maintenance.models import MaintenanceCatalogImport
 from app.modules.maintenance.catalog_import import (
     compare_previous_version, create_catalog_import, get_catalog_items, update_catalog_item,
 )
-from app.modules.maintenance.operation_excel_import import (
-    create_operation_template, import_model_operations,
-)
+from app.modules.maintenance.operation_excel_import import import_model_operations
 from app.modules.maintenance.schemas import (MaintenanceModelOperationCreate, MaintenanceModelOperationOut, MaintenanceModelOperationUpdate, MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenanceOperationModelConditionSave, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationsBulkCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
 from app.modules.maintenance.services import (
     CONDITION_UNSET,
@@ -822,22 +820,6 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
     )
 
 
-@router.get("/maintenance/rules/operation-template.xlsx")
-def maintenance_operation_template(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
-):
-    groups = db.query(MaintenanceOperationGroup).order_by(
-        MaintenanceOperationGroup.sort_order,
-        MaintenanceOperationGroup.name,
-    ).all()
-    content = create_operation_template([group.name for group in groups])
-    return Response(
-        content=content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="maintenance-operations-template.xlsx"'},
-    )
-
-
 @router.post("/maintenance/rules/import")
 async def maintenance_operation_import(
     model_id: int = Form(...), file: UploadFile = File(...),
@@ -847,7 +829,7 @@ async def maintenance_operation_import(
     filename = (file.filename or "").strip()
     if not filename.lower().endswith(".xlsx"):
         return RedirectResponse(
-            f"/maintenance/rules?{urlencode({'import_error': 'ارفع قالب Excel بصيغة .xlsx.', 'model_id': model_id})}",
+            f"/maintenance/rules?{urlencode({'import_error': 'ارفع ملف Excel بصيغة .xlsx.', 'model_id': model_id})}",
             status_code=303,
         )
     try:

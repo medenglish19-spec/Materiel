@@ -40,6 +40,51 @@ def test_rules_template_defaults_missing_selected_model_context():
     assert "{% set selected_library_model_id = selected_library_model_id|default('', true) %}" in _template()
 
 
+def test_operation_editor_uses_a_compact_table_with_explicit_alarm_unit_column():
+    template = _template()
+    assert template.index('id="operationName"') < template.index('id="operationGroup"')
+    assert '<th scope="col">الحقل</th><th scope="col">القيمة</th><th scope="col">الوحدة</th>' in template
+    assert 'id="modelWarningValue"' in template
+    assert 'id="modelWarningUnit"' in template
+    assert "＋ إضافة محور شرط" not in template
+    assert "conditionUnits.forEach(({unit,field,label})=>" in template
+    assert "input.placeholder='اختياري'" in template
+    assert "＋ إضافة عملية إلى مكتبة ${selectedModelName()||'الطراز المحدد'}" in template
+    assert "`مكتبة عمليات الصيانة للطراز ${modelName||'المحدد'}`" in template
+    assert "`عمليات الصيانة وشروطها وإنذاراتها الخاصة بطراز ${modelName}.`" in template
+    assert "اختر الطراز لعرض عملياته وشروطها وإنذاراتها الخاصة." in template
+
+
+def test_rules_page_avoids_duplicate_navigation_and_operation_creation_paths():
+    template = _template()
+    assert 'class="module-tabs"' not in template
+    assert 'class="breadcrumb"' not in template
+    assert 'href="/maintenance/periodic"' not in template
+    assert 'id="menuNewOperation"' not in template
+    assert template.count('id="newOperationBtn"') == 1
+    assert "/maintenance/rules/operation-template.xlsx" not in template
+
+
+def test_library_selection_updates_the_current_page_without_navigation():
+    template = _template()
+    selection_handler = template[template.index("function updateLibrarySelection()"):]
+    selection_handler = selection_handler[:selection_handler.index("$('libraryTypeFilter').addEventListener")]
+    assert "window.history.replaceState" in selection_handler
+    assert "window.location.href" not in selection_handler
+    assert "load();" in selection_handler
+    assert "state.libraryType=event.target.value" in template
+    assert "$('libraryModelFilter').addEventListener('change', updateLibrarySelection)" in template
+
+
+def test_operation_editor_sends_requests_for_both_general_and_model_operations():
+    template = _template()
+    submit_handler = template[template.index("$('operationForm').addEventListener('submit'"):]
+    submit_handler = submit_handler[:submit_handler.index("// Dropdown handling for management menu")]
+    assert "url=id?`${api}/model-operations/${id}`:`${api}/model-operations`" in submit_handler
+    assert "await request(url,{method,body:JSON.stringify(payload)});" in submit_handler
+    assert submit_handler.index("await request(url,{method,body:JSON.stringify(payload)});") > submit_handler.index("if(state.editorMode==='model')")
+
+
 # ------------------------------------------------- 1) حفظ عملية عامة
 
 

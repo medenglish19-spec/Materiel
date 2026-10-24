@@ -21,7 +21,7 @@ from decimal import Decimal
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from openpyxl import load_workbook
+from openpyxl import Workbook
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -215,13 +215,12 @@ def test_rules_page_lists_every_operation_with_its_model_summary(api):
 def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     """Real HTTP workbook upload creates private model operations without changing the general plan library."""
     client, ids = api
-    template = client.get("/maintenance/rules/operation-template.xlsx")
-    assert template.status_code == 200
-    assert "spreadsheetml.sheet" in template.headers["content-type"]
+    assert client.get("/maintenance/rules/operation-template.xlsx").status_code == 404
 
-    workbook = load_workbook(BytesIO(template.content))
-    sheet = workbook["العمليات"]
-    assert tuple(cell.value for cell in sheet[1]) == OPERATION_IMPORT_HEADERS
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "العمليات"
+    sheet.append(OPERATION_IMPORT_HEADERS)
     sheet.append(("تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة", 500, "كم", 20000, "كم"))
     stream = BytesIO()
     workbook.save(stream)
@@ -239,7 +238,7 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
 
     imported_page = client.get(upload.headers["location"])
     assert imported_page.status_code == 200
-    assert f'<option value="{ids["model_a"]}" selected>' in imported_page.text
+    assert re.search(rf'<option value="{ids["model_a"]}"[^>]*\bselected(?:\s|>)', imported_page.text)
     assert 'id="libraryModelFilter"' in imported_page.text
     assert 'id="modelConditionEditor"' in imported_page.text
 
@@ -292,7 +291,7 @@ def test_model_library_create_edit_toggle_and_delete_are_scoped(api):
 
     page = client.get(f"/maintenance/rules?view_model_id={ids['model_a']}")
     assert page.status_code == 200
-    assert f'<option value="{ids["model_a"]}" selected>' in page.text
+    assert re.search(rf'<option value="{ids["model_a"]}"[^>]*\bselected(?:\s|>)', page.text)
 
     updated_payload = {
         "name": "تغيير سائل التبريد وتفقده",
