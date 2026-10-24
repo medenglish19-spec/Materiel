@@ -281,6 +281,7 @@ def test_driver_mission_history_uses_relationship_and_unambiguous_legacy_names(d
 
 def test_center_header_label_is_shared_and_does_not_change_center_values(db):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-LABEL")
+    unassigned_equipment = _equipment(db, requires_driver=True, registration_number="DRV-UNASSIGNED")
     driver = services.create_driver(db, _driver_data("EMP-LABEL", equipment.id))
     admin = User(
         username="admin",
@@ -305,6 +306,8 @@ def test_center_header_label_is_shared_and_does_not_change_center_values(db):
     assert update_response.status_code == 303
     assert "الوحدة" in response.body.decode("utf-8")
     assert "DRV-LABEL" in response.body.decode("utf-8")
+    assert f"({1})</b>" in response.body.decode("utf-8")
+    assert f'data-add-driver-for="{unassigned_equipment.id}"' in response.body.decode("utf-8")
     assert "DRV-LABEL" in edit_response.body.decode("utf-8")
     assert db.query(Driver).filter(Driver.id == driver.id).one().center == "المركز الأول"
     assert services.get_driver_system_setting(db).center_column_label == "الوحدة"
