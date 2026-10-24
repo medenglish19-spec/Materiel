@@ -56,10 +56,30 @@ def test_operation_editor_exposes_independent_alarm_thresholds():
     assert "＋ إضافة محور شرط" not in template
     assert "conditionUnits.forEach(({unit,field,label})=>" in template
     assert "input.placeholder='اختياري'" in template
-    assert "＋ إضافة عملية إلى مكتبة ${selectedModelName()||'الطراز المحدد'}" in template
-    assert "`مكتبة عمليات الصيانة للطراز ${modelName||'المحدد'}`" in template
+    assert "＋ إضافة عملية إلى مكتبة ${selectedModelName()||'الطراز'}" in template
+    assert "مكتبة عمليات الصيانة — اختر الطراز" in template
     assert "`عمليات الصيانة وشروطها وإنذاراتها الخاصة بطراز ${modelName}.`" in template
     assert "اختر الطراز لعرض عملياته وشروطها وإنذاراتها الخاصة." in template
+
+
+def test_model_operation_warnings_show_their_units_in_the_unit_column():
+    template = _template()
+    warning_rows = {
+        "modelWarningKmRow": ("modelWarningKm", "كم"),
+        "modelWarningHoursRow": ("modelWarningHours", "ساعة تشغيل"),
+        "modelWarningDaysRow": ("modelWarningDays", "يوم"),
+    }
+
+    for row_id, (input_id, unit) in warning_rows.items():
+        row = template.split(f'<tr id="{row_id}"', 1)[1].split("</tr>", 1)[0]
+        assert f'<label for="{input_id}">قيمة الإنذار</label>' in row
+        assert f'<td class="operation-editor-unit">{unit}</td>' in row
+        assert f'id="{input_id}"' in row
+        assert 'colspan="2"' not in row
+
+    css = Path("static/css/maintenance.css").read_text(encoding="utf-8")
+    assert ".maintenance-page .operation-editor-table{width:100%;min-width:0;table-layout:fixed}" in css
+    assert 'min-width:460px' not in css
 
 
 def test_rules_page_avoids_duplicate_navigation_and_operation_creation_paths():
@@ -69,7 +89,7 @@ def test_rules_page_avoids_duplicate_navigation_and_operation_creation_paths():
     assert 'href="/maintenance/periodic"' not in template
     assert 'id="menuNewOperation"' not in template
     assert template.count('id="newOperationBtn"') == 1
-    assert "/maintenance/rules/operation-template.xlsx" not in template
+    assert 'id="downloadOperationTemplate"' in template
 
 
 def test_model_library_actions_stay_inside_library_header_on_desktop_and_mobile():
@@ -78,7 +98,7 @@ def test_model_library_actions_stay_inside_library_header_on_desktop_and_mobile(
     library_header_start = template.index('<div class="panel-head library-panel-head">')
     library_header_end = template.index('<div class="table-wrap mt-table-theme-green"', library_header_start)
     library_header = template[library_header_start:library_header_end]
-    page_heading = template[:template.index('<section class="panel" id="importPanel"')]
+    page_heading = template[:template.index('<dialog class="maintenance-operation-dialog maintenance-operation-import-dialog"')]
 
     assert 'class="library-panel-toolbar"' in library_header
     assert 'class="library-panel-actions"' in library_header
@@ -124,6 +144,24 @@ def test_operation_editor_opens_as_a_modal_dialog():
     assert "$('operationEditor').addEventListener('click', event => { if(event.target===$('operationEditor'))$('operationEditor').close(); });" in template
     assert ".maintenance-operation-dialog::backdrop" in Path("static/css/maintenance.css").read_text(encoding="utf-8")
     assert "$('operationEditor').style.display" not in template
+
+
+def test_excel_import_opens_a_dialog_with_header_preview_template_download_and_upload():
+    template = _template()
+    dialog_start = template.index('<dialog class="maintenance-operation-dialog maintenance-operation-import-dialog" id="operationImportDialog"')
+    dialog_end = template.index("</dialog>", dialog_start)
+    dialog = template[dialog_start:dialog_end]
+
+    assert 'id="downloadOperationTemplate"' in dialog
+    assert 'href="/maintenance/rules/operation-template.xlsx"' in dialog
+    assert "القالب عام لجميع العتاد" in dialog
+    assert "downloadLink.href='/maintenance/rules/operation-template.xlsx'" in template
+    assert "operation-template.xlsx?model_id=" not in template
+    assert 'id="operationImportForm"' in dialog
+    assert 'action="/maintenance/rules/import"' in dialog
+    assert "{% for header in operation_import_headers %}<th scope=\"col\">{{ header }}</th>{% endfor %}" in dialog
+    assert "$('operationImportDialog').showModal()" in template
+    assert "استيراد إلى مكتبة الطراز المحدد" not in dialog
 
 
 def test_library_selection_updates_the_current_page_without_navigation():

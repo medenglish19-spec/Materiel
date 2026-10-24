@@ -21,7 +21,7 @@ from decimal import Decimal
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -171,6 +171,9 @@ def test_rules_page_renders_and_distinguishes_loading_empty_and_error_states(api
     assert 'id="libraryModelFilter"' in page
     assert 'id="conditionDetailsBody"' not in page
     assert 'id="editorModelsBody"' not in page
+    assert 'id="operationImportDialog"' in page
+    assert 'id="downloadOperationTemplate"' in page
+    assert all(f"<th scope=\"col\">{header}</th>" in page for header in OPERATION_IMPORT_HEADERS)
 
     # مصدر البيانات: واجهات المكتبة الحقيقية.
     assert "const api='/api/maintenance'" in page
@@ -215,13 +218,36 @@ def test_rules_page_lists_every_operation_with_its_model_summary(api):
 def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     """Real HTTP workbook upload creates private model operations without changing the general plan library."""
     client, ids = api
-    assert client.get("/maintenance/rules/operation-template.xlsx").status_code == 404
+    # The template is equipment-neutral; model selection applies only to the upload destination.
+    template_response = client.get("/maintenance/rules/operation-template.xlsx")
+    assert template_response.status_code == 200, template_response.text
+    assert template_response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert 'maintenance_operations_template.xlsx' in template_response.headers["content-disposition"]
 
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "العمليات"
-    sheet.append(OPERATION_IMPORT_HEADERS)
-    sheet.append(("تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة", 500, 12.5, None, 20000, "كم"))
+    workbook = load_workbook(BytesIO(template_response.content))
+    assert "العمليات" in workbook.sheetnames
+    assert "إرشادات" in workbook.sheetnames
+    sheet = workbook["العمليات"]
+    assert tuple(cell.value for cell in sheet[1]) == OPERATION_IMPORT_HEADERS
+    assert OPERATION_IMPORT_HEADERS.index("قيمة الشرط 1") < OPERATION_IMPORT_HEADERS.index("قيمة الإنذار 1")
+    assert "قالب عام" in workbook["إرشادات"]["A2"].value
+    assert "الطراز المستهدف" in workbook["إرشادات"]["A2"].value
+    assert "مكتبة الطراز:" not in "\n".join(
+        str(cell.value or "") for row in workbook["إرشادات"].iter_rows() for cell in row
+    )
+    unit_validations = [validation for validation in sheet.data_validations.dataValidation if validation.type == "list"]
+    assert len(unit_validations) == 2
+    assert all(validation.errorStyle == "stop" for validation in unit_validations)
+    unit_validation = next(validation for validation in unit_validations if validation.formula1 == "=MaintenanceUnitOptions")
+    assert all(f"{column}2:{column}2001" in str(unit_validation.sqref) for column in ("E", "G", "I", "K", "M", "O"))
+    assert [workbook["القوائم"].cell(row, 2).value for row in range(1, 4)] == ["كم", "ساعة تشغيل", "يوم"]
+    sheet.append((
+        "تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة",
+        20000, "كم", 180, "يوم", None, None,
+        500, "كم", 12.5, "ساعة تشغيل", None, None,
+    ))
     stream = BytesIO()
     workbook.save(stream)
     workbook.close()
@@ -247,12 +273,35 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     private_operation = next(item for item in imported.json() if item["name"] == "تبديل مرشح الهواء")
     assert private_operation["equipment_model_id"] == ids["model_a"]
     assert float(private_operation["interval_km"]) == 20000
+    assert private_operation["interval_days"] == 180
     assert float(private_operation["warning_km"]) == 500
     assert float(private_operation["warning_hours"]) == 12.5
 
     # A different model cannot see this model-scoped operation.
     other_model = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_b']}")
     assert all(item["name"] != "تبديل مرشح الهواء" for item in other_model.json())
+
+    # Reuse the same generic workbook structure for a different equipment model.
+    workbook_for_other_model = load_workbook(BytesIO(stream.getvalue()))
+    workbook_for_other_model["العمليات"]["A2"] = "فحص مضخة الوقود"
+    workbook_for_other_model["العمليات"]["B2"] = "عملية خاصة بطراز آخر"
+    other_model_stream = BytesIO()
+    workbook_for_other_model.save(other_model_stream)
+    workbook_for_other_model.close()
+    second_upload = client.post(
+        "/maintenance/rules/import",
+        data={"model_id": str(ids["model_b"])},
+        files={"file": ("generic-operations.xlsx", other_model_stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        follow_redirects=False,
+    )
+    assert second_upload.status_code == 303
+    assert f"model_id={ids['model_b']}" in second_upload.headers["location"]
+    assert "imported=1" in second_upload.headers["location"]
+    other_model_after_import = client.get(
+        f"/api/maintenance/model-operations?equipment_model_id={ids['model_b']}"
+    ).json()
+    assert any(item["name"] == "فحص مضخة الوقود" for item in other_model_after_import)
+    assert all(item["name"] != "فحص مضخة الوقود" for item in imported.json())
 
     # The old plan flow still reads only the reusable public library.
     public_create = client.post(
@@ -280,20 +329,55 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     assert sum(item["name"] == "تبديل مرشح الهواء" for item in after_duplicate) == 1
 
 
-def test_excel_import_accepts_operating_hours_warning():
+def test_excel_import_accepts_multiple_conditions_and_warning_axes():
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "العمليات"
     sheet.append(OPERATION_IMPORT_HEADERS)
-    sheet.append(("فحص مضخة الوقود", "", "بدون مجموعة", 500, 12.5, 3, 250, "ساعة تشغيل"))
+    sheet.append((
+        "فحص مضخة الوقود", "", "بدون مجموعة",
+        250, "ساعة تشغيل", 90, "يوم", None, None,
+        500, "كم", 12.5, "ساعة تشغيل", 3, "يوم",
+    ))
     stream = BytesIO()
     workbook.save(stream)
     workbook.close()
 
     rows = parse_operation_workbook(stream.getvalue(), [])
+    assert rows[0]["condition"]["interval_hours"] == Decimal("250")
+    assert rows[0]["condition"]["interval_days"] == 90
     assert rows[0]["warning_km"] == Decimal("500")
     assert rows[0]["warning_hours"] == Decimal("12.5")
     assert rows[0]["warning_days"] == 3
+
+
+def test_excel_import_rejects_invalid_or_duplicate_units_and_unpaired_values():
+    valid_row = [
+        "عملية اختبار", "", "بدون مجموعة",
+        10000, "كم", None, None, None, None,
+        500, "كم", None, None, None, None,
+    ]
+    invalid_rows = [
+        ("وحدة «الشرط» غير صالحة", {4: "كيلومتر"}),
+        ("لا تكرر وحدة «كم» ضمن الشرط", {5: 30, 6: "كم"}),
+        ("قيمة الشرط ووحدتها معًا", {3: None}),
+        ("قيمة الإنذار ووحدتها معًا", {9: None}),
+    ]
+
+    for message, changes in invalid_rows:
+        row = valid_row.copy()
+        for index, value in changes.items():
+            row[index] = value
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "العمليات"
+        sheet.append(OPERATION_IMPORT_HEADERS)
+        sheet.append(row)
+        stream = BytesIO()
+        workbook.save(stream)
+        workbook.close()
+        with pytest.raises(ValueError, match=message):
+            parse_operation_workbook(stream.getvalue(), [])
 
 
 def test_excel_import_requires_at_least_one_warning_value():
@@ -301,12 +385,16 @@ def test_excel_import_requires_at_least_one_warning_value():
     sheet = workbook.active
     sheet.title = "العمليات"
     sheet.append(OPERATION_IMPORT_HEADERS)
-    sheet.append(("فحص مضخة الوقود", "", "بدون مجموعة", None, None, None, 250, "ساعة تشغيل"))
+    sheet.append((
+        "فحص مضخة الوقود", "", "بدون مجموعة",
+        250, "ساعة تشغيل", None, None, None, None,
+        None, None, None, None, None, None,
+    ))
     stream = BytesIO()
     workbook.save(stream)
     workbook.close()
 
-    with pytest.raises(ValueError, match="قيمة إنذار واحدة على الأقل"):
+    with pytest.raises(ValueError, match="قيمة الإنذار واحدة على الأقل"):
         parse_operation_workbook(stream.getvalue(), [])
 
 

@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}مكتبة عمليات الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=library-table-controls-20261024">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=model-operation-import-dialog-20261024">{% endblock %}
 {% block content %}
 {% set selected_library_model_id = selected_library_model_id|default('', true) %}
+{% set operation_import_headers = operation_import_headers|default(("العملية", "الوصف", "المجموعة", "قيمة الشرط 1", "وحدة الشرط 1", "قيمة الشرط 2", "وحدة الشرط 2", "قيمة الشرط 3", "وحدة الشرط 3", "قيمة الإنذار 1", "وحدة الإنذار 1", "قيمة الإنذار 2", "وحدة الإنذار 2", "قيمة الإنذار 3", "وحدة الإنذار 3"), true) %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading">
@@ -13,25 +14,43 @@
   {% if import_error %}
   <div class="alert danger" role="alert" style="margin-bottom:16px">{{ import_error }}</div>
   {% elif imported_count %}
-  <div class="alert success" role="status" style="margin-bottom:16px">تم استيراد {{ imported_count }} عملية إلى مكتبة الطراز: {{ imported_model_name or 'المحدد' }}.</div>
+  <div class="alert success" role="status" style="margin-bottom:16px">تم استيراد {{ imported_count }} عملية إلى مكتبة الطراز: {{ imported_model_name or 'غير معروف' }}.</div>
   {% endif %}
 
-  <section class="panel" id="importPanel" style="margin-bottom:16px;display:none">
-    <div class="panel-head">
-      <div>
-        <h3>استيراد العمليات من ملف Excel</h3>
-        <p>اختر ملفًا بصيغة Excel يحتوي ورقة «العمليات»، وبالأعمدة التالية بالترتيب: العملية، الوصف، المجموعة، قيمة الإنذار، وحدة الإنذار، قيمة الشرط، وحدة الشرط.</p>
+  <dialog class="maintenance-operation-dialog maintenance-operation-import-dialog" id="operationImportDialog" aria-labelledby="operationImportTitle">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h3 id="operationImportTitle">استيراد العمليات من ملف Excel</h3>
+          <p>القالب عام لجميع العتاد، وسيُضاف الملف إلى مكتبة الطراز المختار: <strong id="importTargetModelName"></strong></p>
+        </div>
+        <button class="m-btn dialog-close" type="button" id="closeOperationImport" aria-label="إغلاق">×</button>
       </div>
-    </div>
-    <form action="/maintenance/rules/import" method="post" enctype="multipart/form-data" class="toolbar" style="padding:0 16px 16px;gap:10px;flex-wrap:wrap" data-em-root>
-      <input type="hidden" name="model_id" id="importModelId" value="{{ selected_library_model_id }}">
-      <label style="display:flex;flex-direction:column;gap:5px;min-width:260px">
-        <span>اختر ملف Excel المعبأ</span>
-        <input class="m-input" type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-      </label>
-      <button class="m-btn primary" type="submit">استيراد إلى مكتبة الطراز المحدد</button>
-    </form>
-  </section>
+      <div class="operation-import-content">
+        <h4>رأس جدول ورقة «العمليات»</h4>
+        <div class="table-wrap operation-import-header-wrap">
+          <table class="m-table operation-import-header-table">
+            <thead><tr>{% for header in operation_import_headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+          </table>
+        </div>
+        <p class="muted">نزّل القالب، وأدخل العمليات في ورقة «العمليات» مع إبقاء أسماء الأعمدة وترتيبها كما هي.</p>
+        <div class="operation-import-actions">
+          <a class="m-btn" id="downloadOperationTemplate" href="/maintenance/rules/operation-template.xlsx" download>تنزيل قالب Excel العام</a>
+        </div>
+        <form id="operationImportForm" action="/maintenance/rules/import" method="post" enctype="multipart/form-data" class="operation-import-form" data-em-root>
+          <input type="hidden" name="model_id" id="importModelId" value="{{ selected_library_model_id }}">
+          <label>
+            <span>اختر ملف Excel بعد تعبئته</span>
+            <input class="m-input" type="file" name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+          </label>
+          <div class="operation-import-actions">
+            <button class="m-btn primary" id="importSubmitBtn" type="submit">استيراد إلى مكتبة الطراز</button>
+            <button class="m-btn" type="button" id="cancelOperationImport">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </dialog>
 
   <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
   <div id="planModeBar" class="plan-mode-bar">
@@ -139,16 +158,19 @@
               <td colspan="2">أدخل قيمة واحدة على الأقل؛ يمكن الجمع بين المحاور، ويظهر التنبيه عند تحقق أي منها.</td>
             </tr>
             <tr id="modelWarningKmRow" style="display:none">
-              <th scope="row"><label for="modelWarningKm">إنذار كم</label></th>
-              <td colspan="2"><input class="m-input" id="modelWarningKm" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+              <th scope="row"><label for="modelWarningKm">قيمة الإنذار</label></th>
+              <td><input class="m-input" id="modelWarningKm" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+              <td class="operation-editor-unit">كم</td>
             </tr>
             <tr id="modelWarningHoursRow" style="display:none">
-              <th scope="row"><label for="modelWarningHours">إنذار ساعة تشغيل</label></th>
-              <td colspan="2"><input class="m-input" id="modelWarningHours" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+              <th scope="row"><label for="modelWarningHours">قيمة الإنذار</label></th>
+              <td><input class="m-input" id="modelWarningHours" type="number" min="0" step="0.1" placeholder="قيمة الإنذار"></td>
+              <td class="operation-editor-unit">ساعة تشغيل</td>
             </tr>
             <tr id="modelWarningDaysRow" style="display:none">
-              <th scope="row"><label for="modelWarningDays">إنذار أيام</label></th>
-              <td colspan="2"><input class="m-input" id="modelWarningDays" type="number" min="0" step="1" placeholder="قيمة الإنذار"></td>
+              <th scope="row"><label for="modelWarningDays">قيمة الإنذار</label></th>
+              <td><input class="m-input" id="modelWarningDays" type="number" min="0" step="1" placeholder="قيمة الإنذار"></td>
+              <td class="operation-editor-unit">يوم</td>
             </tr>
             <tr id="globalWarningEditor" style="display:none">
               <th scope="row">إنذار العملية (إلزامي)</th>
@@ -267,6 +289,17 @@
     return op.condition_summary || {models_count:0,warning:null,has_multiple_warnings:false};
   }
   function selectedModelId(){return Number($('libraryModelFilter')?.value)||null}
+  function updateImportDialogTarget(){
+    const modelId=selectedModelId();
+    const modelName=selectedModelName();
+    $('importModelId').value=modelId||'';
+    $('importTargetModelName').textContent=modelName||'اختر الطراز';
+    $('importSubmitBtn').textContent=modelName?`استيراد إلى مكتبة ${modelName}`:'اختر الطراز';
+    const downloadLink=$('downloadOperationTemplate');
+    downloadLink.href='/maintenance/rules/operation-template.xlsx';
+    downloadLink.textContent='تنزيل قالب Excel العام';
+    downloadLink.setAttribute('aria-disabled','false');
+  }
   function isModelLibrary(){return !isPlanMode()&&state.libraryType==='model'}
   function conditionForModel(op,modelId=selectedModelId()){
     return (op.model_conditions||[]).find(item=>Number(item.model_id)===Number(modelId))||null;
@@ -306,7 +339,7 @@
     document.querySelectorAll('.model-condition-value').forEach(input=>{input.disabled=!modelMode});
     ['operationName','operationGroup','operationDescription','operationActive'].forEach(id=>$(id).disabled=false);
     $('modelEditorLabel').textContent='شرط وإنذار الطراز';
-    const modelName=selectedModelName()||'الطراز المحدد';
+    const modelName=selectedModelName()||'الطراز';
     $('editorDescription').textContent=modelMode
       ?`هذه العملية خاصة بمكتبة ${modelName} ولا تظهر في مكتبات الطرازات الأخرى.`
       :'أدخل بيانات العملية العامة لإتاحتها للطرازات والخطط.';
@@ -469,7 +502,7 @@
     const modelMode=isModelLibrary();
     const modelName=selectedModelName();
     $('libraryTitle').textContent=modelMode
-      ?`مكتبة عمليات الصيانة للطراز ${modelName||'المحدد'}`
+      ?modelName?`مكتبة عمليات الصيانة للطراز ${modelName}`:'مكتبة عمليات الصيانة — اختر الطراز'
       :'مكتبة العمليات العامة';
     $('libraryDescription').textContent=modelMode
       ?modelName
@@ -479,10 +512,10 @@
     $('libraryModelFilterWrap').style.display=state.libraryType==='model'?'flex':'none';
     $('importOperationsBtn').style.display=modelMode?'inline-flex':'none';
     $('importOperationsBtn').disabled=modelMode&&!selectedModelId();
-    $('importPanel').style.display=modelMode&&$('importPanel').dataset.open==='true'?'':'none';
+    updateImportDialogTarget();
     $('newOperationBtn').disabled=modelMode&&!selectedModelId();
     $('newOperationBtn').textContent=modelMode
-      ?`＋ إضافة عملية إلى مكتبة ${selectedModelName()||'الطراز المحدد'}`
+      ?`＋ إضافة عملية إلى مكتبة ${selectedModelName()||'الطراز'}`
       :'＋ إضافة عملية عامة';
     const headers=['<th class="mt-actions-th"><input type="checkbox" id="selectAllOperations" aria-label="حدد الكل"></th>',
       '<th class="filter-head" data-filter-col="name">العملية <button class="col-filter" type="button" title="تصفية">▼</button></th>',
@@ -972,10 +1005,6 @@
   });
 
   $('newOperationBtn').onclick = resetEditor;
-  $('importOperationsBtn').onclick=()=>{
-    if(!selectedModelId())return showAlert('اختر الطراز قبل فتح استيراد Excel.','danger');
-    $('importPanel').dataset.open='true';$('importPanel').style.display='';$('importModelId').value=selectedModelId();$('importPanel').scrollIntoView({behavior:'smooth',block:'start'});
-  };
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
   $('cancelEditor').onclick = () => { $('operationEditor').close(); if(window.EditManager)EditManager.restoreForm($('operationForm')); };
@@ -1071,6 +1100,16 @@
   };
 
   $('newOperationBtn').onclick = resetEditor;
+  $('importOperationsBtn').onclick=()=>{
+    if(!selectedModelId())return showAlert('اختر الطراز قبل استيراد ملف Excel.','danger');
+    updateImportDialogTarget();
+    $('operationImportDialog').showModal();
+  };
+  $('closeOperationImport').onclick=()=>$('operationImportDialog').close();
+  $('cancelOperationImport').onclick=()=>$('operationImportDialog').close();
+  $('operationImportDialog').addEventListener('click',event=>{
+    if(event.target===$('operationImportDialog'))$('operationImportDialog').close();
+  });
   $('savePlanOperations').onclick = savePlanOperations;
   $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
   $('cancelEditor').onclick = () => { $('operationEditor').close(); if(window.EditManager)EditManager.restoreForm($('operationForm')); };
@@ -1082,8 +1121,7 @@
     const query=params.toString();
     window.history.replaceState(null,'','/maintenance/rules'+(query?'?'+query:''));
     if($('operationEditor').open)$('operationEditor').close();
-    $('importPanel').dataset.open='false';
-    $('importPanel').style.display='none';
+    if($('operationImportDialog').open)$('operationImportDialog').close();
     if(window.EditManager)EditManager.restoreForm($('operationForm'));
     load();
   }
@@ -1092,7 +1130,7 @@
     updateLibrarySelection();
   });
   $('libraryModelFilter').addEventListener('change', updateLibrarySelection);
-  if(state.libraryType==='model'&&selectedModelId())$('importModelId').value=selectedModelId();
+  updateImportDialogTarget();
   load();
 })();
 {% endraw %}
