@@ -355,6 +355,7 @@ def test_driver_header_sequence_is_rendered_and_label_editor_is_admin_only(db):
 
 def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-HTTP")
+    unassigned_equipment = _equipment(db, requires_driver=True, registration_number="DRV-WAITING")
     admin = User(
         username="admin",
         full_name="مدير النظام",
@@ -384,6 +385,25 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
             follow_redirects=False,
         )
         assert created.status_code == 303
+
+        unassigned_page = client.get("/missions/drivers")
+        assert f'<b>(1)</b>' in unassigned_page.text
+        assert f'data-add-driver-for="{unassigned_equipment.id}"' in unassigned_page.text
+        assigned_from_list = client.post(
+            "/missions/drivers",
+            data={
+                "first_name": "سائق",
+                "last_name": "من القائمة",
+                "license_class": "C",
+                "assigned_equipment_id": str(unassigned_equipment.id),
+            },
+            follow_redirects=False,
+        )
+        assert assigned_from_list.status_code == 303
+        refreshed_unassigned_page = client.get("/missions/drivers")
+        assert "<b>(0)</b>" in refreshed_unassigned_page.text
+        assert f'data-add-driver-for="{unassigned_equipment.id}"' not in refreshed_unassigned_page.text
+        assert "لا يوجد عتاد يتطلب سائقًا دون سائق نشط." in refreshed_unassigned_page.text
 
         mission_created = client.post(
             "/missions",
