@@ -324,7 +324,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
         battery = Battery(
             serial_number=f"{MARKER}-BAT-{idx + 1:02d}",
             brand=f"{MARKER} — Varta",
-            model=f"{MARKER} — Heavy Duty",
+            battery_type=f"{MARKER} — Heavy Duty",
             manufacture_date=today - timedelta(days=150),
             receipt_date=today - timedelta(days=100),
             expiry_date=today + timedelta(days=500),
@@ -403,7 +403,7 @@ def _create_tires_and_batteries(db: Session, equipment, models, positions):
             replacement_battery = Battery(
                 serial_number=f"{MARKER}-BAT-R-{idx + 1:02d}",
                 brand=f"{MARKER} — Varta",
-                model=f"{MARKER} — Replacement",
+                battery_type=f"{MARKER} — Replacement",
                 manufacture_date=today - timedelta(days=80),
                 receipt_date=today - timedelta(days=50),
                 expiry_date=today + timedelta(days=600),

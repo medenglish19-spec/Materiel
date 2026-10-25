@@ -22,6 +22,7 @@ CATALOG_TABLES = {
     "spare_part_catalog_references",
     "spare_part_catalog_imports",
     "maintenance_catalog_imports",
+    "fuel_model_consumption_rates",
 }
 DRIVER_TABLES = {"drivers", "driver_system_settings"}
 
@@ -59,6 +60,7 @@ def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path
     Base.metadata.create_all(engine, tables=legacy_tables)
     with engine.begin() as connection:
         _create_legacy_missions(connection)
+        connection.execute(text("ALTER TABLE batteries RENAME COLUMN capacity TO model"))
     from sqlalchemy.orm import Session
     with Session(engine) as session:
         equipment_type = EquipmentType(name="Migration km", measurement_unit="km")
@@ -113,6 +115,7 @@ def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path
 
     migrated = create_engine(f"sqlite:///{database}")
     with migrated.connect() as connection:
+        assert "capacity" in {c["name"] for c in inspect(connection).get_columns("batteries")}
         assert "meter_value" not in {c["name"] for c in inspect(connection).get_columns("fuel_records")}
         reading = connection.execute(text(
             "SELECT odometer, source, source_reference FROM meter_readings WHERE equipment_id=:id"

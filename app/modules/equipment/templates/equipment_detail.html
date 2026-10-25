@@ -40,6 +40,8 @@
     </div>
     <div class="ed-actions">
       <a class="ed-btn" href="/equipment/{{ item.id }}/meters">⚙ العداد</a>
+      <a class="ed-btn" href="/equipment/{{ item.id }}/tires">الإطارات <span class="ed-sub">({{ installed_tires|length }})</span></a>
+      <a class="ed-btn" href="/equipment/{{ item.id }}/batteries">البطاريات <span class="ed-sub">({{ installed_batteries|length }})</span></a>
       <a class="ed-btn" href="/faults-repairs/faults">⚠ تسجيل عطل</a>
       <a class="ed-btn pri" href="/maintenance/records#newRecord">🔧 تسجيل صيانة</a>
     </div>

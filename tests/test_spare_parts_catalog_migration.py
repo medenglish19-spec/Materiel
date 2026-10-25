@@ -13,6 +13,7 @@ CATALOG_TABLES = {
     "spare_part_catalog_references",
     "spare_part_catalog_imports",
     "maintenance_catalog_imports",
+    "fuel_model_consumption_rates",
 }
 DRIVER_TABLES = {"drivers", "driver_system_settings"}
 
@@ -49,6 +50,7 @@ def test_catalog_migration_up_and_down_on_isolated_legacy_schema(tmp_path):
     Base.metadata.create_all(engine, tables=legacy_tables)
     with engine.begin() as connection:
         _create_legacy_missions(connection)
+        connection.execute(text("ALTER TABLE batteries RENAME COLUMN capacity TO model"))
         connection.execute(text("INSERT INTO spare_parts (part_number, name, receiving_document, notes) VALUES ('OLD-1', 'Existing part', 'receipt-1', NULL)"))
 
     config = Config("alembic.ini")
