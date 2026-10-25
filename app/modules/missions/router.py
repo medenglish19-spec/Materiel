@@ -34,7 +34,18 @@ def missions_page(request: Request, db: Session = Depends(get_db), current_user:
         .order_by(Equipment.registration_number, Equipment.id)
         .all()
     )
-    return templates.TemplateResponse(request=request, name="missions.html", context={"request": request, "user": current_user, "equipment": equipment, "drivers": services.list_active_assigned_drivers(db), "driver_equipment": _driver_equipment_options(db), "counts": services.counts(db), "license_expiry_alerts": services.license_expiry_alerts(drivers, today=today), "today": today})
+    mission_status_rows = services.mission_equipment_status_rows(db, today=today)
+    context = {
+        "request": request,
+        "user": current_user,
+        "equipment": equipment,
+        "drivers": services.list_active_assigned_drivers(db),
+        "counts": services.counts_from_status_rows(mission_status_rows),
+        "mission_status_rows": mission_status_rows,
+        "license_expiry_alerts": services.license_expiry_alerts(drivers, today=today),
+        "today": today,
+    }
+    return templates.TemplateResponse(request=request, name="missions.html", context=context)
 
 
 @router.get("/missions/records", response_class=HTMLResponse)

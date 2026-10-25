@@ -361,27 +361,41 @@ def sync_mission_statuses(db: Session):
     db.commit()
 
 
-def counts(db: Session):
-    """احتساب حالة المهمات على مستوى العتاد، لا على مستوى سجلات المهمات."""
-    result = {"planned": 0, "running": 0, "completed": 0}
-    today = date.today()
-
-    equipment = db.query(Equipment).all()
+def mission_equipment_status_rows(db: Session, today: date | None = None):
+    """إرجاع صف واحد لكل عتاد له مهمات، وفق منطق الحالة الموحّد للمؤشرات."""
+    today = today or date.today()
+    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_model)).all()
     missions_by_equipment = {}
     for mission in list_missions(db):
         missions_by_equipment.setdefault(mission.equipment_id, []).append(mission)
 
+    rows = []
     for eq in equipment:
         missions = missions_by_equipment.get(eq.id, [])
         if not missions:
             continue
 
-        statuses = {mission_status(mission, today) for mission in missions}
+        mission_statuses = [(mission, mission_status(mission, today)) for mission in missions]
+        statuses = {status for _, status in mission_statuses}
         if "running" in statuses:
-            result["running"] += 1
+            status = "running"
         elif "planned" in statuses:
-            result["planned"] += 1
+            status = "planned"
         else:
-            result["completed"] += 1
+            status = "completed"
+        mission = next(mission for mission, item_status in mission_statuses if item_status == status)
+        rows.append({"equipment": eq, "mission": mission, "status": status})
 
+    return rows
+
+
+def counts(db: Session):
+    """احتساب حالة المهمات على مستوى العتاد، لا على مستوى سجلات المهمات."""
+    return counts_from_status_rows(mission_equipment_status_rows(db))
+
+
+def counts_from_status_rows(rows):
+    result = {"planned": 0, "running": 0, "completed": 0}
+    for row in rows:
+        result[row["status"]] += 1
     return result

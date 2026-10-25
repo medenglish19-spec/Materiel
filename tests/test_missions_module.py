@@ -12,7 +12,7 @@ def test_mission_status_is_date_derived():
     assert mission_status(Mission(start_date=today - timedelta(days=2), end_date=today)) == "running"
 
 
-def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed_unit_nav():
+def test_mission_page_dialogs_and_driver_actions_are_in_their_own_pages():
     page = Path("app/modules/missions/templates/missions.html").read_text(encoding="utf-8")
     base = Path("web/templates/base.html").read_text(encoding="utf-8")
     drivers_page = Path("app/modules/missions/templates/drivers.html").read_text(encoding="utf-8")
@@ -20,12 +20,15 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
 
     assert 'id="openMissionDialog"' in page
     assert '<dialog class="mission-dialog" id="missionDialog"' in page
-    assert page.index('<dialog class="mission-dialog"') < page.index('<form method="post" action="/missions"') < page.index("</dialog>")
-    assert "missionDialog.showModal()" in page and "driverDialog.showModal()" in page
+    mission_dialog_start = page.index('<dialog class="mission-dialog" id="missionDialog"')
+    mission_form_start = page.index('<form method="post" action="/missions"')
+    assert mission_dialog_start < mission_form_start < page.index("</dialog>", mission_dialog_start)
+    assert "missionDialog.showModal()" in page
     assert "id=\"closeMissionDialog\"" in page
-    assert 'id="driverDialog"' in page
-    assert '<form method="post" action="/missions/drivers"' in page
-    assert "mission-fixed-add-driver" in page and "nav.insertBefore(addDriver" in page
+    assert "mission-fixed-add-driver" not in page
+    assert "nav.insertBefore(addDriver" not in page
+    assert 'id="driverDialog"' not in page
+    assert '<form method="post" action="/missions/drivers"' not in page
     assert "[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]" in base
     assert "سجل المهمات" not in page
     assert "لا توجد مهمات مسجلة." in records_page
@@ -33,6 +36,8 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
     assert "mission-total" in records_page and "<strong>{{ missions|length }}</strong>" in records_page
     assert 'href="/missions?open_mission=1"' in records_page
     assert "open_mission')==='1'" in page
+    assert "searchParams.delete('open_mission')" in page
+    assert "history.replaceState" in page
     assert "MATERIEL · MISSIONS" not in records_page
     assert "عرض المهمات المسجلة ومعلومات العتاد والسائق والوجهة." not in records_page
     assert "العودة إلى لوحة المهمات" not in records_page
@@ -41,6 +46,15 @@ def test_mission_creation_form_opens_in_centered_dialog_and_drivers_are_in_fixed
     assert "mission-metric" in page and "mission-overview>div" in page
     assert "مخططة</span><b>{{ counts.planned }}" in page
     assert "تنتهي خلال 30 يومًا" in page and "license_expiry_alerts.expired|length" in page
+    assert page.count('data-mission-detail=') == 5
+    assert 'data-detail-panel="{{ status }}" hidden' in page
+    assert '("planned", "مخططة")' in page
+    assert '("running", "جارية")' in page
+    assert '("completed", "منتهية")' in page
+    assert '("expired", "منتهية"' in page
+    assert '("expiring", "تنتهي خلال 30 يومًا"' in page
+    assert "لا توجد مهمات {{ label }}." in page
+    assert "لا توجد رخص {{ label }}." in page
     assert "تنبيهات صلاحية الرخص" not in drivers_page
     assert 'id="driverDialog"' in drivers_page
     assert "＋ إضافة سائق" in drivers_page

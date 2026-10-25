@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from decimal import Decimal
+import re
 
 import pytest
 from fastapi import HTTPException
@@ -184,7 +185,18 @@ def test_license_dates_are_validated_and_expiry_alerts_include_day_30(db):
     mission_html = mission_page.body.decode("utf-8")
     assert "تنتهي خلال 30 يومًا" in mission_html
     assert "منتهية</span>" in mission_html
-    assert expired.first_name in mission_html and expiring.last_name in mission_html
+    expired_panel = re.search(
+        r'data-detail-panel="expired" hidden>(.*?)</section>',
+        mission_html,
+        re.DOTALL,
+    ).group(1)
+    expiring_panel = re.search(
+        r'data-detail-panel="expiring" hidden>(.*?)</section>',
+        mission_html,
+        re.DOTALL,
+    ).group(1)
+    assert expired.first_name in expired_panel
+    assert expiring.last_name in expiring_panel
     edit = edit_driver_page(
         expiring.id,
         _request(f"/missions/drivers/{expiring.id}/edit"),
@@ -195,6 +207,73 @@ def test_license_dates_are_validated_and_expiry_alerts_include_day_30(db):
     expiry_date = (today + timedelta(days=30)).isoformat()
     assert f'value="{issue_date}"' in edit.body.decode("utf-8")
     assert f'value="{expiry_date}"' in edit.body.decode("utf-8")
+
+
+def test_mission_detail_dialogs_render_status_rows_from_real_missions(db):
+    today = date.today()
+    planned_equipment = _equipment(db, requires_driver=False, registration_number="METRIC-PLANNED")
+    running_equipment = _equipment(db, requires_driver=False, registration_number="METRIC-RUNNING")
+    completed_equipment = _equipment(db, requires_driver=False, registration_number="METRIC-COMPLETED")
+    db.add_all(
+        [
+            Mission(
+                equipment_id=planned_equipment.id,
+                start_date=today + timedelta(days=2),
+                purpose="غرض مخطط",
+            ),
+            Mission(
+                equipment_id=running_equipment.id,
+                start_date=today,
+                purpose="غرض جارٍ",
+            ),
+            Mission(
+                equipment_id=completed_equipment.id,
+                start_date=today - timedelta(days=3),
+                end_date=today - timedelta(days=1),
+                purpose="غرض منتهٍ",
+            ),
+        ]
+    )
+    db.commit()
+
+    admin = User(username="admin", full_name="مدير النظام", hashed_password="unused", role="admin")
+    response = missions_page(_request("/missions"), db, admin)
+    page = response.body.decode("utf-8")
+
+    for status, registration, purpose in (
+        ("planned", "METRIC-PLANNED", "غرض مخطط"),
+        ("running", "METRIC-RUNNING", "غرض جارٍ"),
+        ("completed", "METRIC-COMPLETED", "غرض منتهٍ"),
+    ):
+        panel = re.search(
+            rf'data-detail-panel="{status}" hidden>(.*?)</section>',
+            page,
+            re.DOTALL,
+        ).group(1)
+        assert registration in panel
+        assert purpose in panel
+
+
+def test_mission_detail_dialogs_show_tables_when_counts_are_zero(db):
+    admin = User(username="admin", full_name="مدير النظام", hashed_password="unused", role="admin")
+
+    response = missions_page(_request("/missions"), db, admin)
+    page = response.body.decode("utf-8")
+
+    for status, message in (
+        ("planned", "لا توجد مهمات مخططة."),
+        ("running", "لا توجد مهمات جارية."),
+        ("completed", "لا توجد مهمات منتهية."),
+        ("expired", "لا توجد رخص منتهية."),
+        ("expiring", "لا توجد رخص تنتهي خلال 30 يومًا."),
+    ):
+        panel = re.search(
+            rf'data-detail-panel="{status}" hidden>(.*?)</section>',
+            page,
+            re.DOTALL,
+        ).group(1)
+        assert "<table" in panel
+        assert message in panel
 
 
 def test_registered_driver_must_be_active_and_assigned_to_mission_equipment(db):

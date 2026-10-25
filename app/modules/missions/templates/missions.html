@@ -14,42 +14,78 @@
 .missions-page .mission-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .missions-page .mission-open-button{min-height:42px;padding:9px 16px;border:0;border-radius:8px;background:#374151;color:#fff;font:inherit;font-weight:700;cursor:pointer}
 .missions-page .mission-open-button:hover{background:#1f2937}
-.missions-page .mission-dialog{position:fixed;inset:0;margin:auto;width:min(920px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:1px solid #d1d5db;border-radius:16px;background:#fff;box-shadow:0 24px 72px #10182855;direction:rtl}
+.missions-page .mission-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(920px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:1px solid #d1d5db;border-radius:16px;background:#fff;box-shadow:0 24px 72px #10182855;direction:rtl}
 .missions-page .mission-dialog::backdrop{background:#10182888}
 .missions-page .mission-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:5px}
 .missions-page .mission-dialog-head h3{margin:0}
 .missions-page .mission-dialog-close{min-height:38px;padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#1f2937;font:inherit;cursor:pointer}
 .missions-page .mission-dialog-hint{margin:5px 0 20px;color:#667085}
-.missions-page .mission-fixed-add-driver{margin-inline-start:4px;padding:8px 12px;border:1px solid #374151;border-radius:8px;background:#374151;color:#fff;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
-.missions-page .mission-fixed-add-driver:hover{background:#1f2937}
 .missions-page .mission-overview{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:8px 0 20px}
 .missions-page .mission-overview>div{min-width:0;padding:16px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 3px 12px #1018280a}
 .missions-page .mission-overview h3{margin:0 0 4px;font-size:15px}
 .missions-page .mission-overview p{margin:0;color:#667085;font-size:13px}
 .missions-page .mission-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}
-.missions-page .mission-metric{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0;min-height:66px;padding:10px 12px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc}
+.missions-page .mission-metric{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0;min-height:66px;padding:10px 12px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:inherit;font:inherit;text-align:right;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.missions-page .mission-metric:hover{border-color:#98a2b3;background:#f2f4f7}
+.missions-page .mission-metric:focus-visible{outline:3px solid #9ca3af;outline-offset:2px}
 .missions-page .mission-metric span{color:#475467;font-size:12px;font-weight:700}
 .missions-page .mission-metric b{font-size:23px;line-height:1.1;color:#1f2937}
 .missions-page .mission-metric.critical b{color:#b42318}
 .missions-page .mission-metric.warning b{color:#a15c00}
 .missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-.missions-page .license-alert-table{margin-top:12px}
+.missions-page .mission-detail-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(1000px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;padding:20px;border:1px solid #d1d5db;border-radius:16px;background:#fff;box-shadow:0 24px 72px #10182855;direction:rtl}
+.missions-page .mission-detail-dialog::backdrop{background:#10182888}
+.missions-page .mission-detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.missions-page .mission-detail-head h3{margin:0}
+.missions-page .mission-detail-section[hidden]{display:none}
+.missions-page .mission-detail-table-wrap{overflow:auto}
+.missions-page .mission-detail-table{width:100%;min-width:700px;border-collapse:collapse;text-align:right}
+.missions-page .mission-detail-table th,.missions-page .mission-detail-table td{padding:10px;border-bottom:1px solid #eaecf0;vertical-align:top}
+.missions-page .mission-detail-table th{background:#f8fafc;color:#475467;font-size:12px}
+.missions-page .mission-detail-empty{text-align:center;color:#667085;padding:24px!important}
 .missions-page .mission-license-state{display:inline-flex;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:800}
 .missions-page .mission-license-state.expired{background:#fff1f1;color:#9f2d2d}
 .missions-page .mission-license-state.expiring{background:#fff6e8;color:#8a4b08}
 @media(max-width:900px){.missions-page .mission-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.missions-page .mission-overview{grid-template-columns:1fr}}
-@media(max-width:560px){.missions-page .mission-form{grid-template-columns:minmax(0,1fr);gap:11px}.missions-page .mission-field-wide{grid-column:auto}.missions-page .record-panel{padding:14px}.missions-page .mission-dialog{padding:16px}.missions-page .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.missions-page .mission-form{grid-template-columns:minmax(0,1fr);gap:11px}.missions-page .mission-field-wide{grid-column:auto}.missions-page .record-panel{padding:14px}.missions-page .mission-dialog,.missions-page .mission-detail-dialog{padding:16px}.missions-page .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 {% endblock %}
 {% block content %}
 <div class="record-page missions-page" dir="rtl">
   <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div><div class="mission-actions"><button class="mission-open-button" type="button" id="openMissionDialog">＋ تسجيل مهمة</button></div></header>
   <section class="mission-overview" aria-label="ملخص المهمات وتنبيهات الرخص">
-    <div><div class="mission-metrics"><div class="mission-metric"><span>مخططة</span><b>{{ counts.planned }}</b></div><div class="mission-metric"><span>جارية</span><b>{{ counts.running }}</b></div><div class="mission-metric"><span>منتهية</span><b>{{ counts.completed }}</b></div></div></div>
-    <div><h3>تنبيهات صلاحية الرخص</h3><p>الرخص النشطة المنتهية أو التي تنتهي خلال 30 يومًا.</p><div class="mission-metrics"><div class="mission-metric critical"><span>منتهية</span><b>{{ license_expiry_alerts.expired|length }}</b></div><div class="mission-metric warning"><span>تنتهي خلال 30 يومًا</span><b>{{ license_expiry_alerts.expiring_soon|length }}</b></div></div></div>
+    <div><div class="mission-metrics">
+      <button class="mission-metric" type="button" data-mission-detail="planned" data-detail-title="المهمات المخططة" aria-haspopup="dialog"><span>مخططة</span><b>{{ counts.planned }}</b></button>
+      <button class="mission-metric" type="button" data-mission-detail="running" data-detail-title="المهمات الجارية" aria-haspopup="dialog"><span>جارية</span><b>{{ counts.running }}</b></button>
+      <button class="mission-metric" type="button" data-mission-detail="completed" data-detail-title="المهمات المنتهية" aria-haspopup="dialog"><span>منتهية</span><b>{{ counts.completed }}</b></button>
+    </div></div>
+    <div><h3>تنبيهات صلاحية الرخص</h3><p>الرخص النشطة المنتهية أو التي تنتهي خلال 30 يومًا.</p><div class="mission-metrics">
+      <button class="mission-metric critical" type="button" data-mission-detail="expired" data-detail-title="الرخص المنتهية" aria-haspopup="dialog"><span>منتهية</span><b>{{ license_expiry_alerts.expired|length }}</b></button>
+      <button class="mission-metric warning" type="button" data-mission-detail="expiring" data-detail-title="الرخص التي تنتهي خلال 30 يومًا" aria-haspopup="dialog"><span>تنتهي خلال 30 يومًا</span><b>{{ license_expiry_alerts.expiring_soon|length }}</b></button>
+    </div></div>
   </section>
-  {% if license_expiry_alerts.rows %}<section class="record-panel"><div class="record-section-head"><h3>رخص تحتاج إلى متابعة</h3></div><div class="record-table-wrap mt-table-theme-green license-alert-table" data-mt-region><table class="record-table"><thead><tr><th>السائق</th><th>صنف الرخصة</th><th>تاريخ نهاية الصلاحية</th><th>الحالة</th></tr></thead><tbody>{% for driver in license_expiry_alerts.rows %}<tr><td><a href="/missions/drivers/{{ driver.id }}">{{ driver.center ~ ' - ' if driver.center else '' }}{{ driver.first_name }} {{ driver.last_name }}</a></td><td>{{ driver.license_class }}</td><td>{{ driver.license_expiry_date }}</td><td>{% if driver.license_expiry_date < today %}<span class="mission-license-state expired">منتهية</span>{% else %}<span class="mission-license-state expiring">تنتهي خلال {{ (driver.license_expiry_date - today).days }} يومًا</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+  <dialog class="mission-detail-dialog" id="missionMetricDialog" aria-labelledby="missionMetricDialogTitle">
+    <div class="mission-detail-head"><h3 id="missionMetricDialogTitle">تفاصيل المؤشر</h3><button class="mission-dialog-close" type="button" id="closeMissionMetricDialog">إغلاق</button></div>
+    {% for status, label in [("planned", "مخططة"), ("running", "جارية"), ("completed", "منتهية")] %}
+    <section class="mission-detail-section" data-detail-panel="{{ status }}" hidden>
+      <div class="mission-detail-table-wrap" data-mt-region><table class="mission-detail-table"><thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th></tr></thead><tbody>
+        {% for row in mission_status_rows if row.status == status %}
+        <tr><td>{{ row.equipment.equipment_model.name if row.equipment.equipment_model else (row.equipment.equipment_type.name if row.equipment.equipment_type else "—") }}</td><td>{{ row.equipment.registration_number or "—" }}</td><td>{{ (row.mission.driver.center ~ " - " if row.mission.driver and row.mission.driver.center else "") ~ (row.mission.driver.first_name ~ " " ~ row.mission.driver.last_name if row.mission.driver else row.mission.driver_name or "—") }}</td><td>{{ row.mission.purpose or "—" }}</td><td>{{ row.mission.destination or "—" }}</td><td>{{ row.mission.start_date }}</td><td>{{ row.mission.end_date or "—" }}</td></tr>
+        {% else %}<tr><td class="mission-detail-empty" colspan="7">لا توجد مهمات {{ label }}.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+    {% endfor %}
+    {% for status, label, drivers_list in [("expired", "منتهية", license_expiry_alerts.expired), ("expiring", "تنتهي خلال 30 يومًا", license_expiry_alerts.expiring_soon)] %}
+    <section class="mission-detail-section" data-detail-panel="{{ status }}" hidden>
+      <div class="mission-detail-table-wrap" data-mt-region><table class="mission-detail-table"><thead><tr><th>السائق</th><th>المركز</th><th>صنف الرخصة</th><th>تاريخ نهاية الصلاحية</th><th>الحالة</th></tr></thead><tbody>
+        {% for driver in drivers_list %}
+        <tr><td><a href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }} {{ driver.last_name }}</a></td><td>{{ driver.center or "—" }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_expiry_date }}</td><td>{% if status == "expired" %}<span class="mission-license-state expired">منتهية</span>{% else %}<span class="mission-license-state expiring">تنتهي خلال {{ (driver.license_expiry_date - today).days }} يومًا</span>{% endif %}</td></tr>
+        {% else %}<tr><td class="mission-detail-empty" colspan="5">لا توجد رخص {{ label }}.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+    {% endfor %}
+  </dialog>
   <dialog class="mission-dialog" id="missionDialog" aria-labelledby="missionDialogTitle">
     <div class="mission-dialog-head"><h3 id="missionDialogTitle">تسجيل مهمة</h3><button class="mission-dialog-close" type="button" id="closeMissionDialog">إغلاق</button></div>
     <p class="mission-dialog-hint">أدخل بيانات المهمة الأساسية وقراءات العداد إن توفرت.</p>
@@ -68,23 +104,55 @@
       <button class="mission-submit" type="submit" data-em-action="save">حفظ المهمة</button>
     </form>
   </dialog>
-  <dialog class="mission-dialog" id="driverDialog" aria-labelledby="driverDialogTitle">
-    <div class="mission-dialog-head"><h3 id="driverDialogTitle">إضافة سائق</h3><button class="mission-dialog-close" type="button" id="closeDriverDialog">إغلاق</button></div>
-    <p class="mission-dialog-hint">أدخل بيانات السائق ورخصته، ويمكن تعيينه إلى العتاد الذي يتطلب سائقًا.</p>
-    <form method="post" action="/missions/drivers" class="mission-form" data-em-root>
-      <div class="mission-field"><label for="newDriverFirstName">الاسم *</label><input id="newDriverFirstName" name="first_name" maxlength="100" required></div>
-      <div class="mission-field"><label for="newDriverLastName">اللقب *</label><input id="newDriverLastName" name="last_name" maxlength="100" required></div>
-      <div class="mission-field"><label for="newDriverLicenseClass">صنف الرخصة *</label><input id="newDriverLicenseClass" name="license_class" maxlength="50" placeholder="مثال: B أو C" required></div>
-      <div class="mission-field"><label for="newDriverLicenseIssue">تاريخ الإصدار</label><input id="newDriverLicenseIssue" type="date" name="license_issue_date"></div>
-      <div class="mission-field"><label for="newDriverLicenseExpiry">تاريخ نهاية الصلاحية</label><input id="newDriverLicenseExpiry" type="date" name="license_expiry_date"></div>
-      <div class="mission-field"><label for="newDriverCenter">المركز</label><input id="newDriverCenter" name="center" maxlength="120"></div>
-      <div class="mission-field mission-field-wide"><label for="newDriverEquipment">العتاد المعيّن</label><select id="newDriverEquipment" name="assigned_equipment_id"><option value="">غير معيّن</option>{% for item in driver_equipment %}<option value="{{ item.id }}">{{ item.equipment_model.name ~ ' - ' if item.equipment_model else '' }}{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select></div>
-      <div class="mission-field mission-field-wide"><label for="newDriverNotes">ملاحظات</label><input id="newDriverNotes" name="notes" maxlength="2000"></div>
-      <button class="mission-submit" type="submit" data-em-action="save">حفظ السائق</button>
-    </form>
-  </dialog>
 </div>
 <script>
-(function(){var missionDialog=document.getElementById('missionDialog');var driverDialog=document.getElementById('driverDialog');var missionOpen=document.getElementById('openMissionDialog');var missionClose=document.getElementById('closeMissionDialog');var driverClose=document.getElementById('closeDriverDialog');if(missionDialog&&missionOpen&&missionClose){missionOpen.addEventListener('click',function(){missionDialog.showModal();});missionClose.addEventListener('click',function(){missionDialog.close();});missionDialog.addEventListener('click',function(event){if(event.target===missionDialog)missionDialog.close();});if(new URLSearchParams(window.location.search).get('open_mission')==='1')missionDialog.showModal();}if(driverDialog&&driverClose){driverClose.addEventListener('click',function(){driverDialog.close();});driverDialog.addEventListener('click',function(event){if(event.target===driverDialog)driverDialog.close();});}document.addEventListener('DOMContentLoaded',function(){var nav=document.getElementById('appModuleNav');if(!nav||!driverDialog||nav.querySelector('.mission-fixed-add-driver'))return;var addDriver=document.createElement('button');addDriver.type='button';addDriver.className='mission-fixed-add-driver';addDriver.textContent='＋ إضافة سائق';addDriver.setAttribute('aria-haspopup','dialog');addDriver.addEventListener('click',function(){driverDialog.showModal();});nav.insertBefore(addDriver,nav.querySelector('a[href="/missions/drivers"]'));});var equipment=document.getElementById('missionEquipment');var driver=document.getElementById('missionDriverId');if(!equipment||!driver)return;var options=Array.prototype.slice.call(driver.options);function syncDrivers(){options.forEach(function(option){if(!option.value)return;var available=!equipment.value||option.getAttribute('data-equipment-id')===equipment.value;option.hidden=!available;option.disabled=!available;if(!available&&driver.value===option.value)driver.value='';});}equipment.addEventListener('change',syncDrivers);syncDrivers();})();
+(function(){
+  var missionDialog=document.getElementById('missionDialog');
+  var missionOpen=document.getElementById('openMissionDialog');
+  var missionClose=document.getElementById('closeMissionDialog');
+  if(missionDialog&&missionOpen&&missionClose){
+    missionOpen.addEventListener('click',function(){missionDialog.showModal();});
+    missionClose.addEventListener('click',function(){missionDialog.close();});
+    missionDialog.addEventListener('click',function(event){if(event.target===missionDialog)missionDialog.close();});
+    var currentUrl=new URL(window.location.href);
+    if(currentUrl.searchParams.get('open_mission')==='1'){
+      missionDialog.showModal();
+      currentUrl.searchParams.delete('open_mission');
+      window.history.replaceState(window.history.state,'',currentUrl.pathname+currentUrl.search+currentUrl.hash);
+    }
+  }
+  var detailDialog=document.getElementById('missionMetricDialog');
+  var detailTitle=document.getElementById('missionMetricDialogTitle');
+  var detailClose=document.getElementById('closeMissionMetricDialog');
+  if(detailDialog&&detailTitle&&detailClose){
+    document.querySelectorAll('[data-mission-detail]').forEach(function(button){
+      button.addEventListener('click',function(){
+        var key=button.getAttribute('data-mission-detail');
+        detailTitle.textContent=button.getAttribute('data-detail-title');
+        detailDialog.querySelectorAll('[data-detail-panel]').forEach(function(panel){
+          panel.hidden=panel.getAttribute('data-detail-panel')!==key;
+        });
+        detailDialog.showModal();
+      });
+    });
+    detailClose.addEventListener('click',function(){detailDialog.close();});
+    detailDialog.addEventListener('click',function(event){if(event.target===detailDialog)detailDialog.close();});
+  }
+  var equipment=document.getElementById('missionEquipment');
+  var driver=document.getElementById('missionDriverId');
+  if(!equipment||!driver)return;
+  var options=Array.prototype.slice.call(driver.options);
+  function syncDrivers(){
+    options.forEach(function(option){
+      if(!option.value)return;
+      var available=!equipment.value||option.getAttribute('data-equipment-id')===equipment.value;
+      option.hidden=!available;
+      option.disabled=!available;
+      if(!available&&driver.value===option.value)driver.value='';
+    });
+  }
+  equipment.addEventListener('change',syncDrivers);
+  syncDrivers();
+})();
 </script>
 {% endblock %}
