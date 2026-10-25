@@ -14,10 +14,10 @@ from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.batteries.models import Battery
+from app.modules.faults_repairs.models import Fault
 from app.modules.fuel.model_rate_import import MODEL_RATE_HEADERS
 from app.modules.fuel.models import FuelModelConsumptionRate, FuelRecord
 from app.modules.meter_readings.models import MeterReading
-from app.modules.spare_parts_requests.models import AssetReceipt
 from app.modules.users.models import User
 from web import main
 
@@ -48,18 +48,19 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
         operational_status="available",
     )
     db.add(equipment)
-    receipt = AssetReceipt(
-        asset_type="battery",
-        document_number="BAT-RECEIPT-1",
-        description="بطارية اختبار",
-        quantity=2,
-        received_date=date.today(),
+    db.flush()
+    fault = Fault(
+        equipment_id=equipment.id,
+        reported_date=date.today(),
+        description="عطل بطارية لاختبار طلب الاستلام",
+        severity="low",
     )
-    db.add(receipt)
+    db.add(fault)
     db.commit()
     user_id = user.id
     equipment_id = equipment.id
     model_id = model.id
+    fault_id = fault.id
     db.close()
 
     def override_get_db():
@@ -90,7 +91,7 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             assert 'data-battery-stat="installed"' in battery_page.text
             assert 'data-battery-stat="total"' not in battery_page.text
             assert "الإجمالي · عرض الكل" not in battery_page.text
-            assert "وثيقة الاستلام" in battery_page.text
+            assert "رقم الطلب" in battery_page.text
             assert "رقم تسلسلي غير مطلوب. مدة الاستبدال" not in battery_page.text
             assert "href=\"/spare-parts-received\"" not in battery_page.text
             assert "لا توجد بطاريات مسجلة حاليًا." in battery_page.text
@@ -98,7 +99,16 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
                 "battery_type": "AGM",
                 "brand": "اختبار",
                 "capacity": "60 Ah",
-                "acquisition_document": "BAT-RECEIPT-1",
+                "acquisition_request_item_id": client.post("/api/spare-parts-requests", json={
+                    "request_number": "BAT-RECEIPT-1",
+                    "request_date": date.today().isoformat(),
+                    "received_date": date.today().isoformat(),
+                    "recipient": "مستلم الاختبار",
+                    "supplier_institution": "مورد الاختبار",
+                    "source_type": "fault",
+                    "source_id": fault_id,
+                    "items": [{"asset_type": "battery", "part_name": "بطارية اختبار", "requested_quantity": 1, "received_quantity": 1}],
+                }).json()["items"][0]["id"],
             }, follow_redirects=False)
             assert created_battery.status_code == 303
             verify = testing_session()

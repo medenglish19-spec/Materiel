@@ -319,17 +319,23 @@ def add_tire(db: Session, data: dict):
     if db.query(Tire.id).filter(Tire.serial_number == serial_number).first():
         raise ValueError("الرقم التسلسلي للإطار مستخدم مسبقًا")
     data["serial_number"] = serial_number
-    from app.modules.spare_parts_requests.models import AssetReceipt
-    receipt_number = (data.get("acquisition_document") or "").strip()
-    receipt = db.query(AssetReceipt).filter(AssetReceipt.document_number == receipt_number, AssetReceipt.asset_type == "tire").first()
-    if not receipt:
-        raise ValueError("وثيقة اقتناء الإطار غير موجودة في سجل الاستلام بوحدة الغيار")
-    used = db.query(Tire.id).filter(Tire.acquisition_receipt_id == receipt.id).count()
-    if used >= receipt.quantity:
-        raise ValueError("اكتملت كمية هذه الوثيقة في سجل الاستلام")
-    data["acquisition_document"] = receipt.document_number
-    data["acquisition_receipt_id"] = receipt.id
-    data["receipt_date"] = receipt.received_date
+    from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+    request_item_id = data.get("acquisition_request_item_id")
+    item = db.query(SparePartRequestItem).join(SparePartRequest).filter(
+        SparePartRequestItem.id == request_item_id,
+        SparePartRequestItem.asset_type == "tire",
+        SparePartRequestItem.received_quantity > 0,
+        SparePartRequest.status == "approved",
+    ).with_for_update().first()
+    if not item:
+        raise ValueError("اختر بند إطار مستلمًا من طلب معتمد")
+    used = db.query(Tire.id).filter(Tire.acquisition_request_item_id == item.id).count()
+    if used >= int(item.received_quantity):
+        raise ValueError("اكتملت كمية الإطارات المستلمة لهذا البند")
+    data["acquisition_document"] = item.request.request_number
+    data["acquisition_receipt_id"] = None
+    data["acquisition_request_item_id"] = item.id
+    data["receipt_date"] = item.request.received_date or item.received_date
     manufacture_date = data.get("manufacture_date")
     receipt_date = data.get("receipt_date")
     expiry_date = data.get("expiry_date")

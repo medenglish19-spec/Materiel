@@ -49,6 +49,7 @@ class SparePartRequestItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(Integer, ForeignKey("spare_part_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_type = Column(String(20), nullable=False, default="part", server_default="part", index=True)
     # الربط بالمخزون اختياري: البند قد يحمل اسماً حراً فقط دون قطعة مرجعية.
     spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="RESTRICT"), nullable=True, index=True)
     part_name = Column(String(200), nullable=True)
@@ -60,6 +61,7 @@ class SparePartRequestItem(Base):
     notes = Column(Text, nullable=True)
 
     __table_args__ = (
+        CheckConstraint("asset_type IN ('part', 'tire', 'battery')", name="ck_spare_part_request_item_asset_type"),
         # spare_part_id nullable: لا نمنع التكرار على المعرّف الفارغ؛ المنع يتم في الخدمة بالاسم الحر.
         CheckConstraint("requested_quantity > 0", name="ck_spare_part_request_item_requested_positive"),
         CheckConstraint("received_quantity >= 0", name="ck_spare_part_request_item_received_nonnegative"),
@@ -70,7 +72,7 @@ class SparePartRequestItem(Base):
 
 
 class AssetReceipt(Base):
-    """Procurement receipts for tires and batteries, kept out of repair stock."""
+    """Legacy procurement receipts retained only for historical tire/battery links."""
     __tablename__ = "asset_receipts"
 
     id = Column(Integer, primary_key=True, index=True)

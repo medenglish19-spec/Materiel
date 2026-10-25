@@ -20,6 +20,7 @@ class Battery(Base, AuditMixin):
     expiry_date = Column(Date, nullable=True, index=True)
     acquisition_document = Column(String(100), nullable=True)
     acquisition_receipt_id = Column(Integer, ForeignKey("asset_receipts.id", ondelete="RESTRICT", name="fk_batteries_acquisition_receipt_id_asset_receipts"), nullable=True, index=True)
+    acquisition_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT", name="fk_batteries_acquisition_request_item_id_spare_part_request_items"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
     movements = relationship("BatteryMovement", back_populates="battery", order_by="BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()", cascade="all, delete-orphan")
 

@@ -3,7 +3,6 @@
 {% block content %}
 <style>
 .rpr .part-link{color:#315f42;font-weight:800;text-decoration:none}.rpr .part-link:hover{text-decoration:underline}
-.rpr .asset-receipts label{display:grid;gap:5px;font-size:11px;color:#566274;font-weight:700;min-width:0}.rpr .asset-receipts input,.rpr .asset-receipts select{width:100%;min-width:0;height:38px;box-sizing:border-box;border:1px solid #dce4ea;border-radius:6px;padding:0 9px;font:inherit}.rpr .asset-receipts button{height:38px;border:0;border-radius:7px;padding:0 14px;background:#315f42;color:white;font-weight:800;cursor:pointer}@media(max-width:700px){.rpr .asset-receipts form{grid-template-columns:minmax(0,1fr)!important}.rpr .asset-receipts form>*{grid-column:auto!important}}
 .rpr{direction:rtl}.rpr .top{display:flex;justify-content:space-between;align-items:end;margin-bottom:14px}.rpr h1{margin:0;color:#20352a;font-size:23px}.rpr .muted{font-size:11px;color:#718096;margin-top:5px}.rpr .panel{background:#fff;border:1px solid #e4eaf0;border-radius:10px;overflow:hidden}.rpr .bar{padding:11px;border-bottom:1px solid #edf1f4}.rpr input{height:32px;width:min(280px,100%);max-width:100%;min-width:0;box-sizing:border-box;border:1px solid #dce4ea;border-radius:6px;padding:0 9px;font:inherit;font-size:10px}.rpr .table-scroll{width:100%;max-width:100%;overflow:auto;max-height:70vh}.rpr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}.rpr th,.rpr td{padding:10px;border-bottom:1px solid #edf1f4;text-align:right;font-size:10px;white-space:nowrap;color:#111}.rpr th{position:sticky;top:0;z-index:2;background:#f8fafc;color:#111;font-weight:800}.rpr th:nth-child(4),.rpr td:nth-child(4),.rpr th:nth-child(5),.rpr td:nth-child(5),.rpr th:nth-child(6),.rpr td:nth-child(6),.rpr th:nth-child(7),.rpr td:nth-child(7){text-align:center}.rpr td:nth-child(2),.rpr td:nth-child(9),.rpr td:nth-child(13){white-space:normal;max-width:240px}.rpr .status{display:inline-block;padding:4px 7px;border:1px solid #dbe2ea;border-radius:6px;background:#f8fafc;color:#374151;font-weight:700}.rpr .balance-error{margin-inline-start:5px;border-color:#efb4b4;background:#fff1f1;color:#a32222}.rpr .empty{text-align:center;padding:30px;color:#8794a2}@media(max-width:650px){.rpr .top{align-items:flex-start;flex-direction:column;gap:8px}}
 </style>
 <div class="rpr">
@@ -18,21 +17,6 @@
       <tbody id="rows"><tr><td colspan="13" class="empty">جارٍ التحميل...</td></tr></tbody>
     </table></div>
   </div>
-  <section class="panel asset-receipts" style="margin-top:16px">
-    <div class="bar"><h2>استلام الإطارات والبطاريات</h2><div class="muted">وثائق الاستلام هنا هي المصدر المعتمد عند تسجيل أصل جديد في وحدته.</div></div>
-    <form id="assetReceiptForm" class="bar" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:end">
-      <label>الصنف<select name="asset_type" required><option value="tire">إطارات</option><option value="battery">بطاريات</option></select></label>
-      <label>رقم وثيقة الاستلام<input name="document_number" required maxlength="100"></label>
-      <label>وصف الصنف / نوع البطارية<input name="description" required maxlength="200"></label>
-      <label>الكمية المستلمة<input name="quantity" type="number" min="1" step="1" required></label>
-      <label>تاريخ الاستلام<input name="received_date" type="date" required></label>
-      <label>المؤسسة الممونة<input name="supplier" maxlength="200"></label>
-      <label>المستلم إليه<input name="recipient" maxlength="160"></label>
-      <label style="grid-column:span 2">ملاحظات<input name="notes"></label>
-      <button type="submit">تسجيل الاستلام</button><span id="receiptMessage" role="status"></span>
-    </form>
-    <div class="table-scroll mt-table-theme-green" data-mt-region><table><thead><tr><th>الصنف</th><th>وثيقة الاستلام</th><th>الوصف / النوع</th><th>المستلم</th><th>المؤسسة الممونة</th><th>الكمية</th><th>المتبقي للتسجيل</th><th>تاريخ الاستلام</th></tr></thead><tbody id="assetReceiptRows"><tr><td colspan="8" class="empty">جارٍ التحميل...</td></tr></tbody></table></div>
-  </section>
 </div>
 <script>
 let data=[];
@@ -55,8 +39,5 @@ function quantity(value){const n=Number(value);return Number.isFinite(n)?n:0;}
 function esc(v){return String(v??'—').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 load();
 startAutoRefresh();
-async function loadAssetReceipts(){try{const response=await fetch('/api/spare-parts-requests/asset-receipts',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error('تعذر تحميل استلام الإطارات والبطاريات.');const rows=await response.json();document.getElementById('assetReceiptRows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+ (x.asset_type==='tire'?'إطار':'بطارية')+'</td><td>'+esc(x.document_number)+'</td><td>'+esc(x.description)+'</td><td>'+esc(x.recipient)+'</td><td>'+esc(x.supplier)+'</td><td>'+quantity(x.quantity)+'</td><td>'+quantity(x.remaining_quantity)+'</td><td>'+esc(x.received_date)+'</td></tr>').join(''):'<tr><td colspan="8" class="empty">لا توجد وثائق استلام لأصول بعد.</td></tr>'}catch(error){document.getElementById('assetReceiptRows').replaceChildren();window.showMaterielNotice(error.message,'danger')}}
-document.getElementById('assetReceiptForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,message=document.getElementById('receiptMessage'),body=Object.fromEntries(new FormData(form));body.quantity=Number(body.quantity);try{const response=await fetch('/api/spare-parts-requests/asset-receipts',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw new Error(result.detail||'تعذر تسجيل الاستلام');message.textContent='تم تسجيل وثيقة الاستلام.';form.reset();await loadAssetReceipts()}catch(error){message.textContent='';window.showMaterielNotice(error.message,'danger')}});
-loadAssetReceipts();
 </script>
 {% endblock %}

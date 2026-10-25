@@ -42,7 +42,7 @@ def batteries_page(request: Request, db: Session = Depends(get_db), current_user
         due_dates[battery.id] = services.replacement_due_date(
             db, battery, equipment, validity_years
         )
-    from app.modules.spare_parts_requests.services import list_asset_receipts
+    from app.modules.spare_parts_requests.services import available_asset_request_items
     stats = services.stats(db, batteries, states, validity_years)
     filter_status = status_filter if status_filter in {"installed", "stock", "expired", "unassigned"} else None
     visible_batteries = [battery for battery in batteries if not filter_status or statuses[battery.id] == filter_status]
@@ -52,7 +52,7 @@ def batteries_page(request: Request, db: Session = Depends(get_db), current_user
         "expired": "البطاريات المستحقة للاستبدال",
         "unassigned": "البطاريات غير المخصصة",
     }
-    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": visible_batteries, "stats": stats, "validity_years": validity_years, "statuses": statuses, "due_dates": due_dates, "battery_states": states, "battery_receipts": list_asset_receipts(db, "battery"), "filter_status": filter_status, "filter_label": filter_labels.get(filter_status)})
+    return templates.TemplateResponse(request=request, name="batteries.html", context={"request": request, "user": current_user, "batteries": visible_batteries, "stats": stats, "validity_years": validity_years, "statuses": statuses, "due_dates": due_dates, "battery_states": states, "battery_request_items": available_asset_request_items(db, "battery"), "filter_status": filter_status, "filter_label": filter_labels.get(filter_status)})
 
 
 @router.get("/batteries/equipment", response_class=HTMLResponse)
@@ -129,9 +129,9 @@ def update_battery_settings(validity_years: int = Form(...), db: Session = Depen
 
 
 @router.post("/batteries")
-def create_battery(battery_type: str = Form(...), brand: str = Form(""), capacity: str = Form(""), manufacture_date: date | None = Form(None), receipt_date: date | None = Form(None), acquisition_document: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_battery(battery_type: str = Form(...), brand: str = Form(""), capacity: str = Form(""), manufacture_date: date | None = Form(None), acquisition_request_item_id: int = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_battery(db, {"battery_type": battery_type.strip(), "brand": brand.strip() or None, "capacity": capacity.strip() or None, "manufacture_date": manufacture_date, "receipt_date": receipt_date, "acquisition_document": acquisition_document.strip(), "notes": notes.strip() or None})
+        services.add_battery(db, {"battery_type": battery_type.strip(), "brand": brand.strip() or None, "capacity": capacity.strip() or None, "manufacture_date": manufacture_date, "acquisition_request_item_id": acquisition_request_item_id, "notes": notes.strip() or None})
     except Exception as exc:
         db.rollback()
         raise HTTPException(400, f"تعذر إنشاء البطارية: {exc}")

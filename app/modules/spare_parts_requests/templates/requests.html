@@ -152,7 +152,7 @@ let nextEditRowId=1;
 function editRows(selector){return [...document.querySelectorAll(selector)];}
 function rowSnapshot(selector){return editRows(selector).flatMap(row=>{if(!row.dataset.emRowId)row.dataset.emRowId=String(nextEditRowId++);const hidden=row.hidden||row.classList.contains('gone');if(hidden&&row.dataset.emNew==='1')return[];return[{id:row.dataset.emRowId,hidden}];});}
 function restoreRows(selector,snapshot){const states=new Map((snapshot||[]).map(row=>[String(row.id),!!row.hidden]));editRows(selector).forEach(row=>{if(!row.dataset.emRowId)row.dataset.emRowId=String(nextEditRowId++);const hidden=states.has(row.dataset.emRowId)?states.get(row.dataset.emRowId):true;row.hidden=hidden;row.classList.toggle('gone',hidden&&row.matches('tr.item-line'));if(row.classList.contains('new-item'))row.querySelectorAll('input,select,textarea').forEach(field=>field.disabled=hidden);const undo=row.querySelector('.undo-line');if(undo)undo.style.display=hidden?'':'none';});}
-function tagDetailFields(){const pane=document.getElementById('detailPane');if(!pane||activeRequestId===null)return;const requestFields={'.f-number':'number','.f-date':'date','.f-rdate':'received-date','.f-recipient':'recipient','.f-supplier':'supplier','.f-notes':'notes'};Object.entries(requestFields).forEach(([selector,name])=>pane.querySelectorAll(selector).forEach(el=>el.dataset.emTrack='spare-request:'+activeRequestId+':'+name));pane.querySelectorAll('tr.item-line').forEach(row=>{if(!row.dataset.emRowId)row.dataset.emRowId=String(nextEditRowId++);const rowId=row.dataset.itemId||row.dataset.emRowId;[['.i-name','name'],['.i-part','part'],['.i-qty','quantity'],['.received','received'],['.i-note','notes']].forEach(([selector,name])=>row.querySelectorAll(selector).forEach(el=>el.dataset.emTrack='spare-request:'+activeRequestId+':item:'+rowId+':'+name))})}
+function tagDetailFields(){const pane=document.getElementById('detailPane');if(!pane||activeRequestId===null)return;const requestFields={'.f-number':'number','.f-date':'date','.f-rdate':'received-date','.f-recipient':'recipient','.f-supplier':'supplier','.f-notes':'notes'};Object.entries(requestFields).forEach(([selector,name])=>pane.querySelectorAll(selector).forEach(el=>el.dataset.emTrack='spare-request:'+activeRequestId+':'+name));pane.querySelectorAll('tr.item-line').forEach(row=>{if(!row.dataset.emRowId)row.dataset.emRowId=String(nextEditRowId++);const rowId=row.dataset.itemId||row.dataset.emRowId;[['.i-kind','kind'],['.i-name','name'],['.i-part','part'],['.i-qty','quantity'],['.received','received'],['.i-note','notes']].forEach(([selector,name])=>row.querySelectorAll(selector).forEach(el=>el.dataset.emTrack='spare-request:'+activeRequestId+':item:'+rowId+':'+name))})}
 function detailRowsSnapshot(){const rows=rowSnapshot('#detailPane tr.item-line');return{requestId:activeRequestId,rows,fields:[...document.querySelectorAll('#detailPane [data-em-track]')].map(el=>[el.dataset.emTrack,el.value])}}
 function restoreDetailRows(snapshot){if(!snapshot||Number(snapshot.requestId)!==Number(activeRequestId))return;restoreRows('#detailPane tr.item-line',snapshot.rows||[]);const values=new Map(snapshot.fields||[]);document.querySelectorAll('#detailPane [data-em-track]').forEach(el=>{if(values.has(el.dataset.emTrack)){el.value=values.get(el.dataset.emTrack);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}})}
 async function saveOpenRequest(){const button=document.querySelector('#detailPane .save-request');if(!button)return false;return saveRequest(Number(button.dataset.id),button)}
@@ -188,18 +188,19 @@ async function openRepairRequest(){
 
 function addRequestItemRow(){
   const wrap=document.createElement('div');wrap.className='new-item';wrap.dataset.emNew='1';wrap.dataset.emRowId=String(nextEditRowId++);
-  wrap.innerHTML='<input class="new-name" placeholder="اسم قطعة الغيار *"><select class="new-part"><option value="">— بدون ربط بالمخزون —</option>'+PARTS.map((id,i)=>'<option value="'+id+'">'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('')+'</select><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
+  wrap.innerHTML='<select class="new-kind" aria-label="نوع الصنف"><option value="part">قطعة غيار</option><option value="tire">إطار</option><option value="battery">بطارية</option></select><input class="new-name" placeholder="اسم الصنف *"><select class="new-part"><option value="">— بدون ربط بالمخزون —</option>'+PARTS.map((id,i)=>'<option value="'+id+'">'+esc(PART_NAMES[i]||'—')+(PART_NUMBERS[i]?' — '+esc(PART_NUMBERS[i]):'')+'</option>').join('')+'</select><input class="new-qty" type="number" min="1" step="1" placeholder="الكمية المطلوبة *" required><input class="new-note" placeholder="ملاحظات"><button type="button" class="secondary remove-request-item">حذف</button>';
   document.getElementById('newItems').appendChild(wrap);
   if(window.EditManager)EditManager.commit('إضافة بند للطلب الجديد');
 }
 document.getElementById('addRequestItem').addEventListener('click',addRequestItemRow);
+document.getElementById('newItems').addEventListener('change',event=>{if(!event.target.matches('.new-kind'))return;const part=event.target.closest('.new-item').querySelector('.new-part');part.disabled=event.target.value!=='part';if(part.disabled)part.value='';});
 
 document.getElementById('requestForm').addEventListener('submit',async e=>{
   e.preventDefault();
   try{
     const fd=new FormData(e.target);
     const rows=[...document.querySelectorAll('#newItems .new-item:not([hidden])')];
-    const items=rows.map(row=>{const partRaw=row.querySelector('.new-part').value;const name=row.querySelector('.new-name').value.trim();return {spare_part_id:partRaw?Number(partRaw):null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
+    const items=rows.map(row=>{const assetType=row.querySelector('.new-kind').value;const partRaw=assetType==='part'?row.querySelector('.new-part').value:'';const name=row.querySelector('.new-name').value.trim();return {asset_type:assetType,spare_part_id:partRaw?Number(partRaw):null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
     const msg=document.getElementById('formMsg');
     if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
     if(items.length<rows.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
@@ -323,7 +324,7 @@ function detailHtml(x){
 }
 
 function itemsHtml(x){
-  const head='<thead><tr><th>اسم قطعة الغيار</th><th>من المخزون (اختياري)</th><th>المطلوب</th><th>المستلم كمية</th><th>ملاحظات</th><th>الإجراء</th></tr></thead>';
+  const head='<thead><tr><th>نوع الصنف</th><th>اسم الصنف</th><th>من المخزون (اختياري)</th><th>المطلوب</th><th>المستلم كمية</th><th>ملاحظات</th><th>الإجراء</th></tr></thead>';
   if(!x.items.length)return '<div class="table-scroll mt-table-theme-green" data-mt-region><table class="items-t">'+head+'<tbody></tbody></table></div>';
   const undoItem=x.items.find(i=>Number(i.received_quantity||0)>0||Boolean(i.supplier_institution));
   return '<div class="table-scroll mt-table-theme-green" data-mt-region><table class="items-t">'+head+'<tbody>'+x.items.map(i=>itemRow(i,x,undoItem&&undoItem.id===i.id)).join('')+'</tbody></table></div>';
@@ -334,9 +335,11 @@ function itemRow(i,x,showUndo){
   const locked=received>0||x.status!=='pending';
   const hasReceipt=received>0||Boolean(i.supplier_institution);
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'" '+(Number(pid)===Number(i.spare_part_id)?'selected':'')+'>'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
+  const kindOptions=['part','tire','battery'].map(kind=>'<option value="'+kind+'" '+((i.asset_type||'part')===kind?'selected':'')+'>'+({part:'قطعة غيار',tire:'إطار',battery:'بطارية'}[kind])+'</option>').join('');
   return '<tr class="item-line" data-item-id="'+(i.id||'')+'"'+(locked?' data-locked="1"':'')+'>'
-    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم قطعة الغيار *"'+(locked?' disabled':'')+'></td>'
-    +'<td><select class="i-part"'+(locked?' disabled':'')+'>'+options+'</select></td>'
+    +'<td><select class="i-kind"'+(locked?' disabled':'')+'>'+kindOptions+'</select></td>'
+    +'<td><input class="i-name" value="'+esc(i.part_name||'')+'" placeholder="اسم الصنف *"'+(locked?' disabled':'')+'></td>'
+    +'<td><select class="i-part"'+(locked||(i.asset_type||'part')!=='part'?' disabled':'')+'>'+options+'</select></td>'
     +'<td><input class="i-qty" type="number" min="1" step="1" value="'+esc(i.requested_quantity)+'"'+(locked?' disabled':'')+'></td>'
     +'<td><input class="received" type="number" min="0" step="1" value="'+(hasReceipt?received:'')+'" placeholder="لم يُستلم بعد"></td>'
     +'<td><textarea class="i-note" rows="1" placeholder="ملاحظات">'+esc(i.notes||'')+'</textarea></td>'
@@ -375,7 +378,8 @@ function addLineRow(host){
   const options='<option value="">— بدون ربط —</option>'+PARTS.map((pid,k)=>'<option value="'+pid+'">'+esc(PART_NAMES[k]||'—')+(PART_NUMBERS[k]?' — '+esc(PART_NUMBERS[k]):'')+'</option>').join('');
   const tr=document.createElement('tr');
   tr.className='item-line';tr.dataset.itemId='';tr.dataset.emNew='1';
-  tr.innerHTML='<td><input class="i-name" placeholder="اسم قطعة الغيار *"></td>'
+  tr.innerHTML='<td><select class="i-kind"><option value="part">قطعة غيار</option><option value="tire">إطار</option><option value="battery">بطارية</option></select></td>'
+    +'<td><input class="i-name" placeholder="اسم الصنف *"></td>'
     +'<td><select class="i-part">'+options+'</select></td>'
     +'<td><input class="i-qty" type="number" min="1" step="1" value="1"></td>'
     +'<td><input class="received" type="number" min="0" step="1" placeholder="لم يُستلم بعد"></td>'
@@ -386,10 +390,10 @@ function addLineRow(host){
   if(window.EditManager)EditManager.commit('إضافة بند للطلب المفتوح');
   tr.querySelector('.i-name').focus();
 }
-
 function itemBody(tr){
+  const assetType=tr.querySelector('.i-kind').value;
   const name=tr.querySelector('.i-name').value.trim();
-  const partRaw=tr.querySelector('.i-part').value;
+  const partRaw=assetType==='part'?tr.querySelector('.i-part').value:'';
   const qtyRaw=tr.querySelector('.i-qty').value;
   const receivedRaw=tr.querySelector('.received').value.trim();
   const recipient=tr.closest('.items').querySelector('.f-recipient').value.trim();
@@ -404,12 +408,14 @@ function itemBody(tr){
   if(receiptEntered&&!(Number.isInteger(received)&&received>=0))return {error:'الكمية المستلمة يجب أن تكون صفراً أو عدداً صحيحاً موجباً'};
   if(receiptEntered&&!supplier)return {error:'أدخل المؤسسة الممونة للبند المستلم'};
   const body={notes:note||null};
+  body.asset_type=assetType;
   body.spare_part_id=partRaw?Number(partRaw):null;
   body.part_name=name||null;
   body.requested_quantity=qty;
   if(receiptEntered){body.received_quantity=received;body.received_date=rdate;body.recipient=recipient;body.supplier_institution=supplier;}
   return {body:body,received:received,receiptEntered:receiptEntered};
 }
+document.getElementById('detailPane').addEventListener('change',event=>{if(!event.target.matches('.i-kind'))return;const part=event.target.closest('.item-line').querySelector('.i-part');part.disabled=event.target.value!=='part';if(part.disabled)part.value='';});
 
 async function saveRequest(id,btn){
   const host=btn.closest('.items');
@@ -450,7 +456,8 @@ async function saveRequest(id,btn){
     const sel=tr.querySelector('.i-part'),inp=tr.querySelector('.i-name');
     const pid=Number(sel&&sel.value||0);
     const nm=String(inp?inp.value:'').trim().toLowerCase();
-    return pid?'id:'+pid:'name:'+nm;
+    const kind=tr.querySelector('.i-kind')?.value||'part';
+    return kind+'|'+(pid&&kind==='part'?'id:'+pid:'name:'+nm);
   };
   for(const p of payloads){
     if(p.tr.dataset.itemId)continue;
@@ -484,7 +491,7 @@ async function saveRequest(id,btn){
       }
       /* البند المُقفل (مسجل استلاماً أو الطلب غير قيد الانتظار): تعيينه وكمية طلبه مقفلان، وإعادةها يرفضها الخادم، لأن الإحلال معنوع والحقلان أعيداً. */
       if(itemId&&(p.tr.dataset.locked||p.receiptEntered)){
-        delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;
+        delete body.asset_type;delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;
       }
       let r;
       if(itemId){

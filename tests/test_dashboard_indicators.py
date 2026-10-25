@@ -332,17 +332,43 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
 
         session = TestingSession()
         old_receipt_date = date.today() - timedelta(days=365 * 3)
-        request_services.create_asset_receipt(session, {
-            "asset_type": "tire", "document_number": "DASH-TIRE-RECEIPT",
-            "description": "205/55", "quantity": 1, "received_date": old_receipt_date,
-        })
-        request_services.create_asset_receipt(session, {
-            "asset_type": "battery", "document_number": "DASH-BATTERY-RECEIPT",
-            "description": "AGM 12V", "quantity": 1, "received_date": old_receipt_date,
-        })
+        from app.modules.faults_repairs.models import Fault
+        from app.modules.spare_parts_requests.schemas import SparePartRequestCreate
+        from app.modules.spare_parts_requests.schemas import SparePartRequestItemCreate
+
+        def received_asset_item(request_number, asset_type, description):
+            fault = Fault(
+                equipment_id=equipment_id,
+                reported_date=old_receipt_date,
+                description=f"طلب {description}",
+            )
+            session.add(fault)
+            session.flush()
+            request = request_services.create_request(
+                session,
+                SparePartRequestCreate(
+                    request_number=request_number,
+                    request_date=old_receipt_date,
+                    received_date=old_receipt_date,
+                    recipient="مستودع الاختبار",
+                    supplier_institution="مورد الاختبار",
+                    source_type="fault",
+                    source_id=fault.id,
+                    items=[SparePartRequestItemCreate(
+                        asset_type=asset_type,
+                        part_name=description,
+                        requested_quantity=1,
+                        received_quantity=1,
+                    )],
+                ),
+            )
+            return request.items[0].id
+
+        tire_item_id = received_asset_item("DASH-TIRE-REQUEST", "tire", "205/55")
+        battery_item_id = received_asset_item("DASH-BATTERY-REQUEST", "battery", "AGM 12V")
         tire = tire_services.add_tire(
             session,
-            {"serial_number": "DASH-TIRE-1", "size": "205/55", "expiry_date": date.today(), "acquisition_document": "DASH-TIRE-RECEIPT"},
+            {"serial_number": "DASH-TIRE-1", "size": "205/55", "expiry_date": date.today(), "acquisition_request_item_id": tire_item_id},
         )
         tire_services.add_movement(
             session,
@@ -359,7 +385,7 @@ def test_due_tire_battery_and_notification_counts_follow_install_and_removal(mon
             session,
             {
                 "battery_type": "AGM 12V",
-                "acquisition_document": "DASH-BATTERY-RECEIPT",
+                "acquisition_request_item_id": battery_item_id,
             },
         )
         battery_services.add_movement(

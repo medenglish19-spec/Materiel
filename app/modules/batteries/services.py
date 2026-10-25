@@ -293,17 +293,23 @@ def add_battery(db: Session, data: dict):
         raise ValueError("نوع البطارية مطلوب")
     data["battery_type"] = battery_type
     data.pop("serial_number", None)
-    from app.modules.spare_parts_requests.models import AssetReceipt
-    receipt_number = (data.get("acquisition_document") or "").strip()
-    receipt = db.query(AssetReceipt).filter(AssetReceipt.document_number == receipt_number, AssetReceipt.asset_type == "battery").first()
-    if not receipt:
-        raise ValueError("وثيقة اقتناء البطارية غير موجودة في سجل الاستلام بوحدة الغيار")
-    used = db.query(Battery.id).filter(Battery.acquisition_receipt_id == receipt.id).count()
-    if used >= receipt.quantity:
-        raise ValueError("اكتملت كمية هذه الوثيقة في سجل الاستلام")
-    data["acquisition_document"] = receipt.document_number
-    data["acquisition_receipt_id"] = receipt.id
-    data["receipt_date"] = receipt.received_date
+    from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+    request_item_id = data.get("acquisition_request_item_id")
+    item = db.query(SparePartRequestItem).join(SparePartRequest).filter(
+        SparePartRequestItem.id == request_item_id,
+        SparePartRequestItem.asset_type == "battery",
+        SparePartRequestItem.received_quantity > 0,
+        SparePartRequest.status == "approved",
+    ).with_for_update().first()
+    if not item:
+        raise ValueError("اختر بند بطارية مستلمًا من طلب معتمد")
+    used = db.query(Battery.id).filter(Battery.acquisition_request_item_id == item.id).count()
+    if used >= int(item.received_quantity):
+        raise ValueError("اكتملت كمية البطاريات المستلمة لهذا البند")
+    data["acquisition_document"] = item.request.request_number
+    data["acquisition_receipt_id"] = None
+    data["acquisition_request_item_id"] = item.id
+    data["receipt_date"] = item.request.received_date or item.received_date
     battery = Battery(**data)
     db.add(battery)
     db.commit()

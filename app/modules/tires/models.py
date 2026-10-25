@@ -20,6 +20,7 @@ class Tire(Base, AuditMixin):
     expiry_date_manual = Column(Boolean, nullable=False, default=False)
     acquisition_document = Column(String(100), nullable=True)
     acquisition_receipt_id = Column(Integer, ForeignKey("asset_receipts.id", ondelete="RESTRICT", name="fk_tires_acquisition_receipt_id_asset_receipts"), nullable=True, index=True)
+    acquisition_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT", name="fk_tires_acquisition_request_item_id_spare_part_request_items"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
     movements = relationship("TireMovement", back_populates="tire", order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()", cascade="all, delete-orphan")
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")

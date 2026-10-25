@@ -46,7 +46,7 @@ PAGE_MARKERS = [
     ("/tires", "الإطارات"),
     ("/tires/inventory", None),
     ("/batteries", "البطاريات"),
-    ("/spare-parts-received", "استلام الإطارات والبطاريات"),
+    ("/spare-parts-received", "سجل قطع الغيار المستلم"),
     ("/spare-parts/catalog", "كتالوج قطع الغيار"),
     ("/fuel", "الوقود"),
     ("/missions", "المهمات"),
@@ -410,42 +410,58 @@ def test_spare_parts_catalog_delete_preserves_parts_used_in_requests_or_repairs(
 
 
 def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
-    client, _ = pages
+    client, ids = pages
     receipt_day = date.today().isoformat()
-    for asset_type, number, description in (
-        ("tire", "E2E-TIRE-RECEIPT", "إطار اختبار 1"),
-        ("battery", "E2E-BATTERY-RECEIPT", "بطارية AGM اختبار"),
-    ):
-        response = client.post("/api/spare-parts-requests/asset-receipts", json={
-            "asset_type": asset_type,
-            "document_number": number,
-            "description": description,
-            "quantity": 1,
+
+    def create_received_request(number, asset_type, name, source_type, source_id):
+        response = client.post("/api/spare-parts-requests", json={
+            "request_number": number,
+            "request_date": receipt_day,
             "received_date": receipt_day,
-            "supplier": "مورد الاختبار",
             "recipient": "مستلم الاختبار",
+            "supplier_institution": "مورد الاختبار",
+            "source_type": source_type,
+            "source_id": source_id,
+            "items": [{
+                "asset_type": asset_type,
+                "part_name": name,
+                "requested_quantity": 1,
+                "received_quantity": 1,
+            }],
         })
         assert response.status_code == 201, response.text
+        assert response.json()["status"] == "approved"
+        return response.json()["items"][0]["id"]
 
-    tire_invalid = client.post("/tires", data={"serial_number": "E2E-T-INVALID", "acquisition_document": "UNKNOWN"})
+    tire_item_id = create_received_request("E2E-TIRE-REQ", "tire", "إطار اختبار 1", "fault", ids["fault"])
+    battery_fault = client.post("/api/faults-repairs/faults", json={
+        "equipment_id": ids["equipment"],
+        "reported_date": receipt_day,
+        "description": "عطل بطارية لاختبار الاستلام الموحد",
+        "severity": "low",
+    })
+    assert battery_fault.status_code == 201, battery_fault.text
+    battery_item_id = create_received_request("E2E-BATTERY-REQ", "battery", "بطارية AGM اختبار", "fault", battery_fault.json()["id"])
+    assert client.get("/api/spare-parts-requests/asset-receipts").status_code == 404
+    tire_invalid = client.post("/tires", data={"serial_number": "E2E-T-INVALID", "acquisition_request_item_id": 999999})
     assert tire_invalid.status_code == 400
-    tire_created = client.post("/tires", data={"serial_number": "E2E-T-1", "brand": "Brand", "model": "Model", "acquisition_document": "E2E-TIRE-RECEIPT"}, follow_redirects=False)
+    tire_created = client.post("/tires", data={"serial_number": "E2E-T-1", "brand": "Brand", "model": "Model", "acquisition_request_item_id": tire_item_id}, follow_redirects=False)
     assert tire_created.status_code == 303
     tires_html = client.get("/tires").text
     assert "E2E-T-1" in tires_html
     tire_id = re.search(r'href="/tires/(\d+)"', tires_html).group(1)
     assert client.post(f"/tires/{tire_id}/delete", follow_redirects=False).status_code == 303
 
-    battery_invalid = client.post("/batteries", data={"battery_type": "AGM", "acquisition_document": "UNKNOWN"})
+    battery_invalid = client.post("/batteries", data={"battery_type": "AGM", "acquisition_request_item_id": 999999})
     assert battery_invalid.status_code == 400
-    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "capacity": "60 Ah", "acquisition_document": "E2E-BATTERY-RECEIPT"}, follow_redirects=False)
+    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "capacity": "60 Ah", "acquisition_request_item_id": battery_item_id}, follow_redirects=False)
     assert battery_created.status_code == 303
     batteries_html = client.get("/batteries").text
     assert "AGM" in batteries_html
     battery_id = re.search(r'href="/batteries/(\d+)"', batteries_html).group(1)
     battery_detail = client.get(f"/batteries/{battery_id}")
     assert battery_detail.status_code == 200
-    assert "E2E-BATTERY-RECEIPT" in battery_detail.text
+    assert "E2E-BATTERY-REQ" in battery_detail.text
     assert client.post(f"/batteries/{battery_id}/delete", follow_redirects=False).status_code == 303
 
 

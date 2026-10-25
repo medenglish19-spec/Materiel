@@ -8,58 +8,46 @@ from app.modules.faults_repairs.models import Fault, Repair, SparePart
 from .models import SparePartRequest, SparePartRequestItem
 from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
 from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
-from .models import AssetReceipt
 
 RECEIPT_BEFORE_REQUEST = "تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب."
 RECEIPT_CONFLICT = "طلب الغيار هذا له تاريخ استلام واحد. افتح طلب غيار جديد للاستلام الجديد."
 REQUEST_NUMBER_TAKEN = "رقم الطلب مستخدم مسبقًا، يرجى إدخال رقم آخر."
 
 
-def create_asset_receipt(db: Session, data: dict) -> AssetReceipt:
-    kind = (data.get("asset_type") or "").strip()
-    number = (data.get("document_number") or "").strip()
-    description = (data.get("description") or "").strip()
-    quantity = int(data.get("quantity") or 0)
-    if kind not in {"tire", "battery"}:
+def available_asset_request_items(db: Session, asset_type: str):
+    """Received, approved request items that can create tire/battery records."""
+    if asset_type not in {"tire", "battery"}:
         raise ValueError("نوع الأصل غير صالح")
-    if not number or not description or quantity < 1:
-        raise ValueError("رقم الوثيقة والوصف والكمية الموجبة مطلوبة")
-    if db.query(AssetReceipt.id).filter(AssetReceipt.document_number == number).first():
-        raise ValueError("رقم وثيقة الاستلام مستخدم مسبقًا")
-    receipt = AssetReceipt(**{**data, "asset_type": kind, "document_number": number, "description": description, "quantity": quantity})
-    db.add(receipt)
-    db.commit()
-    db.refresh(receipt)
-    return receipt
-
-
-def list_asset_receipts(db: Session, asset_type: str | None = None):
     from app.modules.tires.models import Tire
     from app.modules.batteries.models import Battery
-    query = db.query(AssetReceipt)
-    if asset_type in {"tire", "battery"}:
-        query = query.filter(AssetReceipt.asset_type == asset_type)
-    rows = query.order_by(AssetReceipt.received_date.desc(), AssetReceipt.id.desc()).all()
-    used_by_receipt = {}
-    if asset_type != "battery":
-        used_by_receipt.update(
-            db.query(Tire.acquisition_receipt_id, func.count(Tire.id))
-            .filter(Tire.acquisition_receipt_id.isnot(None))
-            .group_by(Tire.acquisition_receipt_id)
-            .all()
-        )
-    if asset_type != "tire":
-        used_by_receipt.update(
-            db.query(Battery.acquisition_receipt_id, func.count(Battery.id))
-            .filter(Battery.acquisition_receipt_id.isnot(None))
-            .group_by(Battery.acquisition_receipt_id)
-            .all()
-        )
-    result = []
-    for row in rows:
-        used = used_by_receipt.get(row.id, 0)
-        result.append({"id": row.id, "asset_type": row.asset_type, "document_number": row.document_number, "description": row.description, "quantity": row.quantity, "used_quantity": used, "remaining_quantity": row.quantity - used, "received_date": row.received_date, "supplier": row.supplier, "recipient": row.recipient, "notes": row.notes})
-    return result
+
+    asset_model = Tire if asset_type == "tire" else Battery
+    used_by_item = dict(
+        db.query(asset_model.acquisition_request_item_id, func.count(asset_model.id))
+        .filter(asset_model.acquisition_request_item_id.isnot(None))
+        .group_by(asset_model.acquisition_request_item_id)
+        .all()
+    )
+    rows = db.query(SparePartRequestItem).join(SparePartRequest).options(
+        joinedload(SparePartRequestItem.request),
+        joinedload(SparePartRequestItem.spare_part),
+    ).filter(
+        SparePartRequestItem.asset_type == asset_type,
+        SparePartRequestItem.received_quantity > 0,
+        SparePartRequest.status == "approved",
+    ).order_by(SparePartRequest.received_date.desc(), SparePartRequest.id.desc(), SparePartRequestItem.id).all()
+    return [
+        {
+            "id": item.id,
+            "request_number": item.request.request_number,
+            "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
+            "received_quantity": int(item.received_quantity),
+            "remaining_quantity": max(0, int(item.received_quantity) - used_by_item.get(item.id, 0)),
+            "received_date": item.request.received_date or item.received_date,
+        }
+        for item in rows
+        if int(item.received_quantity) - used_by_item.get(item.id, 0) > 0
+    ]
 
 
 def _request_number(value: str | None) -> str:
@@ -206,9 +194,10 @@ def _resolve_part(db: Session, part_id: int | None, name: str | None):
     return None, name
 
 
-def _item_identity(part_id: int | None, part_name: str | None):
+def _item_identity(asset_type: str, part_id: int | None, part_name: str | None):
     """معرّف منع التكرار: المعرّف المرجعي إن وُجد، وإلا الاسم الحرّ."""
-    return ("id", part_id) if part_id else ("name", (part_name or "").strip().casefold())
+    identity = ("id", part_id) if part_id else ("name", (part_name or "").strip().casefold())
+    return (asset_type, *identity)
 
 
 def serialize_item(item):
@@ -217,6 +206,7 @@ def serialize_item(item):
     # عن استلام الطلب.
     return {
         "id": item.id,
+        "asset_type": item.asset_type,
         "spare_part_id": item.spare_part_id,
         "part_name": item.part_name or (item.spare_part.name if item.spare_part else None),
         "requested_quantity": item.requested_quantity,
@@ -296,7 +286,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         _resolve_part(db, item.spare_part_id, item.part_name)
         for item in data.items
     ]
-    identities = [_item_identity(part_id, part_name) for part_id, part_name in resolved]
+    identities = [_item_identity(item.asset_type, part_id, part_name) for item, (part_id, part_name) in zip(data.items, resolved)]
     if len(identities) != len(set(identities)):
         raise ValueError("لا يمكن تكرار قطعة الغيار داخل الطلب")
 
@@ -416,10 +406,16 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     if data.received_date and request.received_date is None:
         _store_receipt_date(request, data.received_date)
     part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name)
-    identity = _item_identity(part_id, part_name)
+    if data.asset_type != "part" and part_id:
+        raise ValueError("الإطار أو البطارية لا يرتبطان بكتالوج قطع الغيار")
+    identity = _item_identity(data.asset_type, part_id, part_name)
     for existing in request.items:
-        if _item_identity(existing.spare_part_id, existing.part_name) == identity:
-            raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
+        if _item_identity(existing.asset_type, existing.spare_part_id, existing.part_name) == identity:
+            raise ValueError(
+                "قطعة الغيار موجودة بالفعل في الطلب"
+                if data.asset_type == "part"
+                else "الصنف موجود بالفعل في الطلب"
+            )
     current_recipient = next((item.recipient for item in request.items if item.recipient), None)
     current_supplier = next((item.supplier_institution for item in request.items if item.supplier_institution), None)
     new_recipient = (data.recipient or current_recipient or "").strip() or None
@@ -472,21 +468,28 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         for other in item.request.items
     ) and not shared_supplier:
         raise ValueError("لا يمكن مسح المؤسسة الممونة بعد تسجيل الاستلام")
-    touches_assignment = any(k in values for k in ("spare_part_id", "part_name", "requested_quantity"))
+    touches_assignment = any(k in values for k in ("asset_type", "spare_part_id", "part_name", "requested_quantity"))
     if touches_assignment and item.request.status != "pending":
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
     if item.received_quantity > 0 and touches_assignment:
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
-    if "spare_part_id" in values or "part_name" in values:
+    if "asset_type" in values or "spare_part_id" in values or "part_name" in values:
+        asset_type = values.get("asset_type", item.asset_type)
+        if asset_type != "part" and values.get("spare_part_id", item.spare_part_id):
+            raise ValueError("الإطار أو البطارية لا يرتبطان بكتالوج قطع الغيار")
         part_id, part_name = _resolve_part(
             db,
             values.get("spare_part_id", item.spare_part_id),
             values.get("part_name", item.part_name),
         )
-        identity = _item_identity(part_id, part_name)
+        identity = _item_identity(values.get("asset_type", item.asset_type), part_id, part_name)
         for other in item.request.items:
-            if other.id != item.id and _item_identity(other.spare_part_id, other.part_name) == identity:
-                raise ValueError("قطعة الغيار موجودة بالفعل في الطلب")
+            if other.id != item.id and _item_identity(other.asset_type, other.spare_part_id, other.part_name) == identity:
+                raise ValueError(
+                    "قطعة الغيار موجودة بالفعل في الطلب"
+                    if values.get("asset_type", item.asset_type) == "part"
+                    else "الصنف موجود بالفعل في الطلب"
+                )
         values["spare_part_id"] = part_id
         values["part_name"] = part_name
     if "received_date" in values:
@@ -671,6 +674,7 @@ def received_register(db: Session):
         balances = balances_by_item[item.id]
         result.append({
             "request_item_id": item.id,
+            "asset_type": item.asset_type,
             "request_number": req.request_number,
             "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
             "requested_quantity": item.requested_quantity,
