@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
@@ -952,6 +953,29 @@ def history(db, request_item_id):
             SparePartMovementItem.received_request_item_id == request_item_id,
         )
     ).order_by(SparePartMovementDocument.document_date.asc(), SparePartMovementDocument.id.asc()).all()
+    movement_history = [serialize_document(document) for document in docs]
+    if item.received_quantity > 0:
+        movement_history.append({
+            "id": None,
+            "document_number": None,
+            "document_type": "receipt",
+            "document_date": _receipt_date(item),
+            "issuer": item.supplier_institution,
+            "recipient": item.recipient,
+            "beneficiary": None,
+            "notes": None,
+            "source_document_id": None,
+            "items": [{
+                "request_item_id": item.id,
+                "received_request_item_id": item.id,
+                "quantity": item.received_quantity,
+            }],
+        })
+    movement_history.sort(key=lambda document: (
+        document["document_date"] or date.min,
+        0 if document["document_type"] == "receipt" else 1,
+        document["id"] or 0,
+    ))
     return {
         "item": {
             "id": item.id, "part_name": item.part_name or (item.spare_part.name if item.spare_part else "—"),
@@ -971,6 +995,6 @@ def history(db, request_item_id):
                 "registration_number": req.equipment.registration_number if req.equipment else None,
             },
         },
-        "movements": [serialize_document(d) for d in docs],
+        "movements": movement_history,
         "balances": _compute_balances(db, item),
     }

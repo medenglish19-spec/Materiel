@@ -38,7 +38,9 @@ def test_maintenance_plan_ui_exposes_complete_controls():
     assert 'aria-controls="addMenu"' in html
     assert 'id="addMenu"' in html and 'hidden>' in html
     assert 'id="menuNewPlan"' in html and 'data-action="new-plan"' in html
+    assert 'id="menuAddPlanOperations"' in html and 'data-action="add-plan-operations"' in html
     assert 'id="menuNewStandalone"' in html and 'data-action="new-standalone"' in html
+    assert "🔧 إضافة عملية مستقلة" in html
     assert html.index('id="modelFilter"') < html.index('id="addSplit"') < html.index('id="search"')
     assert all(
         html.index(f'id="{section}"') < html.index('id="summaryPlans"')
@@ -88,18 +90,51 @@ def test_plan_operation_add_rejects_inactive_operation():
 def test_plan_operations_are_added_only_from_the_operation_library():
     """اختيار عمليات المكتبة يجري داخل نافذة صفحة الخطط ويحفظ دفعة واحدة."""
     html = PLAN_TEMPLATE.read_text(encoding="utf-8")
-    assert "📚 إضافة من مكتبة العمليات" in html
+    assert "📚 إضافة من المكتبة العامة أو مكتبة هذا الطراز" in html
     assert 'id="openOperationLibrary"' in html
     assert "$('openOperationLibrary').onclick=openPlanOperationPicker" in html
     assert 'id="planOperationPicker"' in html
+    assert 'id="pickerLibraryModel"' in html and 'id="pickerLibraryGeneral"' in html
+    assert 'role="group" aria-label="مصدر عمليات الصيانة"' in html
     assert 'id="planOperationSearch"' in html
     assert 'id="planOperationSelectAll"' in html
     assert 'id="planOperationSelectedCount"' in html
+    assert "api+'/model-operations?equipment_model_id='+modelId" in html
+    assert "sourceLabel=operation.source==='model'?'عملية خاصة بهذا الطراز':'عملية عامة'" in html
+    assert "model_operation_ids:selected.filter(item=>item.source==='model').map(item=>item.id)" in html
     assert "api+'/plans/'+planId+'/operations/bulk'" in html
     assert "/maintenance/rules?plan_id=" not in html
-    picker = html[html.index('id="planOperationPicker"'):html.index('id="standalonePanel"')]
+    picker = html[html.index('id="planOperationPicker"'):html.index('id="planTargetPicker"')]
     assert "حذف العملية" not in picker and "تعديل العملية" not in picker
     assert "interval_km" not in picker and "شرط استحقاق" not in picker
+    assert "function setPickerLibrary(library)" in html
+    assert "capturePlanPickerSelection()" in html
+    assert "pickerLibrary='model'" in html
+
+
+def test_add_menu_opens_both_libraries_for_a_plan_of_the_selected_model():
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="planTargetPicker"' in html
+    assert "async function addPlanOperationsFromAddMenu()" in html
+    assert "plans.filter(plan=>Number(plan.equipment_model_id)===modelId)" in html
+    assert "if(!plans.length){await openPlanOperationPickerForModel(modelId);return}" in html
+    assert "pendingPlanOperations=selected" in html
+    assert "async function savePendingPlanOperations(planId)" in html
+    assert "openLibraryAfterPlanSave=true" in html
+    assert "await openPlanOperationPickerForModel(plan.equipment_model_id,plan)" in html
+
+
+def test_standalone_operations_can_use_general_or_selected_model_library():
+    html = PLAN_TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="standaloneLibraryModel"' in html
+    assert 'id="standaloneLibraryGeneral"' in html
+    assert 'id="standaloneModelLibraryOptions"' in html
+    assert "$('standaloneLibraryModel').onclick=()=>setStandaloneLibrary('model')" in html
+    assert "$('standaloneLibraryGeneral').onclick=()=>setStandaloneLibrary('general')" in html
+    assert "api+'/model-operations/'+id" in html
+    assert "is_active:true" in html
+    assert "مفعّلة وتظهر مستقلة تلقائيًا" in html
+    assert "const modelSpecific=state.modelOperations.filter(operation=>operation.is_active" in html
 
 
 def test_operation_library_plan_mode_keeps_the_full_add_workflow():

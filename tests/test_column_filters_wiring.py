@@ -58,6 +58,13 @@ def test_engine_enhances_region_tables_automatically():
     assert "function unenhanceTable(table)" in source
 
 
+def test_table_region_height_tracks_page_scroll():
+    source = _engine()
+    assert "window.addEventListener('scroll', scheduleFit" in source
+    assert "window.innerHeight - Math.max(0, rect.top) - GAP" in source
+    assert "region.style.removeProperty('--mt-region-max-height')" in source
+
+
 def test_engine_uses_the_shared_core_matching_api():
     source = _engine()
     assert "CORE.isFilterActive(" in source

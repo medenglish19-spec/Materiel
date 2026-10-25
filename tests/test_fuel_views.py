@@ -13,8 +13,11 @@ from app.database import session as session_module
 from app.database.base import Base
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
+from app.modules.batteries.models import Battery
 from app.modules.fuel.model_rate_import import MODEL_RATE_HEADERS
-from app.modules.fuel.models import FuelModelConsumptionRate
+from app.modules.fuel.models import FuelModelConsumptionRate, FuelRecord
+from app.modules.meter_readings.models import MeterReading
+from app.modules.spare_parts_requests.models import AssetReceipt
 from app.modules.users.models import User
 from web import main
 
@@ -45,6 +48,14 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
         operational_status="available",
     )
     db.add(equipment)
+    receipt = AssetReceipt(
+        asset_type="battery",
+        document_number="BAT-RECEIPT-1",
+        description="بطارية اختبار",
+        quantity=2,
+        received_date=date.today(),
+    )
+    db.add(receipt)
     db.commit()
     user_id = user.id
     equipment_id = equipment.id
@@ -80,7 +91,45 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             assert 'data-battery-stat="total"' not in battery_page.text
             assert "الإجمالي · عرض الكل" not in battery_page.text
             assert "وثيقة الاستلام" in battery_page.text
+            assert "رقم تسلسلي غير مطلوب. مدة الاستبدال" not in battery_page.text
+            assert "href=\"/spare-parts-received\"" not in battery_page.text
             assert "لا توجد بطاريات مسجلة حاليًا." in battery_page.text
+            created_battery = client.post("/batteries", data={
+                "battery_type": "AGM",
+                "brand": "اختبار",
+                "capacity": "60 Ah",
+                "acquisition_document": "BAT-RECEIPT-1",
+            }, follow_redirects=False)
+            assert created_battery.status_code == 303
+            verify = testing_session()
+            battery_id = verify.query(Battery.id).one()[0]
+            verify.close()
+            battery_edit = client.get(f"/batteries/{battery_id}?edit=1")
+            assert battery_edit.status_code == 200
+            assert "تعديل بيانات البطارية" in battery_edit.text
+            changed_battery = client.post(f"/batteries/{battery_id}/update", data={
+                "battery_type": "AGM مطورة",
+                "brand": "علامة معدلة",
+                "capacity": "70 Ah",
+                "manufacture_date": date.today().isoformat(),
+                "notes": "ملاحظة اختبار",
+            }, follow_redirects=False)
+            assert changed_battery.status_code == 303
+            battery_register = client.get("/batteries")
+            assert battery_register.status_code == 200
+            assert f"/batteries/{battery_id}?edit=1#battery-edit" in battery_register.text
+            assert "تحديد للحذف" in battery_register.text
+            assert '<th>الإجراءات</th>' not in battery_register.text
+            assert 'class="battery-date-actions"' in battery_register.text
+            deleted_battery = client.post(
+                "/batteries/delete-selected",
+                data={"battery_ids": [str(battery_id)]},
+                follow_redirects=False,
+            )
+            assert deleted_battery.status_code == 303
+            verify = testing_session()
+            assert verify.query(Battery).count() == 0
+            verify.close()
             empty_indicator_table = client.get("/batteries?filter=installed")
             assert empty_indicator_table.status_code == 200
             assert "لا توجد بطاريات مسجلة حاليًا." in empty_indicator_table.text
@@ -109,6 +158,55 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             form_data["fuel_type"] = "ديزل"
             saved_fuel = client.post("/fuel", data=form_data, follow_redirects=False)
             assert saved_fuel.status_code == 303
+            fuel_page = client.get("/fuel")
+            assert '<th>الإجراءات</th>' not in fuel_page.text
+            assert 'class="fuel-date-actions"' in fuel_page.text
+            verify = testing_session()
+            fuel_record = verify.query(FuelRecord).one()
+            fuel_record_id = fuel_record.id
+            verify.close()
+            edit_page = client.get(f"/fuel?edit={fuel_record_id}")
+            assert edit_page.status_code == 200
+            assert 'id="fuelEditDialog"' in edit_page.text
+            assert "تحديد للحذف" in edit_page.text
+            changed_fuel = client.post(f"/fuel/{fuel_record_id}/update", data={
+                "fueling_date": date.today().isoformat(),
+                "meter_value": "1000",
+                "quantity": "24.5",
+                "fuel_type": "ديزل",
+                "document_number": "FUEL-DOC-EDIT",
+                "station": "محطة اختبار",
+                "notes": "تعديل اختبار",
+                "return_to": "/equipment/1/fuel",
+            }, follow_redirects=False)
+            assert changed_fuel.status_code == 303
+            assert changed_fuel.headers["location"] == f"/equipment/{equipment_id}/fuel"
+            equipment_history = client.get(f"/equipment/{equipment_id}/fuel")
+            assert equipment_history.status_code == 200
+            assert '<th>الإجراءات</th>' not in equipment_history.text
+            assert 'class="fuel-date-actions"' in equipment_history.text
+            assert f"/fuel?edit={fuel_record_id}" in equipment_history.text
+            verify = testing_session()
+            assert verify.get(FuelRecord, fuel_record_id).quantity == 24.5
+            assert verify.query(MeterReading).filter_by(
+                source_reference=f"fuel:{fuel_record_id}:meter"
+            ).count() == 1
+            verify.close()
+            deleted_fuel = client.post(
+                "/fuel/delete-selected",
+                data={"record_ids": [str(fuel_record_id)], "return_to": f"/equipment/{equipment_id}/fuel"},
+                follow_redirects=False,
+            )
+            assert deleted_fuel.status_code == 303
+            assert deleted_fuel.headers["location"] == f"/equipment/{equipment_id}/fuel"
+            verify = testing_session()
+            assert verify.query(FuelRecord).count() == 0
+            retained_meter = verify.query(MeterReading).filter_by(
+                source_reference=None,
+                equipment_id=equipment_id,
+            ).one()
+            assert retained_meter.odometer == 1000
+            verify.close()
 
             rates_page = client.get("/fuel/model-rates")
             assert rates_page.status_code == 200
@@ -163,6 +261,7 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             assert equipment_list.status_code == 200
             assert "FUEL-VIEW-1" in equipment_list.text
             assert "/equipment/1/fuel" in equipment_list.text
+            assert "<th>السجل</th>" not in equipment_list.text
             equipment_history = client.get(f"/equipment/{equipment_id}/fuel")
             assert equipment_history.status_code == 200
 

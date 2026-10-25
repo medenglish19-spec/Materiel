@@ -49,7 +49,8 @@ def validate_record(db: Session, equipment_id: int, fueling_date: date, meter_va
     if not equipment:
         raise ValueError("العتاد غير موجود")
     unit = (equipment.equipment_type.measurement_unit if equipment.equipment_type else "km")
-    validate_meter_observation(db, equipment_id, fueling_date, meter_value, unit, "الوقود")
+    reference = f"fuel:{record_id}:meter" if record_id is not None else None
+    validate_meter_observation(db, equipment_id, fueling_date, meter_value, unit, "الوقود", source_reference=reference)
     return _previous(db, equipment_id, fueling_date, record_id)
 
 
@@ -63,6 +64,42 @@ def add_record(db: Session, data: dict):
     sync_current_meter(db, record.equipment_id)
     db.commit(); db.refresh(record)
     return record
+
+
+def update_record(db: Session, record_id: int, data: dict):
+    record = db.query(FuelRecord).filter(FuelRecord.id == record_id).first()
+    if record is None:
+        raise ValueError("سجل التعبئة غير موجود")
+    validate_record(
+        db, record.equipment_id, data["fueling_date"], data["meter_value"],
+        data["quantity"], record_id=record.id,
+    )
+    record.fueling_date = data["fueling_date"]
+    record.meter_value = data["meter_value"]
+    record.quantity = data["quantity"]
+    record.fuel_type = data.get("fuel_type")
+    record.document_number = data.get("document_number")
+    record.station = data.get("station")
+    record.notes = data.get("notes")
+    db.commit()
+    sync_current_meter(db, record.equipment_id)
+    db.refresh(record)
+    return record
+
+
+def delete_records(db: Session, record_ids: list[int]):
+    unique_ids = set(record_ids)
+    records = db.query(FuelRecord).filter(FuelRecord.id.in_(unique_ids)).all() if unique_ids else []
+    if len(records) != len(unique_ids):
+        raise ValueError("تعذر حذف سجلات الوقود المحددة؛ قد يكون أحد السجلات غير موجود")
+    equipment_ids = {record.equipment_id for record in records}
+    for record in records:
+        db.delete(record)
+    db.flush()
+    for equipment_id in equipment_ids:
+        sync_current_meter(db, equipment_id)
+    db.commit()
+    return len(records)
 
 
 def distance_from_previous(db: Session, record: FuelRecord):

@@ -13,6 +13,20 @@
   <div class="record-notice">مدة الاستبدال العامة: <b>{{ validity_years }} سنة</b>. العمر وحده لا يعني التلف؛ التلف لا يُسجل إلا من خلال حركة فك بسبب تلف.</div>
   {% if state and state.installed %}<div class="record-notice">العتاد الحالي: <a href="/equipment/{{ state.equipment.id }}/batteries"><b>{{ state.equipment.equipment_model.name if state.equipment.equipment_model else 'طراز غير محدد' }} · {{ state.equipment.registration_number or state.equipment.vin }}</b></a>{% if state.equipment.first_service_date %} · أول سير: <b>{{ state.equipment.first_service_date }}</b>{% endif %}</div>{% endif %}
 </section>
+<section class="record-panel" id="battery-edit">
+  <details {% if edit_mode %}open{% endif %}>
+    <summary>تعديل بيانات البطارية</summary>
+    <form method="post" action="/batteries/{{ battery.id }}/update" class="record-form" data-em-root>
+      <label>نوع البطارية<input name="battery_type" value="{{ battery.battery_type or '' }}" required></label>
+      <label>العلامة التجارية<input name="brand" value="{{ battery.brand or '' }}"></label>
+      <label>السعة<input name="capacity" value="{{ battery.capacity or '' }}"></label>
+      <label>تاريخ الصنع<input type="date" name="manufacture_date" value="{{ battery.manufacture_date or '' }}"></label>
+      <label class="record-wide">ملاحظات<input name="notes" value="{{ battery.notes or '' }}"></label>
+      <div class="record-wide record-hint">وثيقة الاقتناء وتاريخ الاستلام مرتبطان بسجل استلام الغيار ولا يتغيران من هنا.</div>
+      <button class="record-wide">حفظ التعديلات</button>
+    </form>
+  </details>
+</section>
 <section class="record-panel"><div class="record-section-head"><h3>تسجيل حركة</h3><div class="record-hint">الفك إلزامي قبل استبدال أو نقل البطارية. لا يوجد نقل مباشر: سجّل الفك أولًا بسبب واضح، ثم سجّل التركيب في العتاد الجديد. بلوغ موعد الاستبدال لا يجعل البطارية تالفة.</div></div>
 <form method="post" action="/batteries/{{ battery.id }}/movements" class="record-form" data-em-root><label>نوع الحركة<select name="movement_type" id="movement_type" required><option value="install">تركيب</option><option value="remove">فك</option></select></label><label>تاريخ الحركة<input type="date" name="movement_date" value="{{ today }}" required></label><label>العتاد<select name="equipment_id" id="equipment_id"><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.registration_number or e.vin }}{% if e.equipment_model %} — {{ e.equipment_model.name }}{% endif %}</option>{% endfor %}</select></label><label>قراءة العداد<input name="meter_value" type="number" step="0.1" placeholder="القراءة عند الحركة"></label><label>رقم الوثيقة<input name="document_number" placeholder="وثيقة التسليم / الحركة"></label><label>سبب الحركة<input name="reason" id="reason" placeholder="سبب الفك أو التركيب" required></label><label class="record-wide">ملاحظات<input name="notes" placeholder="ملاحظات إضافية"></label><button class="record-wide">تسجيل الحركة</button></form></section>
 <section class="record-panel"><div class="record-section-head"><h3>السجل الزمني الكامل</h3><div class="record-hint">أحدث حركة تظهر أولًا. اسم الطراز ورقم تسجيله يفتحان عمليات البطاريات المتعلقة به.</div></div><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>التاريخ</th><th>الحركة</th><th>العتاد (الطراز · رقم التسجيل)</th><th>العداد</th><th>الوثيقة</th><th>السبب</th></tr></thead><tbody>{% for m in history %}<tr><td>{{ m.movement_date }}</td><td><b>{{ {'install':'تركيب','move':'نقل','remove':'فك'}.get(m.movement_type,m.movement_type) }}</b></td><td>{% if m.equipment %}<a href="/equipment/{{ m.equipment.id }}/batteries">{{ m.equipment.equipment_model.name if m.equipment.equipment_model else 'طراز غير محدد' }} · {{ m.equipment.registration_number or m.equipment.vin }}</a>{% else %}-{% endif %}</td><td>{{ m.meter_value or '-' }}</td><td>{{ m.document_number or '-' }}</td><td>{{ m.reason or '-' }}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد حركات مسجلة لهذه البطارية.</td></tr>{% endfor %}</tbody></table></div></section>

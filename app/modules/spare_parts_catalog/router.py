@@ -234,6 +234,24 @@ async def update_part(part_id: int, request: Request, name: str = Form(...), nam
     return RedirectResponse("/spare-parts/catalog", status_code=303)
 
 
+@router.post("/spare-parts/catalog/parts/{part_id}/delete")
+def delete_part(part_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+    part = db.get(SparePart, part_id)
+    if not part:
+        raise HTTPException(404, "قطعة الغيار غير موجودة.")
+    try:
+        image_path = services.delete_catalog_part(db, part)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, error=str(exc)), status_code=409)
+    except Exception:
+        db.rollback()
+        raise
+    services.remove_image(image_path)
+    return RedirectResponse("/spare-parts/catalog", status_code=303)
+
+
 @router.get("/spare-parts/catalog/import", response_class=HTMLResponse)
 def import_page(request: Request, user: User = Depends(get_current_user)):
     return templates.TemplateResponse(request=request, name="import.html", context={"request": request, "user": user})

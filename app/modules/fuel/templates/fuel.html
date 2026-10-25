@@ -2,7 +2,7 @@
 {% block title %}إدارة الوقود{% endblock %}
 {% block extra_head %}
 <style>
-.fuel-page .fuel-panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 4px 18px rgba(15,23,42,.05)}.fuel-page .fuel-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.fuel-page .fuel-field{display:flex;min-width:0;flex-direction:column;gap:6px}.fuel-page .fuel-field label{font-size:12px;font-weight:700;color:#374151}.fuel-page input,.fuel-page select{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:10px;border:1px solid #d8dee8;border-radius:9px;background:#fff;font:inherit}.fuel-page input:focus,.fuel-page select:focus{outline:2px solid #9ca3af;outline-offset:1px;border-color:#4b5563}.fuel-page .wide{grid-column:1/-1}.fuel-page .fuel-submit{min-height:42px;background:#397a54;color:#fff;border:1px solid #397a54;border-radius:9px;font:inherit;font-weight:800;cursor:pointer}.fuel-page .table-wrap{overflow-x:auto;border:1px solid #e5e9f0;border-radius:12px}.fuel-page table{width:100%;border-collapse:collapse;table-layout:auto}.fuel-page th,.fuel-page td{padding:10px;border-bottom:1px solid #edf0f5;text-align:right;white-space:nowrap}.fuel-page th{background:#f8fafc;color:#667085;font-weight:800}.fuel-page .bad{font-weight:800;color:#b42318}.fuel-page .muted{color:#667085}.fuel-page .fuel-links{display:flex;gap:10px;flex-wrap:wrap}.fuel-page .fuel-links a{display:inline-flex;padding:9px 13px;border:1px solid #397a54;border-radius:9px;color:#286143;text-decoration:none;font-weight:700}.fuel-page .action{color:#286143;text-decoration:none;font-weight:700}@media(max-width:900px){.fuel-page .fuel-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.fuel-page .fuel-panel{padding:14px}.fuel-page .fuel-form{grid-template-columns:minmax(0,1fr);gap:11px}.fuel-page .wide{grid-column:auto}}
+.fuel-page .fuel-panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 4px 18px rgba(15,23,42,.05)}.fuel-page .fuel-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.fuel-page .fuel-field{display:flex;min-width:0;flex-direction:column;gap:6px}.fuel-page .fuel-field label{font-size:12px;font-weight:700;color:#374151}.fuel-page input,.fuel-page select{box-sizing:border-box;width:100%;min-width:0;min-height:42px;padding:10px;border:1px solid #d8dee8;border-radius:9px;background:#fff;font:inherit}.fuel-page input:focus,.fuel-page select:focus{outline:2px solid #9ca3af;outline-offset:1px;border-color:#4b5563}.fuel-page .wide{grid-column:1/-1}.fuel-page .fuel-submit{min-height:42px;background:#397a54;color:#fff;border:1px solid #397a54;border-radius:9px;font:inherit;font-weight:800;cursor:pointer}.fuel-page .table-wrap{overflow-x:auto;border:1px solid #e5e9f0;border-radius:12px}.fuel-page table{width:100%;border-collapse:collapse;table-layout:auto}.fuel-page th,.fuel-page td{padding:10px;border-bottom:1px solid #edf0f5;text-align:right;white-space:nowrap}.fuel-page th{background:#f8fafc;color:#667085;font-weight:800}.fuel-page .bad{font-weight:800;color:#b42318}.fuel-page .muted{color:#667085}.fuel-page .fuel-links{display:flex;gap:10px;flex-wrap:wrap}.fuel-page .fuel-links a{display:inline-flex;padding:9px 13px;border:1px solid #397a54;border-radius:9px;color:#286143;text-decoration:none;font-weight:700}.fuel-page .action{color:#286143;text-decoration:none;font-weight:700}.fuel-page .fuel-actions summary{list-style:none;cursor:pointer;padding:4px 10px;border:1px solid #d0d5dd;border-radius:8px;font-size:20px;line-height:1}.fuel-page .fuel-actions summary::-webkit-details-marker{display:none}.fuel-page .fuel-actions{position:relative;display:inline-block}.fuel-page .fuel-date-actions{display:inline-flex;align-items:center;gap:7px;direction:ltr}.fuel-page .fuel-actions>div{position:fixed;z-index:1000;top:0;left:0;inset-inline-end:auto;min-width:150px;padding:6px;background:#fff;border:1px solid #d0d5dd;border-radius:9px;box-shadow:0 8px 24px #10182826}.fuel-page .fuel-actions a,.fuel-page .fuel-actions button,.fuel-page .fuel-actions label{display:flex;width:100%;align-items:center;gap:8px;padding:8px 10px;border:0;background:transparent;color:#344054;text-decoration:none;text-align:right;font:inherit;white-space:nowrap;cursor:pointer}.fuel-page .fuel-actions .danger{color:#b42318}.fuel-page .fuel-actions input{width:auto;min-height:0;margin:0}.fuel-page .fuel-bulk{display:flex;align-items:center;gap:10px;margin-bottom:12px}.fuel-page .fuel-bulk button{border:1px solid #b42318;border-radius:8px;background:#fff;color:#b42318;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}.fuel-page .fuel-bulk button:disabled{opacity:.5;cursor:not-allowed}.fuel-page .fuel-edit-dialog{width:min(760px,calc(100vw - 28px));max-height:90vh;overflow:auto;border:1px solid #d0d5dd;border-radius:14px;padding:20px;box-shadow:0 24px 72px #10182844;direction:rtl}.fuel-page .fuel-edit-dialog::backdrop{background:#10182888}.fuel-page .fuel-edit-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.fuel-page .fuel-edit-head button{padding:8px 12px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit;cursor:pointer}@media(max-width:900px){.fuel-page .fuel-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.fuel-page .fuel-panel{padding:14px}.fuel-page .fuel-form{grid-template-columns:minmax(0,1fr);gap:11px}.fuel-page .wide{grid-column:auto}}
 </style>
 {% endblock %}
 {% block content %}
@@ -21,9 +21,26 @@
     <div class="fuel-field"><label for="fuelNotes">ملاحظات</label><input id="fuelNotes" name="notes"></div>
     <button class="wide fuel-submit" type="submit" data-em-action="save">حفظ التعبئة</button>
   </form></div>
-  <div class="fuel-panel"><h2>السجل</h2><div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>التاريخ</th><th>الطراز</th><th>رقم التسجيل</th><th>نوع الوقود</th><th>العداد</th><th>الكمية</th><th>المسافة</th><th>لتر/100 كم</th><th>الحالة</th></tr></thead><tbody>{% for x in records %}<tr><td>{{ x.record.fueling_date }}</td><td>{{ x.record.equipment.equipment_model.name if x.record.equipment and x.record.equipment.equipment_model else 'غير محدد' }}</td><td>{% if x.record.equipment %}<a class="action" href="/equipment/{{ x.record.equipment.id }}/fuel">{{ x.record.equipment.registration_number or x.record.equipment.vin or x.record.equipment.id }}</a>{% else %}{{ x.record.equipment_id }}{% endif %}</td><td>{{ x.record.fuel_type or 'غير محدد' }}</td><td>{{ x.meter_value }}</td><td>{{ x.record.quantity }}</td><td>{{ x.distance or '—' }}</td><td>{{ x.consumption or '—' }}</td><td>{% if x.abnormal %}<span class="bad">استهلاك غير طبيعي</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="9" class="muted">لا توجد عمليات تزويد مسجلة.</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="fuel-panel"><h2>السجل</h2><form class="fuel-bulk" method="post" action="/fuel/delete-selected"><input type="hidden" name="return_to" value="/fuel"><span data-fuel-selected-count>0 محددة</span><div data-fuel-selected-inputs></div><button type="submit" disabled>حذف المحدد</button></form><div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>التاريخ</th><th>الطراز</th><th>رقم التسجيل</th><th>نوع الوقود</th><th>العداد</th><th>الكمية</th><th>المسافة</th><th>لتر/100 كم</th><th>الحالة</th></tr></thead><tbody>{% for x in records %}<tr><td><span class="fuel-date-actions"><a class="action" href="/equipment/{{ x.record.equipment_id }}/fuel">{{ x.record.fueling_date }}</a><details class="fuel-actions"><summary aria-label="إجراءات تعبئة {{ x.record.id }}">⋮</summary><div><a href="/fuel?edit={{ x.record.id }}&amp;return_to=%2Ffuel">تعديل</a><label><input class="fuel-select" type="checkbox" value="{{ x.record.id }}">تحديد للحذف</label><form method="post" action="/fuel/{{ x.record.id }}/delete"><input type="hidden" name="return_to" value="/fuel"><button type="submit" class="danger">حذف</button></form></div></details></span></td><td>{{ x.record.equipment.equipment_model.name if x.record.equipment and x.record.equipment.equipment_model else 'غير محدد' }}</td><td>{% if x.record.equipment %}<a class="action" href="/equipment/{{ x.record.equipment.id }}/fuel">{{ x.record.equipment.registration_number or x.record.equipment.vin or x.record.equipment.id }}</a>{% else %}{{ x.record.equipment_id }}{% endif %}</td><td>{{ x.record.fuel_type or 'غير محدد' }}</td><td>{{ x.meter_value }}</td><td>{{ x.record.quantity }}</td><td>{{ x.distance or '—' }}</td><td>{{ x.consumption or '—' }}</td><td>{% if x.abnormal %}<span class="bad">استهلاك غير طبيعي</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="9" class="muted">لا توجد عمليات تزويد مسجلة.</td></tr>{% endfor %}</tbody></table></div></div>
   <div class="fuel-panel"><h2>الاستهلاك الشهري</h2><div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>السنة</th><th>الشهر</th><th>إجمالي الكمية (لتر)</th><th>عدد التعبئات</th></tr></thead><tbody>{% for x in monthly %}<tr><td>{{ x.year }}</td><td>{{ x.month }}</td><td>{{ x.quantity }}</td><td>{{ x.records }}</td></tr>{% else %}<tr><td colspan="4" class="muted">لا توجد بيانات شهرية.</td></tr>{% endfor %}</tbody></table></div></div>
 </div>
+{% if editing_record %}
+<dialog class="fuel-edit-dialog" id="fuelEditDialog">
+  <div class="fuel-edit-head"><h2>تعديل سجل التعبئة</h2><button type="button" data-close-fuel-edit>إغلاق</button></div>
+  <form method="post" action="/fuel/{{ editing_record.id }}/update" class="fuel-form" data-em-root>
+    <input type="hidden" name="return_to" value="{{ edit_return_to }}">
+    <div class="fuel-field"><label>العتاد</label><input value="{{ editing_record.equipment.registration_number or editing_record.equipment.vin or editing_record.equipment_id }}" disabled></div>
+    <div class="fuel-field"><label for="editFuelDate">تاريخ التعبئة *</label><input id="editFuelDate" type="date" name="fueling_date" value="{{ editing_record.fueling_date }}" required></div>
+    <div class="fuel-field"><label for="editFuelMeter">قراءة العداد *</label><input id="editFuelMeter" type="number" min="0" step="0.1" name="meter_value" value="{{ editing_record.meter_value }}" required></div>
+    <div class="fuel-field"><label for="editFuelQuantity">كمية الوقود (لتر) *</label><input id="editFuelQuantity" type="number" step="0.01" min="0.01" name="quantity" value="{{ editing_record.quantity }}" required></div>
+    <div class="fuel-field"><label for="editFuelType">نوع الوقود</label><select id="editFuelType" name="fuel_type"><option value="">غير محدد</option>{% if editing_record.fuel_type and editing_record.fuel_type not in fuel_types %}<option value="{{ editing_record.fuel_type }}" selected>{{ editing_record.fuel_type }}</option>{% endif %}{% for kind in fuel_types %}<option value="{{ kind }}" {% if editing_record.fuel_type == kind %}selected{% endif %}>{{ kind }}</option>{% endfor %}</select></div>
+    <div class="fuel-field"><label for="editFuelDocument">رقم الوثيقة</label><input id="editFuelDocument" name="document_number" value="{{ editing_record.document_number or '' }}"></div>
+    <div class="fuel-field"><label for="editFuelStation">المحطة</label><input id="editFuelStation" name="station" value="{{ editing_record.station or '' }}"></div>
+    <div class="fuel-field wide"><label for="editFuelNotes">ملاحظات</label><input id="editFuelNotes" name="notes" value="{{ editing_record.notes or '' }}"></div>
+    <button class="wide fuel-submit" type="submit">حفظ التعديلات</button>
+  </form>
+</dialog>
+{% endif %}
 <script>
 (function(){
   const model=document.getElementById('fuelModel');
@@ -38,6 +55,40 @@
   }
   model.addEventListener('change',filterEquipment);
   filterEquipment();
+})();
+(function(){
+  const dialog=document.getElementById("fuelEditDialog");
+  if(dialog){dialog.showModal();dialog.querySelector("[data-close-fuel-edit]").addEventListener("click",()=>dialog.close())}
+  document.addEventListener("toggle",event=>{
+    const details=event.target.closest(".fuel-actions");
+    if(!details||!details.open)return;
+    const menu=details.querySelector("summary + div");
+    const rect=details.querySelector("summary").getBoundingClientRect();
+    const width=menu.offsetWidth;
+    const height=menu.offsetHeight;
+    const left=Math.max(8,Math.min(rect.right-width,window.innerWidth-width-8));
+    const below=rect.bottom+4;
+    const top=below+height<=window.innerHeight-8?below:Math.max(8,rect.top-height-4);
+    menu.style.left=`${left}px`;
+    menu.style.top=`${top}px`;
+  },true);
+  function updateSelection(){
+    const selected=[...document.querySelectorAll(".fuel-select:checked")];
+    document.querySelector("[data-fuel-selected-count]").textContent=`${selected.length} محددة`;
+    document.querySelector(".fuel-bulk button").disabled=selected.length===0;
+    const inputs=document.querySelector("[data-fuel-selected-inputs]");
+    inputs.replaceChildren(...selected.map(item=>{
+      const input=document.createElement("input");input.type="hidden";input.name="record_ids";input.value=item.value;return input;
+    }));
+  }
+  document.addEventListener("change",event=>{if(event.target.matches(".fuel-select"))updateSelection()});
+  document.querySelector(".fuel-bulk").addEventListener("submit",event=>{
+    if(!document.querySelector(".fuel-select:checked")){event.preventDefault();return}
+    if(!confirm("هل تريد حذف سجلات التعبئة المحددة؟ ستبقى قراءات العدادات في التاريخ المركزي."))event.preventDefault();
+  });
+  document.addEventListener("submit",event=>{
+    if(event.target.matches(".fuel-actions form")&&!confirm("هل تريد حذف سجل التعبئة؟ ستبقى قراءة العداد في التاريخ المركزي."))event.preventDefault();
+  });
 })();
 </script>
 {% endblock %}

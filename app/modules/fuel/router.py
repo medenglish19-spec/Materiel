@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 
@@ -37,12 +37,16 @@ def dec(value: str):
 
 
 @router.get("/fuel", response_class=HTMLResponse)
-def fuel_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def fuel_page(request: Request, edit: int | None = Query(None), return_to: str = Query("/fuel"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     records = services.list_records(db)
     enriched, _ = services.enrich_records(db, records)
     models = list_models(db)
     equipment = db.query(Equipment).options(joinedload(Equipment.equipment_model)).order_by(Equipment.registration_number, Equipment.id).all()
-    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": equipment, "models": models, "fuel_types": FUEL_TYPE_OPTIONS, "monthly": services.monthly_summary(db, records)})
+    editing_record = db.get(FuelRecord, edit) if edit is not None else None
+    if edit is not None and editing_record is None:
+        raise HTTPException(404, "سجل التعبئة غير موجود")
+    edit_return_to = _fuel_return_path(return_to, editing_record.equipment_id if editing_record else None)
+    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": equipment, "models": models, "fuel_types": FUEL_TYPE_OPTIONS, "monthly": services.monthly_summary(db, records), "editing_record": editing_record, "edit_return_to": edit_return_to})
 
 
 @router.get("/fuel/model-rates", response_class=HTMLResponse)
@@ -149,6 +153,94 @@ def create_fuel(equipment_id: int = Form(...), model_id: int = Form(...), fuelin
     except Exception as exc:
         db.rollback(); raise HTTPException(400, f"تعذر تسجيل التعبئة: {exc}")
     return RedirectResponse("/fuel", 303)
+
+
+def _fuel_return_path(value: str, equipment_id: int | None) -> str:
+    if value == "/fuel":
+        return value
+    if equipment_id is not None and value == f"/equipment/{equipment_id}/fuel":
+        return value
+    return "/fuel"
+
+
+@router.post("/fuel/{record_id:int}/update")
+def update_fuel(
+    record_id: int,
+    fueling_date: date = Form(...),
+    meter_value: str = Form(...),
+    quantity: str = Form(...),
+    fuel_type: str = Form(""),
+    document_number: str = Form(""),
+    station: str = Form(""),
+    notes: str = Form(""),
+    return_to: str = Form("/fuel"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    record = db.get(FuelRecord, record_id)
+    if record is None:
+        raise HTTPException(404, "سجل التعبئة غير موجود")
+    destination = _fuel_return_path(return_to, record.equipment_id)
+    try:
+        if fuel_type and fuel_type not in FUEL_TYPE_OPTIONS:
+            raise ValueError("اختر نوع وقود من القائمة المعتمدة")
+        services.update_record(db, record_id, {
+            "fueling_date": fueling_date,
+            "meter_value": dec(meter_value),
+            "quantity": dec(quantity),
+            "fuel_type": fuel_type.strip() or None,
+            "document_number": document_number.strip() or None,
+            "station": station.strip() or None,
+            "notes": notes.strip() or None,
+        })
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(400, f"تعذر تعديل سجل التعبئة: {exc}")
+    return RedirectResponse(destination, 303)
+
+
+@router.post("/fuel/{record_id:int}/delete")
+def delete_fuel(
+    record_id: int,
+    return_to: str = Form("/fuel"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    record = db.get(FuelRecord, record_id)
+    if record is None:
+        raise HTTPException(404, "سجل التعبئة غير موجود")
+    destination = _fuel_return_path(return_to, record.equipment_id)
+    try:
+        services.delete_records(db, [record_id])
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return RedirectResponse(destination, 303)
+
+
+@router.post("/fuel/delete-selected")
+def delete_selected_fuel(
+    record_ids: list[int] = Form(...),
+    return_to: str = Form("/fuel"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    records = db.query(FuelRecord).filter(FuelRecord.id.in_(set(record_ids))).all()
+    equipment_ids = {record.equipment_id for record in records}
+    destination = "/fuel"
+    if return_to == "/fuel":
+        destination = return_to
+    elif len(equipment_ids) == 1 and return_to == f"/equipment/{next(iter(equipment_ids))}/fuel":
+        destination = return_to
+    try:
+        services.delete_records(db, record_ids)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return RedirectResponse(destination, 303)
 
 
 @router.get("/equipment/{equipment_id}/fuel", response_class=HTMLResponse)

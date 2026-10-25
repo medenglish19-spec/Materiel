@@ -543,6 +543,22 @@ def test_receipt_return_does_not_reduce_later_distribution_total(db):
     )
 
 
+def test_item_history_includes_receipt_before_later_movements(db):
+    item = _received_item(db, 4)
+
+    receipt_history = movements.history(db, item.id)["movements"]
+    assert len(receipt_history) == 1
+    assert receipt_history[0]["document_type"] == "receipt"
+    assert receipt_history[0]["document_date"] == RECEIVED
+    assert receipt_history[0]["issuer"] == item.supplier_institution
+    assert receipt_history[0]["recipient"] == item.recipient
+    assert receipt_history[0]["items"][0]["quantity"] == item.received_quantity
+
+    _distribute(db, item, 1)
+    history = movements.history(db, item.id)["movements"]
+    assert [event["document_type"] for event in history] == ["receipt", "distribution"]
+
+
 def test_distribution_uses_the_explicit_received_item_as_its_balance_source(db):
     display_item = _received_item(db, 1)
     received_item = _received_item(db, 3)

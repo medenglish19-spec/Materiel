@@ -25,9 +25,12 @@ from app.modules.maintenance.catalog_import import (
     compare_previous_version, create_catalog_import, get_catalog_items, update_catalog_item,
 )
 from app.modules.maintenance.operation_excel_import import (
+    GENERAL_OPERATION_IMPORT_HEADERS,
     OPERATION_IMPORT_HEADERS,
     OPERATION_IMPORT_MIME_TYPE,
+    build_general_operation_import_template,
     build_operation_import_template,
+    import_general_operations,
     import_model_operations,
 )
 from app.modules.maintenance.schemas import (MaintenanceModelOperationCreate, MaintenanceModelOperationOut, MaintenanceModelOperationUpdate, MaintenanceOperationBulkDelete, MaintenanceOperationCreate, MaintenanceOperationGroupCreate, MaintenanceOperationGroupOut, MaintenanceOperationGroupUpdate, MaintenanceOperationOut, MaintenanceOperationUpdate, MaintenanceOperationModelConditionSave, MaintenancePlanBulkDelete, MaintenancePlanCreate, MaintenancePlanOperationCreate, MaintenancePlanOperationsBulkCreate, MaintenancePlanOperationOut, MaintenancePlanOut, MaintenancePlanUpdate, MaintenanceRecordBulkDelete, MaintenanceRecordCreate, MaintenanceRecordOut, MaintenancePlanExecutionCreate)
@@ -824,10 +827,12 @@ def maintenance_rules_page(request: Request, db: Session = Depends(get_db), curr
         request=request, name="maintenance_rules_model_only.html", context={
             "request": request, "user": current_user, "models": models,
             "imported_count": request.query_params.get("imported"),
+            "imported_general_count": request.query_params.get("imported_general"),
             "imported_model_name": imported_model_name,
             "selected_library_model_id": selected_library_model_id,
             "import_error": request.query_params.get("import_error"),
             "operation_import_headers": OPERATION_IMPORT_HEADERS,
+            "general_operation_import_headers": GENERAL_OPERATION_IMPORT_HEADERS,
         },
     )
 
@@ -849,6 +854,27 @@ def maintenance_operation_template(
         media_type=OPERATION_IMPORT_MIME_TYPE,
         headers={
             "Content-Disposition": 'attachment; filename="maintenance_operations_template.xlsx"',
+        },
+    )
+
+
+@router.get("/maintenance/rules/general-operation-template.xlsx")
+def maintenance_general_operation_template(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
+):
+    groups = db.query(MaintenanceOperationGroup).order_by(
+        MaintenanceOperationGroup.sort_order,
+        MaintenanceOperationGroup.name,
+    ).all()
+    workbook = build_general_operation_import_template(
+        group_names=[group.name for group in groups],
+    )
+    return Response(
+        content=workbook,
+        media_type=OPERATION_IMPORT_MIME_TYPE,
+        headers={
+            "Content-Disposition": 'attachment; filename="maintenance_general_operations_template.xlsx"',
         },
     )
 
@@ -879,6 +905,32 @@ async def maintenance_operation_import(
         )
     return RedirectResponse(
         f"/maintenance/rules?{urlencode({'imported': imported_count, 'model_id': model_id})}",
+        status_code=303,
+    )
+
+
+@router.post("/maintenance/rules/import-general")
+async def maintenance_general_operation_import(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
+):
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".xlsx"):
+        return RedirectResponse(
+            f"/maintenance/rules?{urlencode({'import_error': 'ارفع ملف Excel بصيغة .xlsx.'})}",
+            status_code=303,
+        )
+    try:
+        data = await read_upload_bytes(file)
+        imported_count = import_general_operations(db, data=data)
+    except (UploadTooLargeError, ValueError) as exc:
+        return RedirectResponse(
+            f"/maintenance/rules?{urlencode({'import_error': str(exc)})}",
+            status_code=303,
+        )
+    return RedirectResponse(
+        f"/maintenance/rules?{urlencode({'imported_general': imported_count})}",
         status_code=303,
     )
 

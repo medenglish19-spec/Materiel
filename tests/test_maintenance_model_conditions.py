@@ -51,7 +51,12 @@ from app.modules.maintenance.services import (
     warning_setting_text,
 )
 from app.modules.maintenance.models import MaintenanceOperation
-from app.modules.maintenance.operation_excel_import import OPERATION_IMPORT_HEADERS, parse_operation_workbook
+from app.modules.maintenance.operation_excel_import import (
+    GENERAL_OPERATION_IMPORT_HEADERS,
+    OPERATION_IMPORT_HEADERS,
+    parse_general_operation_workbook,
+    parse_operation_workbook,
+)
 from app.modules.users.models import User
 
 engine = create_engine(
@@ -327,6 +332,92 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     assert "import_error=" in duplicate.headers["location"]
     after_duplicate = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}").json()
     assert sum(item["name"] == "تبديل مرشح الهواء" for item in after_duplicate) == 1
+
+
+def test_general_library_excel_template_and_upload_create_public_operations_only(api):
+    client, ids = api
+    group_response = client.post(
+        "/api/maintenance/operation-groups",
+        json={"name": "مجموعة عامة للاختبار", "sort_order": 2},
+    )
+    assert group_response.status_code == 201, group_response.text
+    group = group_response.json()
+
+    template_response = client.get("/maintenance/rules/general-operation-template.xlsx")
+    assert template_response.status_code == 200, template_response.text
+    assert template_response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert 'maintenance_general_operations_template.xlsx' in template_response.headers["content-disposition"]
+
+    workbook = load_workbook(BytesIO(template_response.content))
+    sheet = workbook["العمليات"]
+    assert tuple(cell.value for cell in sheet[1]) == GENERAL_OPERATION_IMPORT_HEADERS
+    assert not any("شرط" in str(cell.value) for cell in sheet[1])
+    validations = [item for item in sheet.data_validations.dataValidation if item.type == "list"]
+    assert {item.formula1 for item in validations} == {
+        "=MaintenanceGroupOptions",
+    }
+    assert all("الحالة" not in str(cell.value or "") for cell in sheet[1])
+    sheet.append(("تغيير زيت المحرك", "وصف العملية العامة", group["name"], 0, None, None))
+    sheet.append(("فحص مضخة الوقود", "عملية عامة ثانية", "بدون مجموعة", None, 15.5, 0))
+    stream = BytesIO()
+    workbook.save(stream)
+    workbook.close()
+
+    upload = client.post(
+        "/maintenance/rules/import-general",
+        files={"file": ("general-operations.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        follow_redirects=False,
+    )
+    assert upload.status_code == 303
+    assert "imported_general=2" in upload.headers["location"]
+    assert "model_id=" not in upload.headers["location"]
+    success_page = client.get(upload.headers["location"])
+    assert success_page.status_code == 200
+    assert "تم استيراد 2 عملية إلى مكتبة العمليات العامة." in success_page.text
+
+    public_operations = client.get("/api/maintenance/operations").json()
+    by_name = {operation["name"]: operation for operation in public_operations}
+    active_operation = by_name["تغيير زيت المحرك"]
+    second_operation = by_name["فحص مضخة الوقود"]
+    assert active_operation["description"] == "وصف العملية العامة"
+    assert active_operation["group_id"] == group["id"]
+    assert float(active_operation["warning_km"]) == 0
+    assert active_operation["is_active"] is True
+    assert active_operation["condition_source"] == "none"
+    assert active_operation["model_conditions"] == []
+    assert float(second_operation["warning_hours"]) == 15.5
+    assert second_operation["warning_days"] == 0
+    assert second_operation["is_active"] is True
+
+    private_a = client.get(f"/api/maintenance/model-operations?equipment_model_id={ids['model_a']}").json()
+    assert all(operation["name"] not in {"تغيير زيت المحرك", "فحص مضخة الوقود"} for operation in private_a)
+
+    duplicate = client.post(
+        "/maintenance/rules/import-general",
+        files={"file": ("general-operations.xlsx", stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        follow_redirects=False,
+    )
+    assert duplicate.status_code == 303
+    assert "import_error=" in duplicate.headers["location"]
+    after_duplicate = client.get("/api/maintenance/operations").json()
+    assert sum(operation["name"] == "تغيير زيت المحرك" for operation in after_duplicate) == 1
+    assert sum(operation["name"] == "فحص مضخة الوقود" for operation in after_duplicate) == 1
+
+
+def test_general_excel_import_server_validation_rejects_negative_alarm_values():
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "العمليات"
+    sheet.append(GENERAL_OPERATION_IMPORT_HEADERS)
+    sheet.append(("عملية إنذار سالب", "", "بدون مجموعة", -1, None, None))
+    stream = BytesIO()
+    workbook.save(stream)
+    workbook.close()
+
+    with pytest.raises(ValueError, match="لا تقل قيمة «إنذار كم» عن صفر"):
+        parse_general_operation_workbook(stream.getvalue(), [])
 
 
 def test_excel_import_accepts_multiple_conditions_and_warning_axes():

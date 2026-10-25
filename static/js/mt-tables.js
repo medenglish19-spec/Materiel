@@ -22,11 +22,15 @@
   /* ------------------------------------------------------------------ fit */
   function fitRegion(region) {
     var rect = region.getBoundingClientRect();
-    /* Only measurements taken while the region is on screen are meaningful. */
-    if (rect.top >= 0 && rect.top < window.innerHeight * 0.85) {
-      var available = Math.floor(window.innerHeight - rect.top - GAP);
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight - GAP) {
+      region.style.removeProperty('--mt-region-max-height');
+    } else {
+      /* Keep the region within the visible viewport as its top scrolls away. */
+      var available = Math.floor(window.innerHeight - Math.max(0, rect.top) - GAP);
       if (available >= MIN) {
         region.style.setProperty('--mt-region-max-height', available + 'px');
+      } else {
+        region.style.removeProperty('--mt-region-max-height');
       }
     }
   }
@@ -192,6 +196,7 @@
     scheduleFit();
     if (openMenu) closeRowMenu();
   });
+  window.addEventListener('scroll', scheduleFit, { passive: true });
 
   /* ------------------------------------------------------------------------
      Per-column filters.

@@ -38,6 +38,7 @@
         <button class="m-btn primary" id="btnAdd" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="addMenu">＋ إضافة <span aria-hidden="true">▾</span></button>
         <div class="add-menu" id="addMenu" role="menu" aria-labelledby="btnAdd" hidden>
           <button class="add-menu-item" id="menuNewPlan" role="menuitem" type="button" data-action="new-plan">📋 إضافة خطة صيانة</button>
+          <button class="add-menu-item" id="menuAddPlanOperations" role="menuitem" type="button" data-action="add-plan-operations">📚 إضافة عمليات إلى خطة</button>
           <button class="add-menu-item" id="menuNewStandalone" role="menuitem" type="button" data-action="new-standalone">🔧 إضافة عملية مستقلة</button>
         </div>
       </div>
@@ -63,22 +64,33 @@
     <section class="panel" id="operationsPanel" style="display:none;margin-top:16px">
       <div class="panel-head"><div><h3 id="operationsTitle">عمليات الخطة</h3><p>اختر العمليات التي تنفذ عند تنفيذ الخطة. لا يتم تعديل شروط العمليات من هنا. فكل عملية هنا تتبع شرط الخطة.</p></div><button id="savePlanOps" class="m-btn primary" type="button">حفظ روابط العمليات</button></div>
       <div class="toolbar" style="padding:18px;flex-wrap:wrap">
-        <button id="openOperationLibrary" class="m-btn" type="button">📚 إضافة من مكتبة العمليات</button>
+        <button id="openOperationLibrary" class="m-btn" type="button">📚 إضافة من المكتبة العامة أو مكتبة هذا الطراز</button>
       </div>
       <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table"><thead><tr><th>العملية</th><th>شرط الاستحقاق</th><th>الترتيب</th><th>الإجراء</th></tr></thead><tbody id="planOps"></tbody></table></div>
     </section>
 
     <dialog class="maintenance-modal" id="standalonePanel" aria-labelledby="standaloneTitle">
       <section class="panel">
-      <div class="panel-head"><div><h3 id="standaloneTitle">عملية مستقلة</h3><p>اربط عملية من المكتبة بهذا الطراز وحدد شرط استحقاقها الخاص. شرط العملية المستقلة مستقل تمامًا عن أي خطة ولا يتغير بتغيرها.</p></div><button class="m-btn" id="closeStandalone" type="button" aria-label="إغلاق">×</button></div>
+      <div class="panel-head"><div><h3 id="standaloneTitle">عملية مستقلة</h3><p>اربط عملية من المكتبة العامة بهذا الطراز وحدد شرطها. عمليات مكتبة الطراز تظهر هنا تلقائيًا ما دامت خارج خطة معتمدة، ويمكن تعديلها من مكتبة الطراز.</p></div><button class="m-btn" id="closeStandalone" type="button" aria-label="إغلاق">×</button></div>
       <form id="standaloneForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
         <input type="hidden" id="standaloneOpId">
-        <select id="standaloneOperation" class="m-select" style="min-width:220px"></select>
-        <input id="standaloneKm" class="m-input" type="number" min="0.01" step="any" placeholder="كل كم">
-        <input id="standaloneHours" class="m-input" type="number" min="0.01" step="any" placeholder="كل ساعة">
-        <input id="standaloneDays" class="m-input" type="number" min="1" step="1" placeholder="كل يوم">
-        <div class="muted" id="standaloneHint" style="min-width:240px;align-self:center">حدد فاصلًا واحدًا على الأقل لشرط الاستحقاق.</div>
-        <button class="m-btn primary" type="submit">حفظ العملية المستقلة</button>
+        <div class="toolbar" role="group" aria-label="مصدر العملية المستقلة" style="width:100%;padding:0;flex-wrap:wrap">
+          <button class="m-btn" id="standaloneLibraryModel" type="button" aria-pressed="true">مكتبة الطراز</button>
+          <button class="m-btn" id="standaloneLibraryGeneral" type="button" aria-pressed="false">المكتبة العامة</button>
+        </div>
+        <div id="standaloneModelLibrary" style="width:100%">
+          <div id="standaloneModelLibraryMessage" class="muted" role="status" style="margin:0 0 10px"></div>
+          <div id="standaloneModelLibraryOptions" class="maintenance-picker-list"></div>
+          <button class="m-btn primary" id="activateModelStandalone" type="button" disabled>تفعيل المحدد كعمليات مستقلة</button>
+        </div>
+        <div id="standaloneGeneralLibrary" style="display:none;width:100%;flex-wrap:wrap;gap:8px;align-items:center">
+          <select id="standaloneOperation" class="m-select" style="min-width:220px"></select>
+          <input id="standaloneKm" class="m-input" type="number" min="0.01" step="any" placeholder="كل كم">
+          <input id="standaloneHours" class="m-input" type="number" min="0.01" step="any" placeholder="كل ساعة">
+          <input id="standaloneDays" class="m-input" type="number" min="1" step="1" placeholder="كل يوم">
+          <div class="muted" id="standaloneHint" style="min-width:240px;align-self:center">حدد فاصلًا واحدًا على الأقل لشرط الاستحقاق.</div>
+          <button class="m-btn primary" type="submit">حفظ العملية المستقلة</button>
+        </div>
         <button class="m-btn" id="cancelStandalone" type="button">إلغاء</button>
       </form>
       </section>
@@ -87,14 +99,28 @@
     <dialog class="maintenance-modal" id="planOperationPicker" aria-labelledby="planPickerTitle">
       <section class="panel">
         <div class="panel-head"><div><h3 id="planPickerTitle">إضافة عمليات من المكتبة</h3><p id="planPickerContext"></p></div><button class="m-btn" id="closePlanPicker" type="button" aria-label="إغلاق">×</button></div>
+        <div class="toolbar" role="group" aria-label="مصدر عمليات الصيانة" style="padding:16px 16px 0;flex-wrap:wrap">
+          <button class="m-btn" id="pickerLibraryModel" type="button" aria-pressed="true">مكتبة الطراز</button>
+          <button class="m-btn" id="pickerLibraryGeneral" type="button" aria-pressed="false">المكتبة العامة</button>
+        </div>
         <div class="toolbar" style="padding:16px;flex-wrap:wrap">
-          <input class="m-input" id="planOperationSearch" type="search" placeholder="ابحث في العمليات المتاحة" aria-label="البحث في العمليات">
+          <input class="m-input" id="planOperationSearch" type="search" placeholder="ابحث في المكتبة المختارة" aria-label="البحث في المكتبة المختارة">
           <label style="display:flex;align-items:center;gap:8px"><input id="planOperationSelectAll" type="checkbox"> تحديد كل النتائج</label>
           <span class="badge info" id="planOperationSelectedCount" aria-live="polite">0 محددة</span>
         </div>
         <div id="planOperationPickerMessage" class="muted" role="status" style="padding:0 16px 10px"></div>
         <div id="planOperationOptions" class="maintenance-picker-list" style="padding:0 16px 16px" aria-live="polite"></div>
         <div class="panel-head"><span></span><div style="display:flex;gap:8px"><button class="m-btn" id="cancelPlanPicker" type="button">إلغاء</button><button class="m-btn primary" id="submitPlanPicker" type="button" disabled>إضافة المحدد</button></div></div>
+      </section>
+    </dialog>
+
+    <dialog class="maintenance-modal" id="planTargetPicker" aria-labelledby="planTargetTitle">
+      <section class="panel">
+        <div class="panel-head"><div><h3 id="planTargetTitle">اختر خطة الصيانة</h3><p id="planTargetContext"></p></div><button class="m-btn" id="closePlanTarget" type="button" aria-label="إغلاق">×</button></div>
+        <div class="toolbar" style="padding:16px;flex-wrap:wrap">
+          <select class="m-select" id="planTargetSelect" aria-label="خطة الصيانة"></select>
+          <button class="m-btn primary" id="continuePlanTarget" type="button">اختيار عمليات</button>
+        </div>
       </section>
     </dialog>
 
@@ -160,7 +186,7 @@
   const num=v=>v==null?'':(Number.isInteger(v)?v:Number(v));
   let initialPlanOps=new Set();
   let pendingStandaloneRemovals=new Set(),loadedModelId=0,standaloneSaving=false;
-  let pickerPlanOps=new Set(),standaloneReturnFocus=null;
+  let pickerPlanOps=new Set(),pickerSelectedOperations=new Set(),pendingPlanOperations=[],pickerLibrary='model',pickerRequiresNewPlan=false,standaloneModelSelected=new Set(),standaloneLibrary='model',standaloneReturnFocus=null,openLibraryAfterPlanSave=false;
   const planOpsProvider='maintenance-plan-links';
   const standaloneLinksProvider='maintenance-standalone-links';
   function planOpsSnapshot(){return{planId:state.currentPlanId,operationKeys:[...(state.planOps[state.currentPlanId]||[])].map(linkKey).sort()}}
@@ -234,7 +260,10 @@
   }
   function computeStandalone(){
     const modelId=Number($('modelFilter').value);
-    state.standalone=state.operations.filter(o=>o.is_active&&(o.model_conditions||[]).some(c=>Number(c.model_id)===modelId&&c.is_defined)&&!pendingStandaloneRemovals.has(Number(o.id)));
+    const approvedPlanOperations=new Set(state.plans.filter(plan=>Number(plan.equipment_model_id)===modelId&&plan.is_active&&plan.is_approved).flatMap(plan=>(state.planOps[plan.id]||[]).map(linkKey)));
+    const general=state.operations.filter(operation=>operation.is_active&&(operation.model_conditions||[]).some(item=>Number(item.model_id)===modelId&&item.is_defined)&&!pendingStandaloneRemovals.has(Number(operation.id))&&!approvedPlanOperations.has(operationKey('general',operation.id)));
+    const modelSpecific=state.modelOperations.filter(operation=>operation.is_active&&!approvedPlanOperations.has(operationKey('model',operation.id)));
+    state.standalone=[...general,...modelSpecific];
   }
   function renderSummary(plans){
     const plannedOps=plans.reduce((sum,p)=>sum+((state.planOps[p.id]||[]).length),0);
@@ -313,16 +342,20 @@
       +'</tr>'+opsRows;
   }
   function standaloneRow(o,i){
-    const standaloneActions=[
-      {label:"تعديل شرط العملية",action:"standalone-edit"},
-      {label:"إزالة من هذا الطراز",action:"standalone-remove-model"},
-      {label:"حذف العملية من المكتبة",action:"standalone-delete-library"}
-    ];
+    const isModelOperation=o.source==='model';
+    const standaloneActions=isModelOperation
+      ?[{label:"فتح العملية في مكتبة الطراز",action:"standalone-open-model-library"}]
+      :[
+        {label:"تعديل شرط العملية",action:"standalone-edit"},
+        {label:"إزالة من هذا الطراز",action:"standalone-remove-model"},
+        {label:"حذف العملية من المكتبة",action:"standalone-delete-library"}
+      ];
+    const selection=isModelOperation?'<span class="muted" title="عملية مكتبة الطراز مرتبطة به تلقائيًا">—</span>':'<input type="checkbox" class="standalone-check" data-op-id="'+o.id+'" '+(state.selectedStandalone.has(o.id)?'checked':'')+' aria-label="'+esc(o.name)+'">';
     return '<tr class="standalone-row">'
-      +'<td class="standalone-check-col"><input type="checkbox" class="standalone-check" data-op-id="'+o.id+'" '+ (state.selectedStandalone.has(o.id)?'checked':'') +' aria-label="'+esc(o.name)+'"></td>'
-      +'<td><div class="plan-name-cell">'+actionMenuButton(o.id,standaloneActions,"standalone")+'<span class="vehicle">'+esc(o.name)+'</span></div><small style="display:block;color:#8a97a4">عملية مستقلة</small></td>'
+      +'<td class="standalone-check-col">'+selection+'</td>'
+      +'<td><div class="plan-name-cell">'+actionMenuButton(o.id,standaloneActions,isModelOperation?"standalone-model":"standalone-general")+'<span class="vehicle">'+esc(o.name)+'</span></div><small style="display:block;color:#8a97a4">'+(isModelOperation?'عملية مستقلة · من مكتبة الطراز':'عملية مستقلة · من المكتبة العامة')+'</small></td>'
       +'<td>'+esc(condition(o,Number($('modelFilter').value)))+'</td>'
-      +'<td><span class="badge info">مستقلة</span></td><td class="muted">—</td>'
+      +'<td><span class="badge info">'+(isModelOperation?'خاصة بالطراز':'مستقلة')+'</span></td><td class="muted">—</td>'
       +'</tr>';
   }
   function syncSelectionUI(){
@@ -426,12 +459,38 @@
   }
   function visiblePickerOperations(){
     const query=$('planOperationSearch').value.trim().toLocaleLowerCase();
-    return [...state.operations,...state.modelOperations].filter(operation=>operation.is_active&&(!query||operation.name.toLocaleLowerCase().includes(query)));
+    const library=pickerLibrary==='model'?state.modelOperations:state.operations;
+    return library.filter(operation=>operation.is_active&&(!query||operation.name.toLocaleLowerCase().includes(query)));
+  }
+  function updatePickerLibraryTabs(modelId=Number($('modelFilter').value)){
+    const modelTab=$('pickerLibraryModel'),generalTab=$('pickerLibraryGeneral');
+    modelTab.textContent='مكتبة الطراز: '+modelName(modelId)+' ('+state.modelOperations.filter(operation=>operation.is_active).length+')';
+    generalTab.textContent='المكتبة العامة ('+state.operations.filter(operation=>operation.is_active).length+')';
+    modelTab.setAttribute('aria-pressed',String(pickerLibrary==='model'));
+    generalTab.setAttribute('aria-pressed',String(pickerLibrary==='general'));
+    modelTab.classList.toggle('primary',pickerLibrary==='model');
+    generalTab.classList.toggle('primary',pickerLibrary==='general');
+  }
+  function capturePlanPickerSelection(){
+    const checked=new Set([...document.querySelectorAll('.plan-picker-check:checked:not(:disabled)')].map(input=>operationKey(input.dataset.source,input.value)));
+    for(const operation of visiblePickerOperations()){
+      const key=operationKey(operation.source,operation.id);
+      if(pickerPlanOps.has(key))continue;
+      if(checked.has(key))pickerSelectedOperations.add(key);else pickerSelectedOperations.delete(key);
+    }
+  }
+  function setPickerLibrary(library){
+    capturePlanPickerSelection();
+    pickerLibrary=library;
+    updatePickerLibraryTabs();
+    $('planOperationSearch').value='';
+    $('planOperationPickerMessage').textContent='اختر العمليات من '+(library==='model'?'مكتبة الطراز المحدد':'المكتبة العامة')+'. يمكنك التبديل بين المكتبتين قبل الإضافة؛ ويبقى التحديد محفوظًا.';
+    renderPlanOperationPicker();
   }
   function renderPlanOperationPicker(){
     const options=visiblePickerOperations();
-    const selected=[...document.querySelectorAll('.plan-picker-check:checked:not(:disabled)')].map(input=>operationKey(input.dataset.source,input.value));
-    const selectedSet=new Set(selected);
+    const selected=[...pickerSelectedOperations].filter(key=>!pickerPlanOps.has(key));
+    const selectedSet=pickerSelectedOperations;
     $('planOperationOptions').innerHTML=options.length?options.map(operation=>{
       const key=operationKey(operation.source,operation.id);
       const existing=pickerPlanOps.has(key);
@@ -440,7 +499,7 @@
       const sourceLabel=operation.source==='model'?'عملية خاصة بهذا الطراز':'عملية عامة';
       const conditionLabel=operation.source==='model'?'<small class="muted" style="display:block">شرط العملية: '+esc(condition(operation,Number($('modelFilter').value))||'غير محدد')+'</small>':'';
       return '<label class="maintenance-picker-option"><input class="plan-picker-check" data-source="'+operation.source+'" type="checkbox" value="'+operation.id+'" '+(checked?'checked ':'')+(existing?'disabled ':'')+'><span><strong>'+esc(operation.name)+'</strong> <small class="muted">('+sourceLabel+')</small>'+conditionLabel+sourceContext+(existing?'<small class="muted" style="display:block">مضافة مسبقًا إلى هذه الخطة</small>':'')+'</span></label>';
-    }).join(''):[...state.operations,...state.modelOperations].some(operation=>operation.is_active)?'<div class="muted">لا توجد عمليات مطابقة للبحث.</div>':'<div class="muted">لا توجد عمليات مفعلة في مكتبتي الطراز والمكتبة العامة.</div>';
+    }).join(''):visiblePickerOperations().length===0&&$('planOperationSearch').value.trim()?'<div class="muted">لا توجد عمليات مطابقة للبحث في المكتبة المختارة.</div>': '<div class="muted">لا توجد عمليات مفعلة في '+(pickerLibrary==='model'?'مكتبة هذا الطراز. يمكنك اختيار المكتبة العامة.':'المكتبة العامة.')+'</div>';
     $('planOperationSelectedCount').textContent=selected.length+' محددة';
     const available=options.filter(operation=>!pickerPlanOps.has(operationKey(operation.source,operation.id)));
     $('planOperationSelectAll').checked=available.length>0&&available.every(operation=>selectedSet.has(operationKey(operation.source,operation.id)));
@@ -450,26 +509,54 @@
   async function openPlanOperationPicker(){
     const plan=state.plans.find(item=>Number(item.id)===Number(state.currentPlanId));
     if(!plan)return alert('اختر خطة أولًا.',true);
-    pickerPlanOps=new Set((state.planOps[plan.id]||[]).map(linkKey));
-    $('planPickerContext').textContent='الخطة: '+plan.name+' — الطراز: '+modelName(plan.equipment_model_id);
+    await openPlanOperationPickerForModel(plan.equipment_model_id,plan);
+  }
+  async function openPlanOperationPickerForModel(modelId,plan=null){
+    pickerPlanOps=new Set(plan?(state.planOps[plan.id]||[]).map(linkKey):[]);
+    pickerSelectedOperations=new Set();pickerLibrary='model';pickerRequiresNewPlan=!plan;
+    $('submitPlanPicker').textContent=pickerRequiresNewPlan?'متابعة لإنشاء الخطة':'إضافة المحدد';
+    $('planPickerContext').textContent=plan?'الخطة: '+plan.name+' — الطراز: '+modelName(plan.equipment_model_id):'الطراز: '+modelName(modelId)+' — اختر العمليات أولًا، ثم أنشئ خطة لتحديد شرطها.';
     $('planOperationSearch').value='';$('planOperationPickerMessage').textContent='جارٍ تحميل العمليات من المكتبة...';$('planOperationOptions').innerHTML='';$('submitPlanPicker').disabled=true;
     $('planOperationSelectAll').checked=false;$('planOperationSelectAll').indeterminate=false;
+    updatePickerLibraryTabs(modelId);
     $('planOperationPicker').showModal();$('planOperationSearch').focus();
     try{
       [state.operations,state.modelOperations]=await Promise.all([
-        req(api+'/operations?equipment_model_id='+plan.equipment_model_id),
-        req(api+'/model-operations?equipment_model_id='+plan.equipment_model_id),
+        req(api+'/operations?equipment_model_id='+modelId),
+        req(api+'/model-operations?equipment_model_id='+modelId),
       ]);
       state.operations=state.operations.map(operation=>({...operation,source:'general'}));
       state.modelOperations=state.modelOperations.map(operation=>({...operation,source:'model',model_operation_id:operation.id,operation_id:null}));
-      $('planOperationPickerMessage').textContent=[...state.operations,...state.modelOperations].some(operation=>operation.is_active)?'اختر من المكتبة العامة أو المكتبة الخاصة بهذا الطراز. يُفحص توافق شرط العملية الخاصة مع شرط الخطة.':'لا توجد عمليات مفعلة في مكتبتي الطراز والمكتبة العامة.';
+      if(!state.modelOperations.some(operation=>operation.is_active))pickerLibrary='general';
+      updatePickerLibraryTabs(modelId);
+      $('planOperationPickerMessage').textContent='اختر المكتبة، ثم حدّد العمليات. '+(pickerRequiresNewPlan?'بعد إنشاء الخطة، يُفحص توافق شروط العمليات الخاصة مع شرط الخطة.':'يمكنك اختيار عمليات من المكتبتين قبل الإضافة؛ ويُفحص توافق شروط العمليات الخاصة مع شرط الخطة.');
       renderPlanOperationPicker();
-    }catch(error){$('planOperationPickerMessage').textContent=error.message||'تعذر تحميل العمليات من المكتبة.';$('planOperationOptions').innerHTML='<button class="m-btn" type="button" id="retryPlanOperationLoad">إعادة المحاولة</button>';document.getElementById('retryPlanOperationLoad').onclick=async()=>{const retry=document.getElementById('retryPlanOperationLoad');retry.disabled=true;$('planOperationPickerMessage').textContent='جارٍ تحميل العمليات من المكتبة...';try{[state.operations,state.modelOperations]=await Promise.all([req(api+'/operations?equipment_model_id='+plan.equipment_model_id),req(api+'/model-operations?equipment_model_id='+plan.equipment_model_id)]);state.operations=state.operations.map(operation=>({...operation,source:'general'}));state.modelOperations=state.modelOperations.map(operation=>({...operation,source:'model',model_operation_id:operation.id,operation_id:null}));$('planOperationPickerMessage').textContent='اختر من المكتبة العامة أو مكتبة هذا الطراز. تُفحص مطابقة شروط العمليات الخاصة لشرط الخطة.';renderPlanOperationPicker()}catch(retryError){$('planOperationPickerMessage').textContent=retryError.message||'تعذر تحميل العمليات من المكتبة.';retry.disabled=false}}}
+    }catch(error){$('planOperationPickerMessage').textContent=error.message||'تعذر تحميل العمليات من المكتبة.';$('planOperationOptions').innerHTML='<button class="m-btn" type="button" id="retryPlanOperationLoad">إعادة المحاولة</button>';document.getElementById('retryPlanOperationLoad').onclick=async()=>{const retry=document.getElementById('retryPlanOperationLoad');retry.disabled=true;$('planOperationPickerMessage').textContent='جارٍ تحميل العمليات من المكتبة...';try{[state.operations,state.modelOperations]=await Promise.all([req(api+'/operations?equipment_model_id='+modelId),req(api+'/model-operations?equipment_model_id='+modelId)]);state.operations=state.operations.map(operation=>({...operation,source:'general'}));state.modelOperations=state.modelOperations.map(operation=>({...operation,source:'model',model_operation_id:operation.id,operation_id:null}));if(!state.modelOperations.some(operation=>operation.is_active))pickerLibrary='general';updatePickerLibraryTabs(modelId);$('planOperationPickerMessage').textContent='اختر المكتبة، ثم حدّد العمليات. '+(pickerRequiresNewPlan?'بعد إنشاء الخطة، يُفحص توافق شروط العمليات الخاصة مع شرطها.':'يمكنك اختيار عمليات من المكتبتين قبل الإضافة؛ ويُفحص توافق شروط العمليات الخاصة مع شرط الخطة.');renderPlanOperationPicker()}catch(retryError){$('planOperationPickerMessage').textContent=retryError.message||'تعذر تحميل العمليات من المكتبة.';retry.disabled=false}}}
+  }
+  async function addPlanOperationsFromAddMenu(){
+    const modelId=Number($('modelFilter').value);
+    if(!modelId)return alert('اختر الطراز أولًا من قائمة الطرازات.',true);
+    const plans=state.plans.filter(plan=>Number(plan.equipment_model_id)===modelId);
+    if(!plans.length){await openPlanOperationPickerForModel(modelId);return}
+    if(plans.length===1){await manage(plans[0].id);await openPlanOperationPicker();return}
+    $('planTargetContext').textContent='اختر خطة للطراز: '+modelName(modelId)+'؛ ستتاح لك المكتبة العامة ومكتبة هذا الطراز.';
+    $('planTargetSelect').innerHTML=plans.map(plan=>'<option value="'+plan.id+'">'+esc(plan.name)+(plan.is_approved?' — معتمدة':' — غير معتمدة')+'</option>').join('');
+    $('planTargetPicker').showModal();
   }
   async function submitPlanOperationPicker(){
     const planId=Number(state.currentPlanId);
-    const selected=[...document.querySelectorAll('.plan-picker-check:checked:not(:disabled)')].map(input=>({source:input.dataset.source,id:Number(input.value)}));
-    if(!planId||!selected.length){$('planOperationPickerMessage').textContent='حدد عملية واحدة على الأقل قبل الإضافة.';return}
+    capturePlanPickerSelection();
+    const selected=[...pickerSelectedOperations].filter(key=>!pickerPlanOps.has(key)).map(parseOperationKey);
+    if(!selected.length){$('planOperationPickerMessage').textContent='حدد عملية واحدة على الأقل قبل المتابعة.';return}
+    if(pickerRequiresNewPlan){
+      pendingPlanOperations=selected;
+      openLibraryAfterPlanSave=true;
+      $('planOperationPicker').close();
+      newPlan();
+      $('planConditionHint').textContent='تم تحديد '+selected.length+' عملية. عند حفظ الخطة تُضاف العمليات المتوافقة مع شرطها، ويُعرض سبب رفض أي عملية تتعارض مع شرط الخطة.';
+      return;
+    }
+    if(!planId){$('planOperationPickerMessage').textContent='اختر خطة صيانة أولًا.';return}
     const button=$('submitPlanPicker');button.disabled=true;$('planOperationPickerMessage').textContent='جارٍ حفظ العمليات المحددة...';
     let saved=false;
     try{
@@ -485,6 +572,20 @@
       if(saved){$('planOperationPicker').close();alert('تم حفظ العمليات، لكن تعذر تحديث الجدول. أعد تحديث الصفحة لعرض البيانات المحفوظة.',true);return}
       $('planOperationPickerMessage').textContent=(error.message||'تعذر تأكيد نتيجة الحفظ.')+' إذا انقطع الاتصال، حدّث الصفحة للتحقق قبل إعادة المحاولة.';button.disabled=false
     }
+  }
+  async function savePendingPlanOperations(planId){
+    if(!pendingPlanOperations.length)return;
+    const selected=[...pendingPlanOperations];
+    const result=await req(api+'/plans/'+planId+'/operations/bulk',{method:'POST',body:JSON.stringify({operation_ids:selected.filter(item=>item.source==='general').map(item=>item.id),model_operation_ids:selected.filter(item=>item.source==='model').map(item=>item.id)})});
+    state.planOps[planId]=await req(api+'/plans/'+planId+'/operations');
+    initialPlanOps=new Set(state.planOps[planId].map(linkKey));
+    const plan=state.plans.find(item=>Number(item.id)===Number(planId));
+    if(plan&&result.success)plan.is_approved=false;
+    renderOps(planId);render();
+    if(window.EditManager)EditManager.markSaved(planOpsProvider);
+    const reasons=(result.rejected||[]).map(item=>'• '+item.operation_name+': '+item.reason).join('\n');
+    pendingPlanOperations=[];
+    alert('أُنشئت الخطة وأُضيفت '+result.success+' عملية.'+(result.rejected?.length?' ورُفضت '+result.rejected.length+' عملية:\n'+reasons:''),!!result.rejected?.length);
   }
   async function savePlanOperations(){
     const planId=state.currentPlanId;if(!planId)return false;
@@ -600,11 +701,67 @@
       return '<option value="'+o.id+'" '+(alreadyDefined?'disabled':'')+'>'+esc(o.name)+(alreadyDefined?' — لها ربط مستقل محفوظ':'')+'</option>';
     }).join('');
   }
+  function updateStandaloneLibraryTabs(){
+    const modelTab=$('standaloneLibraryModel'),generalTab=$('standaloneLibraryGeneral');
+    modelTab.textContent='مكتبة الطراز: '+modelName(Number($('modelFilter').value))+' ('+state.modelOperations.length+')';
+    generalTab.textContent='المكتبة العامة ('+state.operations.filter(operation=>operation.is_active).length+')';
+    modelTab.setAttribute('aria-pressed',String(standaloneLibrary==='model'));
+    generalTab.setAttribute('aria-pressed',String(standaloneLibrary==='general'));
+    modelTab.classList.toggle('primary',standaloneLibrary==='model');
+    generalTab.classList.toggle('primary',standaloneLibrary==='general');
+    $('standaloneModelLibrary').style.display=standaloneLibrary==='model'?'':'none';
+    $('standaloneGeneralLibrary').style.display=standaloneLibrary==='general'?'flex':'none';
+  }
+  function renderStandaloneModelLibrary(){
+    const modelId=Number($('modelFilter').value);
+    const approvedPlanOperations=new Set(state.plans.filter(plan=>Number(plan.equipment_model_id)===modelId&&plan.is_active&&plan.is_approved).flatMap(plan=>(state.planOps[plan.id]||[]).map(linkKey)));
+    const operations=state.modelOperations;
+    $('standaloneModelLibraryOptions').innerHTML=operations.length?operations.map(operation=>{
+      const key=operationKey('model',operation.id);
+      const selected=standaloneModelSelected.has(Number(operation.id));
+      const status=operation.is_active
+        ?(approvedPlanOperations.has(key)?'ضمن خطة معتمدة':'مفعّلة وتظهر مستقلة تلقائيًا')
+        :'غير مفعّلة؛ يمكن تفعيلها كعملية مستقلة';
+      const input=operation.is_active?'':'<input class="standalone-model-check" type="checkbox" value="'+operation.id+'" '+(selected?'checked':'')+' aria-label="تفعيل '+esc(operation.name)+'">';
+      return '<label class="maintenance-picker-option '+(operation.is_active?'':'standalone-model-inactive')+'">'+input+'<span><strong>'+esc(operation.name)+'</strong><small class="muted" style="display:block">'+esc(status)+' — الشرط: '+esc(condition(operation,modelId))+'</small></span></label>';
+    }).join(''):'<div class="muted">لا توجد عمليات في مكتبة هذا الطراز.</div>';
+    $('standaloneModelLibraryMessage').textContent='العملية الخاصة بالطراز مرتبطة به مسبقًا؛ تُفعّل هنا إذا كانت متوقفة، ويُستخدم شرطها المسجل في المكتبة.';
+    $('activateModelStandalone').disabled=standaloneModelSelected.size===0;
+    $('activateModelStandalone').textContent='تفعيل المحدد كعمليات مستقلة ('+standaloneModelSelected.size+')';
+  }
+  function setStandaloneLibrary(library){
+    standaloneLibrary=library;
+    updateStandaloneLibraryTabs();
+    if(library==='model')renderStandaloneModelLibrary();
+  }
+  async function activateModelStandaloneOperations(){
+    const selected=[...standaloneModelSelected];
+    if(!selected.length)return alert('حدد عملية متوقفة واحدة على الأقل من مكتبة الطراز.',true);
+    const activated=[],rejected=[];
+    for(const id of selected){
+      const operation=state.modelOperations.find(item=>Number(item.id)===Number(id));
+      if(!operation||operation.is_active)continue;
+      try{
+        await req(api+'/model-operations/'+id,{method:'PUT',body:JSON.stringify({name:operation.name,description:operation.description,group_id:operation.group_id,interval_km:operation.interval_km,interval_hours:operation.interval_hours,interval_days:operation.interval_days,warning_km:operation.warning_km,warning_hours:operation.warning_hours,warning_days:operation.warning_days,is_active:true})});
+        activated.push(id);standaloneModelSelected.delete(id);
+      }catch(error){rejected.push({name:operation.name,reason:error.message||'تعذر تفعيل العملية.'})}
+    }
+    await load();renderStandaloneModelLibrary();
+    const details=rejected.map(item=>'• '+item.name+': '+item.reason).join('\n');
+    alert('تم تفعيل '+activated.length+' عملية من مكتبة الطراز.'+(rejected.length?' وتعذر تفعيل '+rejected.length+' عملية:\n'+details:''),!!rejected.length);
+  }
+  $('standaloneModelLibraryOptions').addEventListener('change',event=>{
+    if(!event.target.matches('.standalone-model-check'))return;
+    const id=Number(event.target.value);
+    if(event.target.checked)standaloneModelSelected.add(id);else standaloneModelSelected.delete(id);
+    renderStandaloneModelLibrary();
+  });
   function closeStandalone(){if($('standalonePanel').open)$('standalonePanel').close()}
-  function openStandalone(){standaloneReturnFocus=document.activeElement;$('standalonePanel').showModal();setTimeout(()=>$('standaloneOperation').focus(),0)}
+  function openStandalone(){standaloneReturnFocus=document.activeElement;$('standalonePanel').showModal();setTimeout(()=>{if(standaloneLibrary==='general')$('standaloneOperation').focus();else (document.querySelector('.standalone-model-check')||$('standaloneLibraryGeneral')).focus()},0)}
   function newStandalone(){
     if(!Number($('modelFilter').value))return alert('اختر الطراز أولًا من قائمة الطرازات.',true);
     fillStandaloneOperations();
+    standaloneModelSelected.clear();standaloneLibrary='model';updateStandaloneLibraryTabs();renderStandaloneModelLibrary();
     $('standaloneOpId').value='';$('standaloneOperation').value='';$('standaloneOperation').disabled=false;
     $('standaloneKm').value='';$('standaloneHours').value='';$('standaloneDays').value='';
     $('standaloneTitle').textContent='إضافة عملية مستقلة للطراز: '+modelName(Number($('modelFilter').value));
@@ -616,6 +773,7 @@
     const o=opById(operationId);if(!o)return;
     const modelId=Number($('modelFilter').value);
     fillStandaloneOperations();
+    standaloneModelSelected.clear();standaloneLibrary='general';updateStandaloneLibraryTabs();
     $('standaloneOpId').value=o.id;$('standaloneOperation').value=String(o.id);$('standaloneOperation').disabled=true;
     const c=(o.model_conditions||[]).find(x=>x.model_id===modelId)||{};
     $('standaloneKm').value=c.interval_km??'';$('standaloneHours').value=c.interval_hours??'';$('standaloneDays').value=c.interval_days??'';
@@ -623,6 +781,10 @@
     $('standaloneHint').textContent='عدّل شرط هذا الطراز. التنبيهات تُضبط من مكتبة العمليات.';
     $('editor').style.display='none';$('operationsPanel').style.display='none';$('executionPanel').style.display='none';
     openStandalone();if(window.EditManager)EditManager.markFormBaseline($('standaloneForm'));
+  }
+  function openModelOperationInLibrary(){
+    const modelId=Number($('modelFilter').value);
+    if(modelId)window.location.href='/maintenance/rules?view_model_id='+modelId;
   }
   async function prepareExecution(id){
     const p=state.plans.find(x=>x.id===id);if(!p)return;
@@ -643,9 +805,24 @@
   function updateExecutionProgress(){const total=document.querySelectorAll('.execution-op').length,selected=document.querySelectorAll('.execution-op:checked').length,pct=total?Math.round(selected*100/total):0;$('executionProgress').textContent=total?'تم تحديد '+selected+' من '+total+' عمليات — نسبة الإنجاز عند التسجيل: '+pct+'%.':'لا توجد عمليات.'}
   $('executionEquipment').onchange=async()=>{const id=Number($('executionEquipment').value);if(!id){$('executionHint').textContent='اختر العتاد لبدء التنفيذ.';return}try{const e=await req('/api/equipment/'+id);const unit=e?.equipment_type?.measurement_unit||e?.measurement_unit||'';$('executionHint').textContent=unit==='km'?'هذا العتاد يعتمد على العداد بالكيلومترات؛ سيتم رفض التنفيذ إذا كانت الخطة تحتاج عدادًا ولم تدخل القراءة.':unit==='hours'?'هذا العتاد يعتمد على العداد بالساعات؛ سيتم رفض التنفيذ إذا كانت الخطة تحتاج عدادًا ولم تدخل القراءة.':'تم اختيار العتاد.'}catch(_){$('executionHint').textContent='تم اختيار العتاد.'}};
   $('executionForm').onsubmit=async e=>{e.preventDefault();const planId=Number($('executionPlanId').value),equipmentId=Number($('executionEquipment').value),selected=[...document.querySelectorAll('.execution-op:checked')];const operationIds=selected.filter(x=>x.dataset.source==='general').map(x=>Number(x.value)),modelOperationIds=selected.filter(x=>x.dataset.source==='model').map(x=>Number(x.value));if(!planId||!equipmentId)return alert('اختر الخطة والعتاد أولًا.',true);if(!selected.length)return alert('حدد عملية واحدة على الأقل تم تنفيذها فعليًا.',true);try{const records=await req(api+'/plan-execution',{method:'POST',body:JSON.stringify({equipment_id:equipmentId,plan_id:planId,operation_ids:operationIds,model_operation_ids:modelOperationIds,maintenance_date:$('executionDate').value,meter_value:$('executionMeter').value?Number($('executionMeter').value):null,work_order:$('executionWorkOrder').value.trim()||null,workshop:$('executionWorkshop').value.trim()||null,description:$('executionDescription').value.trim()||null,is_scheduled:true,status:'completed'})});const total=document.querySelectorAll('.execution-op').length,pct=total?Math.round(records.length*100/total):0;if(window.EditManager)EditManager.markSavedForm($('executionForm'));alert('تم تسجيل '+records.length+' من '+total+' عمليات للخطة ('+pct+'%).');$('executionPanel').style.display='none'}catch(e){alert(e.message,true)}};
-  $('form').onsubmit=async e=>{e.preventDefault();const id=$('planId').value,p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};try{await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});if(window.EditManager)EditManager.markSavedForm($('form'));alert(id?'تم تعديل الخطة، ويلزم إعادة اعتمادها.':'تم إنشاء الخطة، ويلزم اعتمادها لتظهر عملياتها في المتابعات.');$('editor').style.display='none';await load()}catch(e){alert(e.message,true)}};
+  $('form').onsubmit=async e=>{
+    e.preventDefault();
+    const id=$('planId').value,p={name:$('name').value.trim(),equipment_model_id:Number($('model').value),interval_km:$('km').value?Number($('km').value):null,interval_hours:$('hours').value?Number($('hours').value):null,interval_days:$('days').value?Number($('days').value):null,is_active:$('active').checked,description:$('description').value.trim()||null};
+    try{
+      const savedPlan=await req(id?api+'/plans/'+id:api+'/plans',{method:id?'PUT':'POST',body:JSON.stringify(p)});
+      if(window.EditManager)EditManager.markSavedForm($('form'));
+      if(id)alert('تم تعديل الخطة، ويلزم إعادة اعتمادها.');else if(!openLibraryAfterPlanSave)alert('تم إنشاء الخطة، ويلزم اعتمادها لتظهر عملياتها في المتابعات.');
+      $('editor').style.display='none';await load();
+      if(!id&&openLibraryAfterPlanSave){
+        openLibraryAfterPlanSave=false;
+        await manage(Number(savedPlan.id));
+        await savePendingPlanOperations(Number(savedPlan.id));
+      }
+    }catch(e){alert(e.message,true)}
+  };
   $('standaloneForm').onsubmit=async e=>{
     e.preventDefault();
+    if(standaloneLibrary!=='general')return alert('اختر عملية من المكتبة العامة لربطها بهذا الطراز. عمليات مكتبة الطراز تُفعّل من تبويبها. ',true);
     if(standaloneSaving)return;
     const modelId=Number($('modelFilter').value);if(!modelId)return alert('اختر الطراز أولًا.',true);
     const opId=Number($('standaloneOpId').value||$('standaloneOperation').value);if(!opId)return alert('اختر عملية من المكتبة.',true);
@@ -668,16 +845,25 @@
       }else alert(e.message,true);
     }finally{standaloneSaving=false;if(submit)submit.disabled=false}
   };
+  $('standaloneLibraryModel').onclick=()=>setStandaloneLibrary('model');
+  $('standaloneLibraryGeneral').onclick=()=>setStandaloneLibrary('general');
+  $('activateModelStandalone').onclick=activateModelStandaloneOperations;
   $('openOperationLibrary').onclick=openPlanOperationPicker;
   $('planOperationSearch').oninput=renderPlanOperationPicker;
-  $('planOperationOptions').addEventListener('change',event=>{if(event.target.matches('.plan-picker-check'))renderPlanOperationPicker()});
-  $('planOperationSelectAll').onchange=()=>{const selectedNow=new Set([...document.querySelectorAll('.plan-picker-check:checked')].map(input=>Number(input.value)));for(const operation of visiblePickerOperations()){if(pickerPlanOps.has(Number(operation.id)))continue;if($('planOperationSelectAll').checked)selectedNow.add(Number(operation.id));else selectedNow.delete(Number(operation.id))}document.querySelectorAll('.plan-picker-check').forEach(input=>{if(!input.disabled)input.checked=selectedNow.has(Number(input.value))});renderPlanOperationPicker()};
+  $('planOperationOptions').addEventListener('change',event=>{if(event.target.matches('.plan-picker-check')){capturePlanPickerSelection();renderPlanOperationPicker()}});
+  $('pickerLibraryModel').onclick=()=>setPickerLibrary('model');
+  $('pickerLibraryGeneral').onclick=()=>setPickerLibrary('general');
+  $('planOperationSelectAll').onchange=()=>{capturePlanPickerSelection();for(const operation of visiblePickerOperations()){const key=operationKey(operation.source,operation.id);if(pickerPlanOps.has(key))continue;if($('planOperationSelectAll').checked)pickerSelectedOperations.add(key);else pickerSelectedOperations.delete(key)}renderPlanOperationPicker()};
   $('submitPlanPicker').onclick=submitPlanOperationPicker;
   $('closePlanPicker').onclick=$('cancelPlanPicker').onclick=()=>$('planOperationPicker').close();
+  $('closePlanTarget').onclick=()=>$('planTargetPicker').close();
+  $('continuePlanTarget').onclick=async()=>{const planId=Number($('planTargetSelect').value);if(!planId)return alert('اختر خطة صيانة.',true);$('planTargetPicker').close();await manage(planId);await openPlanOperationPicker()};
   $('savePlanOps').onclick=()=>window.EditManager?EditManager.save():Promise.all([savePlanOperations(),saveStandaloneLinkRemovals()]);
   document.addEventListener('click',function(e){
     const planBtn=e.target.closest('#btnNewPlan,[data-action="new-plan"]');
-    if(planBtn){e.preventDefault();newPlan();return}
+    if(planBtn){e.preventDefault();openLibraryAfterPlanSave=false;pendingPlanOperations=[];newPlan();return}
+    const planOperationsBtn=e.target.closest('#menuAddPlanOperations,[data-action="add-plan-operations"]');
+    if(planOperationsBtn){e.preventDefault();addPlanOperationsFromAddMenu();return}
     const standaloneBtn=e.target.closest('#btnNewStandalone,[data-action="new-standalone"]');
     if(standaloneBtn){e.preventDefault();newStandalone()}
   });
@@ -740,7 +926,8 @@
         "plan-delete":deletePlan,
         "standalone-edit":editStandalone,
         "standalone-remove-model":removeStandaloneFromModel,
-        "standalone-delete-library":deleteStandaloneFromLibrary
+        "standalone-delete-library":deleteStandaloneFromLibrary,
+        "standalone-open-model-library":openModelOperationInLibrary
       };
       closeActionMenus();
       const handler=handlers[action.dataset.menuAction];
@@ -762,7 +949,7 @@
   document.addEventListener("scroll",()=>closeActionMenus(),true);
   $('bulkDeletePlans').onclick=deleteSelectedPlans;
   $('bulkRemoveStandalone').onclick=bulkRemoveSelectedStandalone;
-  $('cancel').onclick=()=>{$('editor').style.display='none';if(window.EditManager)EditManager.restoreForm($('form'))};
+  $('cancel').onclick=()=>{$('editor').style.display='none';openLibraryAfterPlanSave=false;pendingPlanOperations=[];if(window.EditManager)EditManager.restoreForm($('form'))};
   $('closeStandalone').onclick=$('cancelStandalone').onclick=()=>{closeStandalone();if(window.EditManager)EditManager.restoreForm($('standaloneForm'))};
   $('standalonePanel').addEventListener('close',()=>{if(standaloneReturnFocus?.isConnected)standaloneReturnFocus.focus();standaloneReturnFocus=null});
   $('cancelExecution').onclick=()=>{$('executionPanel').style.display='none';if(window.EditManager)EditManager.restoreForm($('executionForm'))};
@@ -773,7 +960,7 @@
     const currentPlanIds=new Set((state.planOps[state.currentPlanId]||[]).map(x=>Number(x.operation_id)));
     const hasPendingPlan=state.currentPlanId!=null&&([...initialPlanOps].some(id=>!currentPlanIds.has(id))||[...currentPlanIds].some(id=>!initialPlanOps.has(id)));
     if((hasPendingStandalone||hasPendingPlan)&&!confirm('لديك تغييرات روابط غير محفوظة لهذا الطراز. هل تريد تركها والتخلص منها؟')){$('modelFilter').value=String(loadedModelId||'');return}
-    loadedModelId=Number($('modelFilter').value)||0;state.currentPlanId=null;state.currentPlanModelId=null;state.selectedPlans.clear();state.selectedStandalone.clear();pendingStandaloneRemovals.clear();initialPlanOps=new Set();await loadPlanOps();if(window.EditManager){EditManager.markSaved(planOpsProvider);EditManager.markSaved(standaloneLinksProvider)}render()
+    loadedModelId=Number($('modelFilter').value)||0;state.currentPlanId=null;state.currentPlanModelId=null;state.selectedPlans.clear();state.selectedStandalone.clear();standaloneModelSelected.clear();pendingStandaloneRemovals.clear();initialPlanOps=new Set();await loadPlanOps();if(window.EditManager){EditManager.markSaved(planOpsProvider);EditManager.markSaved(standaloneLinksProvider)}render()
   };
   $('model').onchange=()=>{if(!$('planId').value&&$('modelFilter').value!==$('model').value)$('modelFilter').value=$('model').value};
   fillModels();

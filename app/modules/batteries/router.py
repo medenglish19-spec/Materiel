@@ -148,6 +148,20 @@ def delete_battery(battery_id: int, db: Session = Depends(get_db), current_user:
     return RedirectResponse("/batteries", 303)
 
 
+@router.post("/batteries/delete-selected")
+def delete_selected_batteries(
+    battery_ids: list[int] = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        services.delete_batteries(db, battery_ids)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return RedirectResponse("/batteries", 303)
+
+
 @router.get("/batteries/{battery_id:int}", response_class=HTMLResponse)
 def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     battery = db.query(Battery).filter(Battery.id == battery_id).first()
@@ -156,7 +170,32 @@ def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_
     history = db.query(BatteryMovement).filter(BatteryMovement.battery_id == battery_id).order_by(BatteryMovement.movement_date.desc(), BatteryMovement.id.desc()).all()
     state = services.current_state(db, battery_id)
     equipment = state.get("equipment") if state else None
-    return templates.TemplateResponse(request=request, name="battery_detail.html", context={"request": request, "user": current_user, "battery": battery, "state": state, "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "current_equipment": equipment, "replacement_due_date": services.replacement_due_date(db, battery, equipment), "validity_years": services.get_validity_years(db), "today": date.today()})
+    return templates.TemplateResponse(request=request, name="battery_detail.html", context={"request": request, "user": current_user, "battery": battery, "state": state, "history": history, "equipment": db.query(Equipment).order_by(Equipment.registration_number, Equipment.id).all(), "current_equipment": equipment, "replacement_due_date": services.replacement_due_date(db, battery, equipment), "validity_years": services.get_validity_years(db), "today": date.today(), "edit_mode": request.query_params.get("edit") == "1"})
+
+
+@router.post("/batteries/{battery_id:int}/update")
+def update_battery(
+    battery_id: int,
+    battery_type: str = Form(...),
+    brand: str = Form(""),
+    capacity: str = Form(""),
+    manufacture_date: date | None = Form(None),
+    notes: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        services.update_battery(db, battery_id, {
+            "battery_type": battery_type,
+            "brand": brand,
+            "capacity": capacity,
+            "manufacture_date": manufacture_date,
+            "notes": notes,
+        })
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc))
+    return RedirectResponse(f"/batteries/{battery_id}", 303)
 
 
 @router.post("/batteries/{battery_id:int}/movements")

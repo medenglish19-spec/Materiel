@@ -164,6 +164,25 @@ def test_excel_import_opens_a_dialog_with_header_preview_template_download_and_u
     assert "استيراد إلى مكتبة الطراز المحدد" not in dialog
 
 
+def test_general_library_has_its_own_excel_import_dialog_next_to_add_operation():
+    template = _template()
+    actions = template[template.index('<div class="library-panel-actions">'):]
+    actions = actions[:actions.index("</div>")]
+    assert actions.index('id="importGeneralOperationsBtn"') < actions.index('id="newOperationBtn"')
+    assert "$('importGeneralOperationsBtn').style.display=(!modelMode&&!isPlanMode())?'inline-flex':'none'" in template
+
+    dialog_start = template.index('<dialog class="maintenance-operation-dialog maintenance-operation-import-dialog" id="generalOperationImportDialog"')
+    dialog_end = template.index("</dialog>", dialog_start)
+    dialog = template[dialog_start:dialog_end]
+    assert 'href="/maintenance/rules/general-operation-template.xlsx"' in dialog
+    assert 'action="/maintenance/rules/import-general"' in dialog
+    assert "قالب المكتبة العامة" in dialog
+    assert "لا يتضمن هذا القالب شرط خطة الطراز" in dialog
+    assert "$('generalOperationImportDialog').showModal()" in template
+    assert "قيمة الشرط" not in dialog
+    assert "<th scope=\"col\">الحالة</th>" not in dialog
+
+
 def test_library_selection_updates_the_current_page_without_navigation():
     template = _template()
     selection_handler = template[template.index("function updateLibrarySelection()"):]

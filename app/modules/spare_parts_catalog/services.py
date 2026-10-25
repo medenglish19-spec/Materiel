@@ -20,7 +20,8 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.modules.faults_repairs.models import SparePart
+from app.modules.faults_repairs.models import RepairPart, SparePart
+from app.modules.spare_parts_requests.models import SparePartRequestItem
 from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogReference, SparePartCategory
 
 from app.modules.document_import.upload import MAX_UPLOAD_BYTES
@@ -624,3 +625,18 @@ def remove_image(image_path: str | None) -> None:
     target = (root / Path(image_path[len(prefix):]).name).resolve()
     if target.parent == root and target.exists() and target.is_file():
         target.unlink()
+
+
+def delete_catalog_part(db: Session, part: SparePart) -> str | None:
+    if db.query(RepairPart.id).filter(RepairPart.spare_part_id == part.id).first():
+        raise ValueError("لا يمكن حذف القطعة لأنها مستخدمة في سجل إصلاح.")
+    if db.query(SparePartRequestItem.id).filter(SparePartRequestItem.spare_part_id == part.id).first():
+        raise ValueError("لا يمكن حذف القطعة لأنها مرتبطة بطلب قطع غيار.")
+
+    details = db.query(SparePartCatalogDetails).filter_by(spare_part_id=part.id).first()
+    image_path = details.image_path if details else None
+    db.query(SparePartCatalogReference).filter_by(spare_part_id=part.id).delete(synchronize_session=False)
+    if details:
+        db.delete(details)
+    db.delete(part)
+    return image_path

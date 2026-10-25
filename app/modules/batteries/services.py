@@ -312,13 +312,42 @@ def add_battery(db: Session, data: dict):
 
 
 def delete_battery(db: Session, battery_id: int):
-    battery = db.query(Battery).filter(Battery.id == battery_id).first()
-    if not battery:
-        raise ValueError("البطارية غير موجودة")
-    if current_state(db, battery_id) and current_state(db, battery_id).get("installed"):
-        raise ValueError("يجب فك البطارية قبل حذفها من السجل")
-    db.delete(battery)
+    return delete_batteries(db, [battery_id])
+
+
+def delete_batteries(db: Session, battery_ids: list[int]):
+    unique_ids = set(battery_ids)
+    batteries = db.query(Battery).filter(Battery.id.in_(unique_ids)).all() if unique_ids else []
+    if len(batteries) != len(unique_ids):
+        raise ValueError("تعذر حذف البطاريات المحددة؛ قد يكون أحد السجلات غير موجود")
+    _, states = current_states(db)
+    installed = [
+        battery for battery in batteries
+        if states.get(battery.id) and states[battery.id].get("installed")
+    ]
+    if installed:
+        raise ValueError("يجب فك البطاريات المركبة قبل حذفها من السجل")
+    for battery in batteries:
+        db.delete(battery)
     db.commit()
+    return len(batteries)
+
+
+def update_battery(db: Session, battery_id: int, data: dict):
+    battery = db.query(Battery).filter(Battery.id == battery_id).first()
+    if battery is None:
+        raise ValueError("البطارية غير موجودة")
+    battery_type = (data.get("battery_type") or "").strip()
+    if not battery_type:
+        raise ValueError("نوع البطارية مطلوب")
+    battery.battery_type = battery_type
+    battery.brand = (data.get("brand") or "").strip() or None
+    battery.capacity = (data.get("capacity") or "").strip() or None
+    battery.manufacture_date = data.get("manufacture_date")
+    battery.notes = (data.get("notes") or "").strip() or None
+    db.commit()
+    db.refresh(battery)
+    return battery
 
 
 def add_movement(db: Session, battery_id: int, data: dict):
