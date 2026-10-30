@@ -23,20 +23,25 @@ router = APIRouter()
 templates = get_module_templates("app/modules/spare_parts_catalog/templates")
 
 
-def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manufacturer=None, source=None, active=None, error=None, notice=None, active_dialog=None):
+def _catalog_context(request, user, db, *, q="", part_number="", page=1, category_id=None, equipment_model_id=None, active=None, error=None, notice=None, active_dialog=None):
     query = db.query(SparePart, SparePartCatalogDetails).outerjoin(
         SparePartCatalogDetails, SparePartCatalogDetails.spare_part_id == SparePart.id
     )
     if q:
         like = f"%{q[:100]}%"
         reference_ids = db.query(SparePartCatalogReference.spare_part_id).filter(SparePartCatalogReference.reference.ilike(like))
-        query = query.filter(or_(SparePart.name.ilike(like), SparePart.part_number.ilike(like), SparePartCatalogDetails.name_ar.ilike(like), SparePartCatalogDetails.name_fr.ilike(like), SparePartCatalogDetails.original_name.ilike(like), SparePartCatalogDetails.manufacturer.ilike(like), SparePart.id.in_(reference_ids)))
+        query = query.filter(or_(SparePart.name.ilike(like), SparePartCatalogDetails.name_ar.ilike(like), SparePartCatalogDetails.name_fr.ilike(like), SparePartCatalogDetails.original_name.ilike(like)))
+    if part_number:
+        like = f"%{part_number[:120]}%"
+        reference_ids = db.query(SparePartCatalogReference.spare_part_id).filter(SparePartCatalogReference.reference.ilike(like))
+        query = query.filter(or_(SparePart.part_number.ilike(like), SparePart.id.in_(reference_ids)))
     if category_id:
         query = query.filter(SparePartCatalogDetails.category_id == category_id)
-    if manufacturer:
-        query = query.filter(SparePartCatalogDetails.manufacturer == manufacturer)
-    if source:
-        query = query.filter(SparePartCatalogDetails.source == source)
+    if equipment_model_id:
+        matching_part_ids = db.query(SparePartCatalogModel.spare_part_id).filter(
+            SparePartCatalogModel.equipment_model_id == equipment_model_id
+        )
+        query = query.filter(SparePart.id.in_(matching_part_ids))
     if active is not None:
         if active:
             query = query.filter(or_(SparePartCatalogDetails.is_active.is_(True), SparePartCatalogDetails.id.is_(None)))
@@ -64,9 +69,7 @@ def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manuf
             names.append(parent.name_ar)
             parent = parent.parent
         category_paths[category.id] = " / ".join(reversed(names))
-    manufacturers = [row[0] for row in db.query(SparePartCatalogDetails.manufacturer).filter(SparePartCatalogDetails.manufacturer.is_not(None)).distinct().order_by(SparePartCatalogDetails.manufacturer).all()]
-    sources = [row[0] for row in db.query(SparePartCatalogDetails.source).filter(SparePartCatalogDetails.source.is_not(None)).distinct().order_by(SparePartCatalogDetails.source).all()]
-    return {"request": request, "user": user, "items": items, "references": references, "part_models": part_models, "equipment_models": equipment_models, "categories": categories, "category_paths": category_paths, "manufacturers": manufacturers, "sources": sources, "q": q, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "manufacturer_filter": manufacturer, "source_filter": source, "active_filter": active, "error": error, "notice": notice, "active_dialog": active_dialog}
+    return {"request": request, "user": user, "items": items, "references": references, "part_models": part_models, "equipment_models": equipment_models, "categories": categories, "category_paths": category_paths, "q": q, "part_number_filter": part_number, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "equipment_model_filter": equipment_model_id, "active_filter": active, "error": error, "notice": notice, "active_dialog": active_dialog}
 
 
 def _sync_part_models(db: Session, part_id: int, model_ids: list[int]):
@@ -79,8 +82,8 @@ def _sync_part_models(db: Session, part_id: int, model_ids: list[int]):
 
 
 @router.get("/spare-parts/catalog", response_class=HTMLResponse)
-def catalog_page(request: Request, q: str = "", page: int = 1, category_id: int | None = None, manufacturer: str | None = None, source: str | None = None, active: bool | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, q=q, page=page, category_id=category_id, manufacturer=manufacturer, source=source, active=active))
+def catalog_page(request: Request, q: str = "", part_number: str = "", page: int = 1, category_id: int | None = None, equipment_model_id: int | None = None, active: bool | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, q=q, part_number=part_number, page=page, category_id=category_id, equipment_model_id=equipment_model_id, active=active))
 
 
 @router.get("/spare-parts/catalog/import/template.xlsx")
