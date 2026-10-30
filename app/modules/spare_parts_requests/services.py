@@ -175,15 +175,23 @@ def _source(db: Session, source_type: str, source_id: int):
     )
 
 
-def _resolve_part(db: Session, part_id: int | None, name: str | None):
-    """يبني (spare_part_id, part_name) من رابط اختياري بالمخزون واسم حر.
+def _resolve_part(db: Session, part_id: int | None, name: str | None, part_number: str | None = None):
+    """يحسم رمز القطعة إلى سجلها، أو يبقي الاسم الحر عند عدم إدخال رمز.
 
     الربط بالمخزون اختياري: إن اختير من المكتبة يُربط ويُشتق منه الاسم عند
     عدم تمرير اسم، وإن لم يُختَر يُحفظ الاسم الحر وحده دون مطابقة حرفية
     بسجل قطع الغيار (المطابقة الحرفية هي ما كان تمنع الاسم الحر أصلاً).
     """
     part_id = part_id if part_id else None
+    part_number = (part_number or "").strip() or None
     name = (name or "").strip() or None
+    if part_number:
+        part = db.query(SparePart).filter(SparePart.part_number == part_number).first()
+        if not part:
+            raise ValueError(f"الرمز التعريفي «{part_number}» غير مسجل في كتالوج قطع الغيار")
+        if part_id and part_id != part.id:
+            raise ValueError("رمز القطعة لا يطابق القطعة المرتبطة")
+        return part.id, part.name
     if part_id:
         part = db.query(SparePart).filter(SparePart.id == part_id).first()
         if not part:
@@ -208,6 +216,7 @@ def serialize_item(item):
         "id": item.id,
         "asset_type": item.asset_type,
         "spare_part_id": item.spare_part_id,
+        "part_number": item.spare_part.part_number if item.spare_part else None,
         "part_name": item.part_name or (item.spare_part.name if item.spare_part else None),
         "requested_quantity": item.requested_quantity,
         "received_quantity": item.received_quantity,
@@ -283,7 +292,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
             raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
 
     resolved = [
-        _resolve_part(db, item.spare_part_id, item.part_name)
+        _resolve_part(db, item.spare_part_id, item.part_name, item.part_number)
         for item in data.items
     ]
     identities = [_item_identity(item.asset_type, part_id, part_name) for item, (part_id, part_name) in zip(data.items, resolved)]
@@ -306,7 +315,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     with _no_raw_sql(db):
         db.flush()
     for item, (part_id, part_name) in zip(data.items, resolved):
-        values = item.model_dump(exclude={"spare_part_id", "part_name"})
+        values = item.model_dump(exclude={"spare_part_id", "part_number", "part_name"})
         values["received_date"] = receipt_date
         values["recipient"] = recipient
         values["supplier_institution"] = supplier
@@ -405,7 +414,7 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
         raise ValueError(RECEIPT_CONFLICT)
     if data.received_date and request.received_date is None:
         _store_receipt_date(request, data.received_date)
-    part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name)
+    part_id, part_name = _resolve_part(db, data.spare_part_id, data.part_name, data.part_number)
     if data.asset_type != "part" and part_id:
         raise ValueError("الإطار أو البطارية لا يرتبطان بكتالوج قطع الغيار")
     identity = _item_identity(data.asset_type, part_id, part_name)
@@ -429,7 +438,7 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
     )
     if receipt_submitted and (not data.received_date or not new_recipient or not new_supplier):
         raise ValueError("عند تسجيل استلام يجب إدخال تاريخ الاستلام والمستلم والمؤسسة الممونة")
-    values = data.model_dump(exclude={"part_name", "spare_part_id"})
+    values = data.model_dump(exclude={"part_name", "part_number", "spare_part_id"})
     # بند الطلب الجديد يشارك تاريخ استلام الطلب، لا تاريخاً خاصاً به.
     values["received_date"] = request.received_date
     values["recipient"] = new_recipient
@@ -468,19 +477,24 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
         for other in item.request.items
     ) and not shared_supplier:
         raise ValueError("لا يمكن مسح المؤسسة الممونة بعد تسجيل الاستلام")
-    touches_assignment = any(k in values for k in ("asset_type", "spare_part_id", "part_name", "requested_quantity"))
+    part_number = values.pop("part_number", None)
+    touches_assignment = any(k in values for k in ("asset_type", "spare_part_id", "part_name", "requested_quantity")) or "part_number" in data.model_fields_set
     if touches_assignment and item.request.status != "pending":
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة إلا لطلب قيد الانتظار")
     if item.received_quantity > 0 and touches_assignment:
         raise ValueError("لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام")
-    if "asset_type" in values or "spare_part_id" in values or "part_name" in values:
+    if "asset_type" in values or "spare_part_id" in values or "part_name" in values or "part_number" in data.model_fields_set:
         asset_type = values.get("asset_type", item.asset_type)
-        if asset_type != "part" and values.get("spare_part_id", item.spare_part_id):
+        resolved_part_id = values.get("spare_part_id")
+        if "spare_part_id" not in values and "part_number" not in data.model_fields_set:
+            resolved_part_id = item.spare_part_id
+        if asset_type != "part" and (resolved_part_id or part_number):
             raise ValueError("الإطار أو البطارية لا يرتبطان بكتالوج قطع الغيار")
         part_id, part_name = _resolve_part(
             db,
-            values.get("spare_part_id", item.spare_part_id),
+            resolved_part_id,
             values.get("part_name", item.part_name),
+            part_number,
         )
         identity = _item_identity(values.get("asset_type", item.asset_type), part_id, part_name)
         for other in item.request.items:

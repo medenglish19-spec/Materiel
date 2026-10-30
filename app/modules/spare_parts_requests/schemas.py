@@ -10,6 +10,7 @@ SOURCE_TYPES = {"fault", "repair"}
 class SparePartRequestItemCreate(BaseModel):
     asset_type: str = "part"
     spare_part_id: int | None = None
+    part_number: str | None = Field(default=None, max_length=80)
     part_name: str | None = Field(default=None, max_length=200)
     requested_quantity: int = Field(gt=0)
     received_quantity: int = Field(default=0, ge=0)
@@ -25,13 +26,18 @@ class SparePartRequestItemCreate(BaseModel):
             return None
         return value.strip() or None
 
+    @field_validator("part_number")
+    @classmethod
+    def clean_part_number(cls, value):
+        return value.strip() or None if value else None
+
     @model_validator(mode="after")
     def part_reference_present(self):
         if self.asset_type not in {"part", "tire", "battery"}:
             raise ValueError("نوع بند الطلب غير صالح")
-        if self.asset_type != "part" and self.spare_part_id:
+        if self.asset_type != "part" and (self.spare_part_id or self.part_number):
             raise ValueError("الإطار أو البطارية لا يرتبطان بكتالوج قطع الغيار")
-        if not self.spare_part_id and not self.part_name:
+        if not self.spare_part_id and not self.part_number and not self.part_name:
             raise ValueError("اسم الصنف مطلوب")
         return self
 
@@ -70,6 +76,7 @@ class SparePartRequestUpdate(BaseModel):
 class SparePartRequestItemUpdate(BaseModel):
     asset_type: str | None = None
     spare_part_id: int | None = None
+    part_number: str | None = Field(default=None, max_length=80)
     part_name: str | None = Field(default=None, max_length=200)
     requested_quantity: int | None = Field(default=None, gt=0)
     received_quantity: int | None = Field(default=None, ge=0)
@@ -97,6 +104,11 @@ class SparePartRequestItemUpdate(BaseModel):
             return None
         return value.strip() or None
 
+    @field_validator("part_number")
+    @classmethod
+    def clean_part_number(cls, value):
+        return value.strip() or None if value else None
+
     @field_validator("asset_type")
     @classmethod
     def valid_asset_type(cls, value):
@@ -120,6 +132,7 @@ class SparePartRequestItemOut(BaseModel):
     id: int
     asset_type: str = "part"
     spare_part_id: int | None = None
+    part_number: str | None = None
     requested_quantity: Decimal
     received_quantity: Decimal
     received_date: date | None = None

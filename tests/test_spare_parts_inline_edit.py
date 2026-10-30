@@ -128,7 +128,7 @@ def _seed(db):
     # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
     # واحد لكل عطل.
     spare_faults = []
-    for n in range(12):
+    for n in range(14):
         extra = Fault(
             equipment_id=equipment.id,
             reported_date=date.today(),
@@ -244,7 +244,7 @@ def test_header_fields_and_items_are_editable_in_place(client):
         "f-recipient",
         "f-notes",
         "i-name",
-        "i-part",
+        "i-code",
         "i-qty",
         "received",
         "f-supplier",
@@ -255,6 +255,62 @@ def test_header_fields_and_items_are_editable_in_place(client):
         assert cls in html, f"الحقل أو الأداة {cls} غير موجود"
     # لم يعد التعديل عبر نوافذ prompt
     assert "prompt(" not in html
+    assert "اسم القطعة" in html
+    assert "الرمز التعريفي" in html
+    assert "بدون ربط بالمخزون" not in html
+
+
+def test_request_item_code_fills_and_resolves_catalog_part(client):
+    page, ids = client
+    html = page.get("/spare-parts-requests")
+    assert html.status_code == 200
+    assert 'id="sparePartCodes"' in html.text
+    assert "F-1" in html.text
+
+    response = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-CODE-1",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": ids["spare_faults"][12],
+            "items": [{"asset_type": "part", "part_number": "F-1", "requested_quantity": 1}],
+        },
+    )
+    assert response.status_code == 201, response.text
+    item = response.json()["items"][0]
+    assert item["part_number"] == "F-1"
+    assert item["part_name"] == "فلتر هوائي"
+    assert item["spare_part_id"] == ids["part"]
+
+    updated = page.patch(
+        f"/api/spare-parts-requests/items/{item['id']}",
+        json={
+            "asset_type": "part",
+            "spare_part_id": ids["part"],
+            "part_number": "F-1",
+            "part_name": "اسم مختلف يتجاهله الخادم",
+            "requested_quantity": 2,
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["part_name"] == "فلتر هوائي"
+
+
+def test_unknown_part_code_is_rejected_without_saving_request(client):
+    page, ids = client
+    response = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-CODE-BAD",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": ids["spare_faults"][13],
+            "items": [{"asset_type": "part", "part_number": "NOT-REGISTERED", "part_name": "اسم حر", "requested_quantity": 1}],
+        },
+    )
+    assert response.status_code == 400, response.text
+    assert "غير مسجل" in response.json()["detail"]
 
 
 def test_the_global_editor_does_not_manage_this_area(client):
@@ -638,9 +694,9 @@ def test_server_error_messages_reach_the_page(client):
 
 
 def test_a_received_item_is_not_resent_with_its_assignment(client):
-    """A locked row must not carry spare_part_id / part_name / requested_quantity.
+    """A locked row must not carry part assignment/code or requested quantity.
 
-    itemRow() already disabled .i-part and .i-qty for a received item, but
+    itemRow() already disabled .i-code and .i-qty for a received item, but
     itemBody() kept reading their .value -- a disabled input still has one -- so
     every save re-sent the assignment and the server refused it with
     "لا يمكن تعديل التعيين أو الكمية المطلوبة بعد تسجيل الاستلام" (400).
@@ -660,9 +716,9 @@ def test_a_received_item_is_not_resent_with_its_assignment(client):
         ".i-name must be disabled on a locked row, the server rejects a change there"
     )
 
-    # and saveRequest drops those three keys instead of sending them
+    # and saveRequest drops assignment fields instead of sending them
     assert (
-        "delete body.spare_part_id;delete body.part_name;delete body.requested_quantity;"
+        "delete body.spare_part_id;delete body.part_number;delete body.part_name;delete body.requested_quantity;"
         in html
     ), "a locked row must not re-send its assignment"
     assert "if(itemId&&(p.tr.dataset.locked||p.receiptEntered)){" in html
