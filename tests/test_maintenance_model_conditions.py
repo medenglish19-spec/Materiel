@@ -984,6 +984,22 @@ def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
     assert client.get("/maintenance/periodic?after=invalid").status_code == 400
 
 
+def test_periodic_search_and_state_filters_live_in_the_table_header(api):
+    client, _ = api
+    page = client.get("/maintenance/periodic?q=TEST-REG&state=بلا+سجل")
+    assert page.status_code == 200
+    html = page.text
+    header = html.split('<thead>', 1)[1].split('</thead>', 1)[0]
+
+    assert 'class="toolbar-card"' not in html
+    assert 'id="periodicFilterForm" method="get" action="/maintenance/periodic"' in html
+    assert 'class="periodic-filter-row"' in header
+    assert 'id="periodicSearch" name="q"' in header
+    assert 'value="TEST-REG"' in header
+    assert 'id="periodicStatus" name="state"' in header
+    assert 'value="بلا سجل" selected' in header
+
+
 def test_operation_is_not_applicable_to_a_model_without_a_relation():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)

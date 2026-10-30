@@ -124,3 +124,7 @@
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:nth-child(even) td{background:#f8fcf9}
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:hover td{background:#eef6f0}
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr.selected td{background:#dfede2}
+.maintenance-page .m-table .periodic-filter-row td{height:auto;padding:5px;background:#f2f7f3;vertical-align:middle;white-space:normal}
+.maintenance-page .periodic-filter-row .m-input,.maintenance-page .periodic-filter-row .m-select{height:31px;min-width:125px;padding:0 7px;font-size:10px}
+.maintenance-page .periodic-filter-actions{display:flex;align-items:center;gap:5px}
+.maintenance-page .periodic-filter-actions .m-btn{height:29px;padding:0 8px;font-size:10px}
