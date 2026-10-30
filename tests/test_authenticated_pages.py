@@ -228,9 +228,10 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     assert 'id="closeCategoryAdd"' in page.text
     assert '<select name="category">' in page.text
     catalog_header = page.text.split('<thead>', 1)[1].split('</thead>', 1)[0]
-    assert 'class="catalog-filter-row"' in catalog_header
-    assert 'action="/spare-parts/catalog" method="get" class="catalog-filter-form"' in catalog_header
+    assert 'class="catalog-filter-row"' not in catalog_header
+    assert 'id="catalogFilterForm" action="/spare-parts/catalog" method="get" hidden' in page.text
     assert all(f'name="{field}"' in catalog_header for field in ("q", "category_id", "manufacturer", "source", "active"))
+    assert catalog_header.count("<tr>") == 1
     assert 'class="actions">\n      <label>بحث' not in page.text
     assert 'action="/spare-parts/catalog/categories"' in page.text
     assert page.text.index('id="openCatalogAdd"') < page.text.index('id="openCategoryAdd"')
@@ -291,6 +292,13 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     catalog_page = client.get("/spare-parts/catalog")
     assert "فلتر" in catalog_page.text
     assert "تصنيف صفحة معدل" in catalog_page.text
+    catalog_filtered = client.get(
+        "/spare-parts/catalog",
+        params={"q": "فلتر", "category_id": category_id, "manufacturer": "شركة اختبار", "active": "true"},
+    )
+    assert catalog_filtered.status_code == 200
+    assert "فلتر" in catalog_filtered.text
+    assert 'name="manufacturer"' in catalog_filtered.text and 'value="شركة اختبار" selected' in catalog_filtered.text
     blocked_delete = client.post(f"/spare-parts/catalog/categories/{category_id}/delete", follow_redirects=False)
     assert blocked_delete.status_code == 409
     assert "مرتبط بقطع غيار" in blocked_delete.text
