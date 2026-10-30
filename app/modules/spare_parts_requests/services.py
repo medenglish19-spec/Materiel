@@ -262,7 +262,7 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
         SparePartRequest.repair_id == (data.source_id if data.source_type == "repair" else None),
     ).first()
     if existing:
-        raise ValueError("يوجد طلب غيار مرتبط بهذا المصدر بالفعل")
+        raise ValueError(f"هذا المصدر مرتبط بطلب الغيار {existing.request_number} بالفعل؛ افتح الطلب القائم لتعديله.")
     _check_request_date(data.request_date, source_date)
 
     # تاريخ استلام واحد للطلب: إمّا على الطلب، أو على بنوده فكلها تتطابق.
@@ -726,7 +726,10 @@ def received_register(db: Session):
 
 def source_options(db: Session, source_type: str):
     if source_type == "fault":
-        rows = db.query(Fault).options(joinedload(Fault.equipment)).order_by(Fault.reported_date.desc(), Fault.id.desc()).limit(200).all()
+        used_fault_ids = db.query(SparePartRequest.fault_id).filter(SparePartRequest.fault_id.is_not(None))
+        rows = db.query(Fault).options(joinedload(Fault.equipment)).filter(
+            ~Fault.id.in_(used_fault_ids)
+        ).order_by(Fault.reported_date.desc(), Fault.id.desc()).limit(200).all()
         return [{
             "id": x.id,
             "date": x.reported_date.isoformat(),
@@ -734,7 +737,10 @@ def source_options(db: Session, source_type: str):
             "registration_number": x.equipment.registration_number if x.equipment else "—",
         } for x in rows]
 
-    rows = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).order_by(Repair.repair_date.desc(), Repair.id.desc()).limit(200).all()
+    used_repair_ids = db.query(SparePartRequest.repair_id).filter(SparePartRequest.repair_id.is_not(None))
+    rows = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).filter(
+        ~Repair.id.in_(used_repair_ids)
+    ).order_by(Repair.repair_date.desc(), Repair.id.desc()).limit(200).all()
     return [{
         "id": x.id,
         "date": x.repair_date.isoformat(),

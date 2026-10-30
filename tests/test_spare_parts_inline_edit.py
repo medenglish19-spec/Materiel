@@ -128,7 +128,7 @@ def _seed(db):
     # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
     # واحد لكل عطل.
     spare_faults = []
-    for n in range(14):
+    for n in range(15):
         extra = Fault(
             equipment_id=equipment.id,
             reported_date=date.today(),
@@ -311,6 +311,41 @@ def test_unknown_part_code_is_rejected_without_saving_request(client):
     )
     assert response.status_code == 400, response.text
     assert "غير مسجل" in response.json()["detail"]
+
+
+def test_sources_already_linked_to_requests_are_not_offered_again(client):
+    page, ids = client
+    source_id = ids["spare_faults"][14]
+    options = page.get("/api/spare-parts-requests/sources/fault")
+    assert options.status_code == 200
+    assert any(option["id"] == source_id for option in options.json())
+
+    created = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-DUP-SOURCE-1",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": source_id,
+            "items": [{"part_name": "قطعة اختبار", "requested_quantity": 1}],
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    options = page.get("/api/spare-parts-requests/sources/fault")
+    assert all(option["id"] != source_id for option in options.json())
+    duplicate = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-DUP-SOURCE-2",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": source_id,
+            "items": [{"part_name": "قطعة اختبار", "requested_quantity": 1}],
+        },
+    )
+    assert duplicate.status_code == 400
+    assert "SR-DUP-SOURCE-1" in duplicate.json()["detail"]
 
 
 def test_the_global_editor_does_not_manage_this_area(client):
