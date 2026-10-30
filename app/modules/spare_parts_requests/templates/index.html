@@ -19,6 +19,56 @@
 <section class="panel"><div class="panel-head"><h2>آخر الحركة</h2><a href="/spare-parts-requests">عرض الطلبات</a></div><div class="table-scroll mt-table-theme-green" data-mt-region><table><thead><tr><th>المرجع</th><th>نوع الحركة</th><th>التاريخ</th><th>التفاصيل</th></tr></thead><tbody id="activity"><tr><td colspan="4" class="empty">جارٍ تحميل الحركة…</td></tr></tbody></table></div></section>
 </div>
 <script>
-(async function(){const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const date=v=>String(v||'').slice(0,10)||'—';try{const [r,rec,m]=await Promise.all([fetch('/api/spare-parts-requests',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),fetch('/api/spare-parts-movements',{credentials:'same-origin'}).then(x=>x.ok?x.json():[])]);document.getElementById('requestsCount').textContent=Array.isArray(r)?r.length:'—';document.getElementById('receivedCount').textContent=Array.isArray(rec)?rec.length:'—';document.getElementById('distributionCount').textContent=Array.isArray(m)?m.filter(x=>x.document_type==='distribution').length:'—';document.getElementById('returnCount').textContent=Array.isArray(m)?m.filter(x=>x.document_type==='return').length:'—';const rows=[];(Array.isArray(r)?r:[]).forEach(x=>rows.push({ref:x.request_number||x.id,type:'طلب',date:x.request_date,detail:x.part_name||x.notes||'طلب قطع غيار',href:'/spare-parts-requests'}));(Array.isArray(m)?m:[]).forEach(x=>rows.push({ref:x.document_number||x.id,type:x.document_type==='return'?'إرجاع':'توزيع',date:x.document_date,detail:x.recipient||'—',href:x.document_type==='return'?'/spare-parts-return':'/spare-parts-distribution'}));rows.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));document.getElementById('activity').innerHTML=rows.slice(0,8).map(x=>'<tr><td>'+esc(x.ref)+'</td><td><span class="badge">'+esc(x.type)+'</span></td><td>'+esc(date(x.date))+'</td><td><a href="'+x.href+'">'+esc(x.detail)+'</a></td></tr>').join('')||'<tr><td colspan="4" class="empty">لا توجد حركة مسجلة.</td></tr>';}catch(e){document.getElementById('activity').innerHTML='<tr><td colspan="4" class="empty">تعذر تحميل ملخص الحركة.</td></tr>';}})();
+(async function(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const date=v=>String(v||'').slice(0,10)||'—';
+  try{
+    const [requests,received,movements]=await Promise.all([
+      fetch('/api/spare-parts-requests',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),
+      fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),
+      fetch('/api/spare-parts-movements',{credentials:'same-origin'}).then(x=>x.ok?x.json():[])
+    ]);
+    document.getElementById('requestsCount').textContent=Array.isArray(requests)?requests.length:'—';
+    document.getElementById('receivedCount').textContent=Array.isArray(received)?received.length:'—';
+    document.getElementById('distributionCount').textContent=Array.isArray(movements)?movements.filter(x=>x.document_type==='distribution').length:'—';
+    document.getElementById('returnCount').textContent=Array.isArray(movements)?movements.filter(x=>x.document_type==='return').length:'—';
+
+    const rows=[];
+    (Array.isArray(requests)?requests:[]).forEach(x=>rows.push({
+      ref:x.request_number||x.id,type:'طلب',date:x.request_date,
+      detail:x.items?.map(item=>item.part_name).filter(Boolean).join('، ')||x.notes||'طلب قطع غيار',
+      href:'/spare-parts-requests'
+    }));
+
+    // الاستلام حركة مستقلة بتاريخ الاستلام، لا بتاريخ إنشاء الطلب.
+    const receipts=new Map();
+    (Array.isArray(received)?received:[]).filter(x=>x.received_date&&Number(x.received_quantity)>0).forEach(x=>{
+      const ref=x.request_number||x.request_item_id;
+      const key=String(ref)+'|'+date(x.received_date);
+      if(!receipts.has(key))receipts.set(key,{ref,type:'استلام',date:x.received_date,parts:new Set(),recipient:x.recipient||'',supplier:x.supplier_institution||''});
+      const row=receipts.get(key);
+      if(x.part_name)row.parts.add(x.part_name);
+      row.recipient=row.recipient||x.recipient||'';
+      row.supplier=row.supplier||x.supplier_institution||'';
+    });
+    receipts.forEach(x=>rows.push({
+      ref:x.ref,type:x.type,date:x.date,
+      detail:[...x.parts].join('، ')||x.recipient||x.supplier||'استلام طلب الغيار',
+      href:'/spare-parts-received'
+    }));
+
+    (Array.isArray(movements)?movements:[]).forEach(x=>rows.push({
+      ref:x.document_number||x.id,
+      type:x.document_type==='return'?'إرجاع':'توزيع',date:x.document_date,
+      detail:x.recipient||'—',
+      href:x.document_type==='return'?'/spare-parts-return':'/spare-parts-distribution'
+    }));
+    const sameDayPriority={طلب:0,استلام:1,توزيع:2,إرجاع:3};
+    rows.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||sameDayPriority[b.type]-sameDayPriority[a.type]);
+    document.getElementById('activity').innerHTML=rows.slice(0,8).map(x=>'<tr><td>'+esc(x.ref)+'</td><td><span class="badge">'+esc(x.type)+'</span></td><td>'+esc(date(x.date))+'</td><td><a href="'+x.href+'">'+esc(x.detail)+'</a></td></tr>').join('')||'<tr><td colspan="4" class="empty">لا توجد حركة مسجلة.</td></tr>';
+  }catch(e){
+    document.getElementById('activity').innerHTML='<tr><td colspan="4" class="empty">تعذر تحميل ملخص الحركة.</td></tr>';
+  }
+})();
 </script>
 {% endblock %}
