@@ -227,6 +227,11 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     assert 'id="categoryAddDialog"' in page.text
     assert 'id="closeCategoryAdd"' in page.text
     assert '<select name="category">' in page.text
+    catalog_header = page.text.split('<thead>', 1)[1].split('</thead>', 1)[0]
+    assert 'class="catalog-filter-row"' in catalog_header
+    assert 'action="/spare-parts/catalog" method="get" class="catalog-filter-form"' in catalog_header
+    assert all(f'name="{field}"' in catalog_header for field in ("q", "category_id", "manufacturer", "source", "active"))
+    assert 'class="actions">\n      <label>بحث' not in page.text
     assert 'action="/spare-parts/catalog/categories"' in page.text
     assert page.text.index('id="openCatalogAdd"') < page.text.index('id="openCategoryAdd"')
     assert 'action="/spare-parts/catalog/parts"' in page.text
