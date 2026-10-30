@@ -667,13 +667,13 @@ def periodic_maintenance_page(
             MaintenancePlan.is_approved.is_(True),
         ).distinct().all()
     }
-    unapproved_models = sorted({
-        eq.equipment_model.name
+    unapproved_model_rows = sorted({
+        (eq.equipment_model_id, eq.equipment_model.name)
         for eq in equipment
         if eq.equipment_model_id is not None
         and eq.equipment_model is not None
         and eq.equipment_model_id not in approved_model_ids
-    })
+    }, key=lambda item: (item[1], item[0]))
     filtered_total = 0
     row_index = 0
 
@@ -775,7 +775,7 @@ def periodic_maintenance_page(
             "user": current_user,
             "rows": rows,
             "counts": counts,
-            "unapproved_models": unapproved_models,
+            "unapproved_model_rows": unapproved_model_rows,
             "query": q,
             "state_filter": state_filter,
             "filtered_total": filtered_total,

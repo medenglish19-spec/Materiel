@@ -40,7 +40,7 @@
     <div class="table-wrap" data-mt-region><table>
       <thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>النوع</th><th>الطراز</th><th data-mt-no-filter>الإجراء</th></tr></thead>
       <tbody>{% for item in unassigned_equipment %}
-        <tr><td><a class="action-link" href="/equipment/{{ item.id }}">{{ item.equipment_model.name if item.equipment_model else (item.equipment_type.name if item.equipment_type else 'فتح العتاد') }}</a></td><td>{{ item.registration_number or item.vin or '—' }}</td><td>{{ item.equipment_type.name if item.equipment_type else '—' }}</td><td>{{ item.equipment_model.name if item.equipment_model else '—' }}</td><td><button class="row-add-driver" type="button" data-add-driver-for="{{ item.id }}">إضافة سائق</button></td></tr>
+        <tr><td><a class="action-link" href="/equipment/{{ item.id }}">{{ item.equipment_model.name if item.equipment_model else (item.equipment_type.name if item.equipment_type else 'فتح العتاد') }}</a></td><td>{{ item.registration_number or item.vin or '—' }}</td><td>{{ item.equipment_type.name if item.equipment_type else '—' }}</td><td>{{ item.equipment_model.name if item.equipment_model else '—' }}</td><td><button class="row-add-driver" type="button" data-add-driver-for="{{ item.id }}" data-equipment-model-id="{{ item.equipment_model_id }}">إضافة سائق</button></td></tr>
       {% else %}<tr><td class="empty" colspan="5">لا يوجد عتاد يتطلب سائقًا دون سائق نشط.</td></tr>{% endfor %}</tbody>
     </table></div>
   </dialog>
@@ -52,9 +52,13 @@
       <label>صنف الرخصة *<input name="license_class" maxlength="50" required placeholder="مثال: B أو C"></label>
       <label>تاريخ الإصدار<input type="date" name="license_issue_date"></label>
       <label>تاريخ نهاية الصلاحية<input type="date" name="license_expiry_date"></label>
-      <label>الرتبة (درجة الاحتراف في السياقة)<input name="driving_rank" maxlength="120" placeholder="أدخل رتبة السائق"></label>
-      <label>التعيين
-        <select name="assigned_equipment_id"><option value="">غير معيّن</option>{% for item in equipment %}<option value="{{ item.id }}">{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select>
+      <label>الرتبة<input name="driving_rank" maxlength="120" placeholder="أدخل رتبة السائق"></label>
+      <label>رقم تسجيل السائق<input name="registration_number" maxlength="80" placeholder="أدخل رقم تسجيل السائق"></label>
+      <label>طراز العتاد
+        <select id="driverEquipmentModel" name="equipment_model_id"><option value="">غير معيّن</option>{% for model in equipment_models %}<option value="{{ model.id }}">{{ model.name }}</option>{% endfor %}</select>
+      </label>
+      <label>رقم تسجيل العتاد
+        <select id="driverAssignedEquipment" name="assigned_equipment_id" disabled><option value="">اختر الطراز أولًا</option>{% for item in equipment %}<option value="{{ item.id }}" data-model-id="{{ item.equipment_model_id }}">{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select>
       </label>
       <label class="wide">ملاحظات<input name="notes"></label>
       <button class="primary" type="submit" data-em-action="save">حفظ السائق</button>
@@ -68,13 +72,13 @@
     </div>
     <div class="table-wrap" data-mt-region>
       <table>
-        <thead><tr><th data-mt-force-filter>الرقم</th><th data-mt-force-filter>الاسم</th><th data-mt-force-filter>اللقب</th><th data-mt-force-filter>الرتبة</th><th data-mt-force-filter>صنف الرخصة</th><th data-mt-force-filter>تاريخ الإصدار</th><th data-mt-force-filter>تاريخ نهاية الصلاحية</th><th data-mt-force-filter>التعيين</th><th data-mt-force-filter>ملاحظات</th><th data-mt-no-filter>الإجراءات</th></tr></thead>
+        <thead><tr><th data-mt-force-filter>الرقم</th><th data-mt-force-filter>الاسم</th><th data-mt-force-filter>اللقب</th><th data-mt-force-filter>الرتبة</th><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>صنف الرخصة</th><th data-mt-force-filter>تاريخ الإصدار</th><th data-mt-force-filter>تاريخ نهاية الصلاحية</th><th data-mt-force-filter>التعيين</th><th data-mt-force-filter>ملاحظات</th><th data-mt-no-filter>الإجراءات</th></tr></thead>
         <tbody>
           {% for driver in drivers %}
           <tr>
             <td>{{ loop.index }}</td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }}</a></td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.last_name }}</a></td>
-            <td>{{ driver.driving_rank or '—' }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_issue_date or '—' }}</td><td>{{ driver.license_expiry_date or '—' }}</td>
-            <td>{{ driver.assigned_equipment.equipment_model.name ~ ' - ' if driver.assigned_equipment and driver.assigned_equipment.equipment_model else '' }}{{ driver.assigned_equipment.registration_number or driver.assigned_equipment.vin or driver.assigned_equipment.asset_code if driver.assigned_equipment else 'غير معيّن' }}</td>
+            <td>{{ driver.driving_rank or '—' }}</td><td>{{ driver.registration_number or '—' }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_issue_date or '—' }}</td><td>{{ driver.license_expiry_date or '—' }}</td>
+            <td>{{ driver.assigned_equipment.equipment_model.name if driver.assigned_equipment and driver.assigned_equipment.equipment_model else (driver.assigned_equipment.equipment_type.name if driver.assigned_equipment and driver.assigned_equipment.equipment_type else ('معيّن' if driver.assigned_equipment else 'غير معيّن')) }}</td>
             <td>{{ driver.notes or '—' }}</td>
             <td><a class="action-link" href="/missions/drivers/{{ driver.id }}/edit">تعديل</a>
               <form method="post" action="/missions/drivers/{{ driver.id }}/status" style="display:inline">
@@ -84,13 +88,13 @@
               <span class="status {% if not driver.is_active %}inactive{% endif %}">{{ 'فعال' if driver.is_active else 'معطّل' }}</span>
             </td>
           </tr>
-          {% else %}<tr><td class="empty" colspan="10">لا توجد سجلات سائقين.</td></tr>{% endfor %}
+          {% else %}<tr><td class="empty" colspan="11">لا توجد سجلات سائقين.</td></tr>{% endfor %}
         </tbody>
       </table>
     </div>
   </section>
 </div>
 <script>
-(function(){var dialog=document.getElementById('driverDialog');var open=document.getElementById('openDriverDialog');var close=document.getElementById('closeDriverDialog');var equipmentDialog=document.getElementById('unassignedEquipmentDialog');var equipmentOpen=document.getElementById('openUnassignedEquipment');var equipmentClose=document.getElementById('closeUnassignedEquipment');var assignedEquipment=document.querySelector('#driverDialog select[name="assigned_equipment_id"]');if(dialog&&open){open.addEventListener('click',function(){dialog.showModal();});}if(dialog&&close){close.addEventListener('click',function(){dialog.close();});dialog.addEventListener('click',function(event){if(event.target===dialog)dialog.close();});}if(equipmentDialog&&equipmentOpen&&equipmentClose){equipmentOpen.addEventListener('click',function(){equipmentDialog.showModal();});equipmentClose.addEventListener('click',function(){equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){if(event.target===equipmentDialog)equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){var addButton=event.target.closest('[data-add-driver-for]');if(!addButton||!dialog||!assignedEquipment)return;assignedEquipment.value=addButton.getAttribute('data-add-driver-for');equipmentDialog.close();dialog.showModal();});}})();
+(function(){var dialog=document.getElementById('driverDialog');var open=document.getElementById('openDriverDialog');var close=document.getElementById('closeDriverDialog');var equipmentDialog=document.getElementById('unassignedEquipmentDialog');var equipmentOpen=document.getElementById('openUnassignedEquipment');var equipmentClose=document.getElementById('closeUnassignedEquipment');var modelSelect=document.getElementById('driverEquipmentModel');var equipmentSelect=document.getElementById('driverAssignedEquipment');function filterEquipment(reset){if(!modelSelect||!equipmentSelect)return;var modelId=modelSelect.value;Array.from(equipmentSelect.options).forEach(function(option){if(!option.value)return;var compatible=!!modelId&&option.getAttribute('data-model-id')===modelId;option.hidden=!compatible;option.disabled=!compatible;});equipmentSelect.disabled=!modelId;equipmentSelect.required=!!modelId;if(reset||!modelId||(equipmentSelect.selectedOptions[0]&&equipmentSelect.selectedOptions[0].disabled))equipmentSelect.value='';}if(modelSelect){modelSelect.addEventListener('change',function(){filterEquipment(true);});filterEquipment(false);}if(dialog&&open){open.addEventListener('click',function(){dialog.showModal();});}if(dialog&&close){close.addEventListener('click',function(){dialog.close();});dialog.addEventListener('click',function(event){if(event.target===dialog)dialog.close();});}if(equipmentDialog&&equipmentOpen&&equipmentClose){equipmentOpen.addEventListener('click',function(){equipmentDialog.showModal();});equipmentClose.addEventListener('click',function(){equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){if(event.target===equipmentDialog)equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){var addButton=event.target.closest('[data-add-driver-for]');if(!addButton||!dialog||!modelSelect||!equipmentSelect)return;modelSelect.value=addButton.getAttribute('data-equipment-model-id')||'';filterEquipment(true);equipmentSelect.value=addButton.getAttribute('data-add-driver-for');equipmentDialog.close();dialog.showModal();});}})();
 </script>
 {% endblock %}

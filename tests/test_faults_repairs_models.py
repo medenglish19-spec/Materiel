@@ -47,6 +47,8 @@ def test_technician_contracts():
     assert Technician.__tablename__ == "workshop_technicians"
     assert TechnicianIntervention.__tablename__ == "technician_interventions"
     assert "employee_number" in Technician.__table__.columns
+    assert "professional_rank" in Technician.__table__.columns
+    assert "registration_number" in Technician.__table__.columns
     assert "specialization" in Technician.__table__.columns
     assert "technician_id" in TechnicianIntervention.__table__.columns
     assert "hours" in TechnicianIntervention.__table__.columns

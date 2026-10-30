@@ -381,18 +381,19 @@ def test_maintenance_records_labels_equipment_number_as_registration(pages):
     assert "رقم العتاد" not in response.text
 
 
-def test_periodic_maintenance_indicators_open_filtered_record_dialog(pages):
+def test_periodic_dashboard_shows_maintenance_shortcuts_in_header(pages):
     client, _ = pages
     response = client.get("/maintenance/periodic")
     assert response.status_code == 200
-    for state in ("all", "مستحقة الآن", "تقترب", "ضمن الموعد", "بلا سجل"):
-        assert f'data-periodic-indicator="{state}"' in response.text
-    assert 'id="periodicIndicatorDialog"' in response.text
-    assert 'id="periodicIndicatorTable"' in response.text
-    for header in ("رقم التسجيل", "الطراز", "عملية الصيانة", "موعد الصيانة القادم", "الحالة"):
-        assert f'<th data-mt-force-filter>{header}</th>' in response.text
-    assert "قراءة العداد عند آخر صيانة" not in response.text.split('id="periodicIndicatorTable"', 1)[1].split("</table>", 1)[0]
-    assert "fetch(url,{credentials:'same-origin'" in response.text
+    header_actions = response.text.split('<div class="hero-actions">', 1)[1].split("</div>", 1)[0]
+    assert "＋ &nbsp;تسجيل صيانة" in header_actions
+    assert 'id="openPeriodicUnapprovedModels"' in header_actions
+    assert "طرازات بدون خطط (" in header_actions
+    assert 'href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة (' in header_actions
+    assert 'href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل (' in header_actions
+    assert 'class="kpi-grid"' not in response.text
+    assert 'id="periodicIndicatorDialog"' not in response.text
+    assert 'id="periodicUnapprovedModelsDialog"' in response.text
 
 
 def test_spare_parts_home_removes_duplicate_workflow_cards_and_bolds_indicators(pages):
@@ -881,7 +882,42 @@ def test_technician_creation_form_is_tracked_by_the_shared_editor(pages):
     response = client.get("/faults-repairs/technicians")
     assert response.status_code == 200
     assert '<form id="techForm" class="tech-form" data-em-root>' in response.text
+    technician_form = response.text.split('<form id="techForm"', 1)[1].split("</form>", 1)[0]
+    expected_fields = ('name="first_name"', 'name="last_name"', 'name="professional_rank"', 'name="registration_number"', 'name="specialization"')
+    assert [technician_form.index(field) for field in expected_fields] == sorted(technician_form.index(field) for field in expected_fields)
+    assert 'name="employee_number"' not in technician_form
+    technician_table = response.text.split('<table class="table">', 1)[1].split("</table>", 1)[0]
+    assert "<th>الرقم</th><th>الفني</th><th>الرتبة</th><th>رقم التسجيل</th>" in technician_table
+    assert 'name="professional_rank" maxlength="120" placeholder="الرتبة (نص أو رقم)"' in response.text
     assert 'data-em-action="save"' in response.text
+
+
+def test_workshop_technician_registration_number_is_saved_and_displayed(pages):
+    client, _ = pages
+    created = client.post("/api/faults-repairs/technicians", json={
+        "full_name": "فني رقم تسجيل",
+        "registration_number": "TECH-REG-2026",
+        "professional_rank": "المستوى 2",
+    })
+    assert created.status_code == 201, created.text
+    assert "employee_number" not in created.json()
+    assert created.json()["registration_number"] == "TECH-REG-2026"
+    assert created.json()["professional_rank"] == "المستوى 2"
+
+    updated = client.patch(f"/api/faults-repairs/technicians/{created.json()['id']}", json={
+        "professional_rank": "رتبة 3",
+        "registration_number": "TECH-REG-2027",
+    })
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["registration_number"] == "TECH-REG-2027"
+    assert updated.json()["professional_rank"] == "رتبة 3"
+
+    page = client.get("/faults-repairs/technicians")
+    assert page.status_code == 200
+    assert 'value="رتبة 3"' in page.text
+    assert 'value="TECH-REG-2027"' in page.text
+    assert 'data-technician-field="professional_rank"' in page.text
+    assert 'data-technician-field="registration_number"' in page.text
 
 
 def test_fault_pages_show_arabic_status_and_severity(pages):

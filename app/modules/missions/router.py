@@ -65,6 +65,15 @@ def _driver_equipment_options(db: Session):
     )
 
 
+def _driver_equipment_models(db: Session):
+    return (
+        db.query(EquipmentModel)
+        .filter(EquipmentModel.requires_driver.is_(True))
+        .order_by(EquipmentModel.name, EquipmentModel.id)
+        .all()
+    )
+
+
 def _unassigned_driver_equipment(db: Session):
     assigned_driver = db.query(Driver.id).filter(
         Driver.is_active.is_(True),
@@ -97,6 +106,7 @@ def drivers_page(request: Request, db: Session = Depends(get_db), current_user: 
             "user": current_user,
             "drivers": drivers,
             "equipment": _driver_equipment_options(db),
+            "equipment_models": _driver_equipment_models(db),
             "unassigned_equipment": _unassigned_driver_equipment(db),
         },
     )
@@ -136,6 +146,8 @@ def create_driver(
     license_class: str = Form(...),
     license_issue_date: date | None = Form(None),
     license_expiry_date: date | None = Form(None),
+    registration_number: str = Form(""),
+    equipment_model_id: int | None = Form(None),
     assigned_equipment_id: int | None = Form(None),
     notes: str = Form(""),
     db: Session = Depends(get_db),
@@ -150,6 +162,8 @@ def create_driver(
             "license_class": license_class,
             "license_issue_date": license_issue_date,
             "license_expiry_date": license_expiry_date,
+            "registration_number": registration_number,
+            "equipment_model_id": equipment_model_id,
             "assigned_equipment_id": assigned_equipment_id,
             "notes": notes,
         })
@@ -175,6 +189,13 @@ def edit_driver_page(
         and all(item.id != driver.assigned_equipment.id for item in equipment)
     ):
         equipment.append(driver.assigned_equipment)
+    equipment_models = _driver_equipment_models(db)
+    if (
+        driver.assigned_equipment
+        and driver.assigned_equipment.equipment_model
+        and all(model.id != driver.assigned_equipment.equipment_model.id for model in equipment_models)
+    ):
+        equipment_models.append(driver.assigned_equipment.equipment_model)
     return templates.TemplateResponse(
         request=request,
         name="driver_form.html",
@@ -183,6 +204,7 @@ def edit_driver_page(
             "user": current_user,
             "driver": driver,
             "equipment": equipment,
+            "equipment_models": equipment_models,
         },
     )
 
@@ -198,6 +220,8 @@ def update_driver(
     license_class: str = Form(...),
     license_issue_date: date | None = Form(None),
     license_expiry_date: date | None = Form(None),
+    registration_number: str = Form(""),
+    equipment_model_id: int | None = Form(None),
     assigned_equipment_id: int | None = Form(None),
     notes: str = Form(""),
     db: Session = Depends(get_db),
@@ -212,6 +236,8 @@ def update_driver(
             "license_class": license_class,
             "license_issue_date": license_issue_date,
             "license_expiry_date": license_expiry_date,
+            "registration_number": registration_number,
+            "equipment_model_id": equipment_model_id,
             "assigned_equipment_id": assigned_equipment_id,
             "notes": notes,
         })

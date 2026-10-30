@@ -915,11 +915,13 @@ def test_general_operation_is_absent_from_the_periodic_and_due_pages(api):
     for page in (periodic, due):
         # العملية العامة لا تظهر في أي من الصفحتين التشغيليتين.
         assert "عملية عامة لا تظهر" not in page
-    # وخيار تصفية «الشرط غير محدد» قائم في الصفحة الدورية للحالة المقابلة.
-    assert CONDITION_UNSET_LABEL in periodic
+    # يبقى مرشح الحالة مدعومًا في الرابط، من دون فرض مرشح إضافي على رأس الجدول.
+    unset_filter = client.get("/maintenance/periodic", params={"state": CONDITION_UNSET_LABEL})
+    assert unset_filter.status_code == 200
+    assert "عملية عامة لا تظهر" not in unset_filter.text
 
 
-def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
+def test_periodic_page_paginates_globally_and_shows_maintenance_shortcuts(api):
     client, ids = api
     db = Session()
     try:
@@ -979,8 +981,9 @@ def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
     no_matches = client.get("/maintenance/periodic", params={"q": "NO-SUCH-EQUIPMENT"})
     assert no_matches.status_code == 200
     assert "عرض 0 من 0 متابعة مطابقة" in no_matches.text
-    assert '<button class="kpi kpi-button" type="button" data-periodic-indicator="all"' in no_matches.text
-    assert '<span class="kpi-label">إجمالي المتابعات</span><span class="kpi-value">205' in no_matches.text
+    assert 'id="openPeriodicUnapprovedModels"' in no_matches.text
+    assert 'href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل (' in no_matches.text
+    assert 'href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة (' in no_matches.text
     assert client.get("/maintenance/periodic?after=invalid").status_code == 400
 
 
@@ -989,7 +992,8 @@ def test_periodic_table_has_only_the_column_header_row(api):
     page = client.get("/maintenance/periodic?state=بلا+سجل")
     assert page.status_code == 200
     html = page.text
-    header = html.split('<thead>', 1)[1].split('</thead>', 1)[0]
+    periodic_table = html.split('id="periodicTable"', 1)[1].split('</table>', 1)[0]
+    header = periodic_table.split('<thead>', 1)[1].split('</thead>', 1)[0]
 
     assert 'class="toolbar-card"' not in html
     assert 'id="periodicFilterForm"' not in html

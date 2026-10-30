@@ -62,6 +62,7 @@ class Driver(Base, AuditMixin):
     last_name = Column(String(100), nullable=False)
     driving_rank = Column("center", String(120), nullable=True)
     center = synonym("driving_rank")  # legacy attribute; database column is preserved
+    registration_number = Column(String(80), nullable=True)
     license_class = Column(String(50), nullable=False)
     license_issue_date = Column(Date, nullable=True)
     license_expiry_date = Column(Date, nullable=True)

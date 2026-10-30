@@ -16,12 +16,17 @@
       <label>صنف الرخصة *<input name="license_class" maxlength="50" value="{{ driver.license_class }}" required></label>
       <label>تاريخ الإصدار<input type="date" name="license_issue_date" value="{{ driver.license_issue_date.isoformat() if driver.license_issue_date else '' }}"></label>
       <label>تاريخ نهاية الصلاحية<input type="date" name="license_expiry_date" value="{{ driver.license_expiry_date.isoformat() if driver.license_expiry_date else '' }}"></label>
-      <label>الرتبة (درجة الاحتراف في السياقة)<input name="driving_rank" maxlength="120" value="{{ driver.driving_rank or '' }}" placeholder="أدخل رتبة السائق"></label>
-      <label>التعيين<select name="assigned_equipment_id"><option value="">غير معيّن</option>{% for item in equipment %}<option value="{{ item.id }}" {% if driver.assigned_equipment_id == item.id %}selected{% endif %} {% if not item.equipment_model or not item.equipment_model.requires_driver %}disabled{% endif %}>{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select></label>
+      <label>الرتبة<input name="driving_rank" maxlength="120" value="{{ driver.driving_rank or '' }}" placeholder="أدخل رتبة السائق"></label>
+      <label>رقم تسجيل السائق<input name="registration_number" maxlength="80" value="{{ driver.registration_number or '' }}" placeholder="أدخل رقم تسجيل السائق"></label>
+      <label>طراز العتاد<select id="editDriverEquipmentModel" name="equipment_model_id"><option value="">غير معيّن</option>{% for model in equipment_models %}<option value="{{ model.id }}" {% if driver.assigned_equipment and driver.assigned_equipment.equipment_model_id == model.id %}selected{% endif %}>{{ model.name }}</option>{% endfor %}</select></label>
+      <label>رقم تسجيل العتاد<select id="editDriverAssignedEquipment" name="assigned_equipment_id" {% if not driver.assigned_equipment %}disabled{% endif %}><option value="">اختر الطراز أولًا</option>{% for item in equipment %}<option value="{{ item.id }}" data-model-id="{{ item.equipment_model_id }}" {% if driver.assigned_equipment_id == item.id %}selected{% endif %}>{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select></label>
       <label class="wide">ملاحظات<input name="notes" value="{{ driver.notes or '' }}"></label>
       <button type="submit" data-em-action="save">حفظ التعديلات</button>
       <a href="/missions/drivers">العودة إلى قائمة السائقين</a>
     </form>
   </section>
 </div>
+<script>
+(function(){var modelSelect=document.getElementById('editDriverEquipmentModel');var equipmentSelect=document.getElementById('editDriverAssignedEquipment');function filterEquipment(reset){if(!modelSelect||!equipmentSelect)return;var modelId=modelSelect.value;Array.from(equipmentSelect.options).forEach(function(option){if(!option.value)return;var compatible=!!modelId&&option.getAttribute('data-model-id')===modelId;option.hidden=!compatible;option.disabled=!compatible;});equipmentSelect.disabled=!modelId;equipmentSelect.required=!!modelId;if(reset||!modelId||(equipmentSelect.selectedOptions[0]&&equipmentSelect.selectedOptions[0].disabled))equipmentSelect.value='';}if(modelSelect){modelSelect.addEventListener('change',function(){filterEquipment(true);});filterEquipment(false);}})();
+</script>
 {% endblock %}

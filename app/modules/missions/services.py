@@ -54,15 +54,17 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
         )
     if not employee_number:
         employee_number = f"DRV-{uuid4().hex}"
+    assigned_equipment_id = data.get("assigned_equipment_id") or None
     values = {
         "employee_number": employee_number,
         "first_name": (data.get("first_name") or "").strip(),
         "last_name": (data.get("last_name") or "").strip(),
         "driving_rank": (data.get("driving_rank") or data.get("center") or "").strip() or None,
+        "registration_number": (data.get("registration_number") or "").strip() or None,
         "license_class": (data.get("license_class") or "").strip(),
         "license_issue_date": data.get("license_issue_date"),
         "license_expiry_date": data.get("license_expiry_date"),
-        "assigned_equipment_id": data.get("assigned_equipment_id") or None,
+        "assigned_equipment_id": assigned_equipment_id,
         "notes": (data.get("notes") or "").strip() or None,
     }
     required = {
@@ -78,6 +80,8 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
             raise ValueError(f"{label} يتجاوز الحد الأقصى ({max_length} حرفًا)")
     if values["driving_rank"] and len(values["driving_rank"]) > 120:
         raise ValueError("الرتبة تتجاوز الحد الأقصى (120 حرفًا)")
+    if values["registration_number"] and len(values["registration_number"]) > 80:
+        raise ValueError("رقم تسجيل السائق يتجاوز الحد الأقصى (80 حرفًا)")
     if values["license_issue_date"] and values["license_issue_date"] > date.today():
         raise ValueError("تاريخ إصدار الرخصة لا يمكن أن يكون في المستقبل")
     if (
@@ -96,6 +100,9 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
         raise ValueError("الرقم الوظيفي مستخدم مسبقًا")
 
     equipment_id = values["assigned_equipment_id"]
+    equipment_model_id = data.get("equipment_model_id") or None
+    if equipment_model_id is not None and equipment_id is None:
+        raise ValueError("اختر رقم تسجيل العتاد للطراز المحدد")
     if equipment_id is not None:
         equipment = (
             db.query(Equipment)
@@ -107,6 +114,11 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
             raise ValueError("العتاد المحدد غير موجود")
         if not equipment.equipment_model or not equipment.equipment_model.requires_driver:
             raise ValueError("يمكن تعيين السائق فقط إلى عتاد يتطلب سائقًا")
+        if (
+            equipment_model_id is not None
+            and equipment.equipment_model_id != int(equipment_model_id)
+        ):
+            raise ValueError("رقم تسجيل العتاد لا يتبع الطراز المحدد")
     return values
 
 

@@ -1,6 +1,7 @@
 from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Optional
+from uuid import uuid4
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -379,7 +380,10 @@ def equipment_fault_stats(db: Session):
 
 
 def create_technician(db: Session, data):
-    obj = Technician(**data.model_dump())
+    values = data.model_dump()
+    employee_number = (values.get("employee_number") or "").strip()
+    values["employee_number"] = employee_number or f"TECH-{uuid4().hex[:12].upper()}"
+    obj = Technician(**values)
     db.add(obj); db.commit(); db.refresh(obj); return obj
 
 def list_technicians(db: Session, active_only=False):

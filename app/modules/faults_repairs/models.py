@@ -169,6 +169,8 @@ class Technician(Base):
     id = Column(Integer, primary_key=True, index=True)
     employee_number = Column(String(50), nullable=False, index=True)
     full_name = Column(String(160), nullable=False, index=True)
+    professional_rank = Column(String(120), nullable=True)
+    registration_number = Column(String(80), nullable=True)
     specialization = Column(String(120), nullable=True)
     is_active = Column(Integer, nullable=False, default=1, server_default="1")
     notes = Column(Text, nullable=True)

@@ -188,21 +188,31 @@ class RepairPartOut(RepairPartCreate):
 
 
 class TechnicianCreate(BaseModel):
-    employee_number: str = Field(min_length=1, max_length=50)
+    employee_number: Optional[str] = Field(default=None, max_length=50)
     full_name: str = Field(min_length=1, max_length=160)
+    professional_rank: Optional[str] = Field(default=None, max_length=120)
+    registration_number: Optional[str] = Field(default=None, max_length=80)
     specialization: Optional[str] = Field(default=None, max_length=120)
     is_active: bool = True
     notes: Optional[str] = None
 
 class TechnicianUpdate(BaseModel):
     full_name: Optional[str] = None
+    professional_rank: Optional[str] = Field(default=None, max_length=120)
+    registration_number: Optional[str] = Field(default=None, max_length=80)
     specialization: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
-class TechnicianOut(TechnicianCreate):
+class TechnicianOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    full_name: str
+    professional_rank: Optional[str] = None
+    registration_number: Optional[str] = None
+    specialization: Optional[str] = None
+    is_active: bool = True
+    notes: Optional[str] = None
 
 class TechnicianInterventionCreate(BaseModel):
     repair_id: int

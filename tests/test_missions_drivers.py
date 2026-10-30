@@ -113,6 +113,32 @@ def test_multiple_drivers_can_share_only_equipment_that_requires_a_driver(db):
         services.create_driver(db, _driver_data("EMP-1"))
 
 
+def test_driver_registration_is_independent_from_model_and_equipment_assignment(db):
+    equipment = _equipment(db, requires_driver=True, registration_number="REG-DRIVER")
+    other_equipment = _equipment(db, requires_driver=True, registration_number="REG-OTHER")
+    driver = services.create_driver(
+        db,
+        {
+            **_driver_data("EMP-REGISTRATION"),
+            "registration_number": "DRIVER-ID-123",
+            "assigned_equipment_id": equipment.id,
+            "equipment_model_id": equipment.equipment_model_id,
+        },
+    )
+
+    assert driver.registration_number == "DRIVER-ID-123"
+    assert driver.assigned_equipment_id == equipment.id
+    with pytest.raises(ValueError, match="لا يتبع الطراز المحدد"):
+        services.create_driver(
+            db,
+            {
+                **_driver_data("EMP-UNKNOWN-REGISTRATION"),
+                "assigned_equipment_id": equipment.id,
+                "equipment_model_id": other_equipment.equipment_model_id,
+            },
+        )
+
+
 def test_driver_can_be_edited_and_deactivated_without_deleting_history(db):
     driver = services.create_driver(db, _driver_data("EMP-EDIT"))
     updated = services.update_driver(
@@ -359,7 +385,13 @@ def test_driver_mission_history_uses_relationship_and_unambiguous_legacy_names(d
 
 def test_driver_rank_has_a_fixed_label_and_preserves_the_rank_value(db):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-LABEL")
-    driver = services.create_driver(db, _driver_data("EMP-LABEL", equipment.id))
+    driver = services.create_driver(
+        db,
+        {
+            **_driver_data("EMP-LABEL", equipment.id),
+            "registration_number": "DRIVER-LABEL-1",
+        },
+    )
     admin = User(username="admin", full_name="مدير النظام", hashed_password="unused", role="admin")
     response = drivers_page(
         _request("/missions/drivers"),
@@ -376,10 +408,18 @@ def test_driver_rank_has_a_fixed_label_and_preserves_the_rank_value(db):
     assert response.status_code == 200
     html = response.body.decode("utf-8")
     assert "الرتبة" in html
-    assert "درجة الاحتراف في السياقة" in html
+    assert "درجة الاحتراف في السياقة" not in html
+    assert 'name="registration_number"' in html
+    assert "رقم تسجيل السائق" in html
+    assert "طراز العتاد" in html
+    assert "رقم تسجيل العتاد" in html
     assert "تغيير تسمية عمود المركز" not in html
     assert "DRV-LABEL" in html
+    assert "DRIVER-LABEL-1" in html
+    assert '<td>المحترف الأول</td><td>DRIVER-LABEL-1</td><td>C</td>' in html
     assert "DRV-LABEL" in edit_response.body.decode("utf-8")
+    assert "درجة الاحتراف في السياقة" not in edit_response.body.decode("utf-8")
+    assert 'name="registration_number"' in edit_response.body.decode("utf-8")
     stored = db.query(Driver).filter(Driver.id == driver.id).one()
     assert stored.driving_rank == "المحترف الأول"
     assert stored.center == "المحترف الأول"  # legacy ORM attribute remains compatible
@@ -403,13 +443,25 @@ def test_driver_header_sequence_uses_a_fixed_rank_label(db):
     html = response.body.decode("utf-8")
 
     assert re.search(r"<th[^>]*>الرقم</th>", html)
-    assert re.search(r"<th[^>]*>الرتبة</th>", html)
-    assert "الرتبة (درجة الاحتراف في السياقة)" in html
+    assert re.search(r"<th[^>]*>الرتبة</th><th[^>]*>رقم التسجيل</th><th[^>]*>صنف الرخصة</th>", html)
+    assert "الرتبة (درجة الاحتراف في السياقة)" not in html
     assert "رقم الترتيب" not in html
     assert "EMP-VIEW" not in html
     assert ">1</td>" in html
     assert ">2</td>" in html
+    assert '<td>المحترف الأول</td><td>—</td><td>' in html
     assert "تغيير تسمية عمود المركز" not in html
+
+
+def test_empty_driver_table_spans_registration_column(db):
+    response = drivers_page(
+        _request("/missions/drivers"),
+        db,
+        User(username="viewer", full_name="قارئ", hashed_password="unused", role="viewer"),
+    )
+    html = response.body.decode("utf-8")
+
+    assert '<td class="empty" colspan="11">لا توجد سجلات سائقين.</td>' in html
 
 
 def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
@@ -439,11 +491,16 @@ def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
                 "last_name": "اختبار",
                 "license_class": "C",
                 "driving_rank": "محترف أ",
+                "registration_number": "DRIVER-HTTP-1",
+                "equipment_model_id": str(equipment.equipment_model_id),
                 "assigned_equipment_id": str(equipment.id),
             },
             follow_redirects=False,
         )
         assert created.status_code == 303
+        created_driver = db.query(Driver).filter(Driver.first_name == "سائق").one()
+        assert created_driver.registration_number == "DRIVER-HTTP-1"
+        assert created_driver.assigned_equipment_id == equipment.id
 
         unassigned_page = client.get("/missions/drivers")
         assert f'<b>(1)</b>' in unassigned_page.text
@@ -454,6 +511,7 @@ def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
                 "first_name": "سائق",
                 "last_name": "من القائمة",
                 "license_class": "C",
+                "equipment_model_id": str(unassigned_equipment.equipment_model_id),
                 "assigned_equipment_id": str(unassigned_equipment.id),
             },
             follow_redirects=False,
