@@ -3,7 +3,7 @@
 {% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=model-operation-import-dialog-20261024">{% endblock %}
 {% block content %}
 {% set selected_library_model_id = selected_library_model_id|default('', true) %}
-{% set operation_import_headers = operation_import_headers|default(("العملية", "الوصف", "المجموعة", "قيمة الشرط 1", "وحدة الشرط 1", "قيمة الشرط 2", "وحدة الشرط 2", "قيمة الشرط 3", "وحدة الشرط 3", "قيمة الإنذار 1", "وحدة الإنذار 1", "قيمة الإنذار 2", "وحدة الإنذار 2", "قيمة الإنذار 3", "وحدة الإنذار 3"), true) %}
+{% set operation_import_headers = operation_import_headers|default(("العملية", "الوصف", "المجموعة", "شرط 1 (كم)", "شرط 2 (ساعة)", "شرط 3 (يوم)", "إنذار 1 (كم)", "إنذار 2 (ساعة)", "إنذار 3 (يوم)"), true) %}
 {% set general_operation_import_headers = general_operation_import_headers|default(("العملية", "الوصف", "المجموعة", "إنذار كم", "إنذار ساعة تشغيل", "إنذار يوم"), true) %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">

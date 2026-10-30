@@ -236,22 +236,24 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     assert "إرشادات" in workbook.sheetnames
     sheet = workbook["العمليات"]
     assert tuple(cell.value for cell in sheet[1]) == OPERATION_IMPORT_HEADERS
-    assert OPERATION_IMPORT_HEADERS.index("قيمة الشرط 1") < OPERATION_IMPORT_HEADERS.index("قيمة الإنذار 1")
+    assert OPERATION_IMPORT_HEADERS == (
+        "العملية", "الوصف", "المجموعة", "شرط 1 (كم)", "شرط 2 (ساعة)",
+        "شرط 3 (يوم)", "إنذار 1 (كم)", "إنذار 2 (ساعة)", "إنذار 3 (يوم)",
+    )
     assert "قالب عام" in workbook["إرشادات"]["A2"].value
     assert "الطراز المستهدف" in workbook["إرشادات"]["A2"].value
     assert "مكتبة الطراز:" not in "\n".join(
         str(cell.value or "") for row in workbook["إرشادات"].iter_rows() for cell in row
     )
-    unit_validations = [validation for validation in sheet.data_validations.dataValidation if validation.type == "list"]
-    assert len(unit_validations) == 2
-    assert all(validation.errorStyle == "stop" for validation in unit_validations)
-    unit_validation = next(validation for validation in unit_validations if validation.formula1 == "=MaintenanceUnitOptions")
-    assert all(f"{column}2:{column}2001" in str(unit_validation.sqref) for column in ("E", "G", "I", "K", "M", "O"))
-    assert [workbook["القوائم"].cell(row, 2).value for row in range(1, 4)] == ["كم", "ساعة تشغيل", "يوم"]
+    list_validations = [validation for validation in sheet.data_validations.dataValidation if validation.type == "list"]
+    assert len(list_validations) == 1
+    assert list_validations[0].formula1 == "=MaintenanceGroupOptions"
+    assert all(validation.errorStyle == "stop" for validation in sheet.data_validations.dataValidation)
+    assert not any("unit" in str(validation.sqref).lower() for validation in sheet.data_validations.dataValidation)
     sheet.append((
         "تبديل مرشح الهواء", "عملية خاصة بميكرا", "بدون مجموعة",
-        20000, "كم", 180, "يوم", None, None,
-        500, "كم", 12.5, "ساعة تشغيل", None, None,
+        20000, None, 180,
+        500, 12.5, None,
     ))
     stream = BytesIO()
     workbook.save(stream)
@@ -279,6 +281,7 @@ def test_scoped_library_excel_import_and_general_library_remain_separate(api):
     assert private_operation["equipment_model_id"] == ids["model_a"]
     assert float(private_operation["interval_km"]) == 20000
     assert private_operation["interval_days"] == 180
+    assert private_operation["interval_hours"] is None
     assert float(private_operation["warning_km"]) == 500
     assert float(private_operation["warning_hours"]) == 12.5
 
@@ -427,8 +430,8 @@ def test_excel_import_accepts_multiple_conditions_and_warning_axes():
     sheet.append(OPERATION_IMPORT_HEADERS)
     sheet.append((
         "فحص مضخة الوقود", "", "بدون مجموعة",
-        250, "ساعة تشغيل", 90, "يوم", None, None,
-        500, "كم", 12.5, "ساعة تشغيل", 3, "يوم",
+        None, 250, 90,
+        500, 12.5, 3,
     ))
     stream = BytesIO()
     workbook.save(stream)
@@ -442,23 +445,11 @@ def test_excel_import_accepts_multiple_conditions_and_warning_axes():
     assert rows[0]["warning_days"] == 3
 
 
-def test_excel_import_rejects_invalid_or_duplicate_units_and_unpaired_values():
-    valid_row = [
-        "عملية اختبار", "", "بدون مجموعة",
-        10000, "كم", None, None, None, None,
-        500, "كم", None, None, None, None,
-    ]
-    invalid_rows = [
-        ("وحدة «الشرط» غير صالحة", {4: "كيلومتر"}),
-        ("لا تكرر وحدة «كم» ضمن الشرط", {5: 30, 6: "كم"}),
-        ("قيمة الشرط ووحدتها معًا", {3: None}),
-        ("قيمة الإنذار ووحدتها معًا", {9: None}),
-    ]
-
-    for message, changes in invalid_rows:
-        row = valid_row.copy()
-        for index, value in changes.items():
-            row[index] = value
+def test_excel_import_rejects_fractional_days_and_negative_warnings():
+    for row, message in (
+        (("عملية اختبار", "", "بدون مجموعة", 1000, None, 1.5, 200, None, None), "الأيام يجب أن تكون عددًا صحيحًا"),
+        (("عملية اختبار", "", "بدون مجموعة", 1000, None, None, -1, None, None), "عن صفر"),
+    ):
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "العمليات"
@@ -478,8 +469,8 @@ def test_excel_import_requires_at_least_one_warning_value():
     sheet.append(OPERATION_IMPORT_HEADERS)
     sheet.append((
         "فحص مضخة الوقود", "", "بدون مجموعة",
-        250, "ساعة تشغيل", None, None, None, None,
-        None, None, None, None, None, None,
+        None, 250, None,
+        None, None, None,
     ))
     stream = BytesIO()
     workbook.save(stream)

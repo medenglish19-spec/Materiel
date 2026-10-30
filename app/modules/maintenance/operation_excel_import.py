@@ -27,25 +27,17 @@ from app.modules.maintenance.models import (
 GROUP_NO_VALUE = "بدون مجموعة"
 MAX_OPERATION_IMPORT_ROWS = 2000
 OPERATION_IMPORT_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-MAX_CONDITION_AXES = 3
-MAX_WARNING_AXES = 3
 
 OPERATION_IMPORT_HEADERS = (
     "العملية",
     "الوصف",
     "المجموعة",
-    "قيمة الشرط 1",
-    "وحدة الشرط 1",
-    "قيمة الشرط 2",
-    "وحدة الشرط 2",
-    "قيمة الشرط 3",
-    "وحدة الشرط 3",
-    "قيمة الإنذار 1",
-    "وحدة الإنذار 1",
-    "قيمة الإنذار 2",
-    "وحدة الإنذار 2",
-    "قيمة الإنذار 3",
-    "وحدة الإنذار 3",
+    "شرط 1 (كم)",
+    "شرط 2 (ساعة)",
+    "شرط 3 (يوم)",
+    "إنذار 1 (كم)",
+    "إنذار 2 (ساعة)",
+    "إنذار 3 (يوم)",
 )
 GENERAL_OPERATION_IMPORT_HEADERS = (
     "العملية",
@@ -55,18 +47,6 @@ GENERAL_OPERATION_IMPORT_HEADERS = (
     "إنذار ساعة تشغيل",
     "إنذار يوم",
 )
-CONDITION_FIELDS_BY_UNIT = {
-    "كم": "interval_km",
-    "ساعة تشغيل": "interval_hours",
-    "يوم": "interval_days",
-}
-WARNING_FIELDS_BY_UNIT = {
-    "كم": "warning_km",
-    "ساعة تشغيل": "warning_hours",
-    "يوم": "warning_days",
-}
-
-
 def build_operation_import_template(*, group_names: list[str]) -> bytes:
     """Create a blank, validated workbook reusable for any model-operation import."""
     workbook = Workbook()
@@ -75,7 +55,7 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
     sheet.sheet_view.rightToLeft = True
     sheet.append(OPERATION_IMPORT_HEADERS)
     sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = f"A1:O{MAX_OPERATION_IMPORT_ROWS + 1}"
+    sheet.auto_filter.ref = f"A1:I{MAX_OPERATION_IMPORT_ROWS + 1}"
 
     header_fill = PatternFill("solid", fgColor="315F42")
     for cell in sheet[1]:
@@ -84,7 +64,7 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     sheet.row_dimensions[1].height = 32
 
-    widths = (32, 42, 28, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18)
+    widths = (32, 42, 28, 18, 20, 16, 18, 20, 16)
     for column, width in enumerate(widths, start=1):
         sheet.column_dimensions[chr(64 + column)].width = width
 
@@ -92,18 +72,12 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
         "مطلوب؛ لا يتجاوز 120 حرفًا، ويجب ألا يتكرر داخل الملف.",
         "اختياري.",
         "اختياري؛ اختر اسم مجموعة موجودة أو «بدون مجموعة».",
-        "مطلوب؛ أدخل قيمة شرط أكبر من صفر. يمكن إدخال ثلاثة محاور كحد أقصى.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
-        "اختياري؛ أدخل قيمة شرط أكبر من صفر.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
-        "اختياري؛ أدخل قيمة شرط أكبر من صفر.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
-        "مطلوب؛ أدخل قيمة إنذار واحدة على الأقل، أكبر من صفر.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
-        "اختياري؛ أدخل قيمة إنذار أكبر من صفر.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
-        "اختياري؛ أدخل قيمة إنذار أكبر من صفر.",
-        "اختر الوحدة من القائمة؛ لا تكتب وحدة أخرى.",
+        "شرط بالكيلومتر؛ اختياري، ويجب أن تكون القيمة أكبر من صفر.",
+        "شرط بساعات التشغيل؛ اختياري، ويجب أن تكون القيمة أكبر من صفر.",
+        "شرط بالأيام؛ اختياري، أدخل عددًا صحيحًا أكبر من صفر.",
+        "إنذار بالكيلومتر؛ اختياري، والقيمة صفر أو أكبر.",
+        "إنذار بساعات التشغيل؛ اختياري، والقيمة صفر أو أكبر.",
+        "إنذار بالأيام؛ اختياري، أدخل عددًا صحيحًا صفرًا أو أكبر.",
     )
     for column, instruction in enumerate(comments, start=1):
         sheet.cell(1, column).comment = Comment(instruction, "Materiel")
@@ -112,18 +86,11 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
     group_choices = ["بدون مجموعة", *group_names]
     for row_number, group_name in enumerate(group_choices, start=1):
         group_sheet.cell(row_number, 1, group_name)
-    for row_number, unit in enumerate(CONDITION_FIELDS_BY_UNIT, start=1):
-        group_sheet.cell(row_number, 2, unit)
     group_sheet.sheet_state = "hidden"
     workbook.defined_names.add(DefinedName(
         "MaintenanceGroupOptions",
         attr_text=f"'القوائم'!$A$1:$A${len(group_choices)}",
     ))
-    workbook.defined_names.add(DefinedName(
-        "MaintenanceUnitOptions",
-        attr_text=f"'القوائم'!$B$1:$B${len(CONDITION_FIELDS_BY_UNIT)}",
-    ))
-
     groups_validation = DataValidation(type="list", formula1="=MaintenanceGroupOptions", allow_blank=True)
     groups_validation.error = "اختر مجموعة من القائمة أو اترك الحقل فارغًا."
     groups_validation.errorTitle = "مجموعة غير معروفة"
@@ -132,24 +99,17 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
     sheet.add_data_validation(groups_validation)
     groups_validation.add(f"C2:C{MAX_OPERATION_IMPORT_ROWS + 1}")
 
-    unit_validation = DataValidation(
-        type="list", formula1="=MaintenanceUnitOptions", allow_blank=True,
-    )
-    unit_validation.error = "اختر وحدة من القائمة: كم، ساعة تشغيل، أو يوم."
-    unit_validation.errorTitle = "وحدة غير صالحة"
-    unit_validation.errorStyle = "stop"
-    unit_validation.showErrorMessage = True
-    sheet.add_data_validation(unit_validation)
-    for column in (5, 7, 9, 11, 13, 15):
-        letter = chr(64 + column)
-        unit_validation.add(f"{letter}2:{letter}{MAX_OPERATION_IMPORT_ROWS + 1}")
-
-    for column in (4, 6, 8, 10, 12, 14):
+    for column in range(4, 10):
+        is_warning = column >= 7
+        is_day = column in {6, 9}
         positive_decimal = DataValidation(
-            type="decimal", operator="greaterThan", formula1="0", allow_blank=True,
+            type="whole" if is_day else "decimal",
+            operator="greaterThanOrEqual" if is_warning else "greaterThan",
+            formula1="0", allow_blank=True,
         )
-        positive_decimal.error = "أدخل قيمة أكبر من صفر."
+        positive_decimal.error = "أدخل قيمة إنذار صفرًا أو أكبر." if is_warning else "أدخل قيمة شرط أكبر من صفر."
         positive_decimal.errorTitle = "قيمة غير صالحة"
+        positive_decimal.errorStyle = "stop"
         positive_decimal.showErrorMessage = True
         sheet.add_data_validation(positive_decimal)
         letter = chr(64 + column)
@@ -160,10 +120,10 @@ def build_operation_import_template(*, group_names: list[str]) -> bytes:
     instructions.append(("قالب استيراد عمليات الصيانة",))
     instructions.append(("هذا قالب عام؛ يحدد المستخدم الطراز المستهدف عند رفع الملف إلى البرنامج.",))
     instructions.append(("أدخل كل عملية في صف مستقل بورقة «العمليات»، ولا تغيّر أسماء الأعمدة أو ترتيبها.",))
-    instructions.append(("أدخل قيمة الشرط ثم اختر وحدتها من القائمة. يمكن إدخال شرطين معًا مثل كم وأيام.",))
-    instructions.append(("كل عملية تحتاج شرطًا واحدًا على الأقل وإنذارًا واحدًا على الأقل؛ يمكن إضافة محاور أخرى.",))
-    instructions.append(("اختر وحدات الشرط والإنذار من القوائم؛ كل وحدة لا تتكرر داخل شروطها أو إنذاراتها.",))
-    instructions.append(("إذا كانت الوحدة يومًا، أدخل عددًا صحيحًا. اترك أزواج القيم والوحدات غير المستخدمة فارغة.",))
+    instructions.append(("أدخل الشروط في أعمدة الكيلومترات وساعات التشغيل والأيام؛ اترك غير المستخدم فارغًا.",))
+    instructions.append(("أدخل الإنذارات في أعمدتها؛ وحدات القياس ثابتة ومبينة في رأس كل عمود.",))
+    instructions.append(("كل عملية تحتاج شرطًا واحدًا على الأقل وإنذارًا واحدًا على الأقل.",))
+    instructions.append(("قيم الأيام أعداد صحيحة؛ شرط اليوم أكبر من صفر وإنذار اليوم صفر أو أكبر.",))
     instructions.append(("اسم المجموعة اختياري؛ اختر مجموعة من القائمة أو اترك الحقل فارغًا.",))
     instructions.column_dimensions["A"].width = 110
     for row in instructions.iter_rows():
@@ -306,55 +266,32 @@ def _nonnegative_number(value, *, field: str, row_number: int) -> Decimal | None
     return parsed
 
 
-def _validate_unit(value, *, field: str, allowed: tuple[str, ...], row_number: int) -> str | None:
-    unit = _clean_text(value)
-    if not unit:
-        return None
-    if unit not in allowed:
-        choices = "، ".join(allowed)
-        raise ValueError(f"الصف {row_number}: وحدة «{field}» غير صالحة. اختر: {choices}.")
-    return unit
-
-
-def _parse_axis_pairs(
+def _parse_fixed_axes(
     values: list,
     *,
     start_index: int,
-    slot_count: int,
+    axes: tuple[tuple[str, str], ...],
     field_name: str,
-    fields_by_unit: dict[str, str],
     row_number: int,
     required: bool,
+    warning: bool = False,
 ) -> dict:
-    parsed = {field: None for field in fields_by_unit.values()}
-    selected_units: set[str] = set()
-    for slot in range(slot_count):
-        value_index = start_index + slot * 2
-        value = _number(
-            values[value_index] if value_index < len(values) else None,
-            field=f"قيمة {field_name} {slot + 1}",
+    parsed = {}
+    present = False
+    parser = _nonnegative_number if warning else _number
+    for offset, (field, unit_label) in enumerate(axes):
+        value = parser(
+            values[start_index + offset] if start_index + offset < len(values) else None,
+            field=f"{field_name} ({unit_label})",
             row_number=row_number,
         )
-        unit = _validate_unit(
-            values[value_index + 1] if value_index + 1 < len(values) else None,
-            field=field_name,
-            allowed=tuple(fields_by_unit),
-            row_number=row_number,
-        )
-        if value is None and unit is None:
-            continue
-        if value is None or unit is None:
-            raise ValueError(f"الصف {row_number}: أدخل قيمة {field_name} ووحدتها معًا.")
-        if unit in selected_units:
-            raise ValueError(f"الصف {row_number}: لا تكرر وحدة «{unit}» ضمن {field_name}.")
-        if unit == "يوم" and value != value.to_integral_value():
+        if value is not None and unit_label == "يوم" and value != value.to_integral_value():
             raise ValueError(f"الصف {row_number}: قيمة {field_name} بالأيام يجب أن تكون عددًا صحيحًا.")
-        field = fields_by_unit[unit]
-        parsed[field] = int(value) if unit == "يوم" else value
-        selected_units.add(unit)
+        parsed[field] = int(value) if value is not None and unit_label == "يوم" else value
+        present = present or value is not None
 
-    if required and not selected_units:
-        raise ValueError(f"الصف {row_number}: أدخل قيمة {field_name} واحدة على الأقل مع وحدتها.")
+    if required and not present:
+        raise ValueError(f"الصف {row_number}: أدخل قيمة {field_name} واحدة على الأقل.")
     return parsed
 
 
@@ -414,23 +351,22 @@ def parse_operation_workbook(data: bytes, groups: list[MaintenanceOperationGroup
                     raise ValueError(f"الصف {row_number}: المجموعة «{group_name}» غير موجودة في مكتبة البرنامج.")
                 group_id = group_lookup[group_key]
 
-            condition = _parse_axis_pairs(
+            condition = _parse_fixed_axes(
                 values,
                 start_index=3,
-                slot_count=MAX_CONDITION_AXES,
+                axes=(("interval_km", "كم"), ("interval_hours", "ساعة"), ("interval_days", "يوم")),
                 field_name="الشرط",
-                fields_by_unit=CONDITION_FIELDS_BY_UNIT,
                 row_number=row_number,
                 required=True,
             )
-            warnings = _parse_axis_pairs(
+            warnings = _parse_fixed_axes(
                 values,
-                start_index=3 + MAX_CONDITION_AXES * 2,
-                slot_count=MAX_WARNING_AXES,
+                start_index=6,
+                axes=(("warning_km", "كم"), ("warning_hours", "ساعة"), ("warning_days", "يوم")),
                 field_name="الإنذار",
-                fields_by_unit=WARNING_FIELDS_BY_UNIT,
                 row_number=row_number,
                 required=True,
+                warning=True,
             )
 
             rows.append({
