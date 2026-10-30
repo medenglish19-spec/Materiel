@@ -714,8 +714,8 @@ def received_register(db: Session):
 
     balances_by_item = movement_services._balances_for(db, rows)
 
-    # آخر حركة فعلية للبند: توزيع أو إرجاع. الاستلام ليس وثيقة حركة في
-    # وحدة الحركة، لذلك يبقى الاستلام هو الحالة الافتراضية عند عدم وجود حركة.
+    # الاستلام محفوظ على بند الطلب، أما التوزيع والإرجاع فمحفوظان في وحدة
+    # الحركات. نقارن تواريخ المصدرين لعرض أحدث حركة فعلية للبند.
     item_ids = [item.id for item in rows]
     latest_by_item = {}
     if item_ids:
@@ -754,6 +754,11 @@ def received_register(db: Session):
     for item in rows:
         req = item.request
         balances = balances_by_item[item.id]
+        received_date = req.received_date or item.received_date
+        latest_movement = latest_by_item.get(item.id)
+        receipt_is_latest = latest_movement is None or (
+            received_date is not None and received_date > latest_movement[3]
+        )
         result.append({
             "request_item_id": item.id,
             "asset_type": item.asset_type,
@@ -776,17 +781,13 @@ def received_register(db: Session):
             "available_for_distribution": balances["available_for_distribution"],
             "balance_status": balances["status"],
             "last_movement_type": (
-                latest_by_item[item.id][2]
-                if item.id in latest_by_item
-                else "receipt"
+                "receipt" if receipt_is_latest else latest_movement[2]
             ),
             "last_movement_date": (
-                latest_by_item[item.id][3]
-                if item.id in latest_by_item
-                else item.received_date or req.received_date
+                received_date if receipt_is_latest else latest_movement[3]
             ),
             "last_movement_document_number": (
-                latest_by_item[item.id][4] if item.id in latest_by_item else None
+                req.request_number if receipt_is_latest else latest_movement[4]
             ),
         })
     return result

@@ -51,12 +51,12 @@
 .spr .action-menu-items button:hover{background:#FEF2F2}
 .spr .request-workspace{width:100%}
 .spr .request-list-pane,.spr .request-detail-pane{min-width:0}
-.spr .request-modal{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;background:rgba(17,24,39,.48)}
+.spr .request-modal{position:fixed;inset:var(--request-modal-top,0px) 0 0;z-index:1500;display:grid;place-items:center;overflow:auto;padding:16px;background:rgba(17,24,39,.48)}
 .spr .request-modal[hidden]{display:none}
-.spr .request-dialog{width:min(1200px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 18px 60px rgba(17,24,39,.24);direction:rtl}
+.spr .request-dialog{display:flex;flex-direction:column;width:min(1200px,96vw);height:min(900px,calc(100dvh - var(--request-modal-top,0px) - 32px));max-height:calc(100dvh - var(--request-modal-top,0px) - 32px);min-height:0;overflow:hidden;background:#fff;border-radius:12px;box-shadow:0 18px 60px rgba(17,24,39,.24);direction:rtl}
 .spr .request-dialog-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:#fff;border-bottom:1px solid #D8E5DA}
 .spr .request-dialog-head h2{margin:0;color:#111827;font-family:'Cairo',sans-serif;font-size:17px}
-.spr .request-dialog-body{padding:16px}
+.spr .request-dialog-body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px;overscroll-behavior:contain}
 .spr .request-detail-pane{min-height:0}
 .spr .list-t{width:100%;min-width:480px;table-layout:fixed}
 .spr .list-t th:nth-child(1){width:24%}.spr .list-t th:nth-child(2){width:30%}.spr .list-t th:nth-child(3){width:18%}.spr .list-t th:nth-child(4){width:28%}
@@ -94,7 +94,7 @@
 .spr .new-item input,.spr .new-item select{width:100%;padding:8px;border:1px solid #D8E5DA;border-radius:7px;background:#fff;font-size:12px}
 .spr .new-part-box{position:relative}
 @media(max-width:900px){.spr .summary-grid{grid-template-columns:1fr}.spr .req-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.spr .form{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}.spr .list-t{min-width:430px}.spr .request-modal{padding:6px}.spr .request-dialog{width:100%;max-height:96vh}.spr .request-dialog-body{padding:10px}}
+@media(max-width:600px){.spr h1{font-size:21px}.spr .toolbar{align-items:stretch}.spr .search-wrap{flex-basis:100%;min-width:0}.spr .toolbar>select{width:100%;min-width:0}.spr .toolbar-meta{width:100%}.spr .toolbar-meta .badge{flex:1}.spr .req-fields{grid-template-columns:1fr}.spr .form{grid-template-columns:1fr}.spr .new-item{grid-template-columns:1fr}.spr .top-actions{width:100%}.spr .top-actions>*{flex:1;text-align:center}.spr .list-t{min-width:430px}.spr .request-modal{padding:6px}.spr .request-dialog{width:100%;height:calc(100dvh - var(--request-modal-top,0px) - 12px);max-height:calc(100dvh - var(--request-modal-top,0px) - 12px);border-radius:8px}.spr .request-dialog-body{padding:10px}}
 </style><div class="spr" id="sparePartsRequestPage">
   <div class="top">
     <div>
@@ -277,8 +277,18 @@ function renderActiveRequest(){
   tagDetailFields();detailRowsBaseline=detailRowsSnapshot();
   if(window.EditManager)EditManager.markSaved(detailRequestRowsProvider);
   document.getElementById('requestDialogTitle').textContent='طلب الغيار '+request.request_number;
+  updateRequestModalTop();
   modal.hidden=false;
 }
+
+function updateRequestModalTop(){
+  const modal=document.getElementById('requestModal');
+  const workbar=document.querySelector('.app-workbar');
+  const topbar=document.querySelector('.app-topbar')||workbar?.closest('header');
+  const top=topbar?Math.max(0,Math.ceil(topbar.getBoundingClientRect().bottom)):0;
+  modal.style.setProperty('--request-modal-top',top+'px');
+}
+window.addEventListener('resize',()=>{const modal=document.getElementById('requestModal');if(modal&&!modal.hidden)updateRequestModalTop()});
 
 function showRequestDetail(id){
   if(activeRequestId!==null&&!canCloseDetail())return;

@@ -1148,7 +1148,7 @@ COLUMNS = {
     "last_movement_type": "آخر حركة",
     "received_date": "تاريخ الاستلام",
     "registration_number": "رقم التسجيل",
-    "recipient": "المستلم إليه",
+    "recipient": "المستلم",
     "supplier_institution": "المؤسسة الممونة",
 }
 
@@ -1220,6 +1220,20 @@ def test_the_received_register_exact_example_is_four_one_one_two(db):
     assert row["received_quantity"] == (
         row["distributed"] + row["returned"] + row["available_for_distribution"]
     )
+
+
+def test_receipt_appears_as_last_movement_until_a_later_movement_exists(db):
+    item = _received_item(db, 4)
+
+    receipt = _register_row(db, 4)
+    assert receipt["last_movement_type"] == "receipt"
+    assert receipt["last_movement_date"] == RECEIVED
+    assert receipt["last_movement_document_number"] == item.request.request_number
+
+    _distribute(db, item, 1, day=2)
+    distributed = _register_row(db, 4)
+    assert distributed["last_movement_type"] == "distribution"
+    assert distributed["last_movement_date"] == date(2026, 3, 3)
 
 
 def test_the_received_register_keeps_each_item_totals_apart(db):
