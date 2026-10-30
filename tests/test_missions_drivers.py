@@ -128,6 +128,7 @@ def test_driver_registration_is_independent_from_model_and_equipment_assignment(
 
     assert driver.registration_number == "DRIVER-ID-123"
     assert driver.assigned_equipment_id == equipment.id
+    assert driver.equipment_model_id == equipment.equipment_model_id
     with pytest.raises(ValueError, match="لا يتبع الطراز المحدد"):
         services.create_driver(
             db,
@@ -501,6 +502,7 @@ def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
         created_driver = db.query(Driver).filter(Driver.first_name == "سائق").one()
         assert created_driver.registration_number == "DRIVER-HTTP-1"
         assert created_driver.assigned_equipment_id == equipment.id
+        assert created_driver.equipment_model_id == equipment.equipment_model_id
 
         unassigned_page = client.get("/missions/drivers")
         assert f'<b>(1)</b>' in unassigned_page.text

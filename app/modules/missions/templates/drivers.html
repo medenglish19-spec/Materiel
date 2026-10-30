@@ -78,7 +78,7 @@
           <tr>
             <td>{{ loop.index }}</td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }}</a></td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.last_name }}</a></td>
             <td>{{ driver.driving_rank or '—' }}</td><td>{{ driver.registration_number or '—' }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_issue_date or '—' }}</td><td>{{ driver.license_expiry_date or '—' }}</td>
-            <td>{{ driver.assigned_equipment.equipment_model.name if driver.assigned_equipment and driver.assigned_equipment.equipment_model else (driver.assigned_equipment.equipment_type.name if driver.assigned_equipment and driver.assigned_equipment.equipment_type else ('معيّن' if driver.assigned_equipment else 'غير معيّن')) }}</td>
+            <td>{{ driver.equipment_model.name if driver.equipment_model else (driver.assigned_equipment.equipment_model.name if driver.assigned_equipment and driver.assigned_equipment.equipment_model else (driver.assigned_equipment.equipment_type.name if driver.assigned_equipment and driver.assigned_equipment.equipment_type else ('معيّن' if driver.assigned_equipment else 'غير معيّن'))) }}</td>
             <td>{{ driver.notes or '—' }}</td>
             <td><a class="action-link" href="/missions/drivers/{{ driver.id }}/edit">تعديل</a>
               <form method="post" action="/missions/drivers/{{ driver.id }}/status" style="display:inline">

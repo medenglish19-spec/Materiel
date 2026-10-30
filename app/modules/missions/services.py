@@ -13,7 +13,10 @@ from app.modules.meter_readings.source_values import source_reference
 def list_drivers(db: Session):
     return (
         db.query(Driver)
-        .options(joinedload(Driver.assigned_equipment).joinedload(Equipment.equipment_model))
+        .options(
+            joinedload(Driver.assigned_equipment).joinedload(Equipment.equipment_model),
+            joinedload(Driver.equipment_model),
+        )
         .order_by(Driver.last_name, Driver.first_name, Driver.id)
         .all()
     )
@@ -37,7 +40,10 @@ def list_active_assigned_drivers(db: Session):
 def get_driver(db: Session, driver_id: int):
     return (
         db.query(Driver)
-        .options(joinedload(Driver.assigned_equipment).joinedload(Equipment.equipment_model))
+        .options(
+            joinedload(Driver.assigned_equipment).joinedload(Equipment.equipment_model),
+            joinedload(Driver.equipment_model),
+        )
         .filter(Driver.id == driver_id)
         .first()
     )
@@ -64,6 +70,7 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
         "license_class": (data.get("license_class") or "").strip(),
         "license_issue_date": data.get("license_issue_date"),
         "license_expiry_date": data.get("license_expiry_date"),
+        "equipment_model_id": data.get("equipment_model_id") or None,
         "assigned_equipment_id": assigned_equipment_id,
         "notes": (data.get("notes") or "").strip() or None,
     }
@@ -100,7 +107,13 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
         raise ValueError("الرقم الوظيفي مستخدم مسبقًا")
 
     equipment_id = values["assigned_equipment_id"]
-    equipment_model_id = data.get("equipment_model_id") or None
+    equipment_model_id = values["equipment_model_id"]
+    if equipment_model_id is not None:
+        try:
+            equipment_model_id = int(equipment_model_id)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("طراز العتاد المحدد غير صالح") from exc
+        values["equipment_model_id"] = equipment_model_id
     if equipment_model_id is not None and equipment_id is None:
         raise ValueError("اختر رقم تسجيل العتاد للطراز المحدد")
     if equipment_id is not None:
@@ -114,11 +127,10 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
             raise ValueError("العتاد المحدد غير موجود")
         if not equipment.equipment_model or not equipment.equipment_model.requires_driver:
             raise ValueError("يمكن تعيين السائق فقط إلى عتاد يتطلب سائقًا")
-        if (
-            equipment_model_id is not None
-            and equipment.equipment_model_id != int(equipment_model_id)
-        ):
+        if equipment_model_id is not None and equipment.equipment_model_id != equipment_model_id:
             raise ValueError("رقم تسجيل العتاد لا يتبع الطراز المحدد")
+        if equipment_model_id is None:
+            values["equipment_model_id"] = equipment.equipment_model_id
     return values
 
 

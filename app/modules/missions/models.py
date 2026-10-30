@@ -66,6 +66,16 @@ class Driver(Base, AuditMixin):
     license_class = Column(String(50), nullable=False)
     license_issue_date = Column(Date, nullable=True)
     license_expiry_date = Column(Date, nullable=True)
+    equipment_model_id = Column(
+        Integer,
+        ForeignKey(
+            "equipment_models.id",
+            ondelete="SET NULL",
+            name="fk_drivers_equipment_model_id_equipment_models",
+        ),
+        nullable=True,
+        index=True,
+    )
     assigned_equipment_id = Column(
         Integer,
         ForeignKey(
@@ -80,3 +90,4 @@ class Driver(Base, AuditMixin):
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
 
     assigned_equipment = relationship("Equipment")
+    equipment_model = relationship("EquipmentModel")
