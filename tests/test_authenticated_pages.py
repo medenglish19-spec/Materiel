@@ -50,7 +50,7 @@ PAGE_MARKERS = [
     ("/spare-parts/catalog", "كتالوج قطع الغيار"),
     ("/fuel", "الوقود"),
     ("/missions", "المهمات"),
-    ("/missions/drivers", "المهمات والسائقون"),
+    ("/missions/drivers", "المهمات والسواق"),
     ("/users", None),
 ]
 
