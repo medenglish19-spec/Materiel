@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}الصيانة الدورية{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-indicator-dialog-20261030">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-indicator-basic-table-20261030">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top"><div class="page-heading"><h2>الصيانة الدورية</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">الصيانة الدورية</span></div></div><div class="hero-actions"><a class="m-btn" href="/maintenance/records">▤ &nbsp;سجل الصيانة</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a></div></div>
@@ -16,7 +16,7 @@
     <section class="panel">
       <div class="panel-head"><div><h3 id="periodicIndicatorTitle">تفاصيل المتابعة</h3><p id="periodicIndicatorStatus" role="status" aria-live="polite">اختر مؤشرًا لعرض بياناته.</p></div><button class="m-btn dialog-close" type="button" id="closePeriodicIndicator" aria-label="إغلاق">×</button></div>
       <div class="indicator-pagination" id="periodicIndicatorPagination"></div>
-      <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table" id="periodicIndicatorTable"><thead><tr><th data-mt-force-filter>#</th><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>الطراز</th><th data-mt-force-filter>عملية الصيانة</th><th data-mt-force-filter>تاريخ آخر صيانة</th><th data-mt-force-filter>قراءة العداد عند آخر صيانة</th><th data-mt-force-filter>العداد الحالي</th><th data-mt-force-filter>الموعد القادم (تاريخ)</th><th data-mt-force-filter>القراءة القادمة</th><th data-mt-force-filter>الأيام المتبقية</th><th data-mt-force-filter>المتبقي بالعداد</th><th data-mt-force-filter>الحالة</th><th data-mt-force-filter>ملاحظة</th><th data-mt-no-filter>الإجراءات</th></tr></thead><tbody id="periodicIndicatorRows"><tr><td colspan="14" class="muted">ستظهر البيانات هنا.</td></tr></tbody></table></div>
+      <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table" id="periodicIndicatorTable"><thead><tr><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>الطراز</th><th data-mt-force-filter>عملية الصيانة</th><th data-mt-force-filter>موعد الصيانة القادم</th><th data-mt-force-filter>الحالة</th></tr></thead><tbody id="periodicIndicatorRows"><tr><td colspan="5" class="muted">ستظهر البيانات هنا.</td></tr></tbody></table></div>
     </section>
   </dialog>
   {% if unapproved_models %}
@@ -46,8 +46,29 @@
   function showMessage(message){
     const row=document.createElement('tr');
     const cell=document.createElement('td');
-    cell.colSpan=14; cell.className='muted'; cell.textContent=message;
+    cell.colSpan=5; cell.className='muted'; cell.textContent=message;
     row.appendChild(cell); rows.replaceChildren(row);
+  }
+  function basicDataRow(sourceRow){
+    const cells=sourceRow.cells;
+    if(cells.length<12)return null;
+    const row=document.createElement('tr');
+    [1,2,3].forEach(index=>{
+      const cell=document.createElement('td');
+      cell.textContent=cells[index].textContent.trim()||'—';
+      row.appendChild(cell);
+    });
+    const dueCell=document.createElement('td');
+    const dueDate=cells[7].textContent.trim();
+    const dueMeter=cells[8].textContent.trim();
+    dueCell.textContent=[dueDate,dueMeter].filter(value=>value&&value!=='—').join(' · ')||'—';
+    row.appendChild(dueCell);
+    const stateCell=document.createElement('td');
+    const stateBadge=cells[11].querySelector('.badge');
+    if(stateBadge)stateCell.appendChild(stateBadge.cloneNode(true));
+    else stateCell.textContent=cells[11].textContent.trim()||'—';
+    row.appendChild(stateCell);
+    return row;
   }
   function setPagination(source,baseUrl){
     pagination.replaceChildren();
@@ -71,8 +92,10 @@
       const sourceBody=sourceTable?.tBodies[0];
       if(!sourceBody)throw new Error('تعذر قراءة جدول المتابعات.');
       const sourceColumnCount=sourceTable.tHead?.rows[0]?.cells.length||14;
-      const dataRows=Array.from(sourceBody.rows).filter(row=>!(row.cells.length===1&&(row.cells[0].colSpan||1)>=sourceColumnCount));
-      rows.replaceChildren(...dataRows.map(row=>row.cloneNode(true)));
+      const dataRows=Array.from(sourceBody.rows)
+        .filter(row=>!(row.cells.length===1&&(row.cells[0].colSpan||1)>=sourceColumnCount))
+        .map(basicDataRow).filter(Boolean);
+      rows.replaceChildren(...dataRows);
       status.textContent=page.querySelector('.pagination > span')?.textContent.trim()||'تم تحميل السجلات.';
       setPagination(page,response.url);
       window.MaterielTables?.refresh();

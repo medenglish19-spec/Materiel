@@ -135,6 +135,6 @@
 .maintenance-page .periodic-indicator-dialog .panel-head{align-items:flex-start}
 .maintenance-page .periodic-indicator-dialog .panel-head p{margin:5px 0 0;color:var(--muted);font-size:12px}
 .maintenance-page .periodic-indicator-dialog .table-wrap{max-height:62vh}
-.maintenance-page .periodic-indicator-dialog #periodicIndicatorTable{min-width:1200px}
+.maintenance-page .periodic-indicator-dialog #periodicIndicatorTable{min-width:720px}
 .maintenance-page .indicator-pagination{display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px}
 @media(max-width:680px){.maintenance-page .periodic-indicator-dialog{width:calc(100vw - 16px);max-height:94vh}.maintenance-page .periodic-indicator-dialog>.panel{max-height:94vh}.maintenance-page .periodic-indicator-dialog .table-wrap{max-height:68vh}}

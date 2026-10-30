@@ -389,6 +389,9 @@ def test_periodic_maintenance_indicators_open_filtered_record_dialog(pages):
         assert f'data-periodic-indicator="{state}"' in response.text
     assert 'id="periodicIndicatorDialog"' in response.text
     assert 'id="periodicIndicatorTable"' in response.text
+    for header in ("رقم التسجيل", "الطراز", "عملية الصيانة", "موعد الصيانة القادم", "الحالة"):
+        assert f'<th data-mt-force-filter>{header}</th>' in response.text
+    assert "قراءة العداد عند آخر صيانة" not in response.text.split('id="periodicIndicatorTable"', 1)[1].split("</table>", 1)[0]
     assert "fetch(url,{credentials:'same-origin'" in response.text
 
 
