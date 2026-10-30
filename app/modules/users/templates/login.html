@@ -10,6 +10,10 @@
         <h1>تسيير ومحاسبة العتاد</h1>
         <p class="subtitle">تسجيل الدخول</p>
 
+        {% if password_changed %}
+        <div role="status" style="margin-bottom:14px;padding:10px;border:1px solid #b7dfc3;border-radius:8px;background:#eef8f0;color:#216b37">تم تحديث كلمة المرور. سجّل الدخول باستخدام كلمة المرور الجديدة.</div>
+        {% endif %}
+
         {% if error %}
         <div class="alert alert-error">{{ error }}</div>
         {% endif %}

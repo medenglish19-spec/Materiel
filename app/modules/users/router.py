@@ -11,7 +11,7 @@ modules/users/router.py
 - API لإدارة المستخدمين (خاص بالـ admin فقط)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -36,7 +36,12 @@ templates = get_module_templates("app/modules/users/templates")
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        request=request, name="login.html", context={"error": None}
+        request=request,
+        name="login.html",
+        context={
+            "error": None,
+            "password_changed": request.query_params.get("password_changed") == "1",
+        },
     )
 
 
@@ -51,7 +56,10 @@ async def login_submit(request: Request, db: Session = Depends(get_db)):
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
+            context={
+                "error": "اسم المستخدم أو كلمة المرور غير صحيحة",
+                "password_changed": False,
+            },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
@@ -82,6 +90,27 @@ def users_page(
     return templates.TemplateResponse(
         request=request, name="users.html", context={"users": services.list_users(db)}
     )
+
+
+@router.post("/users/password")
+def change_own_password(
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirmation: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    try:
+        services.change_own_password(
+            db, current_user, current_password, new_password, confirmation
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    response = RedirectResponse("/login?password_changed=1", status_code=303)
+    response.delete_cookie(settings.SESSION_COOKIE_NAME)
+    return response
 
 
 # ---------------------------------------------------------------
