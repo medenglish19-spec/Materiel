@@ -14,7 +14,7 @@
   </section>
   <section class="panel" style="margin-top:18px">
     <div class="panel-head"><div><h3>سجل الكتالوجات والإصدارات</h3><p>بصمة الملف تمنع إنشاء نسخة مكررة للطراز نفسه.</p></div></div>
-    <div class="table-wrap"><table><thead><tr><th>المصدر</th><th>الطراز</th><th>الإصدار</th><th>الحالة</th><th>تاريخ الاستيراد</th><th></th></tr></thead><tbody>
+    <div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>المصدر</th><th>الطراز</th><th>الإصدار</th><th>الحالة</th><th>تاريخ الاستيراد</th><th data-mt-no-filter></th></tr></thead><tbody>
       {% for item in imports %}<tr><td>{{ item.document_title or item.filename }}</td><td>{{ item.equipment_model.name }}</td><td>{{ item.version_number }}</td><td>{{ {'draft':'مسودة','reviewed':'مراجع','applied':'أضيفت للمكتبة','rejected':'مرفوض'}.get(item.status, item.status) }}</td><td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td><a class="btn" href="/maintenance/catalog-imports/{{ item.id }}">فتح</a></td></tr>{% else %}<tr><td colspan="6">لا توجد كتالوجات مستوردة.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>

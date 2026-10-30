@@ -164,6 +164,57 @@ def test_engine_recognises_the_library_self_filter_class():
     assert "col-filter" in LIBRARY.read_text(encoding="utf-8")
 
 
+def test_spare_parts_catalog_uses_shared_filters_in_its_single_header_row():
+    catalog = ROOT / "app" / "modules" / "spare_parts_catalog" / "templates" / "catalog.html"
+    template = catalog.read_text(encoding="utf-8")
+    header = template.split("<thead>", 1)[1].split("</thead>", 1)[0]
+    assert 'data-mt-region' in template
+    assert header.count("<tr>") == 1
+    assert 'class="mt-col-filter"' not in template
+    assert all(f'data-mt-force-filter>{heading}</th>' in header for heading in ("الاسم", "الرمز التعريفي", "طراز العتاد", "الفئة", "الصورة", "الحالة / تعديل"))
+    assert "data-mt-force-filter" in _engine()
+    assert "if (!hasValue && !forceFilter) continue;" in _engine()
+
+
+def test_other_read_only_tables_use_the_shared_filter_region():
+    templates = {
+        "maintenance_catalog_imports.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_catalog_imports.html",
+        "maintenance_due.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_due.html",
+        "maintenance_records.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_records.html",
+        "repair_detail.html": ROOT / "app" / "modules" / "faults_repairs" / "templates" / "repair_detail.html",
+        "equipment_list.html": ROOT / "app" / "modules" / "equipment" / "templates" / "equipment_list.html",
+        "document_import_upload.html": ROOT / "app" / "modules" / "document_import" / "templates" / "upload.html",
+        "drivers.html": ROOT / "app" / "modules" / "missions" / "templates" / "drivers.html",
+    }
+    for name, path in templates.items():
+        source = path.read_text(encoding="utf-8")
+        assert "data-mt-region" in source, f"{name} must wire its read-only tables to shared filters"
+
+    equipment = templates["equipment_list.html"].read_text(encoding="utf-8")
+    assert 'id="equipmentImportResults"' in equipment
+    assert 'class="equipment-import-scroll mt-table-theme-green" data-mt-region' in equipment
+
+    upload = templates["document_import_upload.html"].read_text(encoding="utf-8")
+    assert '<div class="table-scroll mt-table-theme-green" data-mt-region><table class="tbl">' in upload
+    assert '<table class="tbl">\n      <thead>\n        <tr>\n          <th>الاسم</th>' in upload  # editable preview stays outside shared filtering
+
+    repair = templates["repair_detail.html"].read_text(encoding="utf-8")
+    assert repair.count('class="rd-table-wrap mt-table-theme-green" data-mt-region') == 2
+
+    drivers = templates["drivers.html"].read_text(encoding="utf-8")
+    driver_table = drivers.split("قائمة السائقين", 1)[1]
+    assert '<div class="table-wrap" data-mt-region>' in driver_table
+    assert '<th data-mt-no-filter>الإجراءات</th>' in driver_table
+
+
+def test_standalone_meter_paste_preview_loads_shared_table_filters():
+    page = (ROOT / "static" / "meter_readings_paste.html").read_text(encoding="utf-8")
+    assert 'href="/static/css/mt-tables.css' in page
+    assert 'src="/static/js/mt-filters-core.js"' in page
+    assert 'src="/static/js/mt-tables.js' in page
+    assert 'class="table-wrap mt-table-theme-green" data-mt-region><table>' in page
+
+
 # ------------------------------------------------------ core module shape
 
 def test_core_exports_the_documented_api():

@@ -99,7 +99,7 @@
       أخطاء تعريف: {{ summary.definition_error }} |
       اختلاف وحدة: {{ summary.unit_mismatch }}
     </div>
-    <table class="tbl">
+    <div class="table-scroll mt-table-theme-green" data-mt-region><table class="tbl">
       <thead>
         <tr>
           <th>الاسم</th>
@@ -128,7 +128,7 @@
         </tr>
         {% endfor %}
       </tbody>
-    </table>
+    </table></div>
     <a href="/document-import/upload?model_id={{ model_id }}" class="btn">استيراد آخر</a>
   </div>
   {% endif %}

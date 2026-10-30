@@ -148,7 +148,6 @@ def _seed(db):
     return {
         "user": user.id,
         "equipment": equipment.id,
-        "equipment_model": model.id,
         "fault": fault.id,
         "repair": repair.id,
     }
@@ -218,7 +217,7 @@ def test_login_sets_a_session_that_authenticates_the_pages(pages):
 
 
 def test_spare_parts_catalog_add_and_import_preview_apply(pages):
-    client, ids = pages
+    client, _ = pages
     page = client.get("/spare-parts/catalog")
     assert page.status_code == 200
     assert "كتالوج قطع الغيار" in page.text
@@ -229,12 +228,10 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     assert 'id="closeCategoryAdd"' in page.text
     assert '<select name="category">' in page.text
     catalog_header = page.text.split('<thead>', 1)[1].split('</thead>', 1)[0]
-    assert 'class="catalog-filter-row"' not in catalog_header
-    assert 'id="catalogFilterForm" action="/spare-parts/catalog" method="get" hidden' in page.text
-    assert all(f'name="{field}"' in catalog_header for field in ("q", "part_number", "equipment_model_id", "category_id", "active"))
-    assert 'name="manufacturer"' not in catalog_header
-    assert 'name="source"' not in catalog_header
     assert catalog_header.count("<tr>") == 1
+    assert all(f"data-mt-force-filter>{heading}</th>" in catalog_header for heading in ("الاسم", "الرمز التعريفي", "طراز العتاد", "الفئة", "الصورة", "الحالة / تعديل"))
+    assert 'class="scroll mt-table-theme-green" data-mt-region' in page.text
+    assert 'class="header-filter-menu"' not in page.text
     assert 'class="actions">\n      <label>بحث' not in page.text
     assert 'action="/spare-parts/catalog/categories"' in page.text
     assert page.text.index('id="openCatalogAdd"') < page.text.index('id="openCategoryAdd"')
@@ -288,7 +285,7 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
 
     created = client.post(
         "/spare-parts/catalog/parts",
-        data={"name": "فلتر تجريبي", "name_ar": "فلتر", "reference": "PAGE-001", "manufacturer": "شركة اختبار", "category": "تصنيف صفحة معدل", "equipment_model_ids": str(ids["equipment_model"])},
+        data={"name": "فلتر تجريبي", "name_ar": "فلتر", "reference": "PAGE-001", "manufacturer": "شركة اختبار", "category": "تصنيف صفحة معدل"},
         follow_redirects=False,
     )
     assert created.status_code == 303
@@ -297,11 +294,10 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     assert "تصنيف صفحة معدل" in catalog_page.text
     catalog_filtered = client.get(
         "/spare-parts/catalog",
-        params={"part_number": "PAGE-001", "category_id": category_id, "equipment_model_id": ids["equipment_model"], "active": "true"},
+        params={"q": "PAGE-001", "category_id": category_id, "manufacturer": "شركة اختبار", "active": "true"},
     )
     assert catalog_filtered.status_code == 200
     assert "فلتر" in catalog_filtered.text
-    assert 'name="part_number"' in catalog_filtered.text and 'value="PAGE-001"' in catalog_filtered.text
     blocked_delete = client.post(f"/spare-parts/catalog/categories/{category_id}/delete", follow_redirects=False)
     assert blocked_delete.status_code == 409
     assert "مرتبط بقطع غيار" in blocked_delete.text

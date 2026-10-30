@@ -39,7 +39,7 @@
     <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
       <section class="panel">
         <div class="panel-head"><div><h3 id="unapprovedModelsTitle">طرازات بلا خطة صيانة معتمدة</h3><p>اختر طرازًا للانتقال مباشرة إلى إعداد خطة صيانة له.</p></div><button class="m-btn dialog-close" type="button" id="closeUnapprovedModels" aria-label="إغلاق">×</button></div>
-        <div class="table-wrap"><table class="m-table mt-table-theme-green" data-mt-no-filter><thead><tr><th>#</th><th>طراز العتاد</th><th>الإجراء</th></tr></thead><tbody>
+        <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table"><thead><tr><th>#</th><th>طراز العتاد</th><th data-mt-no-filter>الإجراء</th></tr></thead><tbody>
           {% for model_id, model_name in unapproved_model_rows %}
           <tr><td>{{ loop.index }}</td><td class="vehicle">{{ model_name }}</td><td><a class="m-btn primary" href="/maintenance/plans?model_id={{ model_id }}&amp;new=1">إعداد الخطة</a></td></tr>
           {% else %}<tr><td colspan="3" class="muted">جميع الطرازات لديها خطط صيانة معتمدة.</td></tr>{% endfor %}

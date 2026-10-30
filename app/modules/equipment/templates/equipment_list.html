@@ -50,7 +50,7 @@
     <p class="page-hint">الاختيار يعتمد على اسم الطراز فقط، ويستنتج النظام النوع المرتبط به. إذا لم يوجد الطراز أو كان الاسم ملتبسًا، يرفض الصف مع بيان السبب. تُحفظ الصفوف الصالحة حتى عند رفض صفوف أخرى.</p>
     <div class="equipment-import-actions"><a class="btn btn-outline" href="/equipment/import/template">تنزيل قالب Excel</a><input type="file" id="equipmentImportFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><button type="button" class="btn btn-primary" id="equipmentImportPreview">فحص الملف</button><button type="button" class="btn btn-outline" onclick="closeEquipmentImport()">إغلاق</button></div>
     <div id="equipmentImportStatus" class="equipment-import-status" aria-live="polite">الملف يدعم حتى 1000 صف بيانات. تاريخا أول سير والاقتناء بصيغة YYYY-MM-DD.</div>
-    <div class="equipment-import-scroll"><table class="equipment-import-table mt-table-theme-green" id="equipmentImportResults" hidden><thead><tr><th>رقم الصف</th><th>النتيجة</th><th>سبب الرفض</th></tr></thead><tbody></tbody></table></div>
+    <div class="equipment-import-scroll mt-table-theme-green" data-mt-region><table class="equipment-import-table" id="equipmentImportResults" hidden><thead><tr><th>رقم الصف</th><th>النتيجة</th><th>سبب الرفض</th></tr></thead><tbody></tbody></table></div>
     <div class="equipment-import-actions"><button type="button" class="btn btn-primary" id="equipmentImportConfirm" disabled>حفظ الصفوف الصالحة</button></div>
   </div>
 </section>

@@ -302,10 +302,11 @@
       if (th.querySelector('input[type=checkbox],input[type=radio]')) continue;
       if (!label) continue;
       if (FILTER_SKIP_HEADERS[core.normalize(label)]) continue;
-      if (looksLikeLinkColumn(rows, i, cells.length)) continue;
+      var forceFilter = th.hasAttribute('data-mt-force-filter');
+      if (!forceFilter && looksLikeLinkColumn(rows, i, cells.length)) continue;
       var samples = columnSamples(table, rows, i, cells.length);
       var hasValue = samples.some(function (s) { return s !== ''; });
-      if (!hasValue) continue;
+      if (!hasValue && !forceFilter) continue;
       columns.push({
         index: i,
         th: th,
