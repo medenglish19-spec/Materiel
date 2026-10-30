@@ -99,7 +99,7 @@
   <div class="top">
     <div>
       <h1>طلبات قطع الغيار</h1>
-      <div class="muted">سجل الطلبات المرتبطة بالأعطال والتصليحات مع البحث والإجراءات المباشرة.</div>
+      <div class="muted">سجل الطلبات المرتبطة بالأعطال والاحتياجات مع البحث والإجراءات المباشرة.</div>
     </div>
     <div class="top-actions">
       <a href="/spare-parts-received" class="secondary" style="text-decoration:none">سجل الاستلام</a>
@@ -115,12 +115,12 @@
     <div class="toolbar" data-mobile-filter-collapse>
       <div class="search-wrap"><input id="requestSearch" type="search" placeholder="ابحث برقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار"></div>
       <select id="filterStatus" aria-label="تصفية حسب الحالة"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
-      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">التصليحات</option></select>
+      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">احتياج</option></select>
       <div class="toolbar-meta"><span id="resultCount" class="badge">الطلبات: 0</span><span id="pendingCount" class="badge">قيد الانتظار: 0</span></div>
     </div>
     <form id="requestForm" class="form" style="display:none" novalidate data-em-root data-em-ignore>
       <input name="request_number" id="requestNumber" placeholder="رقم وثيقة الطلب *" required>
-      <select name="source_type" id="sourceType"><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="repair">تصليح</option></select>
+      <select name="source_type" id="sourceType"><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="repair">احتياج</option></select>
       <select name="source_id" id="sourceId" required><option value="">اختر المصدر *</option></select>
       <input name="request_date" id="requestDate" type="date" required>
       <input id="equipmentView" placeholder="رقم التسجيل" readonly>
@@ -144,7 +144,7 @@ const PARTS={{ parts|map(attribute='id')|list|tojson }};
 const PART_NAMES={{ parts|map(attribute='name')|list|tojson }};
 const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
-const SOURCE={fault:'الأعطال',repair:'التصليحات'};
+const SOURCE={fault:'الأعطال',repair:'احتياج'};
 const RECEIPT_BEFORE_REQUEST='تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب.';
 const DUPLICATE_PART='قطعة الغيار موجودة بالفعل في الطلب.';
 let requestsData=[],activeRequestId=null,detailRowsBaseline=null;
@@ -170,7 +170,7 @@ const sourceType=document.getElementById('sourceType'),sourceId=document.getElem
 const repairId=new URLSearchParams(location.search).get('repair_id');
 
 async function loadSources(){
-  sourceId.innerHTML='<option value="">اختر المصدر *</option>';
+  sourceId.innerHTML='<option value="">'+(sourceType.value==='repair'?'اختر الاحتياج *':'اختر العطل *')+'</option>';
   if(!sourceType.value)return;
   const r=await fetch('/api/spare-parts-requests/sources/'+sourceType.value,{credentials:'same-origin'});
   const data=await r.json();

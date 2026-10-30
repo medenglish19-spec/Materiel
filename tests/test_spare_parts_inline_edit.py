@@ -163,6 +163,16 @@ def _seed(db):
     )
     db.add(undo_repair)
     db.flush()
+    need_repair = Repair(
+        fault_id=spare_faults[8],
+        repair_date=date.today(),
+        action_taken="احتياج قطع للاختبار",
+        workshop_type="internal",
+        status="in_progress",
+        created_by_id=user.id,
+    )
+    db.add(need_repair)
+    db.flush()
 
     part = SparePart(name="فلتر هوائي", part_number="F-1", receiving_document="وثيقة استلام")
     db.add(part)
@@ -188,6 +198,7 @@ def _seed(db):
         "spare_faults": spare_faults,
         "repair": repair.id,
         "undo_repair": undo_repair.id,
+        "need_repair": need_repair.id,
         "request": request_obj.id,
         "item": request_obj.items[0].id,
     }
@@ -466,6 +477,36 @@ def test_the_new_request_form_is_a_real_form_element(client):
     assert "novalidate" in opened.group(0)
     assert "data-em-root" in opened.group(0)
     assert html.count("<form") == html.count("</form>")
+
+
+def test_need_source_loads_repairs_and_creates_an_executable_linked_request(client):
+    page, ids = client
+    html = page.get("/spare-parts-requests").text
+
+    assert '<option value="repair">احتياج</option>' in html
+    assert "repair:'احتياج'" in html
+    assert "اختر الاحتياج *" in html
+
+    available_needs = page.get("/api/spare-parts-requests/sources/repair")
+    assert available_needs.status_code == 200
+    assert any(row["id"] == ids["need_repair"] for row in available_needs.json())
+
+    created = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "NEED-SOURCE-E2E",
+            "request_date": date.today().isoformat(),
+            "source_type": "repair",
+            "source_id": ids["need_repair"],
+            "items": [{"part_name": "قطعة احتياج للاختبار", "requested_quantity": 1}],
+        },
+    )
+    assert created.status_code == 201, created.text
+    request = created.json()
+    assert request["source_type"] == "repair"
+    assert request["repair_id"] == ids["need_repair"]
+    assert request["equipment_registration"] == "222-TEST"
+    assert request["items"][0]["part_name"] == "قطعة احتياج للاختبار"
 
 
 def test_the_save_request_button_is_inside_that_form(client):
