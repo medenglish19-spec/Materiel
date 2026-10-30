@@ -997,9 +997,13 @@ def test_periodic_search_row_is_removed_and_state_filter_remains_in_table_header
     assert 'id="periodicSearch"' not in header
     assert 'placeholder="بحث برقم السيارة..."' not in header
     assert ">بحث</button>" not in header
+    assert ">مسح</a>" not in header
     assert 'id="periodicStatus" name="state"' in header
+    assert 'colspan="3"><select' in header
     assert 'onchange="this.form.requestSubmit()"' in header
     assert 'value="بلا سجل" selected' in header
+    assert "<th>رقم التسجيل</th>" in header
+    assert "<th>الطراز</th>" in header
 
 
 def test_operation_is_not_applicable_to_a_model_without_a_relation():
