@@ -59,6 +59,19 @@ class SparePartCatalogReference(Base):
     spare_part = relationship("SparePart")
 
 
+class SparePartCatalogModel(Base):
+    """Equipment models that a catalog spare part fits."""
+    __tablename__ = "spare_part_catalog_models"
+    __table_args__ = (UniqueConstraint("spare_part_id", "equipment_model_id", name="uq_spare_part_catalog_model"),)
+
+    id = Column(Integer, primary_key=True)
+    spare_part_id = Column(Integer, ForeignKey("spare_parts.id", ondelete="CASCADE"), nullable=False, index=True)
+    equipment_model_id = Column(Integer, ForeignKey("equipment_models.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    spare_part = relationship("SparePart")
+    equipment_model = relationship("EquipmentModel")
+
+
 class SparePartCatalogImport(Base):
     __tablename__ = "spare_part_catalog_imports"
 

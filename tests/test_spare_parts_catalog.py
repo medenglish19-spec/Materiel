@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from app.database import model_registry  # noqa: F401
 from app.database.base import Base
 from app.modules.faults_repairs.models import SparePart
+from app.modules.equipment_types.models import EquipmentBrand, EquipmentModel, EquipmentType
 from app.modules.spare_parts_catalog import services
-from app.modules.spare_parts_catalog.models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogReference
+from app.modules.spare_parts_catalog.models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogModel, SparePartCatalogReference
 
 
 @pytest.fixture
@@ -61,6 +62,56 @@ def test_arabic_header_aliases_are_normalized():
     assert rows[0]["reference"] == "0012"
     assert rows[0]["name"] == "مضخة"
     assert rows[0]["category"] == "المحرك"
+
+
+def test_catalog_template_columns_import_code_models_and_category(db, monkeypatch):
+    equipment_type = EquipmentType(name="شاحنة", measurement_unit="km")
+    brand = EquipmentBrand(name="شركة")
+    db.add_all([equipment_type, brand])
+    db.flush()
+    model = EquipmentModel(name="طراز أ", equipment_type_id=equipment_type.id, brand_id=brand.id)
+    db.add(model)
+    db.flush()
+
+    rows, _, _ = services._parse_content(
+        "catalog.csv",
+        "الاسم,الرمز التعريفي,طراز العتاد,الفئة,الصورة\nفلتر,FLT-01,طراز أ,المحرك,FLT-01.png\n".encode(),
+    )
+    assert rows[0]["name"] == "فلتر"
+    assert rows[0]["code"] == "FLT-01"
+    assert rows[0]["equipment_models"] == "طراز أ"
+    assert rows[0]["category"] == "المحرك"
+    assert rows[0]["image"] == "FLT-01.png"
+
+    monkeypatch.setattr(services, "store_image", lambda _data, _name: "/static/uploads/spare-parts/test.png")
+    monkeypatch.setattr(services, "remove_image", lambda _path: None)
+    batch = services.create_import_preview(
+        db,
+        "catalog.csv",
+        "الاسم,الرمز التعريفي,طراز العتاد,الفئة,الصورة\nفلتر,FLT-01,طراز أ,المحرك,\n".encode(),
+    )
+    db.commit()
+    result = services.apply_import(db, batch.id, {"row-0-include": "1"})
+    assert result["added"] == 1
+    part = db.query(SparePart).one()
+    assert part.part_number == "FLT-01"
+    details = db.query(SparePartCatalogDetails).filter_by(spare_part_id=part.id).one()
+    assert details.category.name_ar == "المحرك"
+    assert db.query(SparePartCatalogModel).filter_by(spare_part_id=part.id, equipment_model_id=model.id).one()
+
+
+def test_unknown_model_skips_only_its_import_row(db):
+    batch = services.create_import_preview(
+        db,
+        "catalog.csv",
+        "الاسم,الرمز التعريفي,طراز العتاد,الفئة\nفلتر,FLT-01,طراز غير موجود,المحرك\nزيت,OIL-01,,المحرك\n".encode(),
+    )
+    db.commit()
+    result = services.apply_import(db, batch.id, {"row-0-include": "1", "row-1-include": "1"})
+    assert result["added"] == 1
+    assert result["skipped"] == 1
+    assert "طراز العتاد" in result["errors"][0]["reason"]
+    assert db.query(SparePart).count() == 1
 
 
 def test_repreview_of_same_unfinished_file_refreshes_saved_parsed_rows(db):

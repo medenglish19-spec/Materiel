@@ -4,7 +4,7 @@ from math import ceil
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,9 +13,10 @@ from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
+from app.modules.equipment_types.models import EquipmentModel
 from app.modules.faults_repairs.models import SparePart
 from app.modules.users.models import User
-from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogReference, SparePartCategory
+from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogModel, SparePartCatalogReference, SparePartCategory
 from . import services
 
 router = APIRouter()
@@ -47,9 +48,13 @@ def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manuf
     items = query.order_by(SparePart.name, SparePart.id).offset((page - 1) * page_size).limit(page_size).all()
     part_ids = [part.id for part, _ in items]
     references = {}
+    part_models = {}
     if part_ids:
         for ref in db.query(SparePartCatalogReference).filter(SparePartCatalogReference.spare_part_id.in_(part_ids)).order_by(SparePartCatalogReference.id).all():
             references.setdefault(ref.spare_part_id, []).append(ref)
+        for link in db.query(SparePartCatalogModel).join(EquipmentModel).filter(SparePartCatalogModel.spare_part_id.in_(part_ids)).order_by(EquipmentModel.name).all():
+            part_models.setdefault(link.spare_part_id, []).append(link.equipment_model.name)
+    equipment_models = db.query(EquipmentModel).order_by(EquipmentModel.name, EquipmentModel.id).all()
     categories = db.query(SparePartCategory).filter(SparePartCategory.is_active.is_(True)).order_by(SparePartCategory.sort_order, SparePartCategory.name_ar).all()
     category_paths = {}
     for category in categories:
@@ -61,12 +66,42 @@ def _catalog_context(request, user, db, *, q="", page=1, category_id=None, manuf
         category_paths[category.id] = " / ".join(reversed(names))
     manufacturers = [row[0] for row in db.query(SparePartCatalogDetails.manufacturer).filter(SparePartCatalogDetails.manufacturer.is_not(None)).distinct().order_by(SparePartCatalogDetails.manufacturer).all()]
     sources = [row[0] for row in db.query(SparePartCatalogDetails.source).filter(SparePartCatalogDetails.source.is_not(None)).distinct().order_by(SparePartCatalogDetails.source).all()]
-    return {"request": request, "user": user, "items": items, "references": references, "categories": categories, "category_paths": category_paths, "manufacturers": manufacturers, "sources": sources, "q": q, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "manufacturer_filter": manufacturer, "source_filter": source, "active_filter": active, "error": error, "notice": notice, "active_dialog": active_dialog}
+    return {"request": request, "user": user, "items": items, "references": references, "part_models": part_models, "equipment_models": equipment_models, "categories": categories, "category_paths": category_paths, "manufacturers": manufacturers, "sources": sources, "q": q, "page": page, "page_size": page_size, "total": total, "category_id": category_id, "manufacturer_filter": manufacturer, "source_filter": source, "active_filter": active, "error": error, "notice": notice, "active_dialog": active_dialog}
+
+
+def _sync_part_models(db: Session, part_id: int, model_ids: list[int]):
+    ids = list(dict.fromkeys(int(value) for value in model_ids if value))
+    models = db.query(EquipmentModel).filter(EquipmentModel.id.in_(ids)).all() if ids else []
+    if len(models) != len(ids):
+        raise ValueError("يتضمن الاختيار طراز عتاد غير موجود.")
+    db.query(SparePartCatalogModel).filter_by(spare_part_id=part_id).delete(synchronize_session=False)
+    db.add_all(SparePartCatalogModel(spare_part_id=part_id, equipment_model_id=model.id) for model in models)
 
 
 @router.get("/spare-parts/catalog", response_class=HTMLResponse)
 def catalog_page(request: Request, q: str = "", page: int = 1, category_id: int | None = None, manufacturer: str | None = None, source: str | None = None, active: bool | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return templates.TemplateResponse(request=request, name="catalog.html", context=_catalog_context(request, user, db, q=q, page=page, category_id=category_id, manufacturer=manufacturer, source=source, active=active))
+
+
+@router.get("/spare-parts/catalog/import/template.xlsx")
+def import_template(user: User = Depends(get_current_user)):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    import io
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "قطع الغيار"
+    sheet.append(["الاسم", "الرمز التعريفي", "طراز العتاد", "الفئة", "الصورة"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="397A54")
+    for col, width in enumerate((32, 22, 30, 24, 26), start=1):
+        sheet.column_dimensions[chr(64 + col)].width = width
+    sheet.freeze_panes = "A2"
+    output = io.BytesIO()
+    workbook.save(output)
+    return Response(output.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": 'attachment; filename="spare-parts-template.xlsx"'})
 
 
 @router.post("/spare-parts/catalog/categories")
@@ -159,12 +194,13 @@ def _make_part(db: Session, *, name, name_ar, name_fr, reference, manufacturer, 
 
 
 @router.post("/spare-parts/catalog/parts")
-async def create_part(request: Request, name: str = Form(""), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+async def create_part(request: Request, name: str = Form(""), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), equipment_model_ids: list[int] = Form([]), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
     image_path = None
     try:
         if image and image.filename:
             image_path = services.store_image(await image.read(5 * 1024 * 1024 + 1), image.filename)
-        _make_part(db, name=name, name_ar=name_ar, name_fr=name_fr, reference=reference, manufacturer=manufacturer, category=category, notes=notes, source=source, image_path=image_path)
+        part = _make_part(db, name=name, name_ar=name_ar, name_fr=name_fr, reference=reference, manufacturer=manufacturer, category=category, notes=notes, source=source, image_path=image_path)
+        _sync_part_models(db, part.id, equipment_model_ids)
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -178,7 +214,7 @@ async def create_part(request: Request, name: str = Form(""), name_ar: str = For
 
 
 @router.post("/spare-parts/catalog/parts/{part_id}/update")
-async def update_part(part_id: int, request: Request, name: str = Form(...), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), active: str = Form("on"), remove_image: str = Form(""), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+async def update_part(part_id: int, request: Request, name: str = Form(...), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), equipment_model_ids: list[int] = Form([]), active: str = Form("on"), remove_image: str = Form(""), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
     part = db.get(SparePart, part_id)
     if not part:
         raise HTTPException(404, "قطعة الغيار غير موجودة.")
@@ -200,6 +236,7 @@ async def update_part(part_id: int, request: Request, name: str = Form(...), nam
         details.source = source.strip()[:255] or None
         details.is_active = active == "on"
         details.category = services._category_for_path(db, category)
+        _sync_part_models(db, part.id, equipment_model_ids)
         if remove_image == "on":
             details.image_path = None
         if image and image.filename:

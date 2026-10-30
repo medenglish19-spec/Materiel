@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from app.modules.faults_repairs.models import RepairPart, SparePart
 from app.modules.spare_parts_requests.models import SparePartRequestItem
-from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogReference, SparePartCategory
+from app.modules.equipment_types.models import EquipmentModel
+from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogModel, SparePartCatalogReference, SparePartCategory
 
 from app.modules.document_import.upload import MAX_UPLOAD_BYTES
 MAX_ROWS = 1000
@@ -31,8 +32,11 @@ MAX_ZIP_UNPACKED = 30 * 1024 * 1024
 SUPPORTED_EXTENSIONS = {".csv", ".xlsx", ".xls", ".pdf", ".docx", ".xml", ".html", ".htm", ".zip"}
 
 HEADER_NAMES = {
+    "code": {"code", "part code", "item code", "sku", "الرمز التعريفي", "رمز القطعة", "كود القطعة", "الرمز", "الكود"},
+    "equipment_models": {"equipment model", "equipment models", "compatible model", "compatible equipment model", "طراز العتاد", "طراز العتاد المتوافق", "الطراز", "طراز"},
+    "image": {"image", "image file", "image filename", "photo", "الصورة", "اسم الصورة", "ملف الصورة"},
     "reference": {"reference", "ref", "part number", "part no", "part_number", "part code", "item code", "item no", "article code", "code article", "référence", "référence pièce", "référence fabricant", "référence constructeur", "référence fournisseur", "reférence", "ref.", "ref constructeur", "ref fabricant", "oem", "oem number", "oem reference", "p/n", "n° pièce", "n° de pièce", "numéro de pièce", "رقم القطعة", "رقم المرجع", "رقم الصنف", "كود القطعة", "المرجع", "مرجع"},
-    "name": {"name", "part name", "item name", "product name", "part description", "item description", "product description", "description", "designation", "désignation", "désignation pièce", "désignation article", "libellé", "libellé article", "اسم المنتج", "اسم الصنف", "اسم القطعة", "التسمية", "وصف القطعة", "الوصف"},
+    "name": {"name", "part name", "item name", "product name", "part description", "item description", "product description", "description", "designation", "désignation", "désignation pièce", "désignation article", "libellé", "libellé article", "الاسم", "اسم المنتج", "اسم الصنف", "اسم القطعة", "التسمية", "وصف القطعة", "الوصف"},
     "name_ar": {"name ar", "arabic name", "nom arabe", "الاسم العربي", "اسم عربي"},
     "name_fr": {"name fr", "french name", "nom français", "nom francais", "الاسم الفرنسي", "اسم فرنسي"},
     "manufacturer": {"manufacturer", "manufacturer name", "make", "brand", "marque", "fabricant", "constructeur", "الشركة المصنعة", "اسم المصنع", "الشركة", "المصنع"},
@@ -325,7 +329,9 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
                     by_reference.setdefault(_norm(Path(image.filename).stem), []).append(image)
                 linked = set()
                 for record in records:
-                    matches = by_reference.get(_norm(record.get("reference")), []) if record.get("reference") else []
+                    image_key = Path(record.get("image", "")).stem if record.get("image") else ""
+                    keys = [image_key, record.get("code", ""), record.get("reference", "")]
+                    matches = next((by_reference.get(_norm(key), []) for key in keys if key and by_reference.get(_norm(key))), [])
                     if len(matches) == 1:
                         member = matches[0]
                         normalized, fmt = normalize_image_bytes(archive.read(member), Path(member.filename).suffix.lower())
@@ -405,6 +411,9 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
             record = {
                 "source_row": source_index + 1,
                 "sheet": sheet,
+                "code": get("code")[:80],
+                "equipment_models": get("equipment_models")[:500],
+                "image": get("image")[:255],
                 "reference": get("reference")[:120],
                 "name": get("name")[:160],
                 "name_ar": get("name_ar")[:160],
@@ -413,7 +422,7 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
                 "category": get("category")[:255],
                 "notes": get("notes")[:2000],
             }
-            if not any(record[key] for key in ("reference", "name", "name_ar", "name_fr", "manufacturer")):
+            if not any(record[key] for key in ("code", "reference", "name", "name_ar", "name_fr", "manufacturer")):
                 continue
             if not record["name"]:
                 record["name"] = record["name_fr"] or record["name_ar"]
@@ -426,6 +435,9 @@ def _parse_content(filename: str, data: bytes, depth: int = 0) -> tuple[list[dic
 
 
 def _duplicate_state(db: Session, record: dict) -> tuple[str, str]:
+    code = (record.get("code") or "").strip()
+    if code and db.query(SparePart.id).filter(SparePart.part_number == code).first():
+        return "exact", f"الرمز التعريفي {code} مسجل مسبقًا."
     ref = _norm(record.get("reference"))
     maker = _norm(record.get("manufacturer"))
     if ref:
@@ -515,7 +527,7 @@ def apply_import(db: Session, batch_id: int, form, user_id: int | None = None) -
                 results["skipped"] += 1
                 continue
             row = dict(original)
-            for field, max_length in (("name", 160), ("name_ar", 160), ("name_fr", 160), ("manufacturer", 160), ("category", 255), ("notes", 2000), ("reference", 120)):
+            for field, max_length in (("name", 160), ("name_ar", 160), ("name_fr", 160), ("manufacturer", 160), ("category", 255), ("notes", 2000), ("reference", 120), ("code", 80), ("equipment_models", 500), ("image", 255)):
                 value = form.get(f"row-{index}-{field}")
                 if value is not None:
                     row[field] = str(value).strip()[:max_length]
@@ -523,12 +535,29 @@ def apply_import(db: Session, batch_id: int, form, user_id: int | None = None) -
             if not name:
                 results["errors"].append({"row": index + 1, "reason": "اسم القطعة مطلوب."})
                 continue
+            model_names = list(dict.fromkeys(name.strip() for name in re.split(r"[;|،؛]+", row.get("equipment_models", "")) if name.strip()))
+            matching_models = []
+            invalid_model = None
+            for model_name in model_names:
+                matches = db.query(EquipmentModel).filter(EquipmentModel.name == model_name).all()
+                if len(matches) != 1:
+                    invalid_model = model_name
+                    break
+                matching_models.append(matches[0])
+            if invalid_model:
+                results["skipped"] += 1
+                results["errors"].append({"row": index + 1, "reason": f"طراز العتاد «{invalid_model}» غير موجود أو غير فريد؛ استخدم اسمًا فريدًا من قائمة الطرازات."})
+                continue
             duplicate, reason = _duplicate_state(db, row)
             if duplicate != "none" and form.get(f"row-{index}-allow-duplicate") not in {"1", "on", "true"}:
                 results["skipped"] += 1
                 results["errors"].append({"row": index + 1, "reason": reason})
                 continue
-            internal_number = "CAT-" + uuid.uuid4().hex[:16].upper()
+            internal_number = (row.get("code") or "").strip()[:80] or "CAT-" + uuid.uuid4().hex[:16].upper()
+            if db.query(SparePart.id).filter(SparePart.part_number == internal_number).first():
+                results["skipped"] += 1
+                results["errors"].append({"row": index + 1, "reason": f"كود القطعة {internal_number} مسجل مسبقًا."})
+                continue
             part = SparePart(part_number=internal_number, name=name, receiving_document=None, notes=row.get("notes") or None)
             db.add(part)
             db.flush()
@@ -553,6 +582,8 @@ def apply_import(db: Session, batch_id: int, form, user_id: int | None = None) -
                 image_path=image_path,
             )
             db.add(details)
+            for model in matching_models:
+                db.add(SparePartCatalogModel(spare_part_id=part.id, equipment_model_id=model.id))
             if row.get("reference"):
                 db.add(SparePartCatalogReference(
                     spare_part_id=part.id,

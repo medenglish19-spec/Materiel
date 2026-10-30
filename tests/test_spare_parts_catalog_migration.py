@@ -12,6 +12,7 @@ CATALOG_TABLES = {
     "spare_part_catalog_details",
     "spare_part_catalog_references",
     "spare_part_catalog_imports",
+    "spare_part_catalog_models",
     "maintenance_catalog_imports",
     "fuel_model_consumption_rates",
 }

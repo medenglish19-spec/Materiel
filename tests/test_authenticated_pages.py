@@ -305,10 +305,13 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
 
     preview = client.post(
         "/spare-parts/catalog/import",
-        files={"file": ("catalog.csv", "reference,name,manufacturer\nPAGE-002,حشية,شركة اختبار\n".encode("utf-8"), "text/csv")},
+        files={"file": ("catalog.csv", "الاسم,الرمز التعريفي,طراز العتاد,الفئة,الصورة\nحشية,PAGE-002,طراز اختبار الصفحات,المحرك,\n".encode("utf-8"), "text/csv")},
     )
     assert preview.status_code == 200, preview.text
     assert "حشية" in preview.text
+    for column in ("الاسم", "الرمز التعريفي", "طراز العتاد", "الفئة", "الصورة"):
+        assert f"<th>{column}</th>" in preview.text
+    assert preview.text.index("<th>الاسم</th>") < preview.text.index("<th>الرمز التعريفي</th>") < preview.text.index("<th>طراز العتاد</th>") < preview.text.index("<th>الفئة</th>") < preview.text.index("<th>الصورة</th>")
     batch_id = re.search(r"/spare-parts/catalog/import/(\d+)/apply", preview.text).group(1)
     result = client.post(
         f"/spare-parts/catalog/import/{batch_id}/apply",
@@ -316,7 +319,19 @@ def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     )
     assert result.status_code == 200, result.text
     assert "أضيف 1" in result.text
-    assert "PAGE-002" in client.get("/spare-parts/catalog").text
+    catalog = client.get("/spare-parts/catalog").text
+    assert "PAGE-002" in catalog
+    assert "طراز اختبار الصفحات" in catalog
+    assert "المحرك" in catalog
+
+    template = client.get("/spare-parts/catalog/import/template.xlsx")
+    assert template.status_code == 200
+    assert template.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    import io
+    import openpyxl
+    workbook = openpyxl.load_workbook(io.BytesIO(template.content), read_only=True)
+    assert list(workbook.active.values)[0] == ("الاسم", "الرمز التعريفي", "طراز العتاد", "الفئة", "الصورة")
+    workbook.close()
 
 
 def test_spare_parts_catalog_can_delete_an_unused_part_from_its_row(pages):
