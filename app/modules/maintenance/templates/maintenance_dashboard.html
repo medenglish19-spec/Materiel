@@ -1,17 +1,24 @@
 {% extends "base.html" %}
 {% block title %}الصيانة الدورية{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-header-filters-20261030">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-indicator-dialog-20261030">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top"><div class="page-heading"><h2>الصيانة الدورية</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">الصيانة الدورية</span></div></div><div class="hero-actions"><a class="m-btn" href="/maintenance/records">▤ &nbsp;سجل الصيانة</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a></div></div>
   <nav class="module-tabs" aria-label="وحدة الصيانة"><a class="active" href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
   <div class="kpi-grid">
-    <div class="kpi"><div class="kpi-icon">▣</div><div class="kpi-body"><div class="kpi-label">إجمالي المتابعات</div><div class="kpi-value">{{ counts.total }}</div><div class="kpi-meta">العتاد × عمليات الصيانة حسب النوع والطراز</div></div></div>
-    <div class="kpi danger"><div class="kpi-icon">▲</div><div class="kpi-body"><div class="kpi-label">مستحقة الآن</div><div class="kpi-value">{{ counts.danger }}</div><div class="kpi-meta">تحتاج إجراء فوري</div></div></div>
-    <div class="kpi warning"><div class="kpi-icon">◷</div><div class="kpi-body"><div class="kpi-label">تقترب</div><div class="kpi-value">{{ counts.warning }}</div><div class="kpi-meta">حتى 7 أيام أو حسب وحدة العداد</div></div></div>
-    <div class="kpi success"><div class="kpi-icon">✓</div><div class="kpi-body"><div class="kpi-label">ضمن الموعد</div><div class="kpi-value">{{ counts.success }}</div><div class="kpi-meta">لا يوجد استحقاق قريب</div></div></div>
-    <div class="kpi neutral"><div class="kpi-icon">□</div><div class="kpi-body"><div class="kpi-label">بلا سجل</div><div class="kpi-value">{{ counts.neutral }}</div><div class="kpi-meta">بلا سجل - أدخل صيانة أولية</div></div></div>
+    <button class="kpi kpi-button" type="button" data-periodic-indicator="all" aria-haspopup="dialog"><span class="kpi-icon">▣</span><span class="kpi-body"><span class="kpi-label">إجمالي المتابعات</span><span class="kpi-value">{{ counts.total }}</span><span class="kpi-meta">العتاد × عمليات الصيانة حسب النوع والطراز</span></span></button>
+    <button class="kpi danger kpi-button" type="button" data-periodic-indicator="مستحقة الآن" aria-haspopup="dialog"><span class="kpi-icon">▲</span><span class="kpi-body"><span class="kpi-label">مستحقة الآن</span><span class="kpi-value">{{ counts.danger }}</span><span class="kpi-meta">تحتاج إجراء فوري</span></span></button>
+    <button class="kpi warning kpi-button" type="button" data-periodic-indicator="تقترب" aria-haspopup="dialog"><span class="kpi-icon">◷</span><span class="kpi-body"><span class="kpi-label">تقترب</span><span class="kpi-value">{{ counts.warning }}</span><span class="kpi-meta">حتى 7 أيام أو حسب وحدة العداد</span></span></button>
+    <button class="kpi success kpi-button" type="button" data-periodic-indicator="ضمن الموعد" aria-haspopup="dialog"><span class="kpi-icon">✓</span><span class="kpi-body"><span class="kpi-label">ضمن الموعد</span><span class="kpi-value">{{ counts.success }}</span><span class="kpi-meta">لا يوجد استحقاق قريب</span></span></button>
+    <button class="kpi neutral kpi-button" type="button" data-periodic-indicator="بلا سجل" aria-haspopup="dialog"><span class="kpi-icon">□</span><span class="kpi-body"><span class="kpi-label">بلا سجل</span><span class="kpi-value">{{ counts.neutral }}</span><span class="kpi-meta">بلا سجل - أدخل صيانة أولية</span></span></button>
   </div>
+  <dialog class="maintenance-model-dialog periodic-indicator-dialog" id="periodicIndicatorDialog" aria-labelledby="periodicIndicatorTitle">
+    <section class="panel">
+      <div class="panel-head"><div><h3 id="periodicIndicatorTitle">تفاصيل المتابعة</h3><p id="periodicIndicatorStatus" role="status" aria-live="polite">اختر مؤشرًا لعرض بياناته.</p></div><button class="m-btn dialog-close" type="button" id="closePeriodicIndicator" aria-label="إغلاق">×</button></div>
+      <div class="indicator-pagination" id="periodicIndicatorPagination"></div>
+      <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table" id="periodicIndicatorTable"><thead><tr><th data-mt-force-filter>#</th><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>الطراز</th><th data-mt-force-filter>عملية الصيانة</th><th data-mt-force-filter>تاريخ آخر صيانة</th><th data-mt-force-filter>قراءة العداد عند آخر صيانة</th><th data-mt-force-filter>العداد الحالي</th><th data-mt-force-filter>الموعد القادم (تاريخ)</th><th data-mt-force-filter>القراءة القادمة</th><th data-mt-force-filter>الأيام المتبقية</th><th data-mt-force-filter>المتبقي بالعداد</th><th data-mt-force-filter>الحالة</th><th data-mt-force-filter>ملاحظة</th><th data-mt-no-filter>الإجراءات</th></tr></thead><tbody id="periodicIndicatorRows"><tr><td colspan="14" class="muted">ستظهر البيانات هنا.</td></tr></tbody></table></div>
+    </section>
+  </dialog>
   {% if unapproved_models %}
   <div class="alert warning" role="status" style="display:block;margin:0 0 16px">
     <strong>لا توجد خطة صيانة معتمدة لهذا الطراز</strong>
@@ -27,4 +34,60 @@
     <div class="pagination"><span>عرض {{ rows|length }} من {{ filtered_total }} متابعة{% if query or state_filter %} مطابقة{% endif %}</span><div class="pages">{% if previous_url %}<a class="m-btn" href="{{ previous_url }}">السابق</a>{% endif %}{% if next_url %}<a class="m-btn" href="{{ next_url }}">التالي</a>{% endif %}</div></div>
   </section>
 </div>
+<script>
+(function(){
+  const dialog=document.getElementById('periodicIndicatorDialog');
+  const title=document.getElementById('periodicIndicatorTitle');
+  const status=document.getElementById('periodicIndicatorStatus');
+  const rows=document.getElementById('periodicIndicatorRows');
+  const pagination=document.getElementById('periodicIndicatorPagination');
+  if(!dialog||!title||!status||!rows||!pagination)return;
+
+  function showMessage(message){
+    const row=document.createElement('tr');
+    const cell=document.createElement('td');
+    cell.colSpan=14; cell.className='muted'; cell.textContent=message;
+    row.appendChild(cell); rows.replaceChildren(row);
+  }
+  function setPagination(source,baseUrl){
+    pagination.replaceChildren();
+    source.querySelectorAll('.pagination .pages a').forEach(link=>{
+      const next=new URL(link.getAttribute('href'),baseUrl);
+      if(next.origin!==window.location.origin)return;
+      const button=document.createElement('button');
+      button.type='button'; button.className='m-btn'; button.textContent=link.textContent.trim();
+      button.addEventListener('click',()=>loadRows(next.href)); pagination.appendChild(button);
+    });
+  }
+  async function loadRows(url){
+    status.textContent='جارٍ تحميل السجلات المطابقة…';
+    showMessage('جارٍ تحميل البيانات…'); pagination.replaceChildren();
+    try{
+      const response=await fetch(url,{credentials:'same-origin',headers:{Accept:'text/html'}});
+      if(!response.ok)throw new Error('تعذر تحميل بيانات المؤشر.');
+      const html=await response.text();
+      const page=new DOMParser().parseFromString(html,'text/html');
+      const sourceTable=page.getElementById('periodicTable');
+      const sourceBody=sourceTable?.tBodies[0];
+      if(!sourceBody)throw new Error('تعذر قراءة جدول المتابعات.');
+      const sourceColumnCount=sourceTable.tHead?.rows[0]?.cells.length||14;
+      const dataRows=Array.from(sourceBody.rows).filter(row=>!(row.cells.length===1&&(row.cells[0].colSpan||1)>=sourceColumnCount));
+      rows.replaceChildren(...dataRows.map(row=>row.cloneNode(true)));
+      status.textContent=page.querySelector('.pagination > span')?.textContent.trim()||'تم تحميل السجلات.';
+      setPagination(page,response.url);
+      window.MaterielTables?.refresh();
+    }catch(error){status.textContent=error.message;showMessage(error.message);}
+  }
+  document.querySelectorAll('[data-periodic-indicator]').forEach(button=>button.addEventListener('click',()=>{
+    const state=button.dataset.periodicIndicator||'';
+    const label=button.querySelector('.kpi-label')?.textContent.trim()||'تفاصيل المتابعة';
+    title.textContent=label; dialog.showModal();
+    const url=new URL('/maintenance/periodic',window.location.origin);
+    if(state&&state!=='all')url.searchParams.set('state',state);
+    loadRows(url.href);
+  }));
+  document.getElementById('closePeriodicIndicator')?.addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+})();
+</script>
 {% endblock %}

@@ -381,6 +381,17 @@ def test_maintenance_records_labels_equipment_number_as_registration(pages):
     assert "رقم العتاد" not in response.text
 
 
+def test_periodic_maintenance_indicators_open_filtered_record_dialog(pages):
+    client, _ = pages
+    response = client.get("/maintenance/periodic")
+    assert response.status_code == 200
+    for state in ("all", "مستحقة الآن", "تقترب", "ضمن الموعد", "بلا سجل"):
+        assert f'data-periodic-indicator="{state}"' in response.text
+    assert 'id="periodicIndicatorDialog"' in response.text
+    assert 'id="periodicIndicatorTable"' in response.text
+    assert "fetch(url,{credentials:'same-origin'" in response.text
+
+
 def test_spare_parts_home_removes_duplicate_workflow_cards_and_bolds_indicators(pages):
     client, _ = pages
     response = client.get("/spare-parts")

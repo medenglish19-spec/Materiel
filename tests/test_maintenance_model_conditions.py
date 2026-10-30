@@ -979,7 +979,8 @@ def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
     no_matches = client.get("/maintenance/periodic", params={"q": "NO-SUCH-EQUIPMENT"})
     assert no_matches.status_code == 200
     assert "عرض 0 من 0 متابعة مطابقة" in no_matches.text
-    assert "إجمالي المتابعات</div><div class=\"kpi-value\">205" in no_matches.text
+    assert '<button class="kpi kpi-button" type="button" data-periodic-indicator="all"' in no_matches.text
+    assert '<span class="kpi-label">إجمالي المتابعات</span><span class="kpi-value">205' in no_matches.text
     assert client.get("/maintenance/periodic?after=invalid").status_code == 400
 
 

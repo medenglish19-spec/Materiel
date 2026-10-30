@@ -124,3 +124,17 @@
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:nth-child(even) td{background:#f8fcf9}
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr:hover td{background:#eef6f0}
 .maintenance-page .maintenance-model-dialog .m-table.mt-table-theme-green tbody tr.selected td{background:#dfede2}
+
+/* Periodic maintenance indicators open filtered record tables in a centered dialog. */
+.maintenance-page .kpi-button{width:100%;font:inherit;color:inherit;text-align:right;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.maintenance-page .kpi-button:hover,.maintenance-page .kpi-button:focus-visible{border-color:#9bb9a2;box-shadow:0 5px 14px rgba(31,81,56,.12);transform:translateY(-1px);outline:none}
+.maintenance-page .kpi-body{display:block}
+.maintenance-page .kpi-label,.maintenance-page .kpi-value,.maintenance-page .kpi-meta{display:block}
+.maintenance-page .periodic-indicator-dialog{width:min(1320px,calc(100vw - 32px));max-width:none;max-height:90vh}
+.maintenance-page .periodic-indicator-dialog>.panel{max-height:90vh;overflow:auto}
+.maintenance-page .periodic-indicator-dialog .panel-head{align-items:flex-start}
+.maintenance-page .periodic-indicator-dialog .panel-head p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.maintenance-page .periodic-indicator-dialog .table-wrap{max-height:62vh}
+.maintenance-page .periodic-indicator-dialog #periodicIndicatorTable{min-width:1200px}
+.maintenance-page .indicator-pagination{display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px}
+@media(max-width:680px){.maintenance-page .periodic-indicator-dialog{width:calc(100vw - 16px);max-height:94vh}.maintenance-page .periodic-indicator-dialog>.panel{max-height:94vh}.maintenance-page .periodic-indicator-dialog .table-wrap{max-height:68vh}}
