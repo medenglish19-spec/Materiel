@@ -5,7 +5,7 @@
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading"><h2>سجل الصيانة</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div></div>
-    <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button></div>
+    <div class="hero-actions"><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><button class="m-btn warning" type="button" id="openUnapprovedModels">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة ({{ due_count }})</a><a class="m-btn" href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل ({{ unrecorded_count }})</a><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a></div>
   </div>
   <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
 
@@ -35,7 +35,7 @@
 
   <section class="panel">
     <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>يمكن حذف سجل الصيانة المحدد بعد تأكيد التحذير.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
-    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><button class="m-btn warning" type="button" id="openUnapprovedModels">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة ({{ due_count }})</a><a class="m-btn" href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل ({{ unrecorded_count }})</a></div></div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div></div></div>
     <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
       <section class="panel">
         <div class="panel-head"><div><h3 id="unapprovedModelsTitle">طرازات بلا خطة صيانة معتمدة</h3><p>اختر طرازًا للانتقال مباشرة إلى إعداد خطة صيانة له.</p></div><button class="m-btn dialog-close" type="button" id="closeUnapprovedModels" aria-label="إغلاق">×</button></div>

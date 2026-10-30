@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block title %}الصيانة الدورية{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-maintenance-shortcuts-20261030">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=periodic-maintenance-shortcuts-row-20261030">{% endblock %}
 {% block content %}
-<div class="maintenance-page" dir="rtl">
+<div class="maintenance-page maintenance-periodic-page" dir="rtl">
   <div class="page-top"><div class="page-heading"><h2>الصيانة الدورية</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">الصيانة الدورية</span></div></div><div class="hero-actions"><a class="m-btn" href="/maintenance/records">▤ &nbsp;سجل الصيانة</a><a class="m-btn primary" href="/maintenance/records">＋ &nbsp;تسجيل صيانة</a><button class="m-btn warning" type="button" id="openPeriodicUnapprovedModels" aria-haspopup="dialog">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة ({{ counts.danger + counts.warning }})</a><a class="m-btn" href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل ({{ counts.neutral }})</a></div></div>
   <nav class="module-tabs" aria-label="وحدة الصيانة"><a class="active" href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
   <dialog class="maintenance-model-dialog" id="periodicUnapprovedModelsDialog" aria-labelledby="periodicUnapprovedModelsTitle">

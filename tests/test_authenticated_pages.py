@@ -381,10 +381,30 @@ def test_maintenance_records_labels_equipment_number_as_registration(pages):
     assert "رقم العتاد" not in response.text
 
 
+def test_maintenance_records_actions_are_in_header_without_duplicates(pages):
+    client, _ = pages
+    response = client.get("/maintenance/records")
+    assert response.status_code == 200
+
+    body = response.text
+    header_actions = body.split('<div class="hero-actions">', 1)[1].split("</div>", 1)[0]
+    assert "＋ &nbsp;تسجيل صيانة جديدة" in header_actions
+    assert 'id="openUnapprovedModels"' in header_actions
+    assert 'href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة (' in header_actions
+    assert 'href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل (' in header_actions
+    assert body.count('type="button" data-open-record-dialog') == 1
+
+    search_toolbar = body.split('<div class="toolbar-card">', 1)[1].split("<dialog", 1)[0]
+    assert "recordsSearch" in search_toolbar
+    assert "data-open-record-dialog" not in search_toolbar
+    assert 'id="openUnapprovedModels"' not in search_toolbar
+
+
 def test_periodic_dashboard_shows_maintenance_shortcuts_in_header(pages):
     client, _ = pages
     response = client.get("/maintenance/periodic")
     assert response.status_code == 200
+    assert 'class="maintenance-page maintenance-periodic-page"' in response.text
     header_actions = response.text.split('<div class="hero-actions">', 1)[1].split("</div>", 1)[0]
     assert "＋ &nbsp;تسجيل صيانة" in header_actions
     assert 'id="openPeriodicUnapprovedModels"' in header_actions
