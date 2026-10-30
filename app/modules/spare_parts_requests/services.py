@@ -5,6 +5,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.faults_repairs.models import Fault, Repair, SparePart
+from app.modules.equipment.models import Equipment
 from .models import SparePartRequest, SparePartRequestItem
 from .schemas import SparePartRequestCreate, SparePartRequestItemCreate, SparePartRequestItemUpdate, SparePartRequestStatusUpdate, SparePartRequestUpdate
 from app.modules.spare_parts_movements.models import SparePartMovementDocument, SparePartMovementItem
@@ -208,6 +209,55 @@ def _item_identity(asset_type: str, part_id: int | None, part_name: str | None):
     return (asset_type, *identity)
 
 
+def _ensure_part_unique_for_model(
+    db: Session,
+    *,
+    equipment_id: int | None,
+    asset_type: str,
+    part_id: int | None,
+    part_name: str | None,
+    exclude_request_id: int | None = None,
+):
+    """Prevent the same spare part being requested twice for one model.
+
+    A fault/repair source may have several requests for different parts. The
+    uniqueness scope is a pending request + equipment model + part identity.
+    """
+    if asset_type != "part" or not equipment_id:
+        return
+    equipment = db.get(Equipment, equipment_id)
+    model_id = equipment.equipment_model_id if equipment else None
+    if not model_id:
+        return
+
+    query = (
+        db.query(SparePartRequestItem, SparePartRequest)
+        .join(SparePartRequest, SparePartRequest.id == SparePartRequestItem.request_id)
+        .join(Equipment, Equipment.id == SparePartRequest.equipment_id)
+        .filter(
+            Equipment.equipment_model_id == model_id,
+            SparePartRequestItem.asset_type == "part",
+            SparePartRequest.status == "pending",
+        )
+    )
+    if exclude_request_id is not None:
+        query = query.filter(SparePartRequest.id != exclude_request_id)
+
+    normalized_name = " ".join((part_name or "").casefold().split())
+    for existing_item, existing_request in query.all():
+        same_part = (
+            existing_item.spare_part_id == part_id
+            if part_id and existing_item.spare_part_id
+            else bool(normalized_name)
+            and " ".join((existing_item.part_name or "").casefold().split()) == normalized_name
+        )
+        if same_part:
+            raise ValueError(
+                f"القطعة «{part_name or 'غير مسماة'}» للطراز نفسه موجودة في طلب الغيار "
+                f"{existing_request.request_number}. ألغِ الطلب القائم أو احذفه قبل إنشاء طلب آخر."
+            )
+
+
 def serialize_item(item):
     # تاريخ الاستلام واحد للطلب كله، فهو خاصية الطلب لا البند: لذلك يُعرض على
     # كل بنوده حتى الذي لم يُستلم بعد. والتاريخ يُمسح من الترويسة عند التراجع
@@ -257,12 +307,6 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     number = _request_number(data.request_number)
     _check_request_number_free(db, number)
     _, equipment_id, source_date = _source(db, data.source_type, data.source_id)
-    existing = db.query(SparePartRequest).filter(
-        SparePartRequest.fault_id == (data.source_id if data.source_type == "fault" else None),
-        SparePartRequest.repair_id == (data.source_id if data.source_type == "repair" else None),
-    ).first()
-    if existing:
-        raise ValueError(f"هذا المصدر مرتبط بطلب الغيار {existing.request_number} بالفعل؛ افتح الطلب القائم لتعديله.")
     _check_request_date(data.request_date, source_date)
 
     # تاريخ استلام واحد للطلب: إمّا على الطلب، أو على بنوده فكلها تتطابق.
@@ -298,6 +342,14 @@ def create_request(db: Session, data: SparePartRequestCreate, user_id: int | Non
     identities = [_item_identity(item.asset_type, part_id, part_name) for item, (part_id, part_name) in zip(data.items, resolved)]
     if len(identities) != len(set(identities)):
         raise ValueError("لا يمكن تكرار قطعة الغيار داخل الطلب")
+    for item, (part_id, part_name) in zip(data.items, resolved):
+        _ensure_part_unique_for_model(
+            db,
+            equipment_id=equipment_id,
+            asset_type=item.asset_type,
+            part_id=part_id,
+            part_name=part_name,
+        )
 
     obj = SparePartRequest(
         request_number=number,
@@ -425,6 +477,14 @@ def add_item(db: Session, request_id: int, data: SparePartRequestItemCreate):
                 if data.asset_type == "part"
                 else "الصنف موجود بالفعل في الطلب"
             )
+    _ensure_part_unique_for_model(
+        db,
+        equipment_id=request.equipment_id,
+        asset_type=data.asset_type,
+        part_id=part_id,
+        part_name=part_name,
+        exclude_request_id=request.id,
+    )
     current_recipient = next((item.recipient for item in request.items if item.recipient), None)
     current_supplier = next((item.supplier_institution for item in request.items if item.supplier_institution), None)
     new_recipient = (data.recipient or current_recipient or "").strip() or None
@@ -504,6 +564,14 @@ def update_item(db: Session, item: SparePartRequestItem, data: SparePartRequestI
                     if values.get("asset_type", item.asset_type) == "part"
                     else "الصنف موجود بالفعل في الطلب"
                 )
+        _ensure_part_unique_for_model(
+            db,
+            equipment_id=item.request.equipment_id,
+            asset_type=asset_type,
+            part_id=part_id,
+            part_name=part_name,
+            exclude_request_id=item.request_id,
+        )
         values["spare_part_id"] = part_id
         values["part_name"] = part_name
     if "received_date" in values:
@@ -726,10 +794,9 @@ def received_register(db: Session):
 
 def source_options(db: Session, source_type: str):
     if source_type == "fault":
-        used_fault_ids = db.query(SparePartRequest.fault_id).filter(SparePartRequest.fault_id.is_not(None))
-        rows = db.query(Fault).options(joinedload(Fault.equipment)).filter(
-            ~Fault.id.in_(used_fault_ids)
-        ).order_by(Fault.reported_date.desc(), Fault.id.desc()).limit(200).all()
+        rows = db.query(Fault).options(joinedload(Fault.equipment)).order_by(
+            Fault.reported_date.desc(), Fault.id.desc()
+        ).limit(200).all()
         return [{
             "id": x.id,
             "date": x.reported_date.isoformat(),
@@ -737,10 +804,9 @@ def source_options(db: Session, source_type: str):
             "registration_number": x.equipment.registration_number if x.equipment else "—",
         } for x in rows]
 
-    used_repair_ids = db.query(SparePartRequest.repair_id).filter(SparePartRequest.repair_id.is_not(None))
-    rows = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).filter(
-        ~Repair.id.in_(used_repair_ids)
-    ).order_by(Repair.repair_date.desc(), Repair.id.desc()).limit(200).all()
+    rows = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).order_by(
+        Repair.repair_date.desc(), Repair.id.desc()
+    ).limit(200).all()
     return [{
         "id": x.id,
         "date": x.repair_date.isoformat(),

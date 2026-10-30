@@ -112,6 +112,20 @@ def _seed(db):
     db.add(equipment)
     db.flush()
 
+    other_model = EquipmentModel(name="طراز اختبار آخر", equipment_type_id=eq_type.id)
+    db.add(other_model)
+    db.flush()
+    other_equipment = Equipment(
+        asset_code="SP-2",
+        registration_number="333-TEST",
+        equipment_type_id=eq_type.id,
+        equipment_model_id=other_model.id,
+        technical_condition="ready",
+        operational_status="available",
+    )
+    db.add(other_equipment)
+    db.flush()
+
     fault = Fault(
         equipment_id=equipment.id,
         reported_date=date.today(),
@@ -125,12 +139,31 @@ def _seed(db):
     db.add(fault)
     db.flush()
 
-    # عطل مستقل لكل اختبار: الطلب مرتبط بمصدره، ولا يُقبل أكثر من طلب غيار
-    # واحد لكل عطل.
+    # مصدر مستقل لكل اختبار؛ ويمكن أن يرتبط المصدر نفسه بأكثر من طلب.
     spare_faults = []
-    for n in range(15):
+    for n in range(17):
+        # عزل سيناريوهات الاختبارات على طرازات مستقلة؛ المصدران 14 و15
+        # يشتركان بالطراز عمداً لاختبار منع تكرار القطعة للطراز نفسه.
+        fault_equipment_id = equipment.id
+        if n not in {8, 14, 15}:
+            isolated_model = EquipmentModel(
+                name=f"طراز اختبار {n}", equipment_type_id=eq_type.id
+            )
+            db.add(isolated_model)
+            db.flush()
+            isolated_equipment = Equipment(
+                asset_code=f"SP-T{n}",
+                registration_number=f"TEST-{n}",
+                equipment_type_id=eq_type.id,
+                equipment_model_id=isolated_model.id,
+                technical_condition="ready",
+                operational_status="available",
+            )
+            db.add(isolated_equipment)
+            db.flush()
+            fault_equipment_id = isolated_equipment.id
         extra = Fault(
-            equipment_id=equipment.id,
+            equipment_id=fault_equipment_id,
             reported_date=date.today(),
             fault_type=f"عطل اختبار {n}",
             description="وصف",
@@ -143,6 +176,19 @@ def _seed(db):
         db.flush()
         spare_faults.append(extra.id)
 
+    other_model_fault = Fault(
+        equipment_id=other_equipment.id,
+        reported_date=date.today(),
+        fault_type="عطل طراز آخر",
+        description="وصف",
+        severity="low",
+        status="open",
+        exploitation_impact="limited",
+        created_by_id=user.id,
+    )
+    db.add(other_model_fault)
+    db.flush()
+
     repair = Repair(
         fault_id=spare_faults[7],
         repair_date=date.today(),
@@ -154,7 +200,7 @@ def _seed(db):
     db.add(repair)
     db.flush()
     undo_repair = Repair(
-        fault_id=spare_faults[7],
+        fault_id=spare_faults[16],
         repair_date=date.today(),
         action_taken="إصلاح إضافي للاختبار",
         workshop_type="internal",
@@ -196,6 +242,7 @@ def _seed(db):
         "part": part.id,
         "fault": fault.id,
         "spare_faults": spare_faults,
+        "other_model_fault": other_model_fault.id,
         "repair": repair.id,
         "undo_repair": undo_repair.id,
         "need_repair": need_repair.id,
@@ -313,39 +360,80 @@ def test_unknown_part_code_is_rejected_without_saving_request(client):
     assert "غير مسجل" in response.json()["detail"]
 
 
-def test_sources_already_linked_to_requests_are_not_offered_again(client):
+def test_same_source_allows_other_parts_but_same_part_is_unique_per_model(client):
     page, ids = client
     source_id = ids["spare_faults"][14]
+    first = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-PART-MODEL-1",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": source_id,
+            "items": [{"part_name": "قطعة اختبار أ", "requested_quantity": 1}],
+        },
+    )
+    assert first.status_code == 201, first.text
+
     options = page.get("/api/spare-parts-requests/sources/fault")
     assert options.status_code == 200
     assert any(option["id"] == source_id for option in options.json())
 
-    created = page.post(
+    different_part_same_source = page.post(
         "/api/spare-parts-requests",
         json={
-            "request_number": "SR-DUP-SOURCE-1",
+            "request_number": "SR-PART-MODEL-2",
             "request_date": date.today().isoformat(),
             "source_type": "fault",
             "source_id": source_id,
-            "items": [{"part_name": "قطعة اختبار", "requested_quantity": 1}],
+            "items": [{"part_name": "قطعة اختبار ب", "requested_quantity": 1}],
         },
     )
-    assert created.status_code == 201, created.text
+    assert different_part_same_source.status_code == 201, different_part_same_source.text
 
-    options = page.get("/api/spare-parts-requests/sources/fault")
-    assert all(option["id"] != source_id for option in options.json())
-    duplicate = page.post(
+    same_part_same_model = page.post(
         "/api/spare-parts-requests",
         json={
-            "request_number": "SR-DUP-SOURCE-2",
+            "request_number": "SR-PART-MODEL-3",
             "request_date": date.today().isoformat(),
             "source_type": "fault",
-            "source_id": source_id,
-            "items": [{"part_name": "قطعة اختبار", "requested_quantity": 1}],
+            "source_id": ids["spare_faults"][15],
+            "items": [{"part_name": "قطعة اختبار أ", "requested_quantity": 1}],
         },
     )
-    assert duplicate.status_code == 400
-    assert "SR-DUP-SOURCE-1" in duplicate.json()["detail"]
+    assert same_part_same_model.status_code == 400
+    detail = same_part_same_model.json()["detail"]
+    assert "SR-PART-MODEL-1" in detail
+    assert "ألغِ الطلب القائم أو احذفه" in detail
+
+    cancelled = page.patch(
+        f"/api/spare-parts-requests/{first.json()['id']}/status",
+        json={"status": "cancelled"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    after_cancellation = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-PART-AFTER-CANCEL",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": ids["spare_faults"][15],
+            "items": [{"part_name": "قطعة اختبار أ", "requested_quantity": 1}],
+        },
+    )
+    assert after_cancellation.status_code == 201, after_cancellation.text
+
+    same_part_other_model = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "SR-PART-OTHER-MODEL",
+            "request_date": date.today().isoformat(),
+            "source_type": "fault",
+            "source_id": ids["other_model_fault"],
+            "items": [{"part_name": "قطعة اختبار أ", "requested_quantity": 1}],
+        },
+    )
+    assert same_part_other_model.status_code == 201, same_part_other_model.text
 
 
 def test_the_global_editor_does_not_manage_this_area(client):
@@ -1001,7 +1089,7 @@ def test_stale_received_request_is_reconciled_in_requests_and_faults_pages(clien
             "request_date": date.today().isoformat(),
             "source_type": "repair",
             "source_id": ids["repair"],
-            "items": [{"spare_part_id": ids["part"], "requested_quantity": 2}],
+            "items": [{"part_name": "قطعة اختبار حالة قديمة", "requested_quantity": 2}],
         },
     )
     assert created.status_code == 201, created.text
