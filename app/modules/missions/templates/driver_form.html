@@ -16,7 +16,7 @@
       <label>صنف الرخصة *<input name="license_class" maxlength="50" value="{{ driver.license_class }}" required></label>
       <label>تاريخ الإصدار<input type="date" name="license_issue_date" value="{{ driver.license_issue_date.isoformat() if driver.license_issue_date else '' }}"></label>
       <label>تاريخ نهاية الصلاحية<input type="date" name="license_expiry_date" value="{{ driver.license_expiry_date.isoformat() if driver.license_expiry_date else '' }}"></label>
-      <label>المركز<input name="center" maxlength="120" value="{{ driver.center or '' }}"></label>
+      <label>الرتبة (درجة الاحتراف في السياقة)<input name="driving_rank" maxlength="120" value="{{ driver.driving_rank or '' }}" placeholder="أدخل رتبة السائق"></label>
       <label>التعيين<select name="assigned_equipment_id"><option value="">غير معيّن</option>{% for item in equipment %}<option value="{{ item.id }}" {% if driver.assigned_equipment_id == item.id %}selected{% endif %} {% if not item.equipment_model or not item.equipment_model.requires_driver %}disabled{% endif %}>{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select></label>
       <label class="wide">ملاحظات<input name="notes" value="{{ driver.notes or '' }}"></label>
       <button type="submit" data-em-action="save">حفظ التعديلات</button>

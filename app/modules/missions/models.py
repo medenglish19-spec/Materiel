@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, Column, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
 
@@ -60,7 +60,8 @@ class Driver(Base, AuditMixin):
     employee_number = Column(String(50), nullable=False)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    center = Column(String(120), nullable=True)
+    driving_rank = Column("center", String(120), nullable=True)
+    center = synonym("driving_rank")  # legacy attribute; database column is preserved
     license_class = Column(String(50), nullable=False)
     license_issue_date = Column(Date, nullable=True)
     license_expiry_date = Column(Date, nullable=True)
@@ -78,12 +79,3 @@ class Driver(Base, AuditMixin):
     is_active = Column(Boolean, nullable=False, default=True, server_default="1")
 
     assigned_equipment = relationship("Equipment")
-
-
-class DriverSystemSetting(Base, AuditMixin):
-    __tablename__ = "driver_system_settings"
-
-    id = Column(Integer, primary_key=True)
-    center_column_label = Column(
-        String(100), nullable=False, default="المركز", server_default="المركز"
-    )

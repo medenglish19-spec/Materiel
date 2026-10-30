@@ -23,7 +23,6 @@ from app.modules.missions.router import (
     driver_history_page,
     edit_driver_page,
     missions_page,
-    update_center_column_label,
 )
 from app.modules.users.models import User
 from web import main
@@ -77,7 +76,7 @@ def _driver_data(employee_number: str, equipment_id: int | None = None):
         "employee_number": employee_number,
         "first_name": "أحمد",
         "last_name": "السائق",
-        "center": "المركز الأول",
+        "driving_rank": "المحترف الأول",
         "license_class": "C",
         "assigned_equipment_id": equipment_id,
         "notes": "اختبار",
@@ -121,7 +120,7 @@ def test_driver_can_be_edited_and_deactivated_without_deleting_history(db):
         driver.id,
         {
             **_driver_data("EMP-EDIT-2"),
-            "center": "مركز جديد",
+            "driving_rank": "محترف متقدم",
             "notes": "ملاحظة محدثة",
         },
     )
@@ -129,7 +128,7 @@ def test_driver_can_be_edited_and_deactivated_without_deleting_history(db):
 
     stored = db.query(Driver).filter(Driver.id == driver.id).one()
     assert updated.employee_number == "EMP-EDIT-2"
-    assert stored.center == "مركز جديد"
+    assert stored.driving_rank == "محترف متقدم"
     assert stored.notes == "ملاحظة محدثة"
     assert stored.is_active is False
     assert services.get_driver(db, driver.id) is not None
@@ -358,17 +357,10 @@ def test_driver_mission_history_uses_relationship_and_unambiguous_legacy_names(d
     assert "110.0" in response.body.decode("utf-8")
 
 
-def test_center_header_label_is_shared_and_does_not_change_center_values(db):
+def test_driver_rank_has_a_fixed_label_and_preserves_the_rank_value(db):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-LABEL")
-    unassigned_equipment = _equipment(db, requires_driver=True, registration_number="DRV-UNASSIGNED")
     driver = services.create_driver(db, _driver_data("EMP-LABEL", equipment.id))
-    admin = User(
-        username="admin",
-        full_name="مدير النظام",
-        hashed_password="unused",
-        role="admin",
-    )
-    update_response = update_center_column_label("الوحدة", db, admin)
+    admin = User(username="admin", full_name="مدير النظام", hashed_password="unused", role="admin")
     response = drivers_page(
         _request("/missions/drivers"),
         db,
@@ -382,32 +374,18 @@ def test_center_header_label_is_shared_and_does_not_change_center_values(db):
     )
 
     assert response.status_code == 200
-    assert update_response.status_code == 303
-    assert "الوحدة" in response.body.decode("utf-8")
-    assert "DRV-LABEL" in response.body.decode("utf-8")
-    assert f"({1})</b>" in response.body.decode("utf-8")
-    assert f'data-add-driver-for="{unassigned_equipment.id}"' in response.body.decode("utf-8")
+    html = response.body.decode("utf-8")
+    assert "الرتبة" in html
+    assert "درجة الاحتراف في السياقة" in html
+    assert "تغيير تسمية عمود المركز" not in html
+    assert "DRV-LABEL" in html
     assert "DRV-LABEL" in edit_response.body.decode("utf-8")
-    assert db.query(Driver).filter(Driver.id == driver.id).one().center == "المركز الأول"
-    assert services.get_driver_system_setting(db).center_column_label == "الوحدة"
+    stored = db.query(Driver).filter(Driver.id == driver.id).one()
+    assert stored.driving_rank == "المحترف الأول"
+    assert stored.center == "المحترف الأول"  # legacy ORM attribute remains compatible
 
 
-def test_only_admin_can_change_the_center_column_label(db):
-    viewer = User(
-        username="viewer",
-        full_name="قارئ",
-        hashed_password="unused",
-        role="viewer",
-    )
-
-    with pytest.raises(HTTPException) as error:
-        update_center_column_label("الوحدة", db, viewer)
-
-    assert error.value.status_code == 403
-    assert services.get_driver_system_setting(db).center_column_label == "المركز"
-
-
-def test_driver_header_sequence_is_rendered_and_label_editor_is_admin_only(db):
+def test_driver_header_sequence_uses_a_fixed_rank_label(db):
     services.create_driver(db, _driver_data("EMP-VIEW"))
     services.create_driver(
         db,
@@ -424,7 +402,9 @@ def test_driver_header_sequence_is_rendered_and_label_editor_is_admin_only(db):
     )
     html = response.body.decode("utf-8")
 
-    assert "<th>الرقم</th>" in html
+    assert re.search(r"<th[^>]*>الرقم</th>", html)
+    assert re.search(r"<th[^>]*>الرتبة</th>", html)
+    assert "الرتبة (درجة الاحتراف في السياقة)" in html
     assert "رقم الترتيب" not in html
     assert "EMP-VIEW" not in html
     assert ">1</td>" in html
@@ -432,7 +412,7 @@ def test_driver_header_sequence_is_rendered_and_label_editor_is_admin_only(db):
     assert "تغيير تسمية عمود المركز" not in html
 
 
-def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
+def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-HTTP")
     unassigned_equipment = _equipment(db, requires_driver=True, registration_number="DRV-WAITING")
     admin = User(
@@ -458,7 +438,7 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
                 "first_name": "سائق",
                 "last_name": "اختبار",
                 "license_class": "C",
-                "center": "مركز أ",
+                "driving_rank": "محترف أ",
                 "assigned_equipment_id": str(equipment.id),
             },
             follow_redirects=False,
@@ -503,7 +483,7 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
         assert mission.driver_name == "سائق اختبار"
         mission_page = client.get("/missions")
         assert "DRV-HTTP" in mission_page.text
-        assert "مركز أ - سائق اختبار" in mission_page.text
+        assert "محترف أ - سائق اختبار" in mission_page.text
         records_page = client.get("/missions/records")
         assert records_page.status_code == 200
         assert "<th>العتاد</th><th>رقم التسجيل</th><th>السائق</th>" in records_page.text
@@ -520,10 +500,10 @@ def test_driver_page_and_admin_label_setting_over_http(db, monkeypatch):
         assert "DRV-HTTP" in page.text
         assert "سائق" in page.text
 
-        renamed = client.post(
+        removed_setting = client.post(
             "/missions/drivers/settings/center-column-label",
             data={"center_column_label": "الفرقة"},
             follow_redirects=False,
         )
-        assert renamed.status_code == 303
-        assert "الفرقة" in client.get("/missions/drivers").text
+        assert removed_setting.status_code == 404
+        assert "الرتبة" in client.get("/missions/drivers").text

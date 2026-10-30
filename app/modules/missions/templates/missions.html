@@ -71,16 +71,16 @@
     <section class="mission-detail-section" data-detail-panel="{{ status }}" hidden>
       <div class="mission-detail-table-wrap" data-mt-region><table class="mission-detail-table"><thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th></tr></thead><tbody>
         {% for row in mission_status_rows if row.status == status %}
-        <tr><td>{{ row.equipment.equipment_model.name if row.equipment.equipment_model else (row.equipment.equipment_type.name if row.equipment.equipment_type else "—") }}</td><td>{{ row.equipment.registration_number or "—" }}</td><td>{{ (row.mission.driver.center ~ " - " if row.mission.driver and row.mission.driver.center else "") ~ (row.mission.driver.first_name ~ " " ~ row.mission.driver.last_name if row.mission.driver else row.mission.driver_name or "—") }}</td><td>{{ row.mission.purpose or "—" }}</td><td>{{ row.mission.destination or "—" }}</td><td>{{ row.mission.start_date }}</td><td>{{ row.mission.end_date or "—" }}</td></tr>
+        <tr><td>{{ row.equipment.equipment_model.name if row.equipment.equipment_model else (row.equipment.equipment_type.name if row.equipment.equipment_type else "—") }}</td><td>{{ row.equipment.registration_number or "—" }}</td><td>{{ (row.mission.driver.driving_rank ~ " - " if row.mission.driver and row.mission.driver.driving_rank else "") ~ (row.mission.driver.first_name ~ " " ~ row.mission.driver.last_name if row.mission.driver else row.mission.driver_name or "—") }}</td><td>{{ row.mission.purpose or "—" }}</td><td>{{ row.mission.destination or "—" }}</td><td>{{ row.mission.start_date }}</td><td>{{ row.mission.end_date or "—" }}</td></tr>
         {% else %}<tr><td class="mission-detail-empty" colspan="7">لا توجد مهمات {{ label }}.</td></tr>{% endfor %}
       </tbody></table></div>
     </section>
     {% endfor %}
     {% for status, label, drivers_list in [("expired", "منتهية", license_expiry_alerts.expired), ("expiring", "تنتهي خلال 30 يومًا", license_expiry_alerts.expiring_soon)] %}
     <section class="mission-detail-section" data-detail-panel="{{ status }}" hidden>
-      <div class="mission-detail-table-wrap" data-mt-region><table class="mission-detail-table"><thead><tr><th>السائق</th><th>المركز</th><th>صنف الرخصة</th><th>تاريخ نهاية الصلاحية</th><th>الحالة</th></tr></thead><tbody>
+      <div class="mission-detail-table-wrap" data-mt-region><table class="mission-detail-table"><thead><tr><th>السائق</th><th>الرتبة</th><th>صنف الرخصة</th><th>تاريخ نهاية الصلاحية</th><th>الحالة</th></tr></thead><tbody>
         {% for driver in drivers_list %}
-        <tr><td><a href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }} {{ driver.last_name }}</a></td><td>{{ driver.center or "—" }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_expiry_date }}</td><td>{% if status == "expired" %}<span class="mission-license-state expired">منتهية</span>{% else %}<span class="mission-license-state expiring">تنتهي خلال {{ (driver.license_expiry_date - today).days }} يومًا</span>{% endif %}</td></tr>
+        <tr><td><a href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }} {{ driver.last_name }}</a></td><td>{{ driver.driving_rank or "—" }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_expiry_date }}</td><td>{% if status == "expired" %}<span class="mission-license-state expired">منتهية</span>{% else %}<span class="mission-license-state expiring">تنتهي خلال {{ (driver.license_expiry_date - today).days }} يومًا</span>{% endif %}</td></tr>
         {% else %}<tr><td class="mission-detail-empty" colspan="5">لا توجد رخص {{ label }}.</td></tr>{% endfor %}
       </tbody></table></div>
     </section>
@@ -91,7 +91,7 @@
     <p class="mission-dialog-hint">أدخل بيانات المهمة الأساسية وقراءات العداد إن توفرت.</p>
     <form method="post" action="/missions" class="mission-form" data-em-root>
       <div class="mission-field"><label for="missionEquipment">العتاد *</label><select id="missionEquipment" name="equipment_id" required><option value="">اختر العتاد</option>{% for e in equipment %}<option value="{{ e.id }}">{{ e.equipment_model.name ~ ' - ' if e.equipment_model else '' }}{{ e.registration_number or e.vin or e.asset_code }}</option>{% endfor %}</select></div>
-      <div class="mission-field"><label for="missionDriverId">السائق المسجل</label><select id="missionDriverId" name="driver_id"><option value="">غير مسجل</option>{% for driver in drivers %}<option value="{{ driver.id }}" data-equipment-id="{{ driver.assigned_equipment_id }}">{{ driver.center ~ ' - ' if driver.center else '' }}{{ driver.first_name }} {{ driver.last_name }}</option>{% endfor %}</select></div>
+      <div class="mission-field"><label for="missionDriverId">السائق المسجل</label><select id="missionDriverId" name="driver_id"><option value="">غير مسجل</option>{% for driver in drivers %}<option value="{{ driver.id }}" data-equipment-id="{{ driver.assigned_equipment_id }}">{{ driver.driving_rank ~ ' - ' if driver.driving_rank else '' }}{{ driver.first_name }} {{ driver.last_name }}</option>{% endfor %}</select></div>
       <div class="mission-field"><label for="missionDriver">اسم سائق غير مسجل (اختياري)</label><input id="missionDriver" name="driver_name" placeholder="اسم السائق"></div>
       <div class="mission-field"><label for="missionDocument">رقم المهمة</label><input id="missionDocument" name="mission_document" placeholder="رقم المهمة"></div>
       <div class="mission-field"><label for="missionPurpose">الغرض</label><input id="missionPurpose" name="purpose" placeholder="الغرض من المهمة"></div>

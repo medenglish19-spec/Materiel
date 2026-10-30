@@ -4,36 +4,10 @@ from uuid import uuid4
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment.models import Equipment
-from app.modules.missions.models import Driver, DriverSystemSetting, Mission
+from app.modules.missions.models import Driver, Mission
 from app.modules.meter_readings.services import sync_current_meter, validate_meter_observation
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.source_values import source_reference
-
-
-def get_driver_system_setting(db: Session) -> DriverSystemSetting:
-    setting = db.query(DriverSystemSetting).filter(DriverSystemSetting.id == 1).first()
-    if setting is None:
-        setting = DriverSystemSetting(id=1, center_column_label="المركز")
-        db.add(setting)
-        db.commit()
-        db.refresh(setting)
-    return setting
-
-
-def set_center_column_label(
-    db: Session, label: str, user_id: int | None = None
-) -> DriverSystemSetting:
-    value = (label or "").strip()
-    if not value:
-        raise ValueError("تسمية العمود مطلوبة")
-    if len(value) > 100:
-        raise ValueError("تسمية العمود تتجاوز الحد الأقصى (100 حرف)")
-    setting = get_driver_system_setting(db)
-    setting.center_column_label = value
-    setting.updated_by_id = user_id
-    db.commit()
-    db.refresh(setting)
-    return setting
 
 
 def list_drivers(db: Session):
@@ -84,7 +58,7 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
         "employee_number": employee_number,
         "first_name": (data.get("first_name") or "").strip(),
         "last_name": (data.get("last_name") or "").strip(),
-        "center": (data.get("center") or "").strip() or None,
+        "driving_rank": (data.get("driving_rank") or data.get("center") or "").strip() or None,
         "license_class": (data.get("license_class") or "").strip(),
         "license_issue_date": data.get("license_issue_date"),
         "license_expiry_date": data.get("license_expiry_date"),
@@ -102,8 +76,8 @@ def _driver_values(db: Session, data: dict, driver_id: int | None = None) -> dic
             raise ValueError(f"{label} مطلوب")
         if len(values[field]) > max_length:
             raise ValueError(f"{label} يتجاوز الحد الأقصى ({max_length} حرفًا)")
-    if values["center"] and len(values["center"]) > 120:
-        raise ValueError("المركز يتجاوز الحد الأقصى (120 حرفًا)")
+    if values["driving_rank"] and len(values["driving_rank"]) > 120:
+        raise ValueError("الرتبة تتجاوز الحد الأقصى (120 حرفًا)")
     if values["license_issue_date"] and values["license_issue_date"] > date.today():
         raise ValueError("تاريخ إصدار الرخصة لا يمكن أن يكون في المستقبل")
     if (

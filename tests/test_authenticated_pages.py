@@ -372,6 +372,15 @@ def test_spare_parts_catalog_can_delete_an_unused_part_from_its_row(pages):
     assert "PAGE-DELETE-001" not in client.get("/spare-parts/catalog").text
 
 
+def test_maintenance_records_labels_equipment_number_as_registration(pages):
+    client, _ = pages
+    response = client.get("/maintenance/records")
+    assert response.status_code == 200
+    header = response.text.split('id="recordsTable"', 1)[1].split("</thead>", 1)[0]
+    assert "رقم التسجيل" in header
+    assert "رقم العتاد" not in response.text
+
+
 def test_spare_parts_home_removes_duplicate_workflow_cards_and_bolds_indicators(pages):
     client, _ = pages
     response = client.get("/spare-parts")

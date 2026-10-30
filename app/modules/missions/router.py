@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
 from app.core.dependencies import get_current_user
-from app.core.permissions import Role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
@@ -89,7 +88,6 @@ def _unassigned_driver_equipment(db: Session):
 
 @router.get("/missions/drivers", response_class=HTMLResponse)
 def drivers_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    setting = services.get_driver_system_setting(db)
     drivers = services.list_drivers(db)
     return templates.TemplateResponse(
         request=request,
@@ -100,7 +98,6 @@ def drivers_page(request: Request, db: Session = Depends(get_db), current_user: 
             "drivers": drivers,
             "equipment": _driver_equipment_options(db),
             "unassigned_equipment": _unassigned_driver_equipment(db),
-            "center_column_label": setting.center_column_label,
         },
     )
 
@@ -129,30 +126,13 @@ def driver_history_page(
     )
 
 
-@router.post("/missions/drivers/settings/center-column-label")
-def update_center_column_label(
-    center_column_label: str = Form(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if current_user.role != Role.ADMIN.value:
-        raise HTTPException(403, "تغيير تسمية العمود متاح لمدير النظام فقط")
-    try:
-        services.set_center_column_label(
-            db, center_column_label, user_id=current_user.id
-        )
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(400, str(exc))
-    return RedirectResponse("/missions/drivers", 303)
-
-
 @router.post("/missions/drivers")
 def create_driver(
     employee_number: str = Form(""),
     first_name: str = Form(...),
     last_name: str = Form(...),
-    center: str = Form(""),
+    driving_rank: str = Form(""),
+    center: str | None = Form(None),
     license_class: str = Form(...),
     license_issue_date: date | None = Form(None),
     license_expiry_date: date | None = Form(None),
@@ -166,7 +146,7 @@ def create_driver(
             "employee_number": employee_number,
             "first_name": first_name,
             "last_name": last_name,
-            "center": center,
+            "driving_rank": driving_rank or center or "",
             "license_class": license_class,
             "license_issue_date": license_issue_date,
             "license_expiry_date": license_expiry_date,
@@ -213,7 +193,8 @@ def update_driver(
     employee_number: str = Form(""),
     first_name: str = Form(...),
     last_name: str = Form(...),
-    center: str = Form(""),
+    driving_rank: str = Form(""),
+    center: str | None = Form(None),
     license_class: str = Form(...),
     license_issue_date: date | None = Form(None),
     license_expiry_date: date | None = Form(None),
@@ -227,7 +208,7 @@ def update_driver(
             "employee_number": employee_number,
             "first_name": first_name,
             "last_name": last_name,
-            "center": center,
+            "driving_rank": driving_rank or center or "",
             "license_class": license_class,
             "license_issue_date": license_issue_date,
             "license_expiry_date": license_expiry_date,
