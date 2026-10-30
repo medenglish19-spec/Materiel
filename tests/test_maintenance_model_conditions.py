@@ -972,7 +972,6 @@ def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
 
     filtered = client.get("/maintenance/periodic", params={"state": "بلا سجل"})
     assert filtered.status_code == 200
-    assert 'value="بلا سجل" selected' in filtered.text
     assert "عرض 100 من 205 متابعة مطابقة" in filtered.text
     search = client.get("/maintenance/periodic", params={"q": "MODEL-COND-A"})
     assert search.status_code == 200
@@ -984,7 +983,7 @@ def test_periodic_page_paginates_globally_and_keeps_summary_counts(api):
     assert client.get("/maintenance/periodic?after=invalid").status_code == 400
 
 
-def test_periodic_search_row_is_removed_and_state_filter_remains_in_table_header(api):
+def test_periodic_table_has_only_the_column_header_row(api):
     client, _ = api
     page = client.get("/maintenance/periodic?state=بلا+سجل")
     assert page.status_code == 200
@@ -992,18 +991,14 @@ def test_periodic_search_row_is_removed_and_state_filter_remains_in_table_header
     header = html.split('<thead>', 1)[1].split('</thead>', 1)[0]
 
     assert 'class="toolbar-card"' not in html
-    assert 'id="periodicFilterForm" method="get" action="/maintenance/periodic"' in html
-    assert 'class="periodic-filter-row"' in header
+    assert 'id="periodicFilterForm"' not in html
+    assert 'periodic-filter-row' not in header
     assert 'id="periodicSearch"' not in header
-    assert 'placeholder="بحث برقم السيارة..."' not in header
-    assert ">بحث</button>" not in header
+    assert 'id="periodicStatus"' not in header
     assert ">مسح</a>" not in header
-    assert 'id="periodicStatus" name="state"' in header
-    assert 'colspan="3"><select' in header
-    assert 'onchange="this.form.requestSubmit()"' in header
-    assert 'value="بلا سجل" selected' in header
     assert "<th>رقم التسجيل</th>" in header
     assert "<th>الطراز</th>" in header
+    assert header.count("<tr>") == 1
 
 
 def test_operation_is_not_applicable_to_a_model_without_a_relation():
