@@ -85,10 +85,12 @@ def logout():
 def users_page(
     request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role(Role.ADMIN)),
+    current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     return templates.TemplateResponse(
-        request=request, name="users.html", context={"users": services.list_users(db)}
+        request=request,
+        name="users.html",
+        context={"users": services.list_users(db), "user": current_user},
     )
 
 
