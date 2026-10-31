@@ -7,6 +7,7 @@ import tempfile
 
 TEMPLATE = Path(__file__).parents[1] / "app/modules/meter_readings/templates/meter_readings.html"
 HISTORY_TEMPLATE = Path(__file__).parents[1] / "app/modules/meter_readings/templates/meter_readings_list.html"
+OPERATIONS_TEMPLATE = Path(__file__).parents[1] / "app/modules/meter_readings/templates/meter_reading_operations.html"
 BASE_TEMPLATE = Path(__file__).parents[1] / "web/templates/base.html"
 
 
@@ -139,6 +140,18 @@ def test_meter_readings_page_removes_search_and_filter_toolbar_but_keeps_date_ac
         assert removed_marker not in text, f"عنصر بحث أو تصفية قديم ما زال موجودًا: {removed_marker}"
     assert "＋ إضافة تاريخ" in text
     assert "id=\"dateModal\"" in text
+
+
+def test_meter_operations_table_omits_reading_date_column_and_keeps_cells_aligned():
+    text = OPERATIONS_TEMPLATE.read_text(encoding="utf-8")
+    header = re.search(r"<thead>\s*<tr>(.*?)</tr>\s*</thead>", text, flags=re.S)
+    record_row = re.search(r"<tr>\s*(.*?)\s*</tr>\s*{% else %}", text, flags=re.S)
+
+    assert header is not None and record_row is not None
+    assert "تاريخ القراءة" not in header.group(1)
+    assert len(re.findall(r"<th\b", header.group(1))) == 9
+    assert len(re.findall(r"<td\b", record_row.group(1))) == 9
+    assert 'colspan="9"' in text
 
 
 def test_meter_history_page_keeps_edit_delete_actions():

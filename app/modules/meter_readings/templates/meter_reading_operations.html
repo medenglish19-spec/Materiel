@@ -14,7 +14,7 @@
     <div class="reading-audit-summary"><span>عدد العمليات المعروضة</span><strong>{{ changes|length }}</strong></div>
     <div class="table-scroll mt-table-theme-green" data-mt-region>
       <table class="data-table reading-audit-table">
-        <thead><tr><th>التاريخ والوقت</th><th>المستخدم</th><th>نوع العملية</th><th>العتاد</th><th>رقم التسجيل</th><th>تاريخ القراءة</th><th>القيمة السابقة</th><th>القيمة الجديدة</th><th>الوحدة</th><th>المصدر</th></tr></thead>
+        <thead><tr><th>التاريخ والوقت</th><th>المستخدم</th><th>نوع العملية</th><th>العتاد</th><th>رقم التسجيل</th><th>القيمة السابقة</th><th>القيمة الجديدة</th><th>الوحدة</th><th>المصدر</th></tr></thead>
         <tbody>
           {% for change in changes %}
           {% set equipment = equipment_map.get(change.equipment_id) %}
@@ -26,14 +26,13 @@
             <td>{{ action_label(change.action) }}</td>
             <td>{{ model }}</td>
             <td class="reading-audit-id">{{ registration }}</td>
-            <td>{{ change.reading_date.strftime('%d/%m/%Y') if change.reading_date else '—' }}</td>
             <td class="old">{{ format_value(change.old_value) }}</td>
             <td class="new">{{ format_value(change.new_value) }}</td>
             <td>{{ 'كم' if change.unit == 'km' else 'ساعة عمل' }}</td>
             <td>{{ change.source or '—' }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="10" class="empty"><div class="empty-state"><strong>لا توجد عمليات مسجلة بعد.</strong><span>ستظهر هنا التغييرات التي تُجرى على قراءات العدادات.</span><a class="btn btn-outline" href="/meter-readings">فتح قراءات العدادات</a></div></td></tr>
+          <tr><td colspan="9" class="empty"><div class="empty-state"><strong>لا توجد عمليات مسجلة بعد.</strong><span>ستظهر هنا التغييرات التي تُجرى على قراءات العدادات.</span><a class="btn btn-outline" href="/meter-readings">فتح قراءات العدادات</a></div></td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -44,7 +43,7 @@
 .reading-audit-page .page-header{align-items:flex-start}
 .reading-audit-page .reading-audit-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 14px;border-bottom:1px solid #d8e5da;color:#52695a;font-size:12px}
 .reading-audit-page .reading-audit-summary strong{display:inline-flex;min-width:30px;height:28px;align-items:center;justify-content:center;padding:0 8px;border-radius:8px;background:#eaf2ec;color:#315f42;font-size:12px}
-.reading-audit-page .reading-audit-table{min-width:1050px}
+.reading-audit-page .reading-audit-table{min-width:960px}
 .reading-audit-page .reading-audit-table th,.reading-audit-page .reading-audit-table td{text-align:center;white-space:nowrap}
 .reading-audit-page .reading-audit-date,.reading-audit-page .reading-audit-id{font-variant-numeric:tabular-nums}
 .reading-audit-page .old{font-weight:700;color:#9a6200}
