@@ -78,7 +78,9 @@ var
   ConfigFile, ConfiguredDir: String;
   ConfiguredLines: TArrayOfString;
 begin
-  ConfigFile := ExpandConstant('{app}\materiel-data-dir.txt');
+  { This code constant may run before {app} is initialized on a first install.
+    WizardDirValue safely returns the selected or default install directory. }
+  ConfigFile := WizardDirValue() + '\materiel-data-dir.txt';
   if FileExists(ConfigFile) and LoadStringsFromFile(ConfigFile, ConfiguredLines) then begin
     if GetArrayLength(ConfiguredLines) > 0 then
       ConfiguredDir := Trim(ConfiguredLines[0]);
