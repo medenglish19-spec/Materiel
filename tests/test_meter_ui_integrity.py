@@ -74,13 +74,17 @@ def test_meter_page_is_not_overridden_by_shared_base_meter_handlers():
 
 def test_current_meter_page_omits_only_its_duplicate_navigation_link():
     text = TEMPLATE.read_text(encoding="utf-8")
-    navigation = text.split('<div class="actions navigation-actions">', 1)[1].split("</div>", 1)[0]
+    navigation = text.split('<div class="actions navigation-actions main-actions page-action-row">', 1)[1].split("</div>", 1)[0]
 
     assert 'href="/"' in navigation
     assert 'href="/equipment"' in navigation
     assert 'href="/meter-readings/operations"' in navigation
     assert 'href="/meter-readings"' not in navigation
     assert "▤ قراءات العدادات" not in navigation
+    assert "＋ إضافة قراءة" in navigation
+    assert "⇧ استيراد ملف Excel" in navigation
+    assert "＋ إضافة تاريخ" in navigation
+    assert 'class="page-action-divider"' in navigation
 
     shared_navigation = BASE_TEMPLATE.read_text(encoding="utf-8")
     assert 'href="/meter-readings"' in shared_navigation
@@ -113,7 +117,7 @@ def test_meter_readings_page_removes_history_and_refresh_controls_and_column():
     assert 'onclick="location.reload()"' not in text
     assert '<th>السجل</th>' not in text
     assert 'class="meter-history-link"' in text
-    assert 'class="actions main-actions">' in text
+    assert text.count('class="actions navigation-actions main-actions page-action-row"') == 1
     assert ".meter-page .navigation-actions,.meter-page .main-actions,.meter-page .export-actions{flex-wrap:nowrap" in text
 
 
