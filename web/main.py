@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 import subprocess
+import sys
 from urllib.parse import quote, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,6 +13,7 @@ from app.core.branding import load_splash_content
 from app.core.config import security_warnings, settings
 from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
+from app.core.storage import uploads_directory
 from app.core.templating import get_module_templates
 from app.database.init_db import create_default_admin, init_db
 from app.modules.dashboard.router import router as dashboard_router
@@ -111,6 +113,10 @@ def create_app() -> FastAPI:
             shutdown_logging()
 
     app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
+    if getattr(sys, "frozen", False):
+        packaged_uploads = uploads_directory()
+        packaged_uploads.mkdir(parents=True, exist_ok=True)
+        app.mount("/static/uploads", StaticFiles(directory=str(packaged_uploads)), name="user_uploads")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.exception_handler(HTTPException)

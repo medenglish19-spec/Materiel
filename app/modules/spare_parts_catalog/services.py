@@ -26,6 +26,7 @@ from app.modules.equipment_types.models import EquipmentModel
 from .models import SparePartCatalogDetails, SparePartCatalogImport, SparePartCatalogModel, SparePartCatalogReference, SparePartCategory
 
 from app.modules.document_import.upload import MAX_UPLOAD_BYTES
+from app.core.storage import uploads_directory
 MAX_ROWS = 1000
 MAX_ZIP_FILES = 100
 MAX_ZIP_UNPACKED = 30 * 1024 * 1024
@@ -639,7 +640,7 @@ def store_image(data: bytes, filename: str) -> str:
         raise ValueError("الصورة غير صالحة أو نوعها غير مدعوم. استخدم JPEG أو PNG أو WebP.")
     data, normalized_format = normalize_image_bytes(data, extension)
     extension = ".jpg" if normalized_format == "JPEG" else "." + normalized_format.lower()
-    root = Path(__file__).resolve().parents[3] / "static" / "uploads" / "spare-parts"
+    root = uploads_directory(__file__) / "spare-parts"
     root.mkdir(parents=True, exist_ok=True)
     safe_name = uuid.uuid4().hex + extension
     target = root / safe_name
@@ -652,7 +653,7 @@ def remove_image(image_path: str | None) -> None:
     prefix = "/static/uploads/spare-parts/"
     if not image_path or not image_path.startswith(prefix):
         return
-    root = (Path(__file__).resolve().parents[3] / "static" / "uploads" / "spare-parts").resolve()
+    root = (uploads_directory(__file__) / "spare-parts").resolve()
     target = (root / Path(image_path[len(prefix):]).name).resolve()
     if target.parent == root and target.exists() and target.is_file():
         target.unlink()

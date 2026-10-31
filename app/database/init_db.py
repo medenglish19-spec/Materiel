@@ -2,9 +2,12 @@ import logging
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from app.core.config import settings
 from app.database.base import Base
+from app.database.backup import backup_sqlite_database, restore_sqlite_database
 from app.database.session import engine
 from app.database import model_registry  # noqa: F401
 
@@ -181,6 +184,29 @@ def _alembic_config() -> Config:
     return config
 
 
+def _alembic_upgrade_is_pending(config: Config) -> bool:
+    with engine.connect() as connection:
+        tables = set(inspect(connection).get_table_names())
+        if "alembic_version" not in tables:
+            return True
+        current_heads = set(MigrationContext.configure(connection).get_current_heads())
+    target_heads = set(ScriptDirectory.from_config(config).get_heads())
+    return current_heads != target_heads
+
+
+def _run_with_database_backup(operation, backup_path: Path | None) -> None:
+    try:
+        operation()
+    except BaseException:
+        if backup_path is not None:
+            try:
+                engine.dispose()
+                restore_sqlite_database(backup_path, settings.DATABASE_URL)
+            except Exception:
+                logger.exception("Automatic restoration from database backup failed: %s", backup_path)
+        raise
+
+
 def _has_current_classification_schema(tables: set[str]) -> bool:
     if not {"equipment_categories", "equipment_brands"}.issubset(tables): return False
     inspector = inspect(engine)
@@ -196,18 +222,22 @@ def init_db() -> None:
         if not tables:
             Base.metadata.create_all(bind=engine); command.stamp(config, "head")
         else:
-            _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); _run_alembic_upgrade(config)
-    else: _run_alembic_upgrade(config)
-    logger.info("Database startup: applying post-migration normalization.")
-    _normalize_equipment_classification_defaults()
-    from app.database.session import SessionLocal
-    from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
-    db = SessionLocal()
-    try:
-        removed = cleanup_legacy_readings(db)
-        if removed: print(f"[init_db] تم حذف {removed} قراءة قديمة مخالفة لقواعد التاريخ/القيمة.")
-    finally: db.close()
-    _repair_equipment_current_meters()
+            backup_path = backup_sqlite_database(settings.DATABASE_URL)
+
+            def upgrade_unversioned_database() -> None:
+                _repair_existing_meter_readings_schema()
+                _repair_existing_maintenance_schema()
+                command.stamp(config, "0001_baseline")
+                _run_alembic_upgrade(config)
+
+            _run_with_database_backup(upgrade_unversioned_database, backup_path)
+    elif _alembic_upgrade_is_pending(config):
+        backup_path = backup_sqlite_database(settings.DATABASE_URL)
+        _run_with_database_backup(lambda: _run_alembic_upgrade(config), backup_path)
+    else:
+        logger.info("Database startup: schema already at Alembic head; no migration required.")
+
+    logger.info("Database startup: schema ready; operational rows are not normalized or deleted at launch.")
 
 
 def create_default_admin() -> None:

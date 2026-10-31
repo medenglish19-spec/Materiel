@@ -51,6 +51,87 @@ def test_splash_content_can_be_changed_without_rebuilding(monkeypatch, tmp_path)
     assert "data:image/png;base64," in response.text
 
 
+def test_packaged_splash_reads_release_assets_and_ignores_user_data(monkeypatch, tmp_path):
+    import base64
+    from io import BytesIO
+    import json
+
+    from app.core import branding
+    from PIL import Image
+
+    install_dir = tmp_path / "installed-program"
+    bundle_dir = install_dir / "_internal"
+    splash_dir = bundle_dir / "splash-screen"
+    splash_dir.mkdir(parents=True)
+    data_dir = tmp_path / "MaterielData"
+    user_splash_dir = data_dir / "splash-screen"
+    user_splash_dir.mkdir(parents=True)
+    executable = install_dir / "Materiel.exe"
+    executable.touch()
+    config_path = splash_dir / "config.json"
+    logo_path = splash_dir / "logo.png"
+    user_config_path = user_splash_dir / "config.json"
+    user_logo_path = user_splash_dir / "logo.png"
+    def png_bytes(color):
+        buffer = BytesIO()
+        Image.new("RGB", (2, 2), color).save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    first_logo = png_bytes((190, 30, 30))
+    user_logo = png_bytes((20, 80, 200))
+    logo_path.write_bytes(first_logo)
+
+    def write_branding(institution_name, description, logo_file="logo.png"):
+        config_path.write_text(json.dumps({
+            "institution_name": institution_name,
+            "description": description,
+            "developer_name": "فريق الاختبار",
+            "version": "1.0.0",
+            "logo_file": logo_file,
+        }, ensure_ascii=False), encoding="utf-8")
+
+    write_branding("مؤسسة الإصدار الأول", "نص الإصدار الأول")
+    user_config_path.write_text(json.dumps({
+        "institution_name": "بيانات المستخدم",
+        "description": "يجب تجاهلها في النسخة المثبتة",
+        "developer_name": "مستخدم",
+        "version": "9.9.9",
+        "logo_file": "logo.png",
+    }, ensure_ascii=False), encoding="utf-8")
+    user_logo_path.write_bytes(user_logo)
+    monkeypatch.setattr(branding.sys, "executable", str(executable))
+    monkeypatch.setattr(branding.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(branding.sys, "_MEIPASS", str(bundle_dir), raising=False)
+
+    with _client(monkeypatch) as client:
+        first = client.get("/")
+        assert "مؤسسة الإصدار الأول" in first.text
+        assert f"data:image/png;base64,{base64.b64encode(first_logo).decode('ascii')}" in first.text
+        assert "بيانات المستخدم" not in first.text
+
+        # A newly built release carries its own changed branding assets.
+        next_bundle = tmp_path / "next-release" / "_internal"
+        next_splash_dir = next_bundle / "splash-screen"
+        next_splash_dir.mkdir(parents=True)
+        next_config_path = next_splash_dir / "config.json"
+        next_logo_path = next_splash_dir / "logo.png"
+        next_config_path.write_text(json.dumps({
+            "institution_name": "مؤسسة الإصدار التالي",
+            "description": "نص الإصدار التالي",
+            "developer_name": "فريق الاختبار",
+            "version": "1.1.0",
+            "logo_file": "logo.png",
+        }, ensure_ascii=False), encoding="utf-8")
+        next_logo = png_bytes((20, 80, 200))
+        next_logo_path.write_bytes(next_logo)
+        monkeypatch.setattr(branding.sys, "_MEIPASS", str(next_bundle), raising=False)
+        updated = client.get("/")
+
+    assert "مؤسسة الإصدار التالي" in updated.text
+    assert "نص الإصدار التالي" in updated.text
+    assert f"data:image/png;base64,{base64.b64encode(next_logo).decode('ascii')}" in updated.text
+
+
 def test_login_page_renders_html(monkeypatch):
     with _client(monkeypatch) as client:
         response = client.get("/login")

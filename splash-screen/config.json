@@ -2,6 +2,6 @@
   "institution_name": "اسم المؤسسة",
   "description": "مساحة للنص التعريفي أو رسالة الترحيب",
   "developer_name": "اسم المطوّر أو الفريق",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "logo_file": "logo.png"
 }

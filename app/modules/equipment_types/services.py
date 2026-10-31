@@ -2,6 +2,7 @@ from io import BytesIO
 from typing import Optional
 from pathlib import Path
 from uuid import uuid4
+from app.core.storage import uploads_directory
 from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType, EquipmentModelSpecDefinition, EquipmentModelSpecValue, equipment_type_spec_definitions
 from app.modules.tires.models import TirePosition, TireModelSize, TireMovement
@@ -37,7 +38,7 @@ def store_model_image(data: bytes, filename: str) -> str:
         raise
     except Exception as exc:
         raise ValueError("ملف الصورة تالف أو غير صالح.") from exc
-    root = Path(__file__).resolve().parents[3] / "static" / "uploads" / "equipment-models"
+    root = uploads_directory(__file__) / "equipment-models"
     root.mkdir(parents=True, exist_ok=True)
     filename = uuid4().hex + extension
     (root / filename).write_bytes(output.getvalue())
@@ -46,7 +47,7 @@ def store_model_image(data: bytes, filename: str) -> str:
 def remove_model_image(image_url: str | None) -> None:
     if not image_url or not image_url.startswith(MODEL_IMAGE_PREFIX):
         return
-    root = (Path(__file__).resolve().parents[3] / "static" / "uploads" / "equipment-models").resolve()
+    root = (uploads_directory(__file__) / "equipment-models").resolve()
     target = (root / Path(image_url[len(MODEL_IMAGE_PREFIX):]).name).resolve()
     if target.parent == root and target.is_file():
         target.unlink()

@@ -1,11 +1,10 @@
-"""Load editable application branding shared by the welcome screen and shell."""
+"""Load release branding shared by the welcome screen and application shell."""
 
 import base64
 import json
 import mimetypes
 import sys
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULTS = {
@@ -18,9 +17,14 @@ DEFAULTS = {
 
 
 def customization_directory() -> Path:
-    """Use an editable folder beside a packaged executable, or the project root."""
+    """Return the branding assets shipped with this build.
+
+    Frozen builds read from the protected PyInstaller bundle. In source mode,
+    the project folder is the programmer-controlled source for the next build.
+    """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent / "splash-screen"
+        bundle_root = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent / "_internal"))
+        return bundle_root / "splash-screen"
     return PROJECT_ROOT / "splash-screen"
 
 

@@ -5,6 +5,7 @@ core/config.py
 """
 
 import os
+import sys
 from functools import lru_cache
 from pathlib import Path
 from sqlalchemy.engine import make_url
@@ -15,8 +16,37 @@ DEFAULT_ADMIN_PASSWORD = "Admin@123"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def packaged_data_directory(executable: Path | None = None) -> Path:
+    """Return the durable data location used by the installed Windows build."""
+    override = os.getenv("MATERIEL_DATA_DIR")
+    executable = (executable or Path(sys.executable)).resolve()
+    if override and override.strip():
+        directory = Path(os.path.expandvars(override.strip())).expanduser()
+        return directory if directory.is_absolute() else executable.parent / directory
+
+    location_file = executable.parent / "materiel-data-dir.txt"
+    try:
+        configured = location_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        configured = ""
+    if configured:
+        directory = Path(os.path.expandvars(configured)).expanduser()
+        return directory if directory.is_absolute() else executable.parent / directory
+
+    program_data = os.getenv("PROGRAMDATA")
+    if program_data:
+        return Path(program_data) / "Materiel" / "data"
+    if os.name == "nt":
+        local_data = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(local_data) / "Materiel" / "data"
+    return Path.home() / ".local" / "share" / "materiel" / "data"
+
+
 def default_database_url(project_root: Path = PROJECT_ROOT) -> str:
     """Keep the default operational database independent of the launch cwd."""
+    if getattr(sys, "frozen", False):
+        database_path = packaged_data_directory() / "fleet_assets.db"
+        return f"sqlite:///{database_path.resolve().as_posix()}"
     return f"sqlite:///{(project_root / 'fleet_assets.db').resolve().as_posix()}"
 
 
@@ -35,7 +65,7 @@ def resolve_database_url(database_url: str, project_root: Path = PROJECT_ROOT) -
 
 
 class Settings:
-    APP_NAME: str = "Fleet & Assets Manager"
+    APP_NAME: str = "تسيير ومحاسبة العتاد"
     ENV: str = os.getenv("APP_ENV", "development")
     DEBUG: bool = ENV != "production"
 
@@ -78,7 +108,10 @@ class Settings:
 
     # Logging (طبقتك غير الحظري في app/core/logging.py)
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_DIR: str = os.getenv("LOG_DIR", "logs")
+    LOG_DIR: str = os.getenv(
+        "LOG_DIR",
+        str(packaged_data_directory() / "logs") if getattr(sys, "frozen", False) else "logs",
+    )
 
     # مربوط بالمضيف المحلي فقط أثناء التعطيل المؤقت للمصادقة.
     # استعادة قيمة "0.0.0.0" عند إعادة تفعيل المصادقة إن لزم النشر على الشبكة.
