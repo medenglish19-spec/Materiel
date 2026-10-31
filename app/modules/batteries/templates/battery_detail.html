@@ -18,7 +18,6 @@
     <summary>تعديل بيانات البطارية</summary>
     <form method="post" action="/batteries/{{ battery.id }}/update" class="record-form" data-em-root>
       <label>نوع البطارية<input name="battery_type" value="{{ battery.battery_type or '' }}" required></label>
-      <label>العلامة التجارية<input name="brand" value="{{ battery.brand or '' }}"></label>
       <label>السعة<input name="capacity" value="{{ battery.capacity or '' }}"></label>
       <label>تاريخ الصنع<input type="date" name="manufacture_date" value="{{ battery.manufacture_date or '' }}"></label>
       <label class="record-wide">ملاحظات<input name="notes" value="{{ battery.notes or '' }}"></label>

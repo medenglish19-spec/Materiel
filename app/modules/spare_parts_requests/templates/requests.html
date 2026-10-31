@@ -27,10 +27,10 @@
 .spr .danger{background:#fff!important;color:#B91C1C!important;border-color:#FECACA!important}
 .spr .danger:hover{background:#FEF2F2!important;border-color:#FCA5A5!important}
 .spr .summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
-.spr .summary-card{background:#fff;border:1px solid #D8E5DA;border-radius:10px;padding:16px 18px}
-.spr .summary-label{font-size:12px;color:#718477;margin-bottom:5px}
-.spr .summary-value{font-family:'Cairo',sans-serif;font-size:22px;font-weight:800;color:#111827}
-.spr .summary-note{font-size:11px;color:#718477;margin-top:2px}
+.spr .summary-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 12px;background:#fff;border:1px solid #D8E5DA;border-radius:10px;padding:16px 18px}
+.spr .summary-label{font-size:12px;color:#718477;margin:0;min-width:0}
+.spr .summary-value{font-family:'Cairo',sans-serif;font-size:22px;font-weight:800;color:#2563eb;line-height:1}
+.spr .summary-note{grid-column:1/-1;font-size:11px;color:#718477;margin-top:2px}
 .spr .table-scroll{width:100%;max-width:100%;overflow:auto;-webkit-overflow-scrolling:touch}
 .spr table{width:max-content;min-width:100%;border-collapse:collapse;table-layout:auto}
 .spr th{background:#F3F8F4;color:#111827;font-family:'Cairo',sans-serif;font-size:12px;font-weight:700;padding:13px 12px;text-align:right;border-bottom:1px solid #D8E5DA;white-space:nowrap}

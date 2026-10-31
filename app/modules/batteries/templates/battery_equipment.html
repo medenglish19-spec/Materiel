@@ -9,10 +9,9 @@
 <main class="record-page battery-equipment-page">
   <header class="page-head"><div><a href="/batteries">← إدارة البطاريات</a><h1>قائمة العتاد والبطاريات</h1></div><a href="/equipment-types">مراجعة الخصائص الفنية للطرازات</a></header>
   <p class="page-note">تعرض القائمة بيانات البطارية والعتاد المرتبط بها. تُستمد الكمية والسعة والجهد المطلوب من الخصائص الفنية للطراز، وتظهر رسالة عند نقصها. انقر رقم التسجيل لفتح سجل جميع حركات البطاريات المرتبطة بالعتاد.</p>
-  <div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>نوع البطارية</th><th>العلامة التجارية</th><th>السعة</th><th>العتاد</th><th>رقم التسجيل</th><th>تاريخ الاستلام</th><th>موعد الاستبدال المحسوب</th><th>الحالة</th><th>السجل والحذف</th></tr></thead><tbody>
+  <div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>نوع البطارية</th><th>السعة</th><th>العتاد</th><th>رقم التسجيل</th><th>تاريخ الاستلام</th><th>موعد الاستبدال المحسوب</th><th>الحالة</th><th>السجل والحذف</th></tr></thead><tbody>
   {% for row in equipment_rows %}{% set eq = row.equipment %}<tr>
     <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.battery_type or 'نوع غير محدد' }}</div>{% endfor %}{% elif row.has_batteries %}غير مسجلة{% else %}—{% endif %}</td>
-    <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.brand or '—' }}</div>{% endfor %}{% else %}—{% endif %}</td>
     <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.capacity or '—' }}</div>{% endfor %}{% elif row.expected_capacity %}{{ row.expected_capacity }} Ah{% else %}—{% endif %}{% if row.has_batteries %}<small class="expected-spec">المطلوب للطراز: {{ row.expected_capacity or '—' }} Ah · {{ row.expected_voltage or '—' }} V</small>{% endif %}</td>
     <td>{{ row.model.name if row.model else 'غير مرتبط بطراز' }}</td>
     <td><a href="/equipment/{{ eq.id }}/batteries">{{ eq.registration_number or eq.vin or '—' }}</a></td>
@@ -20,7 +19,7 @@
     <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.due_date or '—' }}</div>{% endfor %}{% else %}—{% endif %}</td>
     <td>{% if row.missing_specs %}<div class="spec-warning">استكمل في خصائص الطراز: {{ row.missing_specs|join('، ') }}.</div>{% elif row.has_batteries and row.excess_count %}<div class="spec-warning">مركب {{ row.installed_count }} من {{ row.expected_count }}؛ يوجد تجاوز بمقدار {{ row.excess_count }}.</div>{% elif row.has_batteries and row.remaining_count %}<div class="spec-warning">مركب {{ row.installed_count }} من {{ row.expected_count }}؛ المتبقي {{ row.remaining_count }}.</div>{% elif row.has_batteries %}<span class="spec-ok">مكتمل · {{ row.installed_count }} من {{ row.expected_count }}</span>{% else %}<span>لا يتطلب بطاريات حسب الطراز</span>{% endif %}</td>
     <td class="actual-list"><a href="/equipment/{{ eq.id }}/batteries">سجل الحركات</a>{% for line in row.battery_lines %}<div class="battery-line"><a href="/batteries/{{ line.battery.id }}">سجل البطارية</a> · <button type="button" disabled title="يجب فك البطارية قبل حذف سجلها">الحذف بعد الفك</button></div>{% endfor %}</td>
-  </tr>{% else %}<tr><td colspan="9" class="empty">لا يوجد عتاد مسجل.</td></tr>{% endfor %}
+  </tr>{% else %}<tr><td colspan="8" class="empty">لا يوجد عتاد مسجل.</td></tr>{% endfor %}
   </tbody></table></div>
 </main>
 {% endblock %}

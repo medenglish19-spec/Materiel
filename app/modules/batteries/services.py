@@ -347,7 +347,8 @@ def update_battery(db: Session, battery_id: int, data: dict):
     if not battery_type:
         raise ValueError("نوع البطارية مطلوب")
     battery.battery_type = battery_type
-    battery.brand = (data.get("brand") or "").strip() or None
+    if "brand" in data:
+        battery.brand = (data.get("brand") or "").strip() or None
     battery.capacity = (data.get("capacity") or "").strip() or None
     battery.manufacture_date = data.get("manufacture_date")
     battery.notes = (data.get("notes") or "").strip() or None

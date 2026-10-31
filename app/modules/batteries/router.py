@@ -129,9 +129,9 @@ def update_battery_settings(validity_years: int = Form(...), db: Session = Depen
 
 
 @router.post("/batteries")
-def create_battery(battery_type: str = Form(...), brand: str = Form(""), capacity: str = Form(""), manufacture_date: date | None = Form(None), acquisition_request_item_id: int = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_battery(battery_type: str = Form(...), capacity: str = Form(""), manufacture_date: date | None = Form(None), acquisition_request_item_id: int = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
-        services.add_battery(db, {"battery_type": battery_type.strip(), "brand": brand.strip() or None, "capacity": capacity.strip() or None, "manufacture_date": manufacture_date, "acquisition_request_item_id": acquisition_request_item_id, "notes": notes.strip() or None})
+        services.add_battery(db, {"battery_type": battery_type.strip(), "capacity": capacity.strip() or None, "manufacture_date": manufacture_date, "acquisition_request_item_id": acquisition_request_item_id, "notes": notes.strip() or None})
     except Exception as exc:
         db.rollback()
         raise HTTPException(400, f"تعذر إنشاء البطارية: {exc}")
@@ -177,7 +177,6 @@ def battery_detail(request: Request, battery_id: int, db: Session = Depends(get_
 def update_battery(
     battery_id: int,
     battery_type: str = Form(...),
-    brand: str = Form(""),
     capacity: str = Form(""),
     manufacture_date: date | None = Form(None),
     notes: str = Form(""),
@@ -187,7 +186,6 @@ def update_battery(
     try:
         services.update_battery(db, battery_id, {
             "battery_type": battery_type,
-            "brand": brand,
             "capacity": capacity,
             "manufacture_date": manufacture_date,
             "notes": notes,

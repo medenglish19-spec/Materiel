@@ -25,11 +25,11 @@
 .missions-page .mission-overview h3{margin:0 0 4px;font-size:15px}
 .missions-page .mission-overview p{margin:0;color:#667085;font-size:13px}
 .missions-page .mission-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}
-.missions-page .mission-metric{display:flex;flex-direction:column;justify-content:center;gap:5px;min-width:0;min-height:66px;padding:10px 12px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:inherit;font:inherit;text-align:right;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.missions-page .mission-metric{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;min-width:0;min-height:66px;padding:10px 12px;border:1px solid #eaecf0;border-radius:10px;background:#f8fafc;color:inherit;font:inherit;text-align:right;cursor:pointer;transition:border-color .15s ease,background .15s ease}
 .missions-page .mission-metric:hover{border-color:#98a2b3;background:#f2f4f7}
 .missions-page .mission-metric:focus-visible{outline:3px solid #9ca3af;outline-offset:2px}
-.missions-page .mission-metric span{color:#475467;font-size:12px;font-weight:700}
-.missions-page .mission-metric b{font-size:23px;line-height:1.1;color:#1f2937}
+.missions-page .mission-metric span{flex:1;min-width:0;color:#475467;font-size:12px;font-weight:700}
+.missions-page .mission-metric b{flex:none;font-size:23px;line-height:1.1;color:#2563eb}
 .missions-page .mission-metric.critical b{color:#b42318}
 .missions-page .mission-metric.warning b{color:#a15c00}
 .missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}

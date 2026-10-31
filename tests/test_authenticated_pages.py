@@ -532,14 +532,23 @@ def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
 
     battery_invalid = client.post("/batteries", data={"battery_type": "AGM", "acquisition_request_item_id": 999999})
     assert battery_invalid.status_code == 400
-    battery_created = client.post("/batteries", data={"battery_type": "AGM", "brand": "Brand", "capacity": "60 Ah", "acquisition_request_item_id": battery_item_id}, follow_redirects=False)
+    battery_created = client.post("/batteries", data={"battery_type": "AGM", "capacity": "60 Ah", "acquisition_request_item_id": battery_item_id}, follow_redirects=False)
     assert battery_created.status_code == 303
     batteries_html = client.get("/batteries").text
     assert "AGM" in batteries_html
+    assert 'name="brand"' not in batteries_html
+    assert '<th>العلامة التجارية</th>' not in batteries_html
     battery_id = re.search(r'href="/batteries/(\d+)"', batteries_html).group(1)
+    unassigned_html = client.get("/batteries?filter=unassigned").text
+    installed_html = client.get("/batteries?filter=installed").text
+    assert f'href="/batteries/{battery_id}"' in unassigned_html
+    assert f'href="/batteries/{battery_id}"' not in installed_html
     battery_detail = client.get(f"/batteries/{battery_id}")
     assert battery_detail.status_code == 200
     assert "E2E-BATTERY-REQ" in battery_detail.text
+    assert 'name="brand"' not in battery_detail.text
+    assert '<th>العلامة التجارية</th>' not in client.get("/batteries/equipment").text
+    assert '<th>العلامة التجارية</th>' not in client.get(f"/equipment/{ids['equipment']}/batteries").text
     assert client.post(f"/batteries/{battery_id}/delete", follow_redirects=False).status_code == 303
 
 
