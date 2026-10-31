@@ -312,5 +312,6 @@ body{font-size:14px}
 .data-table tbody tr:hover,.modern-table tbody tr:hover{background:#F3F4F6}
 .module-nav a{font-family:'Tajawal',sans-serif;color:#4B5563}
 .module-nav a:hover,.module-nav a.active{background:#F3F4F6;color:#374151}
+.app-topbar .module-nav.app-module-nav[hidden]{display:flex!important;visibility:hidden;pointer-events:none;min-height:40px}
 .materiel-notice-text,.materiel-notice-close,.equipment-card-info{font-family:'Tajawal',sans-serif;color:#4B5563}
 .badge{font-family:'Tajawal',sans-serif}

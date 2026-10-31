@@ -121,6 +121,31 @@ def test_shared_module_navigation_uses_a_single_scrollable_rtl_row():
     assert "white-space:nowrap" in style
 
 
+def test_sidebar_and_topbar_share_the_selected_module_configuration():
+    html = Path("web/templates/base.html").read_text(encoding="utf-8")
+
+    assert "matches:function(path,candidate)" in html
+    assert ".app-menu a[data-module-root]" in html
+    assert "moduleNavigation.matches(p,link.dataset.moduleRoot)" in html
+    assert "moduleNavigation.matches(p,item[0])" in html
+    assert 'data-module-root="/equipment"' in html
+    assert "activePath:activePath||null" in html
+
+
+def test_desktop_navigation_reserves_header_space_and_sidebar_scrolls():
+    html = Path("web/templates/base.html").read_text(encoding="utf-8")
+    css = Path("static/css/style.css").read_text(encoding="utf-8")
+
+    assert "overflow-y:auto" in html.split(".app-sidebar{", 1)[1].split("}", 1)[0]
+    assert ".app-topbar .module-nav.app-module-nav[hidden]{display:flex!important;visibility:hidden" in html
+    assert "@media (min-width:701px) and (max-height:720px)" in html
+    assert "@media (min-width:701px){" in html
+    assert ".app-topbar .module-nav.app-module-nav[hidden]{display:flex!important;visibility:hidden" in css
+    assert 'data-em-action="undo"' in html
+    assert 'data-em-action="redo"' in html
+    assert 'data-em-action="save"' in html
+
+
 def test_main_page_routes_are_registered(monkeypatch):
     """تعطيل المصادقة المؤقت أزال اشتراط الجلسة عن هذه الصفحات.
 

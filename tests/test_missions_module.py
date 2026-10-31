@@ -29,7 +29,9 @@ def test_mission_page_dialogs_and_driver_actions_are_in_their_own_pages():
     assert "nav.insertBefore(addDriver" not in page
     assert 'id="driverDialog"' not in page
     assert '<form method="post" action="/missions/drivers"' not in page
-    assert "[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]" in base
+    # The overview link precedes these two management destinations in the shared nav.
+    assert "['/missions/records','إدارة المهمات']" in base
+    assert "['/missions/drivers','إدارة السائقين']" in base
     assert "سجل المهمات" not in page
     assert "لا توجد مهمات مسجلة." in records_page
     assert "<th>العتاد</th><th>رقم التسجيل</th><th>السائق</th>" in records_page
@@ -68,6 +70,6 @@ def test_mission_page_dialogs_and_driver_actions_are_in_their_own_pages():
     assert '<th>العتاد</th><th>رقم التسجيل</th><th>النوع</th><th>الطراز</th>' in drivers_page
     assert '<th>رمز العتاد</th>' not in drivers_page
     assert 'data-add-driver-for="{{ item.id }}"' in drivers_page
-    assert "assignedEquipment.value=addButton.getAttribute('data-add-driver-for')" in drivers_page
+    assert "equipmentSelect.value=addButton.getAttribute('data-add-driver-for')" in drivers_page
     assert "nav.insertBefore(addDriver,missionsLink.nextSibling)" not in drivers_page
     assert '<a href="/missions">المهمات</a>' not in drivers_page

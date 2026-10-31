@@ -223,6 +223,32 @@ def test_configured_institution_name_is_shown_in_the_sidebar(pages):
     assert '<span class="app-brand-institution">شركة النقل البري</span>' in response.text
 
 
+@pytest.mark.parametrize("path", [
+    "/spare-parts",
+    "/spare-parts-requests",
+    "/spare-parts-received",
+    "/spare-parts-distribution",
+    "/spare-parts-return",
+])
+def test_spare_parts_workflow_pages_highlight_the_sidebar_module(pages, path):
+    client, _ = pages
+    response = client.get(path)
+
+    assert response.status_code == 200, response.text
+    sidebar = response.text.split('<nav class="app-menu">', 1)[1].split("</nav>", 1)[0]
+    assert '<a href="/spare-parts" data-module-root="/spare-parts" class="active"' in sidebar
+
+
+@pytest.mark.parametrize("section", ["maintenance", "meters", "tires", "batteries", "fuel"])
+def test_equipment_detail_subpages_keep_the_equipment_sidebar_module(pages, section):
+    client, ids = pages
+    response = client.get(f"/equipment/{ids['equipment']}/{section}")
+
+    assert response.status_code == 200, response.text
+    sidebar = response.text.split('<nav class="app-menu">', 1)[1].split("</nav>", 1)[0]
+    assert '<a href="/equipment" data-module-root="/equipment" class="active"' in sidebar
+
+
 def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     client, _ = pages
     page = client.get("/spare-parts/catalog")
