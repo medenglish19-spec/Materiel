@@ -583,6 +583,9 @@ def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):
     response = client.get("/faults-repairs")
 
     assert response.status_code == 200
+    page_header = re.search(r'<header class="fr-head">(.*?)</header>', response.text, re.S).group(1)
+    for duplicate_link in ("سجل الأعطال", "التصليحات", "الفنيون", "التحليلات", "طلبات القطع"):
+        assert duplicate_link not in page_header
     start = response.text.index('<section class="repair-statuses"')
     end = response.text.index("</section>", start)
     repair_metrics = response.text[start:end]
