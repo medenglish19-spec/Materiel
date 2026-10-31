@@ -96,6 +96,18 @@ def test_the_commit_is_reported_even_when_git_cannot_answer():
     )
 
 
+def test_packaged_build_does_not_spawn_git(monkeypatch):
+    from web import main
+
+    def unexpected_git_call(*args, **kwargs):
+        raise AssertionError("packaged startup must not invoke git")
+
+    monkeypatch.setattr(main.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(main.subprocess, "run", unexpected_git_call)
+
+    assert main._git_commit() == "frozen"
+
+
 def test_startup_states_the_commit_the_routes_and_the_database(app, caplog):
     with caplog.at_level(logging.INFO):
         with TestClient(app):

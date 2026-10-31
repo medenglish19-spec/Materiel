@@ -56,6 +56,8 @@ def _database_file() -> str | None:
 
 def _git_commit() -> str:
     """The commit this process is running, or a marker when git cannot say."""
+    if getattr(sys, "frozen", False):
+        return "frozen"
     try:
         done = subprocess.run(
             ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--short", "HEAD"],

@@ -48,7 +48,7 @@ async def preview_html(
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED:
-        raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX")
+        raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX, XLS")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
         try:
@@ -88,7 +88,7 @@ async def preview_json(
 ):
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED:
-        raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX")
+        raise HTTPException(status_code=400, detail="نوع الملف غير مدعوم. المدعوم: PDF, DOCX, XLSX, XLS")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
         try:

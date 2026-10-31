@@ -26,6 +26,19 @@ python run_web.py
 متغيرات بيئية مدعومة: `DATABASE_URL` · `SECRET_KEY` · `APP_HOST` · `APP_PORT` ·
 `ACCESS_TOKEN_EXPIRE_MINUTES` · `LOG_LEVEL` · `LOG_DIR`
 
+## بناء نسخة EXE على Windows
+
+يتطلب البناء Windows وPython وInno Setup 6، مع إعداد شعار شاشة الترحيب في
+`splash-screen/config.json`. شغّل من PowerShell:
+
+```powershell
+.\windows\build_windows.ps1
+```
+
+ينشئ السكربت بيئة بناء مستقلة ويثبت متطلبات التطبيق والبناء، ثم يحفظ المثبّت
+`Materiel-Setup-<version>.exe` في `D:\Materiel-release`. تفاصيل الحزمة موجودة في
+`windows/`.
+
 ## أي قاعدة بيانات يعمل عليها التطبيق
 
 **خادم التطوير يشير إلى نسخة، لا إلى `fleet_assets.db`.**

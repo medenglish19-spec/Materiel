@@ -5,6 +5,17 @@
    shell in base.html keeps owning its own markup.
    ========================================================================== */
 
+/* Locally bundled Arabic fonts keep the desktop app readable without network access. */
+@font-face{font-family:'Cairo';font-style:normal;font-weight:500 800;font-display:swap;src:url('/static/fonts/cairo-variable-arabic.woff2') format('woff2')}
+@font-face{font-family:'Tajawal';font-style:normal;font-weight:400;font-display:swap;src:url('/static/fonts/tajawal-400-arabic.woff2') format('woff2')}
+@font-face{font-family:'Tajawal';font-style:normal;font-weight:500;font-display:swap;src:url('/static/fonts/tajawal-500-arabic.woff2') format('woff2')}
+@font-face{font-family:'Tajawal';font-style:normal;font-weight:700;font-display:swap;src:url('/static/fonts/tajawal-700-arabic.woff2') format('woff2')}
+@font-face{font-family:'Tajawal';font-style:normal;font-weight:800;font-display:swap;src:url('/static/fonts/tajawal-800-arabic.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:400;font-display:swap;src:url('/static/fonts/ibm-plex-sans-arabic-400-arabic.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:500;font-display:swap;src:url('/static/fonts/ibm-plex-sans-arabic-500-arabic.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:600;font-display:swap;src:url('/static/fonts/ibm-plex-sans-arabic-600-arabic.woff2') format('woff2')}
+@font-face{font-family:'IBM Plex Sans Arabic';font-style:normal;font-weight:700;font-display:swap;src:url('/static/fonts/ibm-plex-sans-arabic-700-arabic.woff2') format('woff2')}
+
 /* --- design tokens -------------------------------------------------------- */
 :root{
   --ink:#123524;              /* headings / primary text          */

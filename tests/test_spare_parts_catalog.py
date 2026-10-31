@@ -1,5 +1,6 @@
 import io
 import json
+import sys
 import zipfile
 
 import pytest
@@ -217,6 +218,7 @@ def test_invalid_or_unrecognized_catalogs_fail_clearly(filename, data):
         services._parse_content(filename, data)
 
 
-def test_unavailable_optional_formats_report_the_missing_dependency():
+def test_unavailable_optional_formats_report_the_missing_dependency(monkeypatch):
+    monkeypatch.setitem(sys.modules, "xlrd", None)
     with pytest.raises(ValueError, match="xlrd"):
         services._parse_content("old.xls", bytes.fromhex("D0CF11E0A1B11AE1") + b"legacy")

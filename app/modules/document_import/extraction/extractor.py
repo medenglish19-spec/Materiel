@@ -232,14 +232,18 @@ def extract_document(path: Union[str, Path], **kwargs) -> ExtractedDocument:
             workbook = xlrd.open_workbook(str(p), on_demand=True)
             for sheet in workbook.sheets():
                 rows = [[str(sheet.cell_value(row, col)) for col in range(sheet.ncols)] for row in range(sheet.nrows)]
+                rows = [row for row in rows if any(cell.strip() for cell in row)]
                 if rows:
                     tables.append(ExtractedTable(rows=rows, name=sheet.name))
             workbook.release_resources()
         except Exception as exc:
             raise ExtractionError("xls_corrupt", "ملف XLS تالف أو غير صالح.") from exc
+        if not tables:
+            raise ExtractionError("xls_no_content", "لم يُعثر على بيانات قابلة للاستخراج في ملف XLS.")
         return ExtractedDocument(tables=tables)
 
     if ext == ".xlsx":
+        wb = None
         try:
             import openpyxl  # type: ignore
 
@@ -247,17 +251,25 @@ def extract_document(path: Union[str, Path], **kwargs) -> ExtractedDocument:
             for ws in wb.worksheets:
                 rows = []
                 for r in ws.iter_rows(values_only=True):
-                    rows.append(["" if v is None else str(v) for v in r])
+                    values = ["" if v is None else str(v) for v in r]
+                    if any(value.strip() for value in values):
+                        rows.append(values)
                 if rows:
                     tables.append(ExtractedTable(rows=rows, name=ws.title))
-            wb.close()
-        except Exception:
-            pass
+        except ImportError as exc:
+            raise ExtractionError("xlsx_dependency", "تعذر قراءة XLSX؛ مكتبة قراءة الجداول غير متاحة.") from exc
+        except Exception as exc:
+            raise ExtractionError("xlsx_corrupt", "ملف XLSX تالف أو غير صالح.") from exc
+        finally:
+            if wb is not None:
+                wb.close()
         tp = []
         for tb in tables:
             tp.append(f"SHEET: {tb.name or ''}")
             for r in tb.rows[:400]:
                 tp.append("\t".join(r))
+        if not tables:
+            raise ExtractionError("xlsx_no_content", "لم يُعثر على بيانات قابلة للاستخراج في ملف XLSX.")
         return ExtractedDocument(text="\n".join(tp), tables=tables)
 
     try:
