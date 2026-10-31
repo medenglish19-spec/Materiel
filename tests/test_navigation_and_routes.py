@@ -89,6 +89,38 @@ def test_base_navigation_contains_only_registered_internal_paths():
     assert internal_paths <= registered_paths
 
 
+def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
+    html = Path("web/templates/base.html").read_text(encoding="utf-8")
+    mapper = html.split("const moduleNavigation=(function(){", 1)[1].split("})();", 1)[0]
+    registered_paths = _registered_paths()
+    static_paths = set(re.findall(r"\['(/[^']*)','[^']*'", mapper))
+
+    assert {
+        "/equipment/analysis/operational",
+        "/equipment-types/structure",
+        "/maintenance/catalog-imports",
+        "/meter-readings/operations",
+        "/fuel/model-rates",
+        "/batteries/equipment",
+        "/missions/drivers",
+    } <= static_paths
+    assert all(_route_matches(path, registered_paths) for path in static_paths)
+    assert "['/equipment-types','أنواع وطرازات العتاد',['admin']]" in mapper
+    assert "['/maintenance/catalog-imports','استيراد الكتالوجات',['admin','fleet_manager']]" in mapper
+    assert "[[uploadHref,'استيراد من مستند',['admin','fleet_manager']]]" in mapper
+    assert "main.querySelectorAll('nav.module-nav,nav.module-tabs,nav.tires-nav,.ed-tabs')" in html
+    assert ".navigation-actions" not in html.split("if(main&&moduleNavigation&&moduleNavigation.links.length){", 1)[1].split("if(main){", 1)[0]
+
+
+def test_shared_module_navigation_uses_a_single_scrollable_rtl_row():
+    html = Path("web/templates/base.html").read_text(encoding="utf-8")
+    style = html.split("/* Shared fixed header:", 1)[1]
+
+    assert "flex-wrap:nowrap" in style
+    assert "overflow-x:auto" in style
+    assert "white-space:nowrap" in style
+
+
 def test_main_page_routes_are_registered(monkeypatch):
     """تعطيل المصادقة المؤقت أزال اشتراط الجلسة عن هذه الصفحات.
 

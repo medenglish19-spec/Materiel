@@ -281,7 +281,7 @@ html,body{background:var(--bg-primary);color:var(--text-primary)}
 </head>
 <body>
 <aside class="app-sidebar"><div class="app-brand"><span class="app-brand-icon">⚙</span><span class="app-brand-copy"><span class="app-brand-title">تسيير ومحاسبة العتاد</span><span class="app-brand-institution">{% if institution_name is defined %}{{ institution_name() }}{% endif %}</span></span></div><nav class="app-menu"><a href="/dashboard" class="{% if request.url.path.startswith('/dashboard') %}active{% endif %}"><span class="menu-icon">⌂</span><span>لوحة التحكم</span></a><a href="/equipment" class="{% if request.url.path.startswith('/equipment') %}active{% endif %}"><span class="menu-icon">▦</span><span>العتاد</span></a><a href="/maintenance" class="{% if request.url.path.startswith('/maintenance') %}active{% endif %}"><span class="menu-icon">⚒</span><span>الصيانة</span></a><a href="/meter-readings" class="{% if request.url.path.startswith('/meter-readings') %}active{% endif %}"><span class="menu-icon">◷</span><span>العدادات</span></a><a href="/faults-repairs" class="{% if request.url.path.startswith('/faults-repairs') %}active{% endif %}"><span class="menu-icon">⚠</span><span>الأعطال والإصلاحات</span></a><a href="/spare-parts" class="{% if request.url.path == '/spare-parts' %}active{% endif %}"><span class="menu-icon">▤</span><span>قطع الغيار</span></a><a href="/tires" class="{% if request.url.path.startswith('/tires') %}active{% endif %}"><span class="menu-icon">◉</span><span>الإطارات</span></a><a href="/batteries" class="{% if request.url.path.startswith('/batteries') %}active{% endif %}"><span class="menu-icon">▰</span><span>البطاريات</span></a><a href="/fuel" class="{% if request.url.path.startswith('/fuel') %}active{% endif %}"><span class="menu-icon">⛽</span><span>الوقود</span></a><a href="/missions" class="{% if request.url.path.startswith('/missions') %}active{% endif %}"><span class="menu-icon">◆</span><span>المهمات و السواق</span></a><a href="/users" class="{% if request.url.path.startswith('/users') %}active{% endif %}"><span class="menu-icon">♙</span><span>المستخدمون</span></a></nav><div class="sidebar-spacer"></div><div class="sidebar-user">النظام المحلي<br>تسيير ومحاسبة العتاد</div><a href="/logout" class="sidebar-logout"><span class="menu-icon">⇥</span><span>تسجيل الخروج</span></a></aside>
-<div class="app-main"><header class="app-topbar"><div class="app-topbar-main"><div class="app-topbar-heading"><span class="app-topbar-title" id="appModuleTitle" role="heading" aria-level="1">تسيير ومحاسبة العتاد</span><span class="app-topbar-page" id="appPageTitle" role="heading" aria-level="2">{{ self.title() | striptags | trim | replace(' | Materiel', '') }}</span></div><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><details class="app-history-menu" id="emHistoryMenu"><summary class="app-workbtn" aria-label="سجل التغييرات للقراءة فقط" title="سجل التغييرات للقراءة فقط"><span aria-hidden="true">☷</span><span>التغييرات</span><span id="emHistoryCount" class="app-history-count">0</span></summary><div class="app-history-panel"><strong>فهرس التغييرات</strong><ol id="emHistoryList" class="app-history-list" aria-label="سجل العمليات"></ol></div></details><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span id="emStatus" class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></div><nav class="module-nav app-module-nav" id="appModuleNav" aria-label="التنقل بين صفحات الوحدة" hidden>
+<div class="app-main"><header class="app-topbar" data-user-role="{{ user.role if user is defined and user else '' }}"><div class="app-topbar-main"><div class="app-topbar-heading"><span class="app-topbar-icon" id="appModuleIcon" aria-hidden="true">⚙</span><span class="app-topbar-heading-copy"><span class="app-topbar-title" id="appModuleTitle" role="heading" aria-level="1">تسيير ومحاسبة العتاد</span><span class="app-topbar-page" id="appPageTitle" role="heading" aria-level="2">{{ self.title() | striptags | trim | replace(' | Materiel', '') }}</span></span></div><div class="app-workbar" aria-label="أدوات التحرير"><button type="button" class="app-workbtn" data-em-action="undo" aria-label="تراجع" title="تراجع" disabled>↶ <span>تراجع</span></button><button type="button" class="app-workbtn" data-em-action="redo" aria-label="إعادة" title="إعادة" disabled>↷ <span>إعادة</span></button><details class="app-history-menu" id="emHistoryMenu"><summary class="app-workbtn" aria-label="سجل التغييرات للقراءة فقط" title="سجل التغييرات للقراءة فقط"><span aria-hidden="true">☷</span><span>التغييرات</span><span id="emHistoryCount" class="app-history-count">0</span></summary><div class="app-history-panel"><strong>فهرس التغييرات</strong><ol id="emHistoryList" class="app-history-list" aria-label="سجل العمليات"></ol></div></details><span class="app-worksep"></span><button type="button" class="app-workbtn app-work-save" data-em-action="save" aria-label="حفظ" title="حفظ" disabled>💾 <span>حفظ</span></button><span id="emStatus" class="app-work-status" data-state="clean">نظيف</span></div><span class="app-topbar-date" id="systemDate"></span></div><nav class="module-nav app-module-nav" id="appModuleNav" aria-label="التنقل بين صفحات الوحدة" hidden>
 {% if request.url.path.startswith('/spare-parts/catalog') %}
 <a href="/spare-parts/catalog">الكتالوج</a>
 {% elif request.url.path.startswith('/spare-parts') %}
@@ -453,48 +453,57 @@ if(pageHeading&&pageHeading.tagName.toLowerCase()==='h2'){
 }
 if(pageHeading)pageHeading.classList.add('page-title');
 const moduleNavigation=(function(){
-  const unit=function(title,links,activePath,currentLabel){return {title:title,label:'التنقل بين صفحات '+title,links:links,activePath:activePath||null,currentLabel:currentLabel||null}};
-  const maintenanceLinks=[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة']];
+  const topbar=document.querySelector('.app-topbar');
+  const role=topbar?.dataset.userRole||'';
+  const allowed=function(item){return !item[2]||item[2].includes(role)};
+  const unit=function(title,icon,links,activePath,currentLabel){return {title:title,icon:icon,label:'التنقل بين صفحات '+title,links:links.filter(allowed),activePath:activePath||null,currentLabel:currentLabel||null}};
+  const maintenanceLinks=[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة'],['/maintenance/catalog-imports','استيراد الكتالوجات',['admin','fleet_manager']]];
   const equipmentDetail=p.match(/^\/equipment\/(\d+)(?:\/([^/]+))?$/);
   if(equipmentDetail){
     const id=equipmentDetail[1],section=equipmentDetail[2]||'';
     const links=[['/equipment','قائمة العتاد'],['/equipment/'+id,'نظرة عامة'],['/equipment/'+id+'/meters','العدادات'],['/equipment/'+id+'/maintenance','الصيانة'],['/equipment/'+id+'/tires','الإطارات'],['/equipment/'+id+'/batteries','البطاريات'],['/equipment/'+id+'/fuel','الوقود'],['/faults-repairs/faults','الأعطال']];
     if(section==='edit')links.push([p,'تعديل البيانات']);
-    return unit('العتاد',links,p);
+    return unit('العتاد','▦',links,p);
   }
   if(p.startsWith('/spare-parts')){
     const links=[['/spare-parts','نظرة عامة'],['/spare-parts-requests','الطلبات'],['/spare-parts-received','الاستلام'],['/spare-parts-distribution','التوزيع'],['/spare-parts-return','الإرجاع'],['/spare-parts/catalog','الكتالوج']];
     const history=p.match(/^\/spare-parts-history\/(\d+)/);if(history)links.push([p,'سجل حركة القطعة']);
-    return unit('قطع الغيار',links,p.startsWith('/spare-parts-history/')?p:null);
+    return unit('قطع الغيار','▤',links,p.startsWith('/spare-parts-history/')?p:null);
   }
-  if(p.startsWith('/maintenance'))return unit('الصيانة',maintenanceLinks);
-  if(p.startsWith('/faults-repairs'))return unit('الأعطال والإصلاحات',[['/faults-repairs','لوحة الوحدة'],['/faults-repairs/faults','سجل الأعطال'],['/faults-repairs/repairs','سجل التصليحات'],['/faults-repairs/technicians','الفنيون'],['/faults-repairs/analytics','التحليلات']]);
-  if(p.startsWith('/tires'))return unit('الإطارات',[['/tires','إدارة الإطارات'],['/tires/inventory','المخزون'],['/tires/settings','الإعدادات']],/^\/tires\/\d+(?:\/|$)/.test(p)?'/tires/inventory':null);
-  if(p.startsWith('/batteries'))return unit('البطاريات',[['/batteries','إدارة البطاريات'],['/batteries/settings','الإعدادات']]);
+  if(p.startsWith('/maintenance'))return unit('الصيانة','⚒',maintenanceLinks);
+  if(p.startsWith('/faults-repairs'))return unit('الأعطال والإصلاحات','⚠',[['/faults-repairs','لوحة الوحدة'],['/faults-repairs/faults','سجل الأعطال'],['/faults-repairs/repairs','سجل التصليحات'],['/faults-repairs/technicians','الفنيون'],['/faults-repairs/analytics','التحليلات']]);
+  if(p.startsWith('/tires'))return unit('الإطارات','◉',[['/tires','إدارة الإطارات'],['/tires/inventory','المخزون'],['/tires/settings','الإعدادات']],/^\/tires\/\d+(?:\/|$)/.test(p)?'/tires/inventory':null);
+  if(p.startsWith('/batteries')){
+    const active=p==='/batteries/equipment'?'/batteries/equipment':p==='/batteries/settings'?'/batteries/settings':'/batteries';
+    return unit('البطاريات','▰',[['/batteries','إدارة البطاريات'],['/batteries/equipment','تجهيز العتاد'],['/batteries/settings','الإعدادات']],active);
+  }
   if(p.startsWith('/meter-readings')){
     const links=[['/meter-readings','سجل القراءات'],['/meter-readings/operations','سجل العمليات']];
     if(/^\/meter-readings\/history\/\d+/.test(p))links.push([p,'تاريخ العداد']);
-    return unit('العدادات',links);
+    return unit('العدادات','◷',links);
   }
-  if(p.startsWith('/fuel'))return unit('الوقود',[['/fuel','سجل الوقود']]);
-  if(p.startsWith('/equipment-types')||p.startsWith('/equipment'))return unit('العتاد',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد'],['/equipment-types/structure','هيكلة الأنواع والطرازات']]);
+  if(p.startsWith('/fuel'))return unit('الوقود','⛽',[['/fuel','سجل الوقود'],['/fuel/equipment','استهلاك العتاد'],['/fuel/model-rates','معايير الاستهلاك']]);
+  if(p.startsWith('/equipment-types'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
+  if(p.startsWith('/equipment'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
   if(p.startsWith('/document-import')){
     const modelId=new URLSearchParams(window.location.search).get('model_id');
     const uploadHref='/document-import/upload'+(modelId?'?model_id='+encodeURIComponent(modelId):'');
     const currentLabel=p==='/document-import/preview'?'معاينة المستند':null;
-    return unit('استيراد المستندات',[[uploadHref,'استيراد من مستند']],p==='/document-import/upload'?uploadHref:null,currentLabel);
+    return unit('استيراد المستندات','⇧',[[uploadHref,'استيراد من مستند',['admin','fleet_manager']]],p==='/document-import/upload'?uploadHref:null,currentLabel);
   }
-  if(p.startsWith('/missions'))return unit('المهمات',[['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]);
-  if(p.startsWith('/users')&&!p.startsWith('/users/login'))return unit('المستخدمون',[['/users','إدارة المستخدمين']]);
-  if(p.startsWith('/dashboard'))return unit('لوحة التحكم',[['/dashboard','الرئيسية']]);
+  if(p.startsWith('/missions'))return unit('المهمات','◆',[['/missions','ملخص الوحدة'],['/missions/records','إدارة المهمات'],['/missions/drivers','إدارة السائقين']]);
+  if(p.startsWith('/users')&&!p.startsWith('/users/login'))return unit('المستخدمون','♙',[['/users','إدارة المستخدمين',['admin']]]);
+  if(p.startsWith('/dashboard'))return unit('لوحة التحكم','⌂',[['/dashboard','الرئيسية']]);
   return null;
 })();
 const moduleTitleElement=document.getElementById('appModuleTitle');
+const moduleIconElement=document.getElementById('appModuleIcon');
 const pageTitleElement=document.getElementById('appPageTitle');
 const currentPageTitle=(document.title||'').replace(/\s*(?:\||—|-)\s*(?:Materiel|تسيير ومحاسبة العتاد|إدارة الأسطول والعتاد)\s*$/i,'').trim();
 const currentModuleTitle=moduleNavigation?.title||'تسيير ومحاسبة العتاد';
 const normalizeTitle=function(value){return (value||'').replace(/\s+/g,' ').trim()};
 if(moduleTitleElement)moduleTitleElement.textContent=currentModuleTitle;
+if(moduleIconElement&&moduleNavigation)moduleIconElement.textContent=moduleNavigation.icon;
 if(pageTitleElement){pageTitleElement.textContent=currentPageTitle;pageTitleElement.hidden=normalizeTitle(currentPageTitle)===normalizeTitle(currentModuleTitle)}
 if(pageHeading&&currentPageTitle&&normalizeTitle(pageHeading.textContent)===normalizeTitle(currentPageTitle))pageHeading.hidden=true;
 if(main&&moduleNavigation&&moduleNavigation.links.length){
@@ -506,22 +515,8 @@ if(main&&moduleNavigation&&moduleNavigation.links.length){
   nav.setAttribute('aria-label',moduleNavigation.label);
   const matching=moduleNavigation.links.filter(function(item){const href=item[0];return p===href||(href!=='/'&&p.startsWith(href+'/'))});
   const activeHref=moduleNavigation.activePath||(matching.sort(function(a,b){return b[0].length-a[0].length})[0]||[])[0];
-  const moduleHrefs=new Set(moduleNavigation.links.map(function(item){return item[0]}));
   const existingLinks=new Map(Array.from(nav.querySelectorAll('a')).map(function(link){return [link.getAttribute('href'),link]}));
-  main.querySelectorAll('nav.module-nav,nav.module-tabs,nav.tires-nav,.navigation-actions,.ed-tabs,.breadcrumb,.mdx-breadcrumb').forEach(function(legacyNav){legacyNav.remove()});
-  main.querySelectorAll('.fr-head .actions,.spcat .top .actions,.equip-head .equip-actions,.record-back,.ed-back,.td .head > a,.head > a,.hero-actions a[href],.page-header > div a[href]').forEach(function(actions){
-    if(actions.matches('a[href]')){
-      if(actions.matches('.hero-actions a[href]')&&!/^(?:←|↶|رجوع|عودة)/.test(actions.textContent.trim()))return;
-      const href=new URL(actions.href,window.location.href).pathname;
-      if(moduleHrefs.has(href))actions.remove();
-      return;
-    }
-    Array.from(actions.querySelectorAll('a[href]')).forEach(function(link){
-      const href=new URL(link.href,window.location.href).pathname;
-      if(moduleHrefs.has(href))link.remove();
-    });
-    if(!actions.children.length)actions.remove();
-  });
+  main.querySelectorAll('nav.module-nav,nav.module-tabs,nav.tires-nav,.ed-tabs').forEach(function(legacyNav){legacyNav.remove()});
   moduleNavigation.links.forEach(function(item){
     const href=item[0],label=item[1];
     let link=existingLinks.get(href);
@@ -618,17 +613,19 @@ const brandSelect=document.getElementById('statusBrand');if(brandSelect){const c
 /* Shared fixed header: the module title and compact controls lead, page links sit below. */
 .app-topbar{box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:0;min-width:0;max-width:100%;overflow:visible;padding:10px 16px;border:1px solid rgba(46,125,50,.12);border-radius:12px;background:rgba(255,255,255,.97);box-shadow:0 4px 16px rgba(31,81,56,.07)}
 .app-topbar-main{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0;max-width:100%}
-.app-topbar-heading{display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-width:0;max-width:none;padding-inline-start:10px;border-inline-start:3px solid var(--primary,#397a54)}
+.app-topbar-heading{display:flex;flex:1 1 auto;flex-direction:row;align-items:center;gap:9px;min-width:0;max-width:none;padding-inline-start:10px;border-inline-start:3px solid var(--primary,#397a54)}
+.app-topbar-icon{display:grid;flex:0 0 30px;width:30px;height:30px;place-items:center;border:1px solid rgba(46,125,50,.12);border-radius:8px;background:#f2f8f3;color:var(--primary,#397a54);font-size:16px;line-height:1}
+.app-topbar-heading-copy{display:flex;flex:1 1 auto;flex-direction:column;gap:1px;min-width:0}
 .app-topbar .app-topbar-title{display:block;min-width:0;max-width:100%;margin:0;overflow:hidden;color:var(--text-primary);font-size:15px;font-weight:800;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
 .app-topbar-page{display:block;min-width:0;max-width:100%;overflow:hidden;color:var(--text-secondary);font-size:11px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
 .app-workbar{display:flex;flex:0 1 auto;align-items:center;justify-content:flex-start;gap:5px;min-width:0;margin-inline-start:auto}
 .app-workbtn{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:30px;height:30px;padding:0 8px;font-size:10px;line-height:1;white-space:nowrap}
 .app-workbtn span{font-size:10px}
 .app-topbar-date{flex:0 0 auto;margin-inline-start:8px;font-size:11px;white-space:nowrap}
-.app-topbar .module-nav.app-module-nav{box-sizing:border-box;display:flex;align-items:center;flex-wrap:wrap;gap:4px;width:100%;min-width:0;max-width:100%;margin:8px 0 0;padding:7px 0 0;overflow:visible;border:0;border-top:1px solid rgba(46,125,50,.14);border-radius:0;background:transparent;box-shadow:none}
+.app-topbar .module-nav.app-module-nav{box-sizing:border-box;display:flex;align-items:center;flex-wrap:nowrap;gap:4px;width:100%;min-width:0;max-width:100%;margin:7px 0 0;padding:6px 0 0;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:#91ad98 transparent;border:0;border-top:1px solid rgba(46,125,50,.14);border-radius:0;background:transparent;box-shadow:none}
 .app-topbar .module-nav.app-module-nav[hidden]{display:none}
 @media(hover:hover){.app-topbar .module-nav.app-module-nav a:hover{border-color:rgba(46,125,50,.2);background:#f2f8f3;color:#245b39}}
-.app-topbar .module-nav.app-module-nav :is(a,span){box-sizing:border-box;min-width:0;padding:5px 8px;border:1px solid transparent;border-radius:6px;color:var(--text-secondary);font-size:11px;font-weight:650;line-height:1.35;white-space:nowrap;transition:background-color .15s ease,border-color .15s ease,color .15s ease}
+.app-topbar .module-nav.app-module-nav :is(a,span){box-sizing:border-box;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;min-width:0;min-height:32px;padding:5px 8px;border:1px solid transparent;border-radius:6px;color:var(--text-secondary);font-size:11px;font-weight:650;line-height:1.35;white-space:nowrap;transition:background-color .15s ease,border-color .15s ease,color .15s ease}
 .app-topbar .module-nav.app-module-nav a.active,.app-topbar .module-nav.app-module-nav span.active{border-color:var(--primary,#397a54);background:var(--primary,#397a54);color:#fff;font-weight:750;box-shadow:0 2px 5px rgba(46,125,50,.16)}
 .app-topbar .module-nav.app-module-nav a:focus-visible,.app-workbtn:focus-visible{outline:2px solid #78a989;outline-offset:2px}
 /* Keep page-specific workspace styling from reverting this shared header to one row. */
@@ -639,8 +636,8 @@ body:has(.mdx) .app-topbar .app-workbar{flex:0 1 auto;align-items:center;justify
 body:has(.mdx) .app-topbar .app-workbtn{min-height:30px;height:30px;padding:0 8px;font-size:10px;box-shadow:none}
 body:has(.mdx) .app-topbar .app-work-status{min-width:0;text-align:start;font-size:11px}
 body:has(.mdx) .app-topbar .app-topbar-date{margin-inline-start:8px;padding:0;border:0;background:transparent;font-size:11px}
-@media(max-width:700px){body:has(.mdx) .app-topbar{position:sticky!important;top:0!important;height:auto;min-height:0;flex-direction:column;align-items:stretch;gap:0;overflow:visible;margin:0 0 12px;padding:8px 12px}body:has(.mdx) .app-topbar-main{flex-wrap:wrap;gap:7px}body:has(.mdx) .app-topbar .app-topbar-heading{flex:1 1 100%;max-width:100%}body:has(.mdx) .app-topbar .app-workbar{flex:0 1 auto;flex-wrap:wrap;max-width:100%;overflow:visible;margin-inline:0}}
-@media(max-width:700px){.app-topbar{position:sticky!important;top:0!important;z-index:50;gap:0;margin-bottom:12px;padding:8px 12px;border-radius:0}.app-topbar-main{flex-wrap:wrap;gap:7px}.app-topbar-heading{flex:1 1 100%;max-width:100%}.app-topbar .app-topbar-title{font-size:14px}.app-topbar-page{font-size:11px}.app-workbar{flex:0 1 auto;flex-wrap:wrap;gap:4px;margin-inline-start:0}.app-workbtn{min-height:30px;height:30px;padding:0 7px;font-size:10px}.app-work-status,.app-worksep,.app-topbar-date{display:none}.app-topbar .module-nav.app-module-nav{flex-wrap:wrap;gap:3px;margin-top:7px;padding-top:6px;overflow:visible}.app-topbar .module-nav.app-module-nav :is(a,span){padding:5px 7px;font-size:10px;white-space:normal}}
+@media(max-width:700px){body:has(.mdx) .app-topbar{position:sticky!important;top:0!important;height:auto;min-height:0;flex-direction:column;align-items:stretch;gap:0;overflow:visible;margin:0 0 12px;padding:8px 12px}body:has(.mdx) .app-topbar-main{flex-wrap:nowrap;gap:7px}body:has(.mdx) .app-topbar .app-topbar-heading{flex:1 1 auto;max-width:none}body:has(.mdx) .app-topbar .app-workbar{flex:0 1 auto;flex-wrap:nowrap;max-width:100%;overflow-x:auto;margin-inline:0}body:has(.mdx) .app-topbar .module-nav.app-module-nav{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}}
+@media(max-width:700px){.app-topbar{position:sticky!important;top:0!important;z-index:50;gap:0;margin-bottom:12px;padding:8px 12px;border-radius:0}.app-topbar-main{flex-wrap:nowrap;gap:7px}.app-topbar-heading{flex:1 1 auto;max-width:none}.app-topbar-icon{flex-basis:27px;width:27px;height:27px}.app-topbar .app-topbar-title{font-size:13px}.app-topbar-page{font-size:10px}.app-workbar{flex:0 1 auto;flex-wrap:nowrap;gap:3px;margin-inline-start:0}.app-workbtn{min-height:30px;height:30px;padding:0 7px;font-size:10px}.app-work-status,.app-worksep,.app-topbar-date{display:none}.app-topbar .module-nav.app-module-nav{flex-wrap:nowrap;gap:3px;margin-top:6px;padding-top:5px;overflow-x:auto;overflow-y:hidden}.app-topbar .module-nav.app-module-nav :is(a,span){min-height:31px;padding:5px 7px;font-size:10px;white-space:nowrap}}
 @media(max-width:375px){.app-topbar{padding:7px 9px}.app-topbar .app-topbar-title{font-size:13px}.app-workbtn{padding:0 6px}}
 </style>
 <script>
