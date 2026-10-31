@@ -216,6 +216,13 @@ def test_login_sets_a_session_that_authenticates_the_pages(pages):
     assert client.cookies.get("fleet_session"), "لا كوكي جلسة بعد الدخول"
 
 
+def test_configured_institution_name_is_shown_in_the_sidebar(pages):
+    client, _ = pages
+    response = client.get("/dashboard")
+    assert response.status_code == 200, response.text
+    assert '<span class="app-brand-institution">شركة النقل البري</span>' in response.text
+
+
 def test_spare_parts_catalog_add_and_import_preview_apply(pages):
     client, _ = pages
     page = client.get("/spare-parts/catalog")

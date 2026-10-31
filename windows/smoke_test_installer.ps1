@@ -76,6 +76,8 @@ function Assert-SplashContent {
     $Page = (Invoke-WebRequest -Uri "$BaseUrl/" -TimeoutSec 10 -UseBasicParsing).Content
     if (-not $Page.Contains($Branding.institution_name)) { throw "Packaged institution text was not rendered." }
     if (-not $Page.Contains($Branding.description)) { throw "Packaged splash description was not rendered." }
+    if (-not $Page.Contains($Branding.developer_name)) { throw "Packaged developer text was not rendered." }
+    if (-not $Page.Contains("الإصدار $($Branding.version)")) { throw "Packaged version text was not rendered." }
 
     $LogoPath = Join-Path $SplashDir $Branding.logo_file
     if (Test-Path -LiteralPath $LogoPath) {
@@ -83,6 +85,16 @@ function Assert-SplashContent {
         if (-not $Page.Contains($ExpectedLogo)) { throw "Packaged splash logo was not rendered." }
     }
     if ($Page.Contains("محاولة تعديل المستخدم")) { throw "User data overrode the release branding." }
+}
+
+function Assert-SidebarInstitution {
+    $Branding = Get-PackagedBranding
+    $WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    Invoke-WebRequest -Uri "$BaseUrl/login" -Method Post -Body @{ username = "admin"; password = "Admin@123" } -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing | Out-Null
+    $Dashboard = (Invoke-WebRequest -Uri "$BaseUrl/dashboard" -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing).Content
+    if (-not $Dashboard.Contains("<span class=`"app-brand-institution`">$($Branding.institution_name)</span>")) {
+        throw "Packaged institution text was not rendered in the application sidebar."
+    }
 }
 
 try {
@@ -123,6 +135,7 @@ try {
 
     Start-PackagedApp
     Assert-SplashContent
+    Assert-SidebarInstitution
     Stop-PackagedApp
 
     @'
@@ -141,6 +154,7 @@ with sqlite3.connect(path) as db:
 
     Start-PackagedApp
     Assert-SplashContent
+    Assert-SidebarInstitution
     @'
 import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
@@ -150,7 +164,8 @@ with sqlite3.connect(sys.argv[1]) as db:
     if ($LASTEXITCODE -ne 0) { throw "User database marker was not preserved across upgrade and startup." }
 
     Write-Output "PASS: installed EXE started and served /health and splash page."
-    Write-Output "PASS: release splash text and logo rendered from the installed application bundle."
+    Write-Output "PASS: release welcome text, version and logo rendered from the installed application bundle."
+    Write-Output "PASS: configured institution name rendered in the application sidebar."
     Write-Output "PASS: standard users cannot modify the installed branding, and user-data overrides are ignored."
     Write-Output "PASS: installer update retained release branding and user database data."
     Write-Output "PASS: user database marker survived installer update and application startup."

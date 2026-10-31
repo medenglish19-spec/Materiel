@@ -1,7 +1,7 @@
 {
-  "institution_name": "اسم المؤسسة",
-  "description": "مساحة للنص التعريفي أو رسالة الترحيب",
-  "developer_name": "اسم المطوّر أو الفريق",
-  "version": "1.0.4",
+  "institution_name": "شركة النقل البري",
+  "description": "تتمنى لكم طريق السلامة",
+  "developer_name": "تحت اشراف حميد",
+  "version": "1.0.0",
   "logo_file": "logo.png"
 }

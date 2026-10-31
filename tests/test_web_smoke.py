@@ -22,7 +22,10 @@ def test_root_renders_splash_and_offers_dashboard_when_auth_is_disabled(monkeypa
         response = client.get("/", follow_redirects=False)
     assert response.status_code == 200
     assert "نظام تسيير و محاسبة العتاد" in response.text
-    assert "اسم المؤسسة" in response.text
+    assert "شركة النقل البري" in response.text
+    assert "تتمنى لكم طريق السلامة" in response.text
+    assert "تحت اشراف حميد" in response.text
+    assert "الإصدار 1.0.0" in response.text
     assert 'href="/dashboard"' in response.text
 
 
