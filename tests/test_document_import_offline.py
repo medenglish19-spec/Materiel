@@ -49,6 +49,14 @@ def test_document_import_forms_join_the_shared_edit_manager():
     assert 'id="applyForm"' in template and 'id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px" data-em-root' in template
 
 
+def test_editable_document_preview_table_scrolls_without_joining_readonly_filters():
+    template = Path("app/modules/document_import/templates/upload.html").read_text(encoding="utf-8")
+    review = template.split('class="table-scroll document-import-review-scroll"', 1)[1].split("</div>", 1)[0]
+
+    assert '<table class="tbl">' in review
+    assert "data-mt-region" not in review
+
+
 def test_empty_xlsx_returns_clear_arabic_extraction_error(tmp_path):
     from openpyxl import Workbook
 

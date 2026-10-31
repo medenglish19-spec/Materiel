@@ -36,6 +36,7 @@
   {% if candidates %}
   <form id="applyForm" method="post" action="/document-import/apply" style="margin-top:16px" data-em-root>
     <input type="hidden" name="model_id" value="{{ model_id }}">
+    <div class="table-scroll document-import-review-scroll">
     <table class="tbl">
       <thead>
         <tr>
@@ -81,6 +82,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
     <button type="submit" class="btn primary">تطبيق المعتمد فقط</button>
   </form>
   {% endif %}

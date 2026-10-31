@@ -146,6 +146,17 @@ def test_desktop_navigation_reserves_header_space_and_sidebar_scrolls():
     assert 'data-em-action="save"' in html
 
 
+def test_equipment_type_structure_template_names_are_distinct_and_route_is_intact():
+    active_template = Path("app/modules/equipment_types/templates/equipment_types_structure.html")
+    legacy_template = Path("app/modules/equipment/templates/equipment_types_structure_legacy.html")
+    router = Path("app/modules/equipment_types/router.py").read_text(encoding="utf-8")
+
+    assert active_template.exists()
+    assert legacy_template.exists()
+    assert not Path("app/modules/equipment/templates/equipment_types_structure.html").exists()
+    assert 'name="equipment_types_structure.html"' in router
+
+
 def test_main_page_routes_are_registered(monkeypatch):
     """تعطيل المصادقة المؤقت أزال اشتراط الجلسة عن هذه الصفحات.
 
