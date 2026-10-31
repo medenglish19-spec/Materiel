@@ -13,9 +13,11 @@
 import re
 from contextlib import contextmanager
 from datetime import date, timedelta
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -593,6 +595,20 @@ def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):
     assert "تم الإصلاح" in repair_metrics
     assert "ملغى" not in repair_metrics
     assert re.findall(r'class="value">(\d+)</div>', repair_metrics) == ["1", "0"]
+
+
+def test_meter_reading_import_template_download_has_the_six_requested_columns(pages):
+    client, _ = pages
+    response = client.get("/meter-readings/import-template")
+
+    assert response.status_code == 200
+    assert 'attachment; filename="meter-readings-import-template.xlsx"' in response.headers["content-disposition"]
+    sheet = load_workbook(BytesIO(response.content), data_only=True).active
+    headers = tuple(next(sheet.iter_rows(min_row=1, max_row=1, values_only=True)))
+    assert sheet.title == "قراءات العداد"
+    assert headers == ("الطراز", "رقم التسجيل", "التاريخ", "الكيلومترات", "الساعات", "حالة العداد")
+    assert "ملاحظات" not in headers
+    assert [validation.type for validation in sheet.data_validations.dataValidation] == ["list"]
 
 
 def test_pages_open_without_login(anonymous):

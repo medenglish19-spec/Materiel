@@ -104,10 +104,13 @@ def test_meter_readings_page_keeps_all_core_actions():
         "exportPDF()",
         "exportExcel()",
         "meter-readings/import-excel",
+        "/meter-readings/import-template",
         "/modal?page=",
         "/meter-readings/create",
     ):
         assert marker in text, f"وظيفة واجهة مفقودة: {marker}"
+    assert "تنزيل قالب Excel" in text
+    assert "لا يوجد عمود ملاحظات" in text
     for removed_marker in ("openPasteModal()", "submitPastedReadings()", "pasteModal", "pasteData", "meter-readings/bulk-create"):
         assert removed_marker not in text, f"مرجع قديم لخاصية اللصق ما زال موجودًا: {removed_marker}"
 

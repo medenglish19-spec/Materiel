@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from html import escape
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from openpyxl.utils.datetime import from_excel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.meter_readings.audit_service import add_validation_details, create_operation
 from app.modules.meter_readings.excel_reader import load_meter_workbook
+from app.modules.meter_readings.excel_template import build_template
 from app.modules.users.models import User
 router = APIRouter(prefix="/meter-readings", tags=["Meter Readings"])
 templates = get_module_templates("app/modules/meter_readings/templates")
@@ -115,6 +116,16 @@ def meter_readings_bulk_create(payload: dict = Body(...), db: Session = Depends(
         db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": len(raw_rows), "errors": [_error_card("تعذر حفظ القراءات بسبب خطأ في قاعدة البيانات.")]})
     cards = [_error_card(x) for x in errors[:100]] + [_warning_card(x) for x in warnings[:100]]
     return JSONResponse({"ok": not errors, "created": created, "skipped": rejected_total, "errors": cards, "message": "تم حفظ القراءات الصحيحة، مع وجود أخطاء تحتاج للمراجعة." if errors else "تم الحفظ بنجاح."})
+@router.get("/import-template")
+def meter_readings_import_template(current_user: User = Depends(get_current_user)):
+    from io import BytesIO
+    return StreamingResponse(
+        BytesIO(build_template()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="meter-readings-import-template.xlsx"'},
+    )
+
+
 def _normalize_header(value):
     if value is None: return ""
     text = str(value).strip().lower()
