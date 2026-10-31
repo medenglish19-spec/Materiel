@@ -37,11 +37,11 @@ Name: "{code:GetDataDir}\backups"; Flags: uninsneveruninstall
 
 [Files]
 ; If this replaces an older installation, move its database to the durable data path only when that path is empty.
-Source: "{app}\fleet_assets.db"; DestDir: "{code:GetDataDir}"; Check: FileExists(ExpandConstant('{app}\fleet_assets.db')); Flags: external onlyifdoesntexist uninsneveruninstall
-Source: "{app}\_internal\fleet_assets.db"; DestDir: "{code:GetDataDir}"; Check: FileExists(ExpandConstant('{app}\_internal\fleet_assets.db')); Flags: external onlyifdoesntexist uninsneveruninstall
+Source: "{app}\fleet_assets.db"; DestDir: "{code:GetDataDir}"; Check: ExistingInstallFileExists('fleet_assets.db'); Flags: external onlyifdoesntexist uninsneveruninstall
+Source: "{app}\_internal\fleet_assets.db"; DestDir: "{code:GetDataDir}"; Check: ExistingInstallFileExists('_internal\fleet_assets.db'); Flags: external onlyifdoesntexist uninsneveruninstall
 ; Preserve image uploads from earlier package layouts. Existing user files always win.
-Source: "{app}\static\uploads\*"; DestDir: "{code:GetDataDir}\uploads"; Check: DirExists(ExpandConstant('{app}\static\uploads')); Flags: external onlyifdoesntexist recursesubdirs createallsubdirs uninsneveruninstall
-Source: "{app}\_internal\static\uploads\*"; DestDir: "{code:GetDataDir}\uploads"; Check: DirExists(ExpandConstant('{app}\_internal\static\uploads')); Flags: external onlyifdoesntexist recursesubdirs createallsubdirs uninsneveruninstall
+Source: "{app}\static\uploads\*"; DestDir: "{code:GetDataDir}\uploads"; Check: ExistingInstallDirExists('static\uploads'); Flags: external onlyifdoesntexist recursesubdirs createallsubdirs uninsneveruninstall
+Source: "{app}\_internal\static\uploads\*"; DestDir: "{code:GetDataDir}\uploads"; Check: ExistingInstallDirExists('_internal\static\uploads'); Flags: external onlyifdoesntexist recursesubdirs createallsubdirs uninsneveruninstall
 ; Create an external copy before any Alembic upgrade can change the installed database.
 Source: "{code:GetDataDir}\fleet_assets.db"; DestDir: "{code:GetDataDir}\backups"; DestName: "{code:GetBackupName}"; Flags: external skipifsourcedoesntexist uninsneveruninstall
 Source: "{#SourceDir}\Materiel.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -90,6 +90,16 @@ begin
     end;
   end;
   Result := DefaultDataDir();
+end;
+
+function ExistingInstallFileExists(Param: String): Boolean;
+begin
+  Result := FileExists(WizardDirValue + '\' + Param);
+end;
+
+function ExistingInstallDirExists(Param: String): Boolean;
+begin
+  Result := DirExists(WizardDirValue + '\' + Param);
 end;
 
 function GetBackupName(Param: String): String;

@@ -1,10 +1,16 @@
 from pathlib import Path
 import json
+import sys
 
 from PyInstaller.utils.hooks import collect_submodules
 
 
 ROOT = Path(SPECPATH).resolve().parent
+
+# collect_submodules runs before Analysis applies pathex, so make local project
+# packages discoverable even when the build script is launched from elsewhere.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def data_tree(source: Path, destination: str, *, exclude_uploads: bool = False):
