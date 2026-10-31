@@ -141,12 +141,14 @@ def cleanup_invalid_readings(db: Session):
         equipment = get_equipment_with_readings(db, equipment_id)
         if equipment: _refresh_equipment_current(db, equipment, _unit(equipment))
     db.commit(); return len(unique)
-def list_latest_rows(db: Session, page: int = 1, page_size: int = 10, search: str = "", type_id: Optional[int] = None, unit: str = "", sort: str = "date_desc"):
+def list_latest_rows(db: Session, page: int = 1, page_size: int = 10, search: str = "", type_id: Optional[int] = None, unit: str = "", sort: str = "date_desc", date_from: datetime | None = None, date_to: datetime | None = None):
     page = max(1, page); page_size = min(max(1, page_size), 100)
     latest_dates = db.query(MeterReading.equipment_id.label("equipment_id"), func.max(MeterReading.reading_date).label("latest_date")).group_by(MeterReading.equipment_id).subquery()
     query = db.query(Equipment, latest_dates.c.latest_date).join(EquipmentType, Equipment.equipment_type_id == EquipmentType.id).outerjoin(latest_dates, latest_dates.c.equipment_id == Equipment.id).options(joinedload(Equipment.equipment_type), joinedload(Equipment.equipment_model))
     if type_id: query = query.filter(Equipment.equipment_type_id == type_id)
     if unit in {"km", "hours"}: query = query.filter(EquipmentType.measurement_unit == unit)
+    if date_from: query = query.filter(latest_dates.c.latest_date >= date_from)
+    if date_to: query = query.filter(latest_dates.c.latest_date <= date_to)
     if search.strip():
         term = f"%{search.strip()}%"; query = query.filter(or_(Equipment.asset_code.ilike(term), Equipment.registration_number.ilike(term), Equipment.vin.ilike(term), EquipmentType.name.ilike(term)))
     total = query.count()

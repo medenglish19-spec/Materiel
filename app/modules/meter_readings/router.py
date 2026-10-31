@@ -11,7 +11,6 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services as equipment_services
-from app.modules.equipment_types import services as type_services
 from app.modules.meter_readings import services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.meter_readings.audit import MeterReadingChange, utc_now
@@ -70,15 +69,19 @@ def _annotate_bulk_errors(errors, raw_rows, db):
         if "رقم التسجيل:" in message or "العتاد:" in message: annotated.append(message)
         else: annotated.append(_with_input_context(message, db, registration=registration))
     return annotated
-def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort):
-    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort)
-    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "types": type_services.list_types(db), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "last_update": last_update}
+def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort, date_from=None, date_to=None):
+    date_from_value = datetime.combine(date_from, datetime.min.time()) if date_from else None
+    date_to_value = datetime.combine(date_to, datetime.max.time()) if date_to else None
+    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort, date_from=date_from_value, date_to=date_to_value)
+    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "date_from": date_from, "date_to": date_to, "last_update": last_update}
 def _finish_operation(db: Session, current_user: User, kind: str, filename: str | None, total_rows: int, reading_ids: list[int], rejected_rows: int, errors: list[str], warnings: list[str]):
     op = create_operation(db, kind=kind, user_id=getattr(current_user, "id", None), filename=filename, total_rows=total_rows, reading_ids=reading_ids, rejected_rows=rejected_rows); add_validation_details(db, op.id, getattr(current_user, "id", None), errors=errors, warnings=warnings); db.commit(); return op
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort))
+def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), date_from: date | None = Query(default=None), date_to: date | None = Query(default=None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="تاريخ البداية يجب أن يسبق تاريخ النهاية.")
+    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort, date_from, date_to))
 @router.post("/create")
 def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), equipment_status: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = equipment_services.get_equipment(db, equipment_id); context = _equipment_label(equipment)

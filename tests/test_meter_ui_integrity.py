@@ -44,9 +44,10 @@ def test_meter_readings_page_contains_script_and_core_client_handlers():
         "function openMeterHistory(",
         "async function loadMeterHistoryPage(",
         "function closeMeterHistory()",
-        "function toggleMoreFilters()",
-        "function applyDateFilter()",
         "function clearDateFilter()",
+        "function applyModalDate()",
+        "function setReadingDateFilter(",
+        "function changePageSize(",
         "function submitExcelImport()",
         "function printReadings()",
         "function exportPDF()",
@@ -92,8 +93,6 @@ def test_meter_readings_page_keeps_all_core_actions():
         "openImportModal()",
         "openDateModal()",
         "openMeterHistory(",
-        "toggleMoreFilters()",
-        "applyDateFilter()",
         "clearDateFilter()",
         "submitExcelImport()",
         "printReadings()",
@@ -115,7 +114,27 @@ def test_meter_readings_page_removes_history_and_refresh_controls_and_column():
     assert '<th>السجل</th>' not in text
     assert 'class="meter-history-link"' in text
     assert 'class="actions main-actions">' in text
-    assert ".meter-page .main-actions{flex-wrap:nowrap" in text
+    assert ".meter-page .navigation-actions,.meter-page .main-actions,.meter-page .export-actions{flex-wrap:nowrap" in text
+
+
+def test_meter_readings_page_removes_search_and_filter_toolbar_but_keeps_date_action():
+    text = TEMPLATE.read_text(encoding="utf-8")
+    for removed_marker in (
+        'id="filtersForm"',
+        'name="search"',
+        'name="type_id"',
+        'name="unit"',
+        'name="sort"',
+        "بحث برقم التسجيل أو الطراز",
+        "كل أنواع العتاد",
+        "كل العدادات",
+        "المزيد من الفلاتر",
+        "moreFilters",
+        "toggleMoreFilters",
+    ):
+        assert removed_marker not in text, f"عنصر بحث أو تصفية قديم ما زال موجودًا: {removed_marker}"
+    assert "＋ إضافة تاريخ" in text
+    assert "id=\"dateModal\"" in text
 
 
 def test_meter_history_page_keeps_edit_delete_actions():

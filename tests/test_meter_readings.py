@@ -214,6 +214,22 @@ def test_latest_meter_list_includes_the_source_column_value(db):
     assert 'class="meter-history-link"' in template
 
 
+def test_latest_meter_list_filters_by_the_latest_reading_date(db):
+    older = seed_equipment(db, "DATE-OLD", "km")
+    matching = seed_equipment(db, "DATE-MATCH", "km")
+    services.create_reading(db, older.id, odometer=100, reading_date=datetime(2026, 8, 17))
+    services.create_reading(db, matching.id, odometer=200, reading_date=datetime(2026, 8, 18))
+
+    rows, total, _pages, _last_update = services.list_latest_rows(
+        db,
+        date_from=datetime(2026, 8, 18),
+        date_to=datetime(2026, 8, 18, 23, 59, 59, 999999),
+    )
+
+    assert total == 1
+    assert [row["equipment_id"] for row in rows] == [matching.id]
+
+
 def test_domain_models_do_not_have_local_meter_storage_columns():
     from app.modules.faults_repairs.models import Fault, Repair
     from app.modules.maintenance.models import MaintenanceRecord

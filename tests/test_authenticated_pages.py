@@ -654,6 +654,14 @@ def test_meter_history_modal_returns_selected_equipment_readings():
             response = client.get(
                 f"/meter-readings/history/{ids['equipment']}/modal?page=1"
             )
+            readings_page = client.get(
+                "/meter-readings",
+                params={"date_from": date.today().isoformat(), "date_to": date.today().isoformat()},
+            )
+            invalid_date_range = client.get(
+                "/meter-readings",
+                params={"date_from": "2026-08-19", "date_to": "2026-08-18"},
+            )
 
     assert response.status_code == 200
     payload = response.json()
@@ -662,6 +670,12 @@ def test_meter_history_modal_returns_selected_equipment_readings():
     assert payload["total"] == 1
     assert payload["rows"][0]["reading"].replace(",", "") == "1234"
     assert payload["rows"][0]["note"] == "قراءة للنافذة المنبثقة"
+    assert readings_page.status_code == 200
+    assert "111-TEST" in readings_page.text
+    assert 'id="filtersForm"' not in readings_page.text
+    assert 'id="dateModal"' in readings_page.text
+    assert 'value="' + date.today().isoformat() + '"' in readings_page.text
+    assert invalid_date_range.status_code == 400
 
 
 def test_single_form_pages_are_connected_to_the_shared_editor(pages):
