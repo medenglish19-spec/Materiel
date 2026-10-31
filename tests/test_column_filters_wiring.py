@@ -204,7 +204,8 @@ def test_other_read_only_tables_use_the_shared_filter_region():
     drivers = templates["drivers.html"].read_text(encoding="utf-8")
     driver_table = drivers.split("قائمة السائقين", 1)[1]
     assert '<div class="table-wrap" data-mt-region>' in driver_table
-    assert driver_table.count("data-mt-force-filter>") == 9
+    assert driver_table.count("data-mt-force-filter>") == 10
+    assert '<th data-mt-force-filter>ملاحظات</th>' in driver_table
     assert '<th data-mt-no-filter>الإجراءات</th>' in driver_table
 
 

@@ -21,6 +21,7 @@ CATALOG_TABLES = {
     "spare_part_catalog_details",
     "spare_part_catalog_references",
     "spare_part_catalog_imports",
+    "spare_part_catalog_models",
     "maintenance_catalog_imports",
     "fuel_model_consumption_rates",
 }
@@ -61,6 +62,8 @@ def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path
     with engine.begin() as connection:
         _create_legacy_missions(connection)
         connection.execute(text("ALTER TABLE batteries RENAME COLUMN capacity TO model"))
+        connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN professional_rank"))
+        connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN registration_number"))
     from sqlalchemy.orm import Session
     with Session(engine) as session:
         equipment_type = EquipmentType(name="Migration km", measurement_unit="km")

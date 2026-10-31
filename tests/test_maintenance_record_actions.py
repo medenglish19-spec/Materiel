@@ -673,7 +673,7 @@ def test_record_delete_confirmation_shows_server_impact_before_requests():
     template = Path("app/modules/maintenance/templates/maintenance_records.html").read_text(encoding="utf-8")
     assert "MaterielDeleteImpact.confirmMany(ids.map(id=>api+'/records/'+id+'/delete-impact')" in template
     assert "MaterielDeleteImpact.confirmOne(api+'/records/'+id+'/delete-impact'" in template
-    assert "<th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>" in template
+    assert "<th>#</th><th>طراز العتاد</th><th>رقم التسجيل</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th>" in template
     assert "<th>الإجراءات</th>" not in template
 
 

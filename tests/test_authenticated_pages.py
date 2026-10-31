@@ -960,7 +960,10 @@ def test_equipment_analysis_pages_avoid_duplicate_sections_and_raw_states(pages)
     assert "تفاصيل عينة المقارنة متاحة داخل كل صف" in operational.text
     assert "<summary>العينة</summary>" in operational.text
     assert "مرجع الأعطال" not in operational.text
-    assert "جاهز / في مهمة" in operational.text
+    assert re.search(
+        r"(?:جاهز|جاهز مع قيود|عاطل) / (?:متاح|في مهمة|في الصيانة|في ورشة خارجية|غير متاح)",
+        operational.text,
+    )
     assert "ready / in_mission" not in operational.text
 
 

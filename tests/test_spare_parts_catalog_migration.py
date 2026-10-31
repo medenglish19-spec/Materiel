@@ -52,6 +52,8 @@ def test_catalog_migration_up_and_down_on_isolated_legacy_schema(tmp_path):
     with engine.begin() as connection:
         _create_legacy_missions(connection)
         connection.execute(text("ALTER TABLE batteries RENAME COLUMN capacity TO model"))
+        connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN professional_rank"))
+        connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN registration_number"))
         connection.execute(text("INSERT INTO spare_parts (part_number, name, receiving_document, notes) VALUES ('OLD-1', 'Existing part', 'receipt-1', NULL)"))
 
     config = Config("alembic.ini")
