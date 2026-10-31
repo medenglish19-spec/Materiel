@@ -630,6 +630,40 @@ def test_every_page_renders_for_a_logged_in_user(pages):
     assert failures == [], "\n".join(failures)
 
 
+def test_meter_history_modal_returns_selected_equipment_readings():
+    with _isolated_app() as (app, _TestingSession, ids):
+        with TestClient(app) as client:
+            login = client.post(
+                "/login",
+                data={"username": SEEDED_USERNAME, "password": SEEDED_PASSWORD},
+                follow_redirects=False,
+            )
+            assert login.status_code in (302, 303)
+            created = client.post(
+                "/meter-readings/create",
+                data={
+                    "equipment_id": ids["equipment"],
+                    "reading_date": date.today().isoformat(),
+                    "value": "1234",
+                    "equipment_status": "available",
+                    "notes": "قراءة للنافذة المنبثقة",
+                },
+            )
+            assert created.status_code == 200
+
+            response = client.get(
+                f"/meter-readings/history/{ids['equipment']}/modal?page=1"
+            )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["equipment"]["registration"] == "111-TEST"
+    assert payload["unit"] == "كم"
+    assert payload["total"] == 1
+    assert payload["rows"][0]["reading"].replace(",", "") == "1234"
+    assert payload["rows"][0]["note"] == "قراءة للنافذة المنبثقة"
+
+
 def test_single_form_pages_are_connected_to_the_shared_editor(pages):
     client, _ = pages
     for path, marker in (

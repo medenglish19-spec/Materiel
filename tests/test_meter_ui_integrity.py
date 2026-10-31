@@ -41,7 +41,9 @@ def test_meter_readings_page_contains_script_and_core_client_handlers():
         "function openReadingModal()",
         "function openImportModal()",
         "function openDateModal()",
-        "function openSelectedHistory()",
+        "function openMeterHistory(",
+        "async function loadMeterHistoryPage(",
+        "function closeMeterHistory()",
         "function toggleMoreFilters()",
         "function applyDateFilter()",
         "function clearDateFilter()",
@@ -89,7 +91,7 @@ def test_meter_readings_page_keeps_all_core_actions():
         "openReadingModal()",
         "openImportModal()",
         "openDateModal()",
-        "openSelectedHistory()",
+        "openMeterHistory(",
         "toggleMoreFilters()",
         "applyDateFilter()",
         "clearDateFilter()",
@@ -98,11 +100,22 @@ def test_meter_readings_page_keeps_all_core_actions():
         "exportPDF()",
         "exportExcel()",
         "meter-readings/import-excel",
+        "/modal?page=",
         "/meter-readings/create",
     ):
         assert marker in text, f"وظيفة واجهة مفقودة: {marker}"
     for removed_marker in ("openPasteModal()", "submitPastedReadings()", "pasteModal", "pasteData", "meter-readings/bulk-create"):
         assert removed_marker not in text, f"مرجع قديم لخاصية اللصق ما زال موجودًا: {removed_marker}"
+
+
+def test_meter_readings_page_removes_history_and_refresh_controls_and_column():
+    text = TEMPLATE.read_text(encoding="utf-8")
+    assert "عرض السجل الزمني" not in text
+    assert 'onclick="location.reload()"' not in text
+    assert '<th>السجل</th>' not in text
+    assert 'class="meter-history-link"' in text
+    assert 'class="actions main-actions">' in text
+    assert ".meter-page .main-actions{flex-wrap:nowrap" in text
 
 
 def test_meter_history_page_keeps_edit_delete_actions():

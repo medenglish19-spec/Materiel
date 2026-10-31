@@ -209,7 +209,9 @@ def test_latest_meter_list_includes_the_source_column_value(db):
     assert row["source"] == "الوقود"
     from pathlib import Path
     template = Path("app/modules/meter_readings/templates/meter_readings.html").read_text(encoding="utf-8")
-    assert template.index("مصدر آخر قراءة") > template.index("<th>السجل</th>")
+    assert '<th>السجل</th>' not in template
+    assert "مصدر آخر قراءة" in template
+    assert 'class="meter-history-link"' in template
 
 
 def test_domain_models_do_not_have_local_meter_storage_columns():

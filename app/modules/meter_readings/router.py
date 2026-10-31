@@ -225,6 +225,49 @@ def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session 
             {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
         ],
     }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
 @router.get("/history/{equipment_id}", response_class=HTMLResponse)
 def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
