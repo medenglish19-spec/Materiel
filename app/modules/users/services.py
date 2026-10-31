@@ -56,6 +56,28 @@ def update_user(db: Session, user: User, user_in: UserUpdate) -> User:
     return user
 
 
+def change_own_password(
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+    confirmation: str,
+) -> User:
+    if not verify_password(current_password, user.hashed_password):
+        raise ValueError("كلمة المرور الحالية غير صحيحة")
+    if len(new_password) < 6:
+        raise ValueError("كلمة المرور الجديدة يجب ألا تقل عن 6 خانات")
+    if new_password != confirmation:
+        raise ValueError("تأكيد كلمة المرور غير مطابق")
+    if verify_password(new_password, user.hashed_password):
+        raise ValueError("اختر كلمة مرور مختلفة عن الحالية")
+
+    user.hashed_password = hash_password(new_password)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     """يرجع المستخدم لو صحّت بيانات الدخول، وإلا None."""
     user = get_user_by_username(db, username)

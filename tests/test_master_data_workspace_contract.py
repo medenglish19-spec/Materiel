@@ -20,6 +20,8 @@ def test_model_editor_is_hierarchical_and_excel_grid_oriented():
         assert label in template
     for element_id in ("axleWheelBody", "sizesBody", "specRows", "modelForm"):
         assert f'id="{element_id}"' in template
+    assert "model-tire-sizes" in template
+    assert "form:()=>document.getElementById('modelForm')" in template
     assert "positions_json" in template
     assert "sizes_json" in template
     assert "specs_json" in template
@@ -121,3 +123,20 @@ def test_model_editor_form_preserves_battery_configuration_fields():
         "battery_voltage_v:str=Form(\"\")",
     ):
         assert field in router_source
+
+
+def test_model_editor_is_tracked_with_a_form_scoped_baseline():
+    template = Path("app/modules/equipment_types/templates/master_data_workspace.html").read_text(encoding="utf-8")
+
+    assert '<form id="modelForm" method="post" enctype="multipart/form-data" action="/equipment-types/models/create" data-em-root>' in template
+    assert 'name="image" accept="image/jpeg,image/png,image/webp"' in template
+    assert "image:UploadFile|None=File(None)" in inspect.getsource(create_model_form)
+    assert "EditManager.markFormBaseline($('modelForm'))" in template
+    assert "EditManager.restoreForm($('modelForm'))" in template
+
+
+def test_dynamic_reference_forms_get_scoped_edit_manager_baselines():
+    template = _template()
+    assert 'id="refBody" data-em-root' in template
+    assert "function markReferenceFormBaseline()" in template
+    assert "markReferenceFormBaseline();" in template

@@ -1,10 +1,49 @@
 {% extends "base.html" %}
 {% block title %}وقود العتاد{% endblock %}
+{% block extra_head %}
+<style>
+.equipment-fuel-page .fuel-history-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px}.equipment-fuel-page .fuel-history-toolbar button{border:1px solid #b42318;border-radius:8px;background:#fff;color:#b42318;padding:8px 12px;font:inherit;font-weight:700;cursor:pointer}.equipment-fuel-page .fuel-history-toolbar button:disabled{opacity:.5;cursor:not-allowed}.equipment-fuel-page .fuel-date-actions{display:inline-flex;align-items:center;gap:7px;direction:ltr}.equipment-fuel-page .fuel-row-actions{position:relative;display:inline-block}.equipment-fuel-page .fuel-row-actions summary{list-style:none;cursor:pointer;padding:4px 10px;border:1px solid #d0d5dd;border-radius:8px;font-size:20px;line-height:1}.equipment-fuel-page .fuel-row-actions summary::-webkit-details-marker{display:none}.equipment-fuel-page .fuel-row-actions>div{position:fixed;z-index:1000;top:0;left:0;inset-inline-end:auto;min-width:150px;padding:6px;background:#fff;border:1px solid #d0d5dd;border-radius:9px;box-shadow:0 8px 24px #10182826}.equipment-fuel-page .fuel-row-actions a,.equipment-fuel-page .fuel-row-actions button,.equipment-fuel-page .fuel-row-actions label{display:flex;width:100%;align-items:center;gap:8px;padding:8px 10px;border:0;background:transparent;color:#344054;text-decoration:none;text-align:right;font:inherit;white-space:nowrap;cursor:pointer}.equipment-fuel-page .fuel-row-actions .danger{color:#b42318}.equipment-fuel-page .fuel-row-actions input{width:auto;margin:0}
+</style>
+{% endblock %}
 {% block content %}
 <div class="record-page equipment-fuel-page" dir="rtl">
   <a class="record-back" href="/equipment">← العتاد</a>
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · FUEL</div><h2>وقود {{ equipment.registration_number or equipment.vin }}</h2><div class="record-muted">متابعة التزويد بالوقود والاستهلاك المسجل.</div></div></header>
+  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · FUEL</div><h2>سجل الوقود · {{ equipment.equipment_model.brand.name if equipment.equipment_model and equipment.equipment_model.brand else 'بدون علامة تجارية' }} {{ equipment.equipment_model.name if equipment.equipment_model else 'طراز غير محدد' }} · {{ equipment.registration_number or equipment.vin }}</h2><div class="record-muted">متابعة التزويد بالوقود والاستهلاك المسجل لهذا العتاد.</div></div></header>
   <section class="record-panel"><div class="record-box fuel-average"><span>متوسط الاستهلاك</span><b>{{ average or '-' }}</b><small>لتر/100كم</small></div></section>
-  <section class="record-panel"><div class="record-section-head"><h3>سجل الوقود</h3></div><div class="record-table-wrap"><table class="record-table"><thead><tr><th>التاريخ</th><th>العداد</th><th>الكمية</th><th>المسافة</th><th>الاستهلاك</th><th>تنبيه</th></tr></thead><tbody>{% for x in records %}<tr><td>{{ x.record.fueling_date }}</td><td>{{ x.record.meter_value }}</td><td>{{ x.record.quantity }}</td><td>{{ x.distance or '-' }}</td><td>{{ x.consumption or '-' }}</td><td>{% if x.abnormal %}<span class="record-badge damaged">غير طبيعي</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد عمليات تزويد مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
+  <section class="record-panel"><div class="record-section-head"><h3>سجل الوقود</h3></div><form class="fuel-history-toolbar" method="post" action="/fuel/delete-selected"><input type="hidden" name="return_to" value="/equipment/{{ equipment.id }}/fuel"><span data-fuel-history-count>0 محددة</span><div data-fuel-history-inputs></div><button type="submit" disabled>حذف المحدد</button></form><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>التاريخ</th><th>العداد</th><th>الكمية</th><th>المسافة</th><th>الاستهلاك</th><th>تنبيه</th></tr></thead><tbody>{% for x in records %}<tr><td><span class="fuel-date-actions"><span>{{ x.record.fueling_date }}</span><details class="fuel-row-actions"><summary aria-label="إجراءات تعبئة {{ x.record.id }}">⋮</summary><div><a href="/fuel?edit={{ x.record.id }}&amp;return_to=%2Fequipment%2F{{ equipment.id }}%2Ffuel">تعديل</a><label><input class="fuel-history-select" type="checkbox" value="{{ x.record.id }}">تحديد للحذف</label><form method="post" action="/fuel/{{ x.record.id }}/delete"><input type="hidden" name="return_to" value="/equipment/{{ equipment.id }}/fuel"><button type="submit" class="danger">حذف</button></form></div></details></span></td><td>{{ x.record.meter_value }}</td><td>{{ x.record.quantity }}</td><td>{{ x.distance or '-' }}</td><td>{{ x.consumption or '-' }}</td><td>{% if x.abnormal %}<span class="record-badge damaged">غير طبيعي</span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="6" class="record-empty">لا توجد عمليات تزويد مسجلة.</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
+<script>
+(function(){
+  document.addEventListener("toggle",event=>{
+    const details=event.target.closest(".fuel-row-actions");
+    if(!details||!details.open)return;
+    const menu=details.querySelector("summary + div");
+    const rect=details.querySelector("summary").getBoundingClientRect();
+    const width=menu.offsetWidth;
+    const height=menu.offsetHeight;
+    const left=Math.max(8,Math.min(rect.right-width,window.innerWidth-width-8));
+    const below=rect.bottom+4;
+    const top=below+height<=window.innerHeight-8?below:Math.max(8,rect.top-height-4);
+    menu.style.left=`${left}px`;
+    menu.style.top=`${top}px`;
+  },true);
+  function updateSelection(){
+    const selected=[...document.querySelectorAll(".fuel-history-select:checked")];
+    document.querySelector("[data-fuel-history-count]").textContent=`${selected.length} محددة`;
+    document.querySelector(".fuel-history-toolbar button").disabled=selected.length===0;
+    const inputs=document.querySelector("[data-fuel-history-inputs]");
+    inputs.replaceChildren(...selected.map(item=>{
+      const input=document.createElement("input");input.type="hidden";input.name="record_ids";input.value=item.value;return input;
+    }));
+  }
+  document.addEventListener("change",event=>{if(event.target.matches(".fuel-history-select"))updateSelection()});
+  document.querySelector(".fuel-history-toolbar").addEventListener("submit",event=>{
+    if(!document.querySelector(".fuel-history-select:checked")){event.preventDefault();return}
+    if(!confirm("هل تريد حذف سجلات التعبئة المحددة؟ ستبقى قراءات العدادات في التاريخ المركزي."))event.preventDefault();
+  });
+  document.addEventListener("submit",event=>{
+    if(event.target.matches(".fuel-row-actions form")&&!confirm("هل تريد حذف سجل التعبئة؟ ستبقى قراءة العداد في التاريخ المركزي."))event.preventDefault();
+  });
+})();
+</script>
 {% endblock %}

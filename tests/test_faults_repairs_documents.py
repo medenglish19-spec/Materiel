@@ -1,3 +1,5 @@
+from sqlalchemy import CheckConstraint
+
 from app.modules.faults_repairs.models import Fault, Repair
 
 
@@ -11,7 +13,7 @@ def test_repair_has_workshop_and_document_controls():
     assert "repair_document" in Repair.__table__.columns
     assert "external_dispatch_document" in Repair.__table__.columns
 
-    checks = {c.name: str(c.sqltext) for c in Repair.__table__.constraints if c.name}
+    checks = {c.name: str(c.sqltext) for c in Repair.__table__.constraints if isinstance(c, CheckConstraint) and c.name}
     assert "ck_repair_workshop_type" in checks
     assert "ck_external_repair_requires_dispatch_document" in checks
     assert "external_dispatch_document IS NOT NULL" in checks["ck_external_repair_requires_dispatch_document"]

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}قائمة العتاد وسجلات الوقود{% endblock %}
+{% block content %}
+<div class="record-page fuel-equipment-page" dir="rtl">
+  <a class="record-back" href="/fuel">← إدارة الوقود</a>
+  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · FUEL</div><h2>قائمة العتاد وسجلات الوقود</h2><div class="record-muted">اختر رقم التسجيل للاطلاع على سجل استهلاك الوقود الخاص بالعتاد.</div></div></header>
+  <section class="record-panel"><div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>العلامة التجارية</th><th>الطراز</th><th>رقم التسجيل</th><th>عدد عمليات التزويد</th><th>متوسط الاستهلاك (لتر/100 كم)</th></tr></thead><tbody>
+    {% for equipment in equipment_rows %}<tr><td>{{ equipment.equipment_model.brand.name if equipment.equipment_model and equipment.equipment_model.brand else '—' }}</td><td>{{ equipment.equipment_model.name if equipment.equipment_model else 'غير محدد' }}</td><td><a href="/equipment/{{ equipment.id }}/fuel">{{ equipment.registration_number or equipment.vin or 'عتاد #' ~ equipment.id }}</a></td><td>{{ counts.get(equipment.id, 0) }}</td><td>{{ averages.get(equipment.id) or '—' }}</td></tr>{% else %}<tr><td colspan="5" class="record-empty">لا يوجد عتاد مسجل.</td></tr>{% endfor %}
+  </tbody></table></div></section>
+</div>
+{% endblock %}

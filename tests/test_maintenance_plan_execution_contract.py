@@ -12,9 +12,10 @@ def test_plan_execution_endpoint_is_operation_first_and_atomic():
 
     assert "MaintenancePlanExecutionCreate" in source
     assert "MaintenancePlanOperation" in source
-    assert "MaintenanceOperation.is_active.is_(True)" in source
     assert "for link in links:" in source
-    assert "operation_id=operation.id" in source
+    assert "selected_refs =" in source
+    assert 'model_operation_id=operation.id if source == "model" else None' in source
+    assert 'operation_id=operation.id if source == "general" else None' in source
     assert "plan_id=plan.id" in source
     assert "db.commit()" in source
     assert "db.rollback()" in source
@@ -33,5 +34,5 @@ def test_plan_execution_schema_has_required_plan_and_equipment():
 
 def test_plan_status_is_separate_from_operation_status():
     assert "def plan_status_for(" in SERVICES
-    assert "operation-specific conditions remain authoritative" in SERVICES
+    assert "with the plan's condition" in SERVICES
     assert "def effective_plans_for_equipment(" in SERVICES

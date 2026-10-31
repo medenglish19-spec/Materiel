@@ -5,7 +5,7 @@
   <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · BATTERIES</div><h2>إعدادات البطاريات</h2><div class="record-muted">الإعداد العام لمدة الاستبدال المطبقة على النظام.</div></div></header>
   <section class="record-panel"><div class="record-status-row"><a class="record-back" href="/batteries">← إدارة البطاريات</a><a class="record-back" href="/dashboard">لوحة القيادة</a></div>
     <div class="record-notice">هذه مدة الاستبدال العامة للنظام، وتطبق على جميع طرازات العتاد. لا تُدخل مدة أو تاريخ انتهاء خاصًا بكل بطارية. عند وجود عتاد حديث لم يبلغ هذه المدة منذ تاريخ أول سير، تمنع القاعدة الاستبدال بسبب العمر فقط؛ أما التلف فلا يُستنتج من العمر ويُسجل يدويًا.</div>
-    <form method="post" action="/batteries/settings" class="record-form"><label class="record-wide">مدة الاستبدال بالسنوات<input id="validity_years" type="number" name="validity_years" min="1" max="100" value="{{ validity_years }}" required></label><button type="submit">حفظ الإعداد</button></form>
+    <form method="post" action="/batteries/settings" class="record-form" data-em-root><label class="record-wide">مدة الاستبدال بالسنوات<input id="validity_years" type="number" name="validity_years" min="1" max="100" value="{{ validity_years }}" required></label><button type="submit">حفظ الإعداد</button></form>
   </section>
 </div>
 {% endblock %}

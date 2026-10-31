@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}سجل طلب قطع الغيار{% endblock %}
+{% block content %}
+<style>
+.spm{direction:rtl}.spm .hero{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}.spm h1{margin:0;color:#20352a;font-size:24px}.spm .hint{margin-top:5px;color:#718096;font-size:12px}.spm .overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:18px;align-items:stretch}.spm .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px;margin:0}.spm .modules{display:grid;grid-template-columns:minmax(0,1fr);margin:0}.spm .stat,.spm .module-card,.spm .panel{background:#fff;border:1px solid #e4eaf0;border-radius:12px;box-shadow:0 3px 14px rgba(20,55,80,.05)}.spm .stat{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:16px;text-decoration:none;color:inherit}.spm .label{font-size:11px;font-weight:800;color:#718096}.spm .value{font-size:25px;font-weight:800;color:#2563eb;margin:0;flex:none}.spm .module-card{padding:18px;min-height:125px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between}.spm .module-card h3{margin:0 0 6px;color:#20352a;font-size:15px}.spm .module-card p{margin:0;color:#718096;font-size:11px;line-height:1.8}.spm a{color:#397a54;text-decoration:none}.spm .panel{overflow:hidden}.spm .panel-head{padding:13px 16px;border-bottom:1px solid #edf1f4;display:flex;justify-content:space-between}.spm .panel-head h2{margin:0;color:#20352a;font-size:15px}.spm .table-scroll{overflow:auto}.spm table{width:100%;border-collapse:collapse}.spm th,.spm td{padding:10px 12px;text-align:right;border-bottom:1px solid #edf1f4;font-size:10px;white-space:nowrap}.spm th{background:#f8fafc;color:#718096}.spm .empty{text-align:center;padding:26px;color:#8794a2}.spm .badge{display:inline-flex;padding:4px 8px;border-radius:99px;background:#eef5fb;color:#315f42;font-weight:800}@media(max-width:700px){.spm .overview{grid-template-columns:minmax(0,1fr)}.spm .stats{min-height:180px}.spm .stat{padding:12px}.spm .value{font-size:21px}}
+</style>
+<div class="spm">
+<div class="overview">
+<div class="stats">
+<a class="stat" href="/spare-parts-requests"><div class="label">الطلبات</div><div class="value" id="requestsCount">—</div></a>
+<a class="stat" href="/spare-parts-received"><div class="label">الاستلام</div><div class="value" id="receivedCount">—</div></a>
+<a class="stat" href="/spare-parts-distribution"><div class="label">التوزيع</div><div class="value" id="distributionCount">—</div></a>
+<a class="stat" href="/spare-parts-return"><div class="label">الإرجاع</div><div class="value" id="returnCount">—</div></a>
+</div>
+<div class="modules">
+<div class="module-card"><div><h3>كتالوج قطع الغيار</h3><p>إدارة أسماء القطع ومراجع الشركات وتصنيفاتها واستيراد الكتالوجات.</p></div><a href="/spare-parts/catalog">فتح الكتالوج ←</a></div>
+</div>
+</div>
+<section class="panel"><div class="panel-head"><h2>آخر الحركة</h2><a href="/spare-parts-requests">عرض الطلبات</a></div><div class="table-scroll mt-table-theme-green" data-mt-region><table><thead><tr><th>المرجع</th><th>نوع الحركة</th><th>التاريخ</th><th>التفاصيل</th></tr></thead><tbody id="activity"><tr><td colspan="4" class="empty">جارٍ تحميل الحركة…</td></tr></tbody></table></div></section>
+</div>
+<script>
+(async function(){
+  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const date=v=>String(v||'').slice(0,10)||'—';
+  try{
+    const [requests,received,movements]=await Promise.all([
+      fetch('/api/spare-parts-requests',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),
+      fetch('/api/spare-parts-requests/received-register',{credentials:'same-origin'}).then(x=>x.ok?x.json():[]),
+      fetch('/api/spare-parts-movements',{credentials:'same-origin'}).then(x=>x.ok?x.json():[])
+    ]);
+    document.getElementById('requestsCount').textContent=Array.isArray(requests)?requests.length:'—';
+    document.getElementById('receivedCount').textContent=Array.isArray(received)?received.length:'—';
+    document.getElementById('distributionCount').textContent=Array.isArray(movements)?movements.filter(x=>x.document_type==='distribution').length:'—';
+    document.getElementById('returnCount').textContent=Array.isArray(movements)?movements.filter(x=>x.document_type==='return').length:'—';
+
+    const rows=[];
+    (Array.isArray(requests)?requests:[]).forEach(x=>rows.push({
+      ref:x.request_number||x.id,type:'طلب',date:x.request_date,
+      detail:x.items?.map(item=>item.part_name).filter(Boolean).join('، ')||x.notes||'طلب قطع غيار',
+      href:'/spare-parts-requests'
+    }));
+
+    // الاستلام حركة مستقلة بتاريخ الاستلام، لا بتاريخ إنشاء الطلب.
+    const receipts=new Map();
+    (Array.isArray(received)?received:[]).filter(x=>x.received_date&&Number(x.received_quantity)>0).forEach(x=>{
+      const ref=x.request_number||x.request_item_id;
+      const key=String(ref)+'|'+date(x.received_date);
+      if(!receipts.has(key))receipts.set(key,{ref,type:'استلام',date:x.received_date,parts:new Set(),recipient:x.recipient||'',supplier:x.supplier_institution||''});
+      const row=receipts.get(key);
+      if(x.part_name)row.parts.add(x.part_name);
+      row.recipient=row.recipient||x.recipient||'';
+      row.supplier=row.supplier||x.supplier_institution||'';
+    });
+    receipts.forEach(x=>rows.push({
+      ref:x.ref,type:x.type,date:x.date,
+      detail:[...x.parts].join('، ')||x.recipient||x.supplier||'استلام طلب الغيار',
+      href:'/spare-parts-received'
+    }));
+
+    (Array.isArray(movements)?movements:[]).forEach(x=>rows.push({
+      ref:x.document_number||x.id,
+      type:x.document_type==='return'?'إرجاع':'توزيع',date:x.document_date,
+      detail:x.recipient||'—',
+      href:x.document_type==='return'?'/spare-parts-return':'/spare-parts-distribution'
+    }));
+    const sameDayPriority={طلب:0,استلام:1,توزيع:2,إرجاع:3};
+    rows.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||sameDayPriority[b.type]-sameDayPriority[a.type]);
+    document.getElementById('activity').innerHTML=rows.slice(0,8).map(x=>'<tr><td>'+esc(x.ref)+'</td><td><span class="badge">'+esc(x.type)+'</span></td><td>'+esc(date(x.date))+'</td><td><a href="'+x.href+'">'+esc(x.detail)+'</a></td></tr>').join('')||'<tr><td colspan="4" class="empty">لا توجد حركة مسجلة.</td></tr>';
+  }catch(e){
+    document.getElementById('activity').innerHTML='<tr><td colspan="4" class="empty">تعذر تحميل ملخص الحركة.</td></tr>';
+  }
+})();
+</script>
+{% endblock %}

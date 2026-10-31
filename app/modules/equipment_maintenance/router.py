@@ -11,7 +11,15 @@ from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.models import MaintenanceOperation, MaintenanceRecord
-from app.modules.maintenance.services import chronology_error, effective_operations_for_equipment, measurement_unit
+from app.modules.faults_repairs.models import Fault
+from app.modules.maintenance.services import (
+    chronology_error,
+    condition_for_equipment,
+    effective_operations_for_equipment,
+    measurement_unit,
+    meter_required_for_condition,
+    validate_operation_applicable_to_equipment,
+)
 from app.modules.users.models import User
 
 router = APIRouter()
@@ -23,7 +31,7 @@ def get_equipment(db: Session, equipment_id: int):
     ).filter(Equipment.id == equipment_id).first()
 
 def get_operations(db: Session, equipment):
-    return effective_operations_for_equipment(db, equipment, include_standalone=True)
+    return effective_operations_for_equipment(db, equipment, include_standalone=False)
 
 def parse_meter(value: str):
     if not value or not value.strip():
@@ -43,6 +51,12 @@ def validate_operation(db: Session, equipment, operation_id: int):
     ).first()
     if operation is None:
         raise HTTPException(status_code=400, detail="عملية الصيانة المحددة غير موجودة أو غير مفعلة.")
+    
+    # Use shared validation function
+    validation_error = validate_operation_applicable_to_equipment(db, operation, equipment)
+    if validation_error:
+        raise HTTPException(status_code=400, detail=validation_error)
+    
     if operation.id not in {item.id for item in get_operations(db, equipment)}:
         raise HTTPException(status_code=400, detail="عملية الصيانة المختارة لا تنطبق على طراز هذا العتاد.")
     return operation
@@ -52,8 +66,9 @@ def validate_meter_and_date(db, equipment, operation, maintenance_date, meter_va
         raise HTTPException(status_code=400, detail="لا يمكن تسجيل صيانة بتاريخ مستقبلي.")
     meter = parse_meter(meter_value)
     unit = measurement_unit(equipment)
-    interval = operation.interval_km if unit == "km" else operation.interval_hours if unit == "hours" else None
-    if interval is not None and meter is None:
+    # شرط طراز العتاد هو المرجع، لا القيمة القديمة المشتركة على العملية.
+    condition = condition_for_equipment(db, operation, equipment)
+    if meter_required_for_condition(condition, unit) and meter is None:
         raise HTTPException(status_code=400, detail="يجب إدخال العداد عند الصيانة لأن هذه العملية تعتمد على العداد.")
     chronology = chronology_error(db, equipment.id, maintenance_date, meter, exclude_id=exclude_id)
     if chronology:
@@ -126,5 +141,28 @@ def equipment_maintenance_delete(equipment_id: int, record_id: int, db: Session 
     record = db.query(MaintenanceRecord).filter(MaintenanceRecord.id == record_id, MaintenanceRecord.equipment_id == equipment_id).first()
     if not record:
         raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
+    if not (record.is_scheduled and record.status == "scheduled"):
+        raise HTTPException(status_code=409, detail="يُحذف سجل التنفيذ من جدول سجل الصيانة فقط.")
     db.delete(record); db.commit()
     return RedirectResponse(url=f"/equipment/{equipment_id}/maintenance?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/api/equipment/{equipment_id}/maintenance/{record_id}/delete-impact")
+def equipment_maintenance_delete_impact(equipment_id: int, record_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    record = db.query(MaintenanceRecord).filter(
+        MaintenanceRecord.id == record_id,
+        MaintenanceRecord.equipment_id == equipment_id,
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="سجل الصيانة غير موجود لهذا العتاد.")
+    eligible = record.is_scheduled and record.status == "scheduled"
+    faults = db.query(Fault.id).filter(Fault.maintenance_record_id == record.id).count()
+    return {
+        "label": f"موعد {record.operation.name if record.operation else 'صيانة'} — {record.maintenance_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "موعد الصيانة المجدول الذي سيحذف", "count": 1},
+            {"label": "الأعطال التي ستبقى مع فصل ارتباطها بالموعد", "count": faults, "kind": "unlink"},
+            {"label": "قيمة العداد الحالية ستعاد مزامنتها من السجلات المتبقية", "count": 1, "kind": "recalculate"},
+        ],
+        "blocked": None if eligible else "يُحذف من هذه الصفحة الموعد المجدول غير المنفذ فقط.",
+    }

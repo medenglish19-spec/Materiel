@@ -4,242 +4,63 @@
 if(global.EditManager)return;
 
 const MAX=100, DEBOUNCE=400, providers=new Map(), history=[], future=[], listeners=new Set();
-let savedBaseline=null, lastSnapshot=null, restoring=false, saving=false, timer=null, saveHandler=null, initialized=false, sequence=Promise.resolve();
-
-const clone=v=>codec.decode(codec.encode(v));
-const stable=v=>JSON.stringify(codec.encode(v));
-const equal=(a,b)=>stable(a)===stable(b);
-
+let savedBaseline=null,lastSnapshot=null,restoring=false,saving=false,timer=null,saveHandler=null,initialized=false,sequence=Promise.resolve(),activeSaveContext=null,legacySaveContext=null,pageInertBeforeSave=null,domUserDirty=false;
+function lockPageInteraction(){if(pageInertBeforeSave!==null||!document.body)return false;pageInertBeforeSave=document.body.inert;document.body.inert=true;return true}
+function unlockPageInteraction(){if(pageInertBeforeSave===null)return;const wasInert=pageInertBeforeSave;pageInertBeforeSave=null;if(document.body)document.body.inert=wasInert}
+function canonical(v){if(Array.isArray(v))return v.map(canonical);if(v&&typeof v==='object'){const out={};Object.keys(v).sort().forEach(k=>out[k]=canonical(v[k]));return out}return v}
+const clone=v=>codec.decode(codec.encode(v)),stable=v=>JSON.stringify(canonical(codec.encode(v))),equal=(a,b)=>stable(a)===stable(b);
 const codec={
-  encode(v,seen=new WeakSet()){
-    if(v===undefined)return{__em_type:'undefined'};
-    if(v===null||typeof v!=='object')return v;
-    if(v instanceof Date)return{__em_type:'Date',value:v.toISOString()};
-    if(v instanceof Set)return{__em_type:'Set',value:[...v].map(x=>codec.encode(x,seen))};
-    if(v instanceof Map)return{__em_type:'Map',value:[...v].map(([k,x])=>[codec.encode(k,seen),codec.encode(x,seen)])};
-    if(seen.has(v))throw new TypeError('EditManager cannot encode circular state');
-    seen.add(v);
-    if(Array.isArray(v))return v.map(x=>codec.encode(x,seen));
-    const o={};Object.keys(v).forEach(k=>o[k]=codec.encode(v[k],seen));return o;
-  },
-  decode(v){
-    if(Array.isArray(v))return v.map(codec.decode);
-    if(!v||typeof v!=='object')return v;
-    if(v.__em_type==='undefined')return undefined;
-    if(v.__em_type==='Date')return new Date(v.value);
-    if(v.__em_type==='Set')return new Set(v.value.map(codec.decode));
-    if(v.__em_type==='Map')return new Map(v.value.map(([k,x])=>[codec.decode(k),codec.decode(x)]));
-    const o={};Object.keys(v).forEach(k=>o[k]=codec.decode(v[k]));return o;
-  }
+ encode(v,seen=new WeakSet()){if(v===undefined)return{__em_type:'undefined'};if(v===null||typeof v!=='object')return v;if(v instanceof Date)return{__em_type:'Date',value:v.toISOString()};if(v instanceof Set)return{__em_type:'Set',value:[...v].map(x=>codec.encode(x,seen))};if(v instanceof Map)return{__em_type:'Map',value:[...v].map(([k,x])=>[codec.encode(k,seen),codec.encode(x,seen)])};if(seen.has(v))throw new TypeError('EditManager cannot encode circular state');seen.add(v);if(Array.isArray(v))return v.map(x=>codec.encode(x,seen));const o={};Object.keys(v).forEach(k=>o[k]=codec.encode(v[k],seen));return o;},
+ decode(v){if(Array.isArray(v))return v.map(codec.decode);if(!v||typeof v!=='object')return v;if(v.__em_type==='undefined')return undefined;if(v.__em_type==='Date')return new Date(v.value);if(v.__em_type==='Set')return new Set(v.value.map(codec.decode));if(v.__em_type==='Map')return new Map(v.value.map(([k,x])=>[codec.decode(k),codec.decode(x)]));const o={};Object.keys(v).forEach(k=>o[k]=codec.decode(v[k]));return o;}
 };
-
-function toast(message,kind='info'){
-  if(!document.body)return;
-  let box=document.getElementById('emToast');
-  if(!box){
-    box=document.createElement('div');box.id='emToast';box.setAttribute('role','status');
-    box.style.cssText='position:fixed;right:18px;bottom:18px;z-index:10000;display:none;max-width:min(420px,calc(100vw - 36px));padding:11px 14px;border:1px solid #d8dee8;border-radius:10px;background:#fff;box-shadow:0 8px 28px rgba(15,23,42,.16);font-size:12px;font-weight:700;color:#26364a';
-    document.body.appendChild(box);
-  }
-  box.textContent=message;box.dataset.kind=kind;box.style.display='';clearTimeout(box._timer);box._timer=setTimeout(()=>box.style.display='none',3500);
-}
-
-function ignored(el){
-  if(!el||el.closest('[data-em-ignore],.app-workbar'))return true;
-  if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"],button'))return true;
-  const hint=`${el.name||''} ${el.id||''} ${el.getAttribute('aria-label')||''} ${el.placeholder||''}`.toLowerCase();
-  return !el.hasAttribute('data-em-track') && /(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint);
-}
-function fields(){
-  const roots=[...document.querySelectorAll('[data-em-root]')];
-  const scope=roots.length?roots.flatMap(r=>[...r.querySelectorAll('input,select,textarea,[contenteditable="true"]')]):[...document.querySelectorAll('input,select,textarea,[contenteditable="true"]')];
-  return scope.filter(el=>!ignored(el)&&(el.closest('form')||el.hasAttribute('data-em-track')));
-}
-function key(el,i){
-  if(el.dataset.emTrack)return`track:${el.dataset.emTrack}`;
-  const f=el.closest('form'),base=f?`form:${f.id||f.getAttribute('action')||i}`:`page:${i}`;
-  return el.type==='radio'?`${base}:radio:${el.name||el.id||i}`:`${base}:${el.name||el.id||`${el.tagName.toLowerCase()}-${i}`}`;
-}
-function captureDom(){
-  const out={};
-  fields().forEach((el,i)=>{
-    const k=key(el,i);
-    if(el.type==='radio')out[k]=[...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name||'')}"]`)].map(x=>x.checked);
-    else if(el.matches('[contenteditable="true"]'))out[k]={type:'contenteditable',value:el.innerHTML};
-    else if(el.tagName==='SELECT'&&el.multiple)out[k]={type:'select-multiple',value:[...el.options].map(o=>o.selected)};
-    else if(el.type==='checkbox')out[k]={type:'checkbox',value:el.checked};
-    else out[k]={type:'value',value:el.value};
-  });
-  return out;
-}
-function findField(k){
-  const fs=fields();for(let i=0;i<fs.length;i++)if(key(fs[i],i)===k)return fs[i];return null;
-}
-async function restoreDom(state){
-  restoring=true;
-  try{
-    for(let pass=0;pass<3;pass++){
-      Object.entries(state||{}).forEach(([k,d])=>{
-        const el=findField(k);if(!el)return;
-        if(el.type==='radio'){
-          const g=[...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name||'')}"]`)];
-          (d||[]).forEach((v,i)=>{if(g[i])g[i].checked=!!v});
-        }else if(d?.type==='contenteditable')el.innerHTML=d.value;
-        else if(d?.type==='checkbox')el.checked=!!d.value;
-        else if(d?.type==='select-multiple')el.options.forEach((o,i)=>o.selected=!!d.value?.[i]);
-        else el.value=d?.value??'';
-        el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));
-      });
-      if(pass<2)await new Promise(r=>setTimeout(r,50));
-    }
-  }finally{restoring=false}
-}
+function toast(message,kind='info'){if(kind==='danger'&&typeof global.showMaterielNotice==='function'){global.showMaterielNotice(message,'danger');return}if(!document.body)return;let box=document.getElementById('emToast');if(!box){box=document.createElement('div');box.id='emToast';box.setAttribute('role','status');box.style.cssText='position:fixed;right:18px;bottom:18px;z-index:10000;display:none;max-width:min(420px,calc(100vw - 36px));padding:11px 14px;border:1px solid #d8dee8;border-radius:10px;background:#fff;box-shadow:0 8px 28px rgba(15,23,42,.16);font-size:12px;font-weight:700;color:#26364a';document.body.appendChild(box)}box.textContent=message;box.dataset.kind=kind;box.style.display='';clearTimeout(box._timer);box._timer=setTimeout(()=>box.style.display='none',4500)}
+function apiErrorMessage(data,status){const detail=data?.detail;if(Array.isArray(detail)){const parts=detail.map(x=>x?.msg||x?.message).filter(Boolean);if(parts.length)return parts.join('، ')}if(typeof detail==='string'&&detail.trim())return detail.trim();if(typeof data?.error==='string'&&data.error.trim())return data.error.trim();if(status===401)return'انتهت جلسة الدخول، يرجى تسجيل الدخول مرة أخرى.';if(status===403)return'ليس لديك صلاحية لتنفيذ هذه العملية.';if(status===404)return'السجل المطلوب غير موجود أو لم يعد متاحًا.';if(status===409)return'تعذر تنفيذ العملية بسبب تعارض في البيانات. حدّث البيانات ثم أعد المحاولة.';if(status===422)return'بيانات العملية غير صالحة. يرجى مراجعة الحقول المطلوبة.';if(status>=500)return'حدث خطأ في الخادم. لم يتم تسجيل العملية.';return'تعذر تنفيذ العملية.'}
+function publishApiError(input,status,data){const message=apiErrorMessage(data,status),event=new CustomEvent('materiel:api-error',{detail:{input,status,data,message},cancelable:true});document.dispatchEvent(event);if(!event.defaultPrevented)toast(message,'danger')}
+function apiFailure(input,status,data){return{input,status,data,message:apiErrorMessage(data,status)}}
+function sessionAction(input,method='POST'){try{const url=new URL(typeof input==='string'?input:input?.url||String(input),location.href);if(url.origin!==location.origin)return;const key='materiel:session-actions:v1',rows=JSON.parse(sessionStorage.getItem(key)||'[]'),parts=url.pathname.split('/').filter(Boolean),path=url.pathname;const names={equipment:'العتاد',maintenance:'الصيانة','equipment-maintenance':'مواعيد الصيانة','meter-readings':'قراءات العدادات','faults-repairs':'الأعطال والتصليحات','spare-parts':'قطع الغيار','spare-parts-requests':'طلبات الغيار','spare-parts-movements':'حركات الغيار',tires:'الإطارات',batteries:'البطاريات',fuel:'الوقود',missions:'المهمات','equipment-types':'البيانات المرجعية','document-import':'استيراد البيانات',users:'المستخدمون'};const module=parts.find(x=>names[x]);const id=parts.find((x,i)=>/^\d+$/.test(x)&&i>0);const tail=parts.at(-1);const verbs={DELETE:'حذف',PATCH:'تعديل',PUT:'تعديل',POST:'تنفيذ'};const actions={delete:'حذف',create:'إضافة',update:'تعديل','bulk-delete':'حذف جماعي'};let action=actions[tail]||verbs[method]||'تحديث';if(tail==='receipt')action=method==='DELETE'?'إلغاء استلام':'تسجيل استلام';else if(['edit','update'].includes(tail)||['PATCH','PUT'].includes(method))action='تعديل';else if(['create','new'].includes(tail))action='إضافة';else if(tail==='status')action='تغيير الحالة';else if(tail==='approve')action='اعتماد';else if(tail==='toggle')action='تغيير الحالة';else if(method==='POST'&&/\/movements?$/.test(path))action='تسجيل حركة';else if(method==='POST'&&/\/plan-execution$/.test(path))action='تنفيذ خطة الصيانة';else if(method==='POST'&&/\/import(?:-excel)?$/.test(path))action='استيراد';if(method==='DELETE'&&/\/plans\/\d+\/operations\/\d+$/.test(path))action='إزالة ارتباط عملية بخطة';else if(method==='DELETE'&&/\/operations\/\d+\/models\/\d+$/.test(path))action='إزالة ارتباط عملية بطراز';else if(method==='DELETE'&&/\/technician-interventions\/\d+$/.test(path))action='حذف تدخل فني';else if(method==='DELETE'&&/\/operation-groups\/\d+$/.test(path))action='حذف مجموعة صيانة';else if(method==='POST'&&/\/equipment\/\d+\/maintenance\/\d+\/delete$/.test(path))action='حذف موعد صيانة';const label=`${action} ${names[module]||module||'بيانات'}${id?` #${id}`:''}`;rows.unshift({label,method:verbs[method]||method,path,time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'})});sessionStorage.setItem(key,JSON.stringify(rows.slice(0,50)));renderSessionActions()}catch(_){}}
+function renderSessionActions(){const list=document.getElementById('emSessionActions');if(!list)return;let rows=[];try{rows=JSON.parse(sessionStorage.getItem('materiel:session-actions:v1')||'[]')}catch(_){}list.replaceChildren();if(!rows.length){const li=document.createElement('li');li.className='app-session-empty';li.textContent='لم تُسجل أعمال بعد';list.append(li);return}rows.forEach(row=>{const li=document.createElement('li');li.textContent=`${row.time} · ${row.method} ${row.label}`;list.append(li)})}
+function finishPendingFormAction(){try{const key='materiel:pending-form-action:v1',pending=JSON.parse(sessionStorage.getItem(key)||'null');if(!pending)return;sessionStorage.removeItem(key);if(Date.now()-pending.time<30000)sessionAction(pending.action,pending.method)}catch(_){}}
+function observeWrite(input,request,method='تحديث'){return Promise.resolve(request).then(async response=>{let data=null;const type=response.headers?.get('content-type')||'';if(!response.ok||type.includes('application/json')){try{data=await response.clone().json()}catch(error){if(response.ok&&type.includes('application/json'))return apiFailure(input,response.status,{detail:'تعذر قراءة استجابة الخادم.'})}}if(!response.ok||data?.ok===false)return apiFailure(input,response.status,data);sessionAction(input,method);return null},error=>apiFailure(input,0,{detail:`تعذر الاتصال بالخادم: ${error?.message||error}`}))}
+function installFetchBridge(){if(typeof global.fetch!=='function'||global.fetch.__materielEditManagerFetchWrapped)return;const original=global.fetch;function wrapped(input,init){const method=(init?.method||(input instanceof Request?input.method:'GET')).toUpperCase();let request;try{request=original(input,init)}catch(error){request=Promise.reject(error)}if(['GET','HEAD','OPTIONS'].includes(method))return request;const ctx=activeSaveContext||legacySaveContext,observed=observeWrite(input,request,method);if(ctx){ctx.promises.push(observed);ctx.signalFirstWrite()}else observed.then(failure=>{if(failure)publishApiError(failure.input,failure.status,failure.data)});return request}wrapped.__materielEditManagerFetchWrapped=true;global.fetch=wrapped}
+async function finishLegacyFormSave(ctx){await new Promise(resolve=>setTimeout(resolve,0));if(!ctx.submitEvent?.defaultPrevented&&(!ctx.form.target||ctx.form.target==='_self'))return;try{await waitForSaveRequests(ctx)}catch(error){if(error.apiFailure)publishApiError(error.apiFailure.input,error.apiFailure.status,error.apiFailure.data);else toast(error.message||'تعذر الحفظ.','danger')}finally{if(legacySaveContext===ctx){legacySaveContext=null;saving=false;unlockPageInteraction();emit()}}}
+function installSubmitBridge(){document.addEventListener('submit',e=>{const f=e.target;if(activeSaveContext&&f===activeSaveContext.form)activeSaveContext.submitEvent=e;if(!(f instanceof HTMLFormElement)||(f.method||'get').toLowerCase()==='get')return;let legacyContext=null;if(!activeSaveContext&&!saving&&!legacySaveContext){legacyContext=createSaveContext(f);legacyContext.submitEvent=e;legacySaveContext=legacyContext;saving=true;lockPageInteraction();emit()}const key='materiel:pending-form-action:v1',token=`${Date.now()}-${Math.random()}`,pending={action:new URL(f.action||location.href,location.href).href,method:(f.method||'post').toUpperCase(),time:Date.now(),token};try{sessionStorage.setItem(key,JSON.stringify(pending))}catch(_){}setTimeout(()=>{if(e.defaultPrevented){try{if(JSON.parse(sessionStorage.getItem(key)||'null')?.token===token)sessionStorage.removeItem(key)}catch(_){}}else if(f.target&&f.target!=='_self'){sessionAction(pending.action,pending.method);try{sessionStorage.removeItem(key)}catch(_){}}if(legacyContext)finishLegacyFormSave(legacyContext)},0)},true)}
+function createSaveContext(form=null){let signalFirstWrite;const firstWrite=new Promise(resolve=>signalFirstWrite=resolve);return{form,submitEvent:null,promises:[],firstWrite,signalFirstWrite}}
+async function waitForSaveRequests(ctx,waitForFirst=false){if(waitForFirst&&ctx.submitEvent?.defaultPrevented&&!ctx.promises.length){await Promise.race([ctx.firstWrite,new Promise(resolve=>setTimeout(resolve,1500))]);if(!ctx.promises.length)throw new Error('لم يتم رصد طلب حفظ من النموذج.')}let checked=0;while(true){await Promise.resolve();const batch=ctx.promises.slice(checked);checked=ctx.promises.length;if(batch.length){const failures=(await Promise.all(batch)).filter(Boolean);if(failures.length){const error=new Error(failures[0].message);error.apiFailure=failures[0];throw error}}await new Promise(resolve=>setTimeout(resolve,0));if(checked===ctx.promises.length)return}}
+function ignored(el){if(!el||el.closest('[data-em-ignore],.app-workbar'))return true;if(el.matches('input[type="hidden"],input[type="password"],input[type="file"],input[type="button"],input[type="submit"],button'))return true;const hint=`${el.name||''} ${el.id||''} ${el.getAttribute('aria-label')||''} ${el.placeholder||''}`.toLowerCase();return !el.hasAttribute('data-em-track')&&/(^|[-_ ])(search|filter|query|بحث|تصفية)([-_ ]|$)/i.test(hint)}
+function fields(){const selector='input,select,textarea,[contenteditable="true"]',roots=[...document.querySelectorAll('[data-em-root]')],forms=[...document.forms].filter(f=>f.hasAttribute('data-em-root')||!f.hasAttribute('action')||(f.getAttribute('method')||'get').toLowerCase()!=='get'),scope=new Set(forms.flatMap(f=>[...f.querySelectorAll(selector)]));roots.filter(r=>!r.matches('form')).forEach(r=>r.querySelectorAll(selector).forEach(el=>scope.add(el)));document.querySelectorAll('[data-em-track]').forEach(el=>{if(!el.closest('form'))scope.add(el)});return[...scope].filter(el=>!ignored(el)&&(el.closest('form')||el.hasAttribute('data-em-track')||el.closest('[data-em-root]')))}
+function key(el,i){if(el.dataset.emTrack)return`track:${el.dataset.emTrack}`;const f=el.closest('form'),base=f?`form:${f.id||f.getAttribute('action')||i}`:`page:${i}`;return el.type==='radio'?`${base}:radio:${el.name||el.id||i}`:`${base}:${el.name||el.id||`${el.tagName.toLowerCase()}-${i}`}`}
+function captureDom(){const out={};fields().forEach((el,i)=>{const k=key(el,i);if(el.type==='radio')out[k]=[...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name||'')}"]`)].map(x=>x.checked);else if(el.matches('[contenteditable="true"]'))out[k]={type:'contenteditable',value:el.innerHTML};else if(el.tagName==='SELECT'&&el.multiple)out[k]={type:'select-multiple',value:[...el.options].map(o=>o.selected)};else if(el.type==='checkbox')out[k]={type:'checkbox',value:el.checked};else out[k]={type:'value',value:el.value}});return out}
+function findField(k){const fs=fields();for(let i=0;i<fs.length;i++)if(key(fs[i],i)===k)return fs[i];return null}
+function domValueMatches(el,d){if(!el)return true;if(el.type==='radio'){const group=[...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name||'')}"]`)];return group.every((item,i)=>item.checked===!!d?.[i])}if(d?.type==='contenteditable')return el.innerHTML===d.value;if(d?.type==='checkbox')return el.checked===!!d.value;if(d?.type==='select-multiple')return[...el.options].every((option,i)=>option.selected===!!d.value?.[i]);return el.value===(d?.value??'')}
+function setDomValue(el,d){if(el.type==='radio'){const group=[...document.querySelectorAll(`input[type="radio"][name="${CSS.escape(el.name||'')}"]`)];(d||[]).forEach((value,i)=>{if(group[i])group[i].checked=!!value})}else if(d?.type==='contenteditable')el.innerHTML=d.value;else if(d?.type==='checkbox')el.checked=!!d.value;else if(d?.type==='select-multiple')el.options.forEach((option,i)=>option.selected=!!d.value?.[i]);else el.value=d?.value??''}
+async function restoreDom(state){restoring=true;try{const entries=Object.entries(state||{});for(let pass=0;pass<3;pass++){const lookup=new Map(fields().map((el,i)=>[key(el,i),el]));entries.forEach(([k,d])=>{const el=lookup.get(k);if(!el||domValueMatches(el,d))return;setDomValue(el,d);el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))});const current=new Map(fields().map((el,i)=>[key(el,i),el]));const pending=entries.some(([k,d])=>{const el=current.get(k);return el&&!domValueMatches(el,d)});if(!pending)break;if(pass<2)await new Promise(r=>setTimeout(r,50))}}finally{restoring=false}}
 providers.set('dom',{name:'dom',capture:captureDom,restore:restoreDom,label:'حقول الصفحة'});
-
 function captureAll(){const s={};providers.forEach((p,n)=>s[n]=clone(p.capture()));return s}
-function diff(a,b){
-  const d={};providers.forEach((p,n)=>{if(!(p.equals||equal)(a?.[n],b?.[n]))d[n]={before:clone(a?.[n]),after:clone(b?.[n])}});return d;
-}
-function empty(d){return !Object.keys(d).length}
-function state(){
-  const live=captureAll();
-  return {dirty:!!savedBaseline&&!empty(diff(savedBaseline,live)),canUndo:history.length>0,canRedo:future.length>0,saving,labels:{undo:history.at(-1)?.label||'',redo:future.at(-1)?.label||''}};
-}
+function diff(a,b){const d={};providers.forEach((p,n)=>{if(!(p.equals||equal)(a?.[n],b?.[n]))d[n]={before:clone(a?.[n]),after:clone(b?.[n])}});return d}
+function empty(d){return!Object.keys(d).length}
+function state(){const live=captureAll(),changes=diff(savedBaseline,live),domChanged=!!changes.dom,nonDomChanged=Object.keys(changes).some(name=>name!=='dom');return{dirty:!!savedBaseline&&(nonDomChanged||(domChanged&&domUserDirty)),canUndo:history.length>0,canRedo:future.length>0,saving,labels:{undo:history.at(-1)?.label||'',redo:future.at(-1)?.label||''}}}
 function emit(){const s=state();if(!document.body)return;document.dispatchEvent(new CustomEvent('edit-manager:change',{detail:s}));listeners.forEach(fn=>{try{fn(s)}catch(_){}});updateUI(s)}
-function push(before,after,label,command){
-  const d=diff(before,after);if(empty(d)&&!command)return false;
-  history.push({label:label||'تعديل',diff:d,command});if(history.length>MAX)history.shift();future.length=0;emit();return true;
-}
-function commit(label='تعديل'){
-  if(restoring)return false;
-  const before=lastSnapshot||captureAll(),after=captureAll();lastSnapshot=clone(after);
-  return push(before,after,label);
-}
+function push(before,after,label,command){const d=diff(before,after);if(empty(d)&&!command)return false;history.push({label:label||'تعديل',diff:d,command});if(history.length>MAX)history.shift();future.length=0;emit();return true}
+function commit(label='تعديل'){if(restoring)return false;const before=lastSnapshot||captureAll(),after=captureAll();lastSnapshot=clone(after);return push(before,after,label)}
+function fieldLabel(el){const value=el?.getAttribute('aria-label')||el?.labels?.[0]?.textContent||el?.placeholder||el?.name||el?.id;return String(value||'حقل').replace(/\s+/g,' ').trim().slice(0,80)}
 function schedule(label){clearTimeout(timer);timer=setTimeout(()=>commit(label),DEBOUNCE)}
-async function apply(d,which){
-  for(const[name,change] of Object.entries(d||{})){const p=providers.get(name);if(p)await p.restore(clone(which==='before'?change.before:change.after))}
-}
-async function undo(){
-  if(!history.length)return false;
-  const step=history.pop();
-  try{if(step.command)await step.command.undo();else await apply(step.diff,'before');lastSnapshot=clone(captureAll());future.push(step);emit();return true}
-  catch(e){history.push(step);toast(`تعذر التراجع: ${e.message||e}`,'danger');emit();return false}
-}
-async function redo(){
-  if(!future.length)return false;
-  const step=future.pop();
-  try{if(step.command)await(step.command.redo?step.command.redo():step.command.do());else await apply(step.diff,'after');lastSnapshot=clone(captureAll());history.push(step);emit();return true}
-  catch(e){future.push(step);toast(`تعذر الإعادة: ${e.message||e}`,'danger');emit();return false}
-}
-function markSaved(names){
-  const live=captureAll();
-  if(!savedBaseline)savedBaseline={};
-  if(names==null)savedBaseline=clone(live);
-  else (Array.isArray(names)?names:[names]).forEach(n=>savedBaseline[n]=clone(live[n]));
-  emit();return true;
-}
-function markSavedForm(form){
-  const live=captureDom(),base=savedBaseline?.dom||{};
-  const next=clone(base);
-  Object.keys(live).forEach(k=>{const f=findField(k)?.closest('form');if(f===form)next[k]=clone(live[k])});
-  Object.keys(next).forEach(k=>{if(!findField(k))delete next[k]});
-  if(!savedBaseline)savedBaseline={};savedBaseline.dom=next;emit();
-}
-function register(name,spec){
-  if(!name||!spec||typeof spec.capture!=='function'||typeof spec.restore!=='function')throw new TypeError('EditManager.register requires capture and restore');
-  providers.set(name,{name,capture:spec.capture,restore:spec.restore,save:spec.save,equals:spec.equals||equal,label:spec.label||name});
-  if(savedBaseline)savedBaseline[name]=clone(spec.capture());
-  lastSnapshot=clone(captureAll());emit();
-  return()=>{providers.delete(name);if(savedBaseline)delete savedBaseline[name];lastSnapshot=clone(captureAll());emit()};
-}
+async function apply(d,which){for(const[name,change]of Object.entries(d||{})){const p=providers.get(name);if(p)await p.restore(clone(which==='before'?change.before:change.after))}}
+async function undo(){if(saving||!history.length)return false;const step=history.pop();try{if(step.command)await step.command.undo();else await apply(step.diff,'before');lastSnapshot=clone(captureAll());future.push(step);emit();return true}catch(e){history.push(step);toast('تعذر التراجع عن التعديل. حاول مرة أخرى.','danger');emit();return false}}
+async function redo(){if(saving||!future.length)return false;const step=future.pop();try{if(step.command)await(step.command.redo?step.command.redo():step.command.do());else await apply(step.diff,'after');lastSnapshot=clone(captureAll());history.push(step);emit();return true}catch(e){future.push(step);toast('تعذر إعادة التعديل. حاول مرة أخرى.','danger');emit();return false}}
+function renderHistory(){const list=document.getElementById('emHistoryList'),count=document.getElementById('emHistoryCount');if(!list)return;const total=history.length+future.length;if(count)count.textContent=String(total);list.replaceChildren();if(!total){const empty=document.createElement('li');empty.className='app-history-empty';empty.textContent='لا توجد عمليات مسجلة.';list.append(empty);return}const fragment=document.createDocumentFragment();const add=(target,label,current)=>{const item=document.createElement('li'),name=document.createElement('span');item.className='app-history-item';if(current)item.setAttribute('aria-current','step');name.className='app-history-item-label';name.textContent=target===0?'بداية السجل':`${target}. ${label}`;item.append(name);if(current){const badge=document.createElement('span');badge.className='app-history-current';badge.textContent='الحالة الحالية';item.append(badge)}fragment.append(item)};add(0,'',history.length===0);history.forEach((step,index)=>add(index+1,step.label||'تعديل',index+1===history.length));[...future].reverse().forEach((step,index)=>add(history.length+index+1,step.label||'تعديل',false));list.append(fragment)}
+function markSaved(names){const live=captureAll();if(!savedBaseline)savedBaseline={};if(!lastSnapshot)lastSnapshot={};if(names==null){savedBaseline=clone(live);lastSnapshot=clone(live);domUserDirty=false}else{const list=Array.isArray(names)?names:[names];list.forEach(n=>{savedBaseline[n]=clone(live[n]);lastSnapshot[n]=clone(live[n]);const scope=providers.has(n)?providerForm(providers.get(n)):null;if(scope?.matches('[data-em-root]'))markFormBaseline(scope)});if(list.includes('dom'))domUserDirty=false}emit();return true}
+function providerForm(provider){try{return typeof provider.form==='function'?provider.form():provider.form||null}catch(_){return null}}
+function formScopeContains(scope,field){return field?.closest('form')===scope||(!scope.matches('form')&&scope.matches('[data-em-root]')&&scope.contains(field))}
+function markFormBaseline(form){if(!form)return false;const live=captureDom(),next=clone(savedBaseline?.dom||{});Object.keys(next).forEach(k=>{if(formScopeContains(form,findField(k)))delete next[k]});Object.keys(live).forEach(k=>{if(formScopeContains(form,findField(k)))next[k]=clone(live[k])});if(!savedBaseline)savedBaseline={};savedBaseline.dom=next;lastSnapshot=clone(captureAll());emit();return true}
+function markSavedForm(form){if(!markFormBaseline(form))return false;providers.forEach((p,n)=>{if(n!=='dom'&&!p.save&&providerForm(p)===form)savedBaseline[n]=clone(p.capture())});lastSnapshot=clone(captureAll());emit();return true}
+async function restoreForm(form,label='إلغاء تعديلات النموذج'){if(!form)return false;clearTimeout(timer);timer=null;const target={};Object.entries(savedBaseline?.dom||{}).forEach(([k,v])=>{if(findField(k)?.closest('form')===form)target[k]=clone(v)});const before=clone(captureAll());await restoreDom(target);const after=captureAll();push(before,after,label);lastSnapshot=clone(after);emit();return true}
+function register(name,spec){if(!name||!spec||typeof spec.capture!=='function'||typeof spec.restore!=='function')throw new TypeError('EditManager.register requires capture and restore');providers.set(name,{name,capture:spec.capture,restore:spec.restore,save:spec.save,form:spec.form,equals:spec.equals||equal,label:spec.label||name});if(savedBaseline)savedBaseline[name]=clone(spec.capture());lastSnapshot=clone(captureAll());emit();return()=>{providers.delete(name);if(savedBaseline)delete savedBaseline[name];lastSnapshot=clone(captureAll());emit()}}
 function setSaveHandler(fn){saveHandler=typeof fn==='function'?fn:null}
-function modifiedProviders(){
-  const live=captureAll();
-  return [...providers.entries()].filter(([n,p])=>n!=='dom'&&!equal(savedBaseline?.[n],live[n]));
-}
-function dirtyForms(){
-  const live=captureDom(),base=savedBaseline?.dom||{},keys=new Set([...Object.keys(live),...Object.keys(base)]),forms=new Set();
-  keys.forEach(k=>{if(!equal(live[k],base[k])){const f=findField(k)?.closest('form');if(f)forms.add(f)}});return[...forms];
-}
-function installFetchBridge(){
-  if(typeof global.fetch!=='function'||global.fetch.__materielEditManagerFetchWrapped)return;
-  const original=global.fetch;
-  function wrapped(input,init){
-    const method=(init?.method||(input instanceof Request?input.method:'GET')).toUpperCase();
-    const ctx=submitContext;
-    const result=original(input,init);
-    if(ctx&&ctx.promises.length===0&&!['GET','HEAD','OPTIONS'].includes(method)&&Date.now()-ctx.at<1500){
-      ctx.promises.push(Promise.resolve(result).then(async res=>{
-        if(!res.ok)throw new Error('رفض الخادم عملية الحفظ.');
-        const type=res.headers?.get('content-type')||'';
-        if(type.includes('application/json')){
-          const data=await res.clone().json();
-          if(data?.ok===false)throw new Error(data.error||data.detail||'رفض الخادم عملية الحفظ.');
-        }
-        return res;
-      }));
-    }
-    return result;
-  }
-  wrapped.__materielEditManagerFetchWrapped=true;global.fetch=wrapped;
-}
-let submitContext=null;
-function installSubmitBridge(){
-  document.addEventListener('submit',e=>{
-    const f=e.target;if(f instanceof HTMLFormElement)submitContext={form:f,at:Date.now(),promises:[]};
-  },true);
-}
-async function save(){
-  if(saving)return false;if(!state().dirty)return true;
-  saving=true;emit();
-  try{
-    if(saveHandler){const r=await saveHandler();if(r===false)throw new Error('فشل الحفظ في الصفحة الحالية.');markSaved();return true}
-    const mods=modifiedProviders();
-    for(const[name,p]of mods){
-      if(typeof p.save!=='function')throw new Error(`لا يوجد معالج حفظ للمزوّد: ${p.label||name}`);
-      const r=await p.save(p.capture());if(r===false)throw new Error(`فشل حفظ ${p.label||name}`);
-      markSaved(name);
-    }
-    if(!state().dirty)return true;
-    const forms=dirtyForms();
-    if(!forms.length){markSaved();return true}
-    if(forms.length>1)throw new Error(`التعديلات غير المحفوظة موجودة في أكثر من نموذج: ${forms.map(f=>f.id||f.getAttribute('action')||'نموذج').join('، ')}`);
-    const form=forms[0];
-    if(!form.checkValidity()){form.reportValidity();throw new Error(`بيانات نموذج ${form.id||form.getAttribute('action')||''} غير صالحة.`)}
-    submitContext={form,at:Date.now(),promises:[]};
-    form.requestSubmit();
-    const ctx=submitContext;
-    if(ctx.promises.length){await Promise.all(ctx.promises);markSavedForm(form);return true}
-    if((form.getAttribute('method')||'get').toLowerCase()==='post'&&!form.target){markSavedForm(form);return true}
-    throw new Error('لم يتم رصد طلب حفظ من النموذج.');
-  }catch(e){toast(e.message||'تعذر الحفظ.','danger');return false}
-  finally{saving=false;emit()}
-}
-function updateUI(s){
-  const u=document.querySelector('[data-em-action="undo"]'),r=document.querySelector('[data-em-action="redo"]'),b=document.querySelector('[data-em-action="save"]'),st=document.getElementById('emStatus');
-  if(u){u.disabled=!s.canUndo;u.title=s.canUndo?`تراجع: ${s.labels.undo}`:'تراجع'}
-  if(r){r.disabled=!s.canRedo;r.title=s.canRedo?`إعادة: ${s.labels.redo}`:'إعادة'}
-  if(b){b.disabled=!s.dirty||s.saving;b.classList.toggle('has-work',s.dirty);b.title=s.saving?'جارٍ الحفظ...':'حفظ'}
-  if(st){st.dataset.state=s.saving?'saving':s.dirty?'dirty':'clean';st.textContent=s.saving?'جارٍ الحفظ...':s.dirty?'تغييرات غير محفوظة':'نظيف'}
-}
-function initialize(){
-  if(initialized)return;initialized=true;
-  savedBaseline=clone(captureAll());lastSnapshot=clone(savedBaseline);emit();
-  document.addEventListener('input',e=>{if(!restoring&&!ignored(e.target))schedule('تعديل حقل')});
-  document.addEventListener('change',e=>{if(!restoring&&!ignored(e.target))schedule('تغيير حقل')});
-  document.addEventListener('click',e=>{const b=e.target.closest('[data-em-action]');if(!b)return;e.preventDefault();const a=b.dataset.emAction;if(a==='undo')undo();else if(a==='redo')redo();else if(a==='save')save()});
-  document.addEventListener('keydown',e=>{
-    if(e.key==='s'&&(e.ctrlKey||e.metaKey)){e.preventDefault();save();return}
-    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){if(history.length){e.preventDefault();undo()}return}
-    if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z'))){if(future.length){e.preventDefault();redo()}}
-  });
-  global.addEventListener('beforeunload',e=>{if(state().dirty){e.preventDefault();e.returnValue='لديك تغييرات غير محفوظة.'}});
-}
+function modifiedProviders(){const live=captureAll();return[...providers.entries()].filter(([n,p])=>n!=='dom'&&!equal(savedBaseline?.[n],live[n]))}
+function dirtyForms(){const live=captureDom(),base=savedBaseline?.dom||{},keys=new Set([...Object.keys(live),...Object.keys(base)]),forms=new Set();keys.forEach(k=>{if(!equal(live[k],base[k])){const field=findField(k),scope=field?.closest('form')||field?.closest('[data-em-root]');if(scope)forms.add(scope)}});return[...forms]}
+async function save(){if(saving)return false;if(!state().dirty)return true;saving=true;emit();const ctx=createSaveContext();let ownsInteractionLock=false;const lockInteraction=()=>{if(!ownsInteractionLock)ownsInteractionLock=lockPageInteraction()};activeSaveContext=ctx;try{if(saveHandler){lockInteraction();const r=await saveHandler();await waitForSaveRequests(ctx);if(r===false)throw new Error('تعذر حفظ التغييرات. حاول مرة أخرى.');markSaved();return true}const mods=modifiedProviders();for(const[name,p]of mods){if(typeof p.save!=='function')continue;lockInteraction();const r=await p.save(p.capture());await waitForSaveRequests(ctx);if(r===false)throw new Error(`تعذر حفظ ${p.label||name}.`);markSaved(name)}if(!state().dirty)return true;const forms=dirtyForms();modifiedProviders().forEach(([name,p])=>{if(!p.save){const form=providerForm(p);if(form&&!forms.includes(form))forms.push(form);else if(!form)throw new Error(`تعذر تحديد نموذج حفظ ${p.label||name}.`)}});if(!forms.length){markSaved();return true}if(forms.length>1)throw new Error('احفظ التغييرات في كل نموذج على حدة.');const form=forms[0];if(!form.checkValidity()){form.reportValidity();throw new Error('راجع الحقول المطلوبة قبل الحفظ.')}ctx.form=form;lockInteraction();form.requestSubmit();if(ctx.submitEvent&&!ctx.submitEvent.defaultPrevented){if((form.getAttribute('method')||'get').toLowerCase()==='post'&&!form.target){markSavedForm(form);return true}throw new Error('لم يبدأ حفظ النموذج. حاول مرة أخرى.')}await waitForSaveRequests(ctx,true);markSavedForm(form);return true}catch(e){try{await waitForSaveRequests(ctx)}catch(requestError){e=requestError}if(e.apiFailure)publishApiError(e.apiFailure.input,e.apiFailure.status,e.apiFailure.data);else toast(e.message||'تعذر حفظ التغييرات. حاول مرة أخرى.','danger');return false}finally{if(ownsInteractionLock)unlockPageInteraction();if(activeSaveContext===ctx)activeSaveContext=null;saving=false;emit()}}
+function updateUI(s){const u=document.querySelector('[data-em-action="undo"]'),r=document.querySelector('[data-em-action="redo"]'),b=document.querySelector('[data-em-action="save"]'),st=document.getElementById('emStatus');if(u){u.disabled=s.saving||!s.canUndo;u.title=s.saving?'انتظر اكتمال الحفظ':s.canUndo?`تراجع: ${s.labels.undo}`:'تراجع'}if(r){r.disabled=s.saving||!s.canRedo;r.title=s.saving?'انتظر اكتمال الحفظ':s.canRedo?`إعادة: ${s.labels.redo}`:'إعادة'}if(b){b.disabled=!s.dirty||s.saving;b.classList.toggle('has-work',s.dirty);b.title=s.saving?'جارٍ الحفظ…':'حفظ التغييرات'}if(st){st.dataset.state=s.saving?'saving':s.dirty?'dirty':'clean';st.textContent=s.saving?'جارٍ الحفظ…':s.dirty?'توجد تعديلات غير محفوظة':'لا توجد تعديلات غير محفوظة'}renderHistory()}
+function initialize(){if(initialized)return;initialized=true;finishPendingFormAction();savedBaseline=clone(captureAll());lastSnapshot=clone(savedBaseline);domUserDirty=false;emit();document.addEventListener('input',e=>{if(!restoring&&!saving&&!ignored(e.target)&&e.isTrusted){domUserDirty=true;schedule(`تعديل: ${fieldLabel(e.target)}`)}});document.addEventListener('change',e=>{if(!restoring&&!saving&&!ignored(e.target)&&e.isTrusted){domUserDirty=true;schedule(`تغيير: ${fieldLabel(e.target)}`)}});document.addEventListener('click',e=>{const b=e.target.closest('[data-em-action]');if(!b)return;e.preventDefault();const a=b.dataset.emAction;if(a==='undo')undo();else if(a==='redo')redo();else if(a==='save')save()});document.addEventListener('keydown',e=>{if(e.key==='s'&&(e.ctrlKey||e.metaKey)){e.preventDefault();save();return}if(saving)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){if(history.length){e.preventDefault();undo()}return}if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z'))){if(future.length){e.preventDefault();redo()}}});global.addEventListener('beforeunload',e=>{if(state().dirty){e.preventDefault();e.returnValue='لديك تغييرات غير محفوظة.'}})}
 installFetchBridge();installSubmitBridge();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
-global.EditManager={register,commit,execute:async o=>{
-  if(!o||typeof o.do!=='function'||typeof o.undo!=='function')throw new TypeError('execute requires do and undo');
-  const run=async()=>{const before=captureAll();const result=await o.do();const after=captureAll();push(before,after,o.label||'عملية',o);lastSnapshot=clone(after);return result};
-  const result=sequence.then(run,run);sequence=result.catch(()=>{});return result;
-},undo,redo,save,markSaved,rebase:markSaved,reset:()=>{history.length=0;future.length=0;markSaved();lastSnapshot=clone(captureAll())},snapshot:()=>clone(captureAll()),restore:async snap=>{restoring=true;try{await apply(diff(captureAll(),snap),'after');lastSnapshot=clone(captureAll());emit()}finally{restoring=false}},isDirty:()=>state().dirty,subscribe:fn=>(listeners.add(fn),fn(state()),()=>listeners.delete(fn)),setSaveHandler,codec};
-})(window);
+global.EditManager={register,commit,markFormBaseline,markSavedForm,restoreForm,execute:async o=>{if(!o||typeof o.do!=='function'||typeof o.undo!=='function')throw new TypeError('execute requires do and undo');const run=async()=>{const before=captureAll();const result=await o.do();const after=captureAll();push(before,after,o.label||'عملية',o);lastSnapshot=clone(after);return result};const result=sequence.then(run,run);sequence=result.catch(()=>{});return result},undo,redo,save,markSaved,rebase:markSaved,reset:()=>{history.length=0;future.length=0;markSaved();lastSnapshot=clone(captureAll())},snapshot:()=>clone(captureAll()),restore:async snap=>{restoring=true;try{await apply(diff(captureAll(),snap),'after');lastSnapshot=clone(captureAll());emit()}finally{restoring=false}},isDirty:()=>state().dirty,subscribe:fn=>(listeners.add(fn),fn(state()),()=>listeners.delete(fn)),setSaveHandler,codec};})(window);

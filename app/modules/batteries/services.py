@@ -142,26 +142,27 @@ def _validate_meter_history(movements):
         previous = value
 
 
-def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
+def _validate_equipment_meter(
+    db: Session,
+    equipment_id: int,
+    movement_date: date,
+    meter_value: Decimal | None,
+    source_reference: str | None = None,
+):
     if meter_value is None:
         return
-    readings = []
-    from app.modules.meter_readings.models import MeterReading
-    rows = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
-    for reading in rows:
-        value = reading.odometer if reading.odometer is not None else reading.hours
-        if value is not None:
-            reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
-            readings.append((reading_date, Decimal(str(value))))
-    before = [value for d, value in readings if d <= movement_date]
-    after = [value for d, value in readings if d >= movement_date]
-    if before and meter_value < before[-1]:
-        raise ValueError("قراءة العداد أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
-    if after and meter_value > after[0]:
-        raise ValueError("قراءة العداد أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
     equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    if equipment and equipment.current_odometer is not None and meter_value > equipment.current_odometer:
-        raise ValueError("قراءة العداد أعلى من العداد الحالي للعتاد")
+    unit = equipment.equipment_type.measurement_unit if equipment and equipment.equipment_type else "hours"
+    from app.modules.meter_readings.services import validate_meter_observation
+    validate_meter_observation(
+        db,
+        equipment_id,
+        movement_date,
+        meter_value,
+        unit,
+        "حركة بطارية",
+        source_reference=source_reference,
+    )
 
 
 def _equipment_age_below_limit(equipment: Equipment | None, when: date, years: int) -> bool:
@@ -174,16 +175,27 @@ def _general_expiry_date(battery: Battery, years: int) -> date | None:
     return _add_years(base, years) if base else None
 
 
-def _expired_at(db: Session, battery: Battery, equipment: Equipment | None, when: date) -> bool:
-    years = get_validity_years(db)
+def _expired_at(
+    db: Session,
+    battery: Battery,
+    equipment: Equipment | None,
+    when: date,
+    validity_years: int | None = None,
+) -> bool:
+    years = validity_years if validity_years is not None else get_validity_years(db)
     if equipment and getattr(equipment, "first_service_date", None):
         return when >= _add_years(equipment.first_service_date, years)
     expiry = _general_expiry_date(battery, years)
     return bool(expiry and when >= expiry)
 
 
-def replacement_due_date(db: Session, battery: Battery, equipment: Equipment | None = None) -> date | None:
-    years = get_validity_years(db)
+def replacement_due_date(
+    db: Session,
+    battery: Battery,
+    equipment: Equipment | None = None,
+    validity_years: int | None = None,
+) -> date | None:
+    years = validity_years if validity_years is not None else get_validity_years(db)
     if equipment and getattr(equipment, "first_service_date", None):
         return _add_years(equipment.first_service_date, years)
     return _general_expiry_date(battery, years)
@@ -230,7 +242,16 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
                 if required_count == 1:
                     raise ValueError("العتاد لديه بطارية مركبة بالفعل في التاريخ المحدد")
                 raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
-            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"battery_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db,
+                equipment.id,
+                movement.movement_date,
+                movement.meter_value,
+                source_reference,
+            )
             state_at = {"installed": True, "equipment_id": movement.equipment_id}
         elif movement.movement_type == "move":
             if damaged_reported:
@@ -246,7 +267,16 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
                 raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")
-            _validate_equipment_meter(db, equipment.id, movement.movement_date, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"battery_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db,
+                equipment.id,
+                movement.movement_date,
+                movement.meter_value,
+                source_reference,
+            )
             state_at = {"installed": True, "equipment_id": movement.equipment_id}
         elif movement.movement_type == "remove":
             if not state_at["installed"]:
@@ -258,8 +288,70 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
 def add_battery(db: Session, data: dict):
     data = dict(data)
     data.pop("expiry_date", None)
+    battery_type = (data.get("battery_type") or "").strip()
+    if not battery_type:
+        raise ValueError("نوع البطارية مطلوب")
+    data["battery_type"] = battery_type
+    data.pop("serial_number", None)
+    from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+    request_item_id = data.get("acquisition_request_item_id")
+    item = db.query(SparePartRequestItem).join(SparePartRequest).filter(
+        SparePartRequestItem.id == request_item_id,
+        SparePartRequestItem.asset_type == "battery",
+        SparePartRequestItem.received_quantity > 0,
+        SparePartRequest.status == "approved",
+    ).with_for_update().first()
+    if not item:
+        raise ValueError("اختر بند بطارية مستلمًا من طلب معتمد")
+    used = db.query(Battery.id).filter(Battery.acquisition_request_item_id == item.id).count()
+    if used >= int(item.received_quantity):
+        raise ValueError("اكتملت كمية البطاريات المستلمة لهذا البند")
+    data["acquisition_document"] = item.request.request_number
+    data["acquisition_receipt_id"] = None
+    data["acquisition_request_item_id"] = item.id
+    data["receipt_date"] = item.request.received_date or item.received_date
     battery = Battery(**data)
     db.add(battery)
+    db.commit()
+    db.refresh(battery)
+    return battery
+
+
+def delete_battery(db: Session, battery_id: int):
+    return delete_batteries(db, [battery_id])
+
+
+def delete_batteries(db: Session, battery_ids: list[int]):
+    unique_ids = set(battery_ids)
+    batteries = db.query(Battery).filter(Battery.id.in_(unique_ids)).all() if unique_ids else []
+    if len(batteries) != len(unique_ids):
+        raise ValueError("تعذر حذف البطاريات المحددة؛ قد يكون أحد السجلات غير موجود")
+    _, states = current_states(db)
+    installed = [
+        battery for battery in batteries
+        if states.get(battery.id) and states[battery.id].get("installed")
+    ]
+    if installed:
+        raise ValueError("يجب فك البطاريات المركبة قبل حذفها من السجل")
+    for battery in batteries:
+        db.delete(battery)
+    db.commit()
+    return len(batteries)
+
+
+def update_battery(db: Session, battery_id: int, data: dict):
+    battery = db.query(Battery).filter(Battery.id == battery_id).first()
+    if battery is None:
+        raise ValueError("البطارية غير موجودة")
+    battery_type = (data.get("battery_type") or "").strip()
+    if not battery_type:
+        raise ValueError("نوع البطارية مطلوب")
+    battery.battery_type = battery_type
+    if "brand" in data:
+        battery.brand = (data.get("brand") or "").strip() or None
+    battery.capacity = (data.get("capacity") or "").strip() or None
+    battery.manufacture_date = data.get("manufacture_date")
+    battery.notes = (data.get("notes") or "").strip() or None
     db.commit()
     db.refresh(battery)
     return battery
@@ -279,7 +371,13 @@ def add_movement(db: Session, battery_id: int, data: dict):
     return movement
 
 
-def status(battery: Battery, state, equipment: Equipment | None = None, db: Session | None = None):
+def status(
+    battery: Battery,
+    state,
+    equipment: Equipment | None = None,
+    db: Session | None = None,
+    validity_years: int | None = None,
+):
     movement = state.get("movement") if isinstance(state, dict) else None
     if movement and movement.movement_type == "remove":
         reason = (movement.reason or "").strip().lower()
@@ -289,7 +387,7 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
             return "expired"
     if db is not None and state and state.get("installed"):
         target = equipment or state.get("equipment")
-        if _expired_at(db, battery, target, date.today()):
+        if _expired_at(db, battery, target, date.today(), validity_years):
             return "expired"
     elif db is None and battery.expiry_date and battery.expiry_date < date.today():
         return "expired"
@@ -300,11 +398,21 @@ def status(battery: Battery, state, equipment: Equipment | None = None, db: Sess
     return "stock"
 
 
-def stats(db: Session):
+def stats(
+    db: Session,
+    batteries: list[Battery] | None = None,
+    states: dict | None = None,
+    validity_years: int | None = None,
+):
     counts = {"total": 0, "installed": 0, "stock": 0, "expired": 0, "damaged": 0, "unassigned": 0}
-    batteries, states = current_states(db)
+    if batteries is None or states is None:
+        batteries, states = current_states(db)
+    if validity_years is None and any(
+        state and state.get("installed") for state in states.values()
+    ):
+        validity_years = get_validity_years(db)
     for battery in batteries:
         counts["total"] += 1
-        key = status(battery, states.get(battery.id), db=db)
+        key = status(battery, states.get(battery.id), db=db, validity_years=validity_years)
         counts[key] += 1
     return counts

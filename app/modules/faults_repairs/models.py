@@ -14,10 +14,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 
@@ -36,16 +38,12 @@ class Fault(Base):
             name="ck_fault_severity",
         ),
         CheckConstraint(
-            "status IN ('open', 'diagnosing', 'repairing', 'waiting_parts', 'repaired', 'closed')",
+            "status IN ('open', 'diagnosing', 'repairing', 'waiting_parts', 'repaired')",
             name="ck_fault_status",
         ),
         CheckConstraint(
             "exploitation_impact IN ('none', 'limited', 'prohibited')",
             name="ck_fault_exploitation_impact",
-        ),
-        CheckConstraint(
-            "meter_value IS NULL OR meter_value >= 0",
-            name="ck_fault_meter_nonnegative",
         ),
     )
 
@@ -61,7 +59,6 @@ class Fault(Base):
     reported_date = Column(Date, nullable=False)
     report_number = Column(String(80), nullable=True, index=True)
     note = Column(Text, nullable=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     fault_type = Column(String(80), nullable=True)
     description = Column(Text, nullable=False)
     severity = Column(String(20), nullable=False, default="medium", server_default="medium")
@@ -81,6 +78,16 @@ class Fault(Base):
         order_by="Repair.repair_date.desc(), Repair.id.desc()",
     )
 
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
+
 
 class Repair(Base):
     __tablename__ = "repairs"
@@ -94,16 +101,19 @@ class Repair(Base):
             name="ck_external_repair_requires_dispatch_document",
         ),
         CheckConstraint(
-            "status IN ('in_progress', 'completed', 'cancelled')",
+            "status IN ('in_progress', 'completed')",
             name="ck_repair_status",
         ),
         CheckConstraint(
             "labor_hours IS NULL OR labor_hours >= 0",
             name="ck_repair_labor_hours_nonnegative",
         ),
-        CheckConstraint(
-            "meter_value IS NULL OR meter_value >= 0",
-            name="ck_repair_meter_nonnegative",
+        Index(
+            "uq_repairs_one_active_per_fault",
+            "fault_id",
+            unique=True,
+            sqlite_where=text("status = 'in_progress'"),
+            postgresql_where=text("status = 'in_progress'"),
         ),
     )
 
@@ -113,7 +123,8 @@ class Repair(Base):
         nullable=False, index=True,
     )
     repair_date = Column(Date, nullable=False)
-    meter_value = Column(Numeric(10, 1), nullable=True)
+    repair_start_date = Column(Date, nullable=True)
+    repair_end_date = Column(Date, nullable=True)
     diagnosis = Column(Text, nullable=True)
     action_taken = Column(Text, nullable=False)
     technician = Column(String(120), nullable=True)  # legacy/display field; detailed work is in technician_interventions
@@ -125,6 +136,7 @@ class Repair(Base):
     status = Column(String(20), nullable=False, default="completed", server_default="completed")
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     fault = relationship("Fault", back_populates="repairs")
@@ -134,6 +146,16 @@ class Repair(Base):
         cascade="all, delete-orphan",
         order_by="RepairPart.id",
     )
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
     created_by = relationship("User", foreign_keys=[created_by_id])
     technician_interventions = relationship("TechnicianIntervention", back_populates="repair", cascade="all, delete-orphan", order_by="TechnicianIntervention.intervention_date.desc(), TechnicianIntervention.id.desc()")
 
@@ -147,6 +169,8 @@ class Technician(Base):
     id = Column(Integer, primary_key=True, index=True)
     employee_number = Column(String(50), nullable=False, index=True)
     full_name = Column(String(160), nullable=False, index=True)
+    professional_rank = Column(String(120), nullable=True)
+    registration_number = Column(String(80), nullable=True)
     specialization = Column(String(120), nullable=True)
     is_active = Column(Integer, nullable=False, default=1, server_default="1")
     notes = Column(Text, nullable=True)
@@ -185,7 +209,9 @@ class SparePart(Base):
     id = Column(Integer, primary_key=True, index=True)
     part_number = Column(String(80), nullable=False, index=True)
     name = Column(String(160), nullable=False)
-    receiving_document = Column(String(255), nullable=False)
+    # Catalog records may exist before a procurement/receipt document does.
+    # Receipt history remains in spare-parts request/movement modules.
+    receiving_document = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
 
 

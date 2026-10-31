@@ -1,7 +1,8 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 from app.modules.batteries.models import Battery, BatteryMovement
-from app.modules.batteries.services import MOVEMENT_TYPES, _equipment_age_below_limit, _is_damaged_reason, _state_from_history, status
+from app.modules.batteries.services import MOVEMENT_TYPES, _equipment_age_below_limit, _is_damaged_reason, _state_from_history, status, update_battery
 from app.modules.equipment.models import Equipment
 
 
@@ -56,3 +57,33 @@ def test_replacement_date_does_not_mean_damage():
     assert _is_damaged_reason("منتهي الصلاحية") is False
     assert _is_damaged_reason("expired") is False
     assert _is_damaged_reason(None) is False
+
+
+def test_update_without_brand_preserves_legacy_value():
+    battery = Battery(id=1, battery_type="AGM", brand="Legacy brand")
+
+    class Query:
+        def filter(self, *_args):
+            return self
+
+        def first(self):
+            return battery
+
+    class Session:
+        def query(self, _model):
+            return Query()
+
+        def commit(self):
+            pass
+
+        def refresh(self, _battery):
+            pass
+
+    update_battery(Session(), 1, {"battery_type": "AGM", "capacity": "60 Ah"})
+    assert battery.brand == "Legacy brand"
+
+
+def test_battery_movement_form_uses_the_shared_editor_and_keeps_its_post_route():
+    template = Path("app/modules/batteries/templates/battery_detail.html").read_text(encoding="utf-8")
+    assert '<form method="post" action="/batteries/{{ battery.id }}/movements" class="record-form" data-em-root>' in template
+    assert "function sync(){const remove=movement.value==='remove'" in template

@@ -10,7 +10,7 @@ from app.modules.meter_readings.models import MeterReading
 from app.modules.tires.models import Tire, TireDisposal, TireModelSize, TireMovement, TirePosition, TireSystemSetting
 from app.modules.tires import state_engine
 
-MOVEMENT_TYPES = {"install", "move", "remove"}
+MOVEMENT_TYPES = {"install", "remove"}
 REMOVAL_DISPOSITIONS = {"stock", "damaged", "expired"}
 SIDES = {"left", "right"}
 POSITION_TYPES = {"single", "inner", "outer"}
@@ -190,33 +190,26 @@ def _equipment_measurement_unit(db: Session, equipment_id: int) -> str:
     return measurement_unit
 
 
-def _validate_equipment_meter(db: Session, equipment_id: int, movement_date: date, meter_value: Decimal | None):
+def _validate_equipment_meter(
+    db: Session,
+    equipment_id: int,
+    movement_date: date,
+    meter_value: Decimal | None,
+    source_reference: str | None = None,
+):
     if meter_value is None:
         return
-    meter_value = Decimal(str(meter_value))
-    if meter_value < 0:
-        raise ValueError("لا يمكن أن تكون قراءة العداد سالبة")
     unit = _equipment_measurement_unit(db, equipment_id)
-    readings = db.query(MeterReading).filter(MeterReading.equipment_id == equipment_id).order_by(MeterReading.reading_date.asc(), MeterReading.id.asc()).all()
-    values = []
-    for reading in readings:
-        value = getattr(reading, "odometer", None) if unit == "km" else getattr(reading, "hours", None)
-        if value is not None:
-            reading_date = reading.reading_date.date() if hasattr(reading.reading_date, "date") else reading.reading_date
-            values.append((reading_date, Decimal(str(value))))
-    before = [value for d, value in values if d < movement_date]
-    same_day = [value for d, value in values if d == movement_date]
-    after = [value for d, value in values if d > movement_date]
-    if same_day and any(meter_value != value for value in same_day):
-        raise ValueError(f"قراءة {unit} في نفس تاريخ الحركة لا تطابق القراءة المسجلة للعتاد")
-    if before and meter_value < before[-1]:
-        raise ValueError(f"قراءة {unit} للحركة أقل من آخر قراءة معروفة للعتاد قبل هذا التاريخ")
-    if after and meter_value > after[0]:
-        raise ValueError(f"قراءة {unit} للحركة أكبر من أول قراءة معروفة للعتاد بعد هذا التاريخ")
-    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
-    current_value = equipment.current_odometer if unit == "km" else equipment.current_hours
-    if current_value is not None and meter_value > Decimal(str(current_value)):
-        raise ValueError(f"قراءة {unit} للحركة أعلى من القراءة الحالية المسجلة للعتاد")
+    from app.modules.meter_readings.services import validate_meter_observation
+    validate_meter_observation(
+        db,
+        equipment_id,
+        movement_date,
+        meter_value,
+        unit,
+        "حركة إطار",
+        source_reference=source_reference,
+    )
 
 
 def _validate_tire_meter_history(movements):
@@ -264,9 +257,9 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
     synthetic_id = max((m.id for m in existing), default=0) + 1
     candidate = TireMovement(id=synthetic_id, tire_id=tire.id, movement_date=movement_date, movement_datetime=movement_datetime, movement_type=movement_type, equipment_id=equipment_id, position_id=position_id, meter_value=meter_value, removal_disposition=removal_disposition)
     timeline = sorted(existing + [candidate], key=_movement_datetime)
-    _validate_tire_meter_history(timeline)
     initial_state = current_state(db, tire.id) if not existing else None
     state_at = {"installed": False, "equipment_id": None, "position_id": None, "disposition": "stock"}
+    first_existing_equipment_id = next((m.equipment_id for m in sorted(existing, key=_movement_datetime) if m.movement_type == "install" and m.equipment_id), None)
     if initial_state and not initial_state.get("installed") and initial_state.get("disposition") in {"damaged", "expired"}:
         state_at["disposition"] = initial_state["disposition"]
     for movement in timeline:
@@ -276,6 +269,8 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("التسلسل التاريخي غير صالح: الإطار مركب بالفعل قبل عملية التركيب")
             if not movement.equipment_id or not movement.position_id:
                 raise ValueError("العتاد وموضع الإطار مطلوبان عند التركيب")
+            if movement is candidate and first_existing_equipment_id is not None and movement.equipment_id != first_existing_equipment_id:
+                raise ValueError("يُمنع نقل الإطار بين العربات نهائيًا. يجب تخصيص إطار مستقل لكل عربة.")
             if state_at["disposition"] in {"damaged", "expired"}:
                 label = "تالف" if state_at["disposition"] == "damaged" else "منتهي الصلاحية"
                 raise ValueError(f"لا يمكن تركيب إطار {label} بعد تسجيل إخراجه بهذه الحالة")
@@ -283,7 +278,12 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("لا يمكن تركيب إطار منتهي الصلاحية في تاريخ الحركة المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "install", _movement_datetime(movement))
-            _validate_equipment_meter(db, equipment.id, movement_day, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"tire_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db, equipment.id, movement_day, movement.meter_value, source_reference
+            )
             if _position_occupied_at(db, equipment.id, movement.position_id, _movement_datetime(movement), tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار مشغول بإطار آخر في التاريخ والوقت المحددين")
             state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}
@@ -296,7 +296,12 @@ def validate_movement(db: Session, tire: Tire, movement_type: str, movement_date
                 raise ValueError("لا يمكن نقل إطار منتهي الصلاحية في التاريخ المحدد")
             equipment, _ = _validate_model_position(db, movement.equipment_id, movement.position_id, tire)
             _validate_model_capacity(db, equipment.id, tire.id, "move", _movement_datetime(movement))
-            _validate_equipment_meter(db, equipment.id, movement_day, movement.meter_value)
+            source_reference = (
+                None if movement is candidate else f"tire_movement:{movement.id}:meter"
+            )
+            _validate_equipment_meter(
+                db, equipment.id, movement_day, movement.meter_value, source_reference
+            )
             if _position_occupied_at(db, equipment.id, movement.position_id, _movement_datetime(movement), tire.id, movement if movement is candidate else None):
                 raise ValueError("موضع الإطار الهدف مشغول بإطار آخر في التاريخ والوقت المحددين")
             state_at = {"installed": True, "equipment_id": movement.equipment_id, "position_id": movement.position_id, "disposition": "installed"}
@@ -314,6 +319,23 @@ def add_tire(db: Session, data: dict):
     if db.query(Tire.id).filter(Tire.serial_number == serial_number).first():
         raise ValueError("الرقم التسلسلي للإطار مستخدم مسبقًا")
     data["serial_number"] = serial_number
+    from app.modules.spare_parts_requests.models import SparePartRequest, SparePartRequestItem
+    request_item_id = data.get("acquisition_request_item_id")
+    item = db.query(SparePartRequestItem).join(SparePartRequest).filter(
+        SparePartRequestItem.id == request_item_id,
+        SparePartRequestItem.asset_type == "tire",
+        SparePartRequestItem.received_quantity > 0,
+        SparePartRequest.status == "approved",
+    ).with_for_update().first()
+    if not item:
+        raise ValueError("اختر بند إطار مستلمًا من طلب معتمد")
+    used = db.query(Tire.id).filter(Tire.acquisition_request_item_id == item.id).count()
+    if used >= int(item.received_quantity):
+        raise ValueError("اكتملت كمية الإطارات المستلمة لهذا البند")
+    data["acquisition_document"] = item.request.request_number
+    data["acquisition_receipt_id"] = None
+    data["acquisition_request_item_id"] = item.id
+    data["receipt_date"] = item.request.received_date or item.received_date
     manufacture_date = data.get("manufacture_date")
     receipt_date = data.get("receipt_date")
     expiry_date = data.get("expiry_date")
@@ -332,6 +354,16 @@ def add_tire(db: Session, data: dict):
     db.commit()
     db.refresh(tire)
     return tire
+
+
+def delete_tire(db: Session, tire_id: int):
+    tire = db.query(Tire).filter(Tire.id == tire_id).first()
+    if not tire:
+        raise ValueError("الإطار غير موجود")
+    if current_state(db, tire_id) and current_state(db, tire_id).get("installed"):
+        raise ValueError("يجب فك الإطار قبل حذفه من السجل")
+    db.delete(tire)
+    db.commit()
 
 
 

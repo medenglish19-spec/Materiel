@@ -2,13 +2,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 FAULT_SEVERITIES = {"low", "medium", "high", "critical"}
-FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired", "closed"}
+FAULT_STATUSES = {"open", "diagnosing", "repairing", "waiting_parts", "repaired"}
 FAULT_EXPLOITATION_IMPACTS = {"none", "limited", "prohibited"}
-REPAIR_STATUSES = {"in_progress", "completed", "cancelled"}
+REPAIR_STATUSES = {"in_progress", "completed"}
 WORKSHOP_TYPES = {"internal", "external"}
 
 
@@ -79,6 +79,8 @@ class FaultOut(FaultCreate):
 class RepairCreate(BaseModel):
     fault_id: int
     repair_date: date
+    repair_start_date: Optional[date] = None
+    repair_end_date: Optional[date] = None
     meter_value: Optional[Decimal] = Field(default=None, ge=0)
     diagnosis: Optional[str] = None
     action_taken: str = Field(min_length=1)
@@ -88,7 +90,7 @@ class RepairCreate(BaseModel):
     repair_document: Optional[str] = None
     external_dispatch_document: Optional[str] = None
     labor_hours: Optional[Decimal] = Field(default=None, ge=0)
-    status: str = "completed"
+    status: str = "in_progress"
     notes: Optional[str] = None
 
     @field_validator("workshop_type")
@@ -105,11 +107,51 @@ class RepairCreate(BaseModel):
             raise ValueError("حالة الإصلاح غير صحيحة")
         return v
 
+    @model_validator(mode="after")
+    def validate_repair_dates(self):
+        if self.repair_end_date and not self.repair_start_date:
+            raise ValueError("يجب تحديد تاريخ بداية الإصلاح قبل تاريخ النهاية")
+        if self.repair_start_date and self.repair_end_date and self.repair_end_date < self.repair_start_date:
+            raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
+        return self
+
 
 class RepairOut(RepairCreate):
     model_config = ConfigDict(from_attributes=True)
+    # Legacy repair rows may intentionally have an empty action after editing.
+    action_taken: str
     id: int
     created_at: datetime
+
+
+class RepairUpdate(BaseModel):
+    repair_start_date: Optional[date] = None
+    repair_end_date: Optional[date] = None
+    meter_value: Optional[Decimal] = Field(default=None, ge=0)
+    diagnosis: Optional[str] = None
+    action_taken: str
+    technician: Optional[str] = None
+    workshop_type: str
+    workshop: Optional[str] = None
+    repair_document: Optional[str] = None
+    external_dispatch_document: Optional[str] = None
+    labor_hours: Optional[Decimal] = Field(default=None, ge=0)
+    notes: Optional[str] = None
+
+    @field_validator("workshop_type")
+    @classmethod
+    def valid_workshop(cls, v):
+        if v not in WORKSHOP_TYPES:
+            raise ValueError("نوع الورشة غير صحيح")
+        return v
+
+    @model_validator(mode="after")
+    def validate_repair_dates(self):
+        if self.repair_end_date and not self.repair_start_date:
+            raise ValueError("يجب تحديد تاريخ بداية الإصلاح قبل تاريخ النهاية")
+        if self.repair_start_date and self.repair_end_date and self.repair_end_date < self.repair_start_date:
+            raise ValueError("تاريخ نهاية الإصلاح لا يمكن أن يسبق تاريخ بدايته")
+        return self
 
 
 class SparePartCreate(BaseModel):
@@ -146,24 +188,42 @@ class RepairPartOut(RepairPartCreate):
 
 
 class TechnicianCreate(BaseModel):
-    employee_number: str = Field(min_length=1, max_length=50)
+    employee_number: Optional[str] = Field(default=None, max_length=50)
     full_name: str = Field(min_length=1, max_length=160)
+    professional_rank: Optional[str] = Field(default=None, max_length=120)
+    registration_number: Optional[str] = Field(default=None, max_length=80)
     specialization: Optional[str] = Field(default=None, max_length=120)
     is_active: bool = True
     notes: Optional[str] = None
 
 class TechnicianUpdate(BaseModel):
     full_name: Optional[str] = None
+    professional_rank: Optional[str] = Field(default=None, max_length=120)
+    registration_number: Optional[str] = Field(default=None, max_length=80)
     specialization: Optional[str] = None
     is_active: Optional[bool] = None
     notes: Optional[str] = None
 
-class TechnicianOut(TechnicianCreate):
+class TechnicianOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    full_name: str
+    professional_rank: Optional[str] = None
+    registration_number: Optional[str] = None
+    specialization: Optional[str] = None
+    is_active: bool = True
+    notes: Optional[str] = None
 
 class TechnicianInterventionCreate(BaseModel):
     repair_id: int
+    technician_id: int
+    intervention_date: date
+    hours: Decimal = Field(ge=0)
+    work_description: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TechnicianInterventionUpdate(BaseModel):
     technician_id: int
     intervention_date: date
     hours: Decimal = Field(ge=0)

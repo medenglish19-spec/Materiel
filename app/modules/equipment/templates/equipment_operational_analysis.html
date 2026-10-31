@@ -5,18 +5,19 @@
   <header style="display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:16px">
     <div>
       <div style="font-size:10px;color:#8290a0;font-weight:700">MATERIEL · OPERATIONAL ANALYTICS</div>
-      <h2 style="margin:4px 0">التحليل التشغيلي المترابط</h2>
-      <p style="color:#718096;font-size:11px">قراءة مشتركة للاستخدام والمهام والوقود والأعطال والإصلاحات والصيانة والجاهزية، مع مقارنة الوحدات المماثلة.</p>
+      <h2 style="margin:4px 0">التحليل التشغيلي</h2>
+      <p style="color:#718096;font-size:11px">الاستخدام والأعطال والإصلاحات والصيانة حسب العتاد.</p>
     </div>
     <a href="/equipment/analysis">← التحليل العام</a>
   </header>
 
   <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px;padding:14px 16px">
-    <strong style="font-size:12px">ماذا استنتج التحليل؟</strong>
-    {% if operational.findings %}
-      {% for f in operational.findings %}
+    <strong style="font-size:12px">مؤشرات تستحق المراجعة</strong>
+    {% set findings = operational.findings | rejectattr("state", "equalto", "مدة معالجة عطل قابلة للقياس") | list %}
+    {% if findings %}
+      {% for f in findings %}
       <article style="display:grid;grid-template-columns:170px 1fr;gap:14px;padding:13px 0;border-bottom:1px solid #edf0f3">
-        <div style="font-size:10px;font-weight:800;color:#173b63">{{ f.state }}</div>
+        <div style="font-size:10px;font-weight:800;color:#20352a">{{ f.state }}</div>
         <div>
           <strong style="font-size:10px">{{ f.subject }}</strong>
           <p style="margin:4px 0;font-size:10px;color:#526273">{{ f.meaning }}</p>
@@ -35,9 +36,6 @@
   {% if duration_findings %}
   <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;margin-bottom:12px;padding:14px 16px">
     <strong style="font-size:12px">مدة المعالجة والعوامل الموثقة</strong>
-    <p style="margin:5px 0 10px;color:#718096;font-size:9.5px">
-      هذا القسم لا يخمّن السبب الجذري. يعرض فقط ما يمكن ربطه زمنيًا من سجل البلاغ إلى أول إصلاح، والعوامل الموجودة فعليًا في سجل الإصلاح.
-    </p>
     {% for f in duration_findings %}
     <article style="padding:9px 0;border-bottom:1px solid #edf0f3">
       <strong style="font-size:10px">{{ f.subject }}</strong>
@@ -67,12 +65,12 @@
   <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;overflow:auto;margin-bottom:12px">
     <div style="padding:13px 15px;border-bottom:1px solid #edf0f3">
       <strong style="font-size:12px">المقارنة على مستوى العتاد</strong>
-      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">مقارنة الأعطال والوقود تعتمد على عينة بيانات مستقلة لكل مؤشر؛ ويُعرض عدد الوحدات التي دخلت فعليًا في كل مرجع.</span>
+      <span style="display:block;color:#8793a0;font-size:9px;margin-top:3px">تفاصيل عينة المقارنة متاحة داخل كل صف.</span>
     </div>
-    <table style="width:100%;border-collapse:collapse;min-width:1180px">
+    <div class="table-wrap mt-table-theme-green" data-mt-region><table style="width:100%;border-collapse:collapse;table-layout:auto">
       <thead><tr>
         <th>رقم التسجيل</th><th>الطراز</th><th>المسافة كم</th><th>المهمات</th><th>الوقود</th><th>لتر/100كم</th>
-        <th>الأعطال</th><th>أعطال/1000كم</th><th>مرجع الأعطال</th><th>عينة الأعطال</th><th>مرجع الوقود</th><th>عينة الوقود</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
+        <th>الأعطال</th><th>أعطال/1000كم</th><th>مقارنة مماثلة</th><th>المفتوحة</th><th>الإصلاحات</th><th>الصيانة</th><th>الحالة</th>
       </tr></thead>
       <tbody>
       {% for r in operational.rows %}
@@ -85,34 +83,23 @@
         <td>{{ r.fuel_per_100km|round(2) if r.fuel_per_100km is not none else "—" }}</td>
         <td>{{ r.fault_count }}</td>
         <td>{{ r.fault_rate_per_1000km|round(2) if r.fault_rate_per_1000km is not none else "—" }}</td>
-        <td>{% if r.peer_fault_rate_per_1000km is not none %}{{ r.peer_fault_rate_per_1000km|round(2) }} عطل/1000كم{% else %}—{% endif %}</td>
-        <td>{{ r.peer_fault_sample_count if r.peer_fault_rate_per_1000km is not none else "—" }}</td>
-        <td>{% if r.peer_fuel_per_100km is not none %}{{ r.peer_fuel_per_100km|round(2) }} لتر/100كم{% else %}—{% endif %}</td>
-        <td>{{ r.peer_fuel_sample_count if r.peer_fuel_per_100km is not none else "—" }}</td>
+        <td><details>
+          <summary>العينة</summary>
+          <div>الأعطال: {% if r.peer_fault_rate_per_1000km is not none %}وسيط {{ r.peer_fault_rate_per_1000km|round(2) }} عطل/1000كم، من {{ r.peer_fault_sample_count }} وحدات{% else %}لا توجد عينة كافية ({{ r.peer_fault_sample_count }} وحدات){% endif %}</div>
+          <div>الوقود: {% if r.peer_fuel_per_100km is not none %}وسيط {{ r.peer_fuel_per_100km|round(2) }} لتر/100كم، من {{ r.peer_fuel_sample_count }} وحدات{% else %}لا توجد عينة كافية ({{ r.peer_fuel_sample_count }} وحدات){% endif %}</div>
+        </details></td>
         <td>{{ r.open_fault_count }}</td>
         <td>{{ r.repair_count }}</td>
         <td>{{ r.maintenance_count }}</td>
-        <td>{{ r.technical_condition }} / {{ r.operational_status }}</td>
+        <td>{{ label('technical', r.technical_condition, 'غير محدد') }} / {{ label('operational', r.operational_status, 'غير محدد') }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="16" style="padding:25px;text-align:center;color:#8793a0">لا توجد بيانات.</td></tr>
+      <tr><td colspan="13" style="padding:25px;text-align:center;color:#8793a0">لا توجد بيانات.</td></tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
 
-  <section style="border:1px solid #e4e9ef;border-radius:9px;background:#fff;padding:14px 16px;margin-bottom:12px">
-    <strong style="font-size:12px">كيف نقرأ النتائج؟</strong>
-    <ul style="margin:8px 0 0;padding-right:18px;color:#627181;font-size:9.5px;line-height:1.9">
-      <li>المسافة مصدرها قراءات العداد؛ لا يتم اختراع مسافة عند غيابها.</li>
-      <li>قاعدة كفاية المقارنة الحالية: 3 وحدات مماثلة على الأقل، وهي قاعدة لجودة المقارنة وليست حدًا للأداء.</li>
-      <li>المقارنة تستخدم مرجع المجموعة المماثلة، ولا تمثل درجة صحة أو ترتيبًا للعتاد.</li>
-      <li>التكرار عبر شهرين تقويميين مختلفين يُعرض كنمط زمني للمراجعة، ولا يثبت علاقة سببية.</li>
-      <li>تكرار نفس نوع العطل بعد تسجيل إصلاح مرتبط به يُعرض كتسلسل زمني للمراجعة، ولا يعني أن الإصلاح فشل.</li>
-      <li>مدة معالجة العطل تُحسب من تاريخ البلاغ إلى أول إصلاح مسجل؛ التشخيص وقطع الغيار والتدخلات الفنية والورشة والملاحظات تُعرض كعوامل موثقة في السجل فقط، ولا يتم اعتبار أي منها سببًا جذريًا دون توثيق صريح.</li>
-    </ul>
-  </section>
-
-  <p style="margin-top:12px;color:#718096;font-size:9px">التحليل وصفي ومبني على البيانات المسجلة. الاستنتاجات لا تثبت سبب العطل ولا أثر الصيانة، ولا تحكم على استيفاء المهام المؤسسية.</p>
+  <p style="margin-top:12px;color:#718096;font-size:9px">النتائج وصفية؛ لا تثبت سبب العطل أو أثر الصيانة. المقارنة تُعرض عند توفر ثلاث وحدات مماثلة على الأقل.</p>
 </div>
 {% endblock %}

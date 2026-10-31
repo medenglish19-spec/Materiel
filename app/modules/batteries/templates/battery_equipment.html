@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}قائمة العتاد واحتياج البطاريات{% endblock %}
+{% block extra_head %}
+<style>
+.battery-equipment-page{direction:rtl}.battery-equipment-page .page-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}.battery-equipment-page .page-head a{color:#397a54;text-decoration:none;font-weight:700}.battery-equipment-page .page-note{padding:13px 16px;background:#f8fafc;border:1px solid #e7ebf2;border-radius:12px;color:#475467;line-height:1.8;margin-bottom:16px}.battery-equipment-page .table-wrap{overflow:auto;border:1px solid #e7ebf2;border-radius:12px;background:white}.battery-equipment-page table{width:100%;border-collapse:collapse}.battery-equipment-page th,.battery-equipment-page td{padding:11px 10px;text-align:right;vertical-align:top;border-bottom:1px solid #edf0f5;white-space:nowrap}.battery-equipment-page th{background:#f8fafc;color:#667085;font-size:13px}.battery-equipment-page a{color:#397a54;text-decoration:none;font-weight:700}.battery-equipment-page .spec-warning{white-space:normal;min-width:210px;max-width:330px;color:#b54708;line-height:1.65;font-weight:700}.battery-equipment-page .spec-ok{color:#027a48;font-weight:700}.battery-equipment-page .actual-list{white-space:normal;min-width:160px;line-height:1.65}.battery-equipment-page .battery-line+.battery-line{border-top:1px solid #edf0f5;margin-top:6px;padding-top:6px}.battery-equipment-page .expected-spec{display:block;color:#667085;white-space:normal;min-width:175px;margin-top:5px;font-size:12px;line-height:1.5}.battery-equipment-page .empty{text-align:center;padding:28px;color:#667085}
+</style>
+{% endblock %}
+{% block content %}
+<main class="record-page battery-equipment-page">
+  <header class="page-head"><div><a href="/batteries">← إدارة البطاريات</a><h1>قائمة العتاد والبطاريات</h1></div><a href="/equipment-types">مراجعة الخصائص الفنية للطرازات</a></header>
+  <p class="page-note">تعرض القائمة بيانات البطارية والعتاد المرتبط بها. تُستمد الكمية والسعة والجهد المطلوب من الخصائص الفنية للطراز، وتظهر رسالة عند نقصها. انقر رقم التسجيل لفتح سجل جميع حركات البطاريات المرتبطة بالعتاد.</p>
+  <div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>نوع البطارية</th><th>السعة</th><th>العتاد</th><th>رقم التسجيل</th><th>تاريخ الاستلام</th><th>موعد الاستبدال المحسوب</th><th>الحالة</th><th>السجل والحذف</th></tr></thead><tbody>
+  {% for row in equipment_rows %}{% set eq = row.equipment %}<tr>
+    <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.battery_type or 'نوع غير محدد' }}</div>{% endfor %}{% elif row.has_batteries %}غير مسجلة{% else %}—{% endif %}</td>
+    <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.capacity or '—' }}</div>{% endfor %}{% elif row.expected_capacity %}{{ row.expected_capacity }} Ah{% else %}—{% endif %}{% if row.has_batteries %}<small class="expected-spec">المطلوب للطراز: {{ row.expected_capacity or '—' }} Ah · {{ row.expected_voltage or '—' }} V</small>{% endif %}</td>
+    <td>{{ row.model.name if row.model else 'غير مرتبط بطراز' }}</td>
+    <td><a href="/equipment/{{ eq.id }}/batteries">{{ eq.registration_number or eq.vin or '—' }}</a></td>
+    <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.battery.receipt_date or '—' }}</div>{% endfor %}{% else %}—{% endif %}</td>
+    <td class="actual-list">{% if row.battery_lines %}{% for line in row.battery_lines %}<div class="battery-line">{{ line.due_date or '—' }}</div>{% endfor %}{% else %}—{% endif %}</td>
+    <td>{% if row.missing_specs %}<div class="spec-warning">استكمل في خصائص الطراز: {{ row.missing_specs|join('، ') }}.</div>{% elif row.has_batteries and row.excess_count %}<div class="spec-warning">مركب {{ row.installed_count }} من {{ row.expected_count }}؛ يوجد تجاوز بمقدار {{ row.excess_count }}.</div>{% elif row.has_batteries and row.remaining_count %}<div class="spec-warning">مركب {{ row.installed_count }} من {{ row.expected_count }}؛ المتبقي {{ row.remaining_count }}.</div>{% elif row.has_batteries %}<span class="spec-ok">مكتمل · {{ row.installed_count }} من {{ row.expected_count }}</span>{% else %}<span>لا يتطلب بطاريات حسب الطراز</span>{% endif %}</td>
+    <td class="actual-list"><a href="/equipment/{{ eq.id }}/batteries">سجل الحركات</a>{% for line in row.battery_lines %}<div class="battery-line"><a href="/batteries/{{ line.battery.id }}">سجل البطارية</a> · <button type="button" disabled title="يجب فك البطارية قبل حذف سجلها">الحذف بعد الفك</button></div>{% endfor %}</td>
+  </tr>{% else %}<tr><td colspan="8" class="empty">لا يوجد عتاد مسجل.</td></tr>{% endfor %}
+  </tbody></table></div>
+</main>
+{% endblock %}

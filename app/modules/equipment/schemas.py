@@ -34,16 +34,6 @@ class EquipmentBase(BaseModel):
     technical_condition: str = "ready"
     operational_status: str = "available"
 
-    current_odometer: Optional[Decimal] = Field(
-        default=Decimal("0"),
-        ge=0,
-    )
-
-    current_hours: Optional[Decimal] = Field(
-        default=Decimal("0"),
-        ge=0,
-    )
-
     notes: Optional[str] = None
 
     @field_validator("technical_condition")
@@ -83,16 +73,6 @@ class EquipmentUpdate(BaseModel):
     technical_condition: Optional[str] = None
     operational_status: Optional[str] = None
 
-    current_odometer: Optional[Decimal] = Field(
-        default=None,
-        ge=0,
-    )
-
-    current_hours: Optional[Decimal] = Field(
-        default=None,
-        ge=0,
-    )
-
     notes: Optional[str] = None
 
     @field_validator("technical_condition")
@@ -118,6 +98,10 @@ class EquipmentUpdate(BaseModel):
                 f"الوضعية يجب أن تكون أحد: {OPERATIONAL_STATUSES}"
             )
         return v
+
+
+class EquipmentBulkDelete(BaseModel):
+    equipment_ids: list[int] = Field(min_length=1)
 
 
 class EquipmentOut(BaseModel):

@@ -5,7 +5,23 @@
   <h1>المستخدمون</h1>
   <p>إدارة حسابات مستخدمي النظام وصلاحياتهم.</p>
 </section>
-<div class="card" style="overflow:auto">
+<section class="card" aria-labelledby="admin-password-title">
+  <h2 id="admin-password-title">إعداد كلمة مرور مدير النظام</h2>
+  <p>يمكن لمدير النظام تغيير كلمة مرور حسابه بعد تثبيت البرنامج. أدخل كلمة المرور الحالية ثم كلمة المرور الجديدة وأكّدها.</p>
+  <form method="post" action="/users/password" class="grid-form" data-em-root>
+    <label class="field">كلمة المرور الحالية
+      <input type="password" name="current_password" autocomplete="current-password" required>
+    </label>
+    <label class="field">كلمة المرور الجديدة
+      <input type="password" name="new_password" autocomplete="new-password" minlength="6" required>
+    </label>
+    <label class="field">تأكيد كلمة المرور الجديدة
+      <input type="password" name="confirmation" autocomplete="new-password" minlength="6" required>
+    </label>
+    <div><button class="btn btn-primary" type="submit" data-em-action="save">حفظ كلمة المرور</button></div>
+  </form>
+</section>
+<div class="card" style="overflow:hidden"><div class="table-scroll mt-table-theme-green" data-mt-region>
   <table>
     <thead><tr><th>اسم المستخدم</th><th>الاسم الكامل</th><th>الدور</th><th>الحالة</th></tr></thead>
     <tbody>
@@ -16,5 +32,6 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}

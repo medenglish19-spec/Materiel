@@ -1,10 +1,30 @@
 from datetime import date
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database.base import Base
 from app.shared.mixins import AuditMixin
+from app.shared.mixins import TimestampMixin
+
+
+class FuelModelConsumptionRate(Base, TimestampMixin):
+    __tablename__ = "fuel_model_consumption_rates"
+    __table_args__ = (
+        UniqueConstraint("equipment_model_id", "fuel_type", name="uq_fuel_model_rate_model_type"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    equipment_model_id = Column(
+        Integer,
+        ForeignKey("equipment_models.id", ondelete="CASCADE", name="fk_fuel_model_rate_model"),
+        nullable=False,
+        index=True,
+    )
+    fuel_type = Column(String(40), nullable=False)
+    consumption_rate = Column(Numeric(10, 2), nullable=False)
+    measurement_unit = Column(String(30), nullable=False)
+    equipment_model = relationship("EquipmentModel")
 
 
 class FuelRecord(Base, AuditMixin):
@@ -14,10 +34,19 @@ class FuelRecord(Base, AuditMixin):
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="CASCADE"), nullable=False, index=True)
     fueling_date = Column(Date, nullable=False, default=date.today, index=True)
     sequence_number = Column(Integer, nullable=False)
-    meter_value = Column(Numeric(10, 1), nullable=False)
     quantity = Column(Numeric(10, 2), nullable=False)
     fuel_type = Column(String(40), nullable=True)
     document_number = Column(String(100), nullable=True)
     station = Column(String(120), nullable=True)
     notes = Column(Text, nullable=True)
     equipment = relationship("Equipment")
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)

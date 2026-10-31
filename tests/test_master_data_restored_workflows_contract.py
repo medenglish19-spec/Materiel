@@ -3,6 +3,8 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from app.core.templating import page_section
+
 
 TEMPLATE_PATH = Path("app/modules/equipment_types/templates/master_data_workspace.html")
 TEMPLATE = TEMPLATE_PATH.read_text(encoding="utf-8")
@@ -43,12 +45,17 @@ def test_master_data_has_no_excel_import_at_all():
     assert 'id="chooseSpecs"' in TEMPLATE
 
 
-def test_master_data_keeps_model_copy_and_delete_actions():
-    assert 'data-copy="{{ m.id }}"' in TEMPLATE
+def test_master_data_keeps_model_actions_without_copy():
+    assert 'data-copy="{{ m.id }}"' not in TEMPLATE
     assert 'data-delete="{{ m.id }}"' in TEMPLATE
+    assert 'viewModel(id)' in TEMPLATE
+    assert 'data-type-model' in TEMPLATE
+    assert 'id="editModelBtn"' in TEMPLATE
+    assert 'id="freezeModelForm"' in TEMPLATE
+    assert 'id="deleteModelForm"' in TEMPLATE
+    assert 'نسخ الطراز' not in TREE_SCRIPT
+    assert "'unfreeze' : 'freeze'" in TREE_SCRIPT
     assert "postDelete(`/equipment-types/models/${encodeURIComponent(del.dataset.delete)}/delete`" in TREE_SCRIPT
-    assert "$('modelForm').action='/equipment-types/models/create'" in TEMPLATE
-
 
 def test_tree_script_is_loaded_directly_and_response_injection_is_removed():
     assert '<script src="/static/js/master-data-tree.js' in TEMPLATE
@@ -105,6 +112,8 @@ def test_uncategorized_type_is_rendered_and_marked_for_explicit_uncategorized_tr
         ]),
         autoescape=select_autoescape(["html", "xml"]),
     )
+    env.globals["institution_name"] = lambda: ""
+    env.globals["page_section"] = page_section
     template = env.get_template(TEMPLATE_PATH.name)
     request = SimpleNamespace(
         query_params={},

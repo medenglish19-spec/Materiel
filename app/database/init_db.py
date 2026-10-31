@@ -2,9 +2,12 @@ import logging
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 from app.core.config import settings
 from app.database.base import Base
+from app.database.backup import backup_sqlite_database, restore_sqlite_database
 from app.database.session import engine
 from app.database import model_registry  # noqa: F401
 
@@ -18,13 +21,15 @@ def _run_alembic_upgrade(config: Config) -> None:
         command.upgrade(config, "head")
         logger.info("Database startup: Alembic upgrade completed.")
     except BaseException as exc:
-        inspector = inspect(engine)
-        tables = sorted(inspector.get_table_names())
-        logger.exception(
-            "Alembic upgrade failed. database=%s tables=%s",
-            settings.DATABASE_URL,
-            tables,
-        )
+        # Log first. Listing the tables needs a working database, and when the
+        # database is what failed that call raises too -- replacing the real
+        # error with one from the error handler and still printing nothing.
+        logger.exception("Alembic upgrade failed. database=%s error=%r", settings.DATABASE_URL, exc)
+        try:
+            tables = sorted(inspect(engine).get_table_names())
+            logger.error("Alembic upgrade failed with %d table(s) present: %s", len(tables), tables)
+        except Exception:
+            logger.debug("could not list tables after the failed migration", exc_info=True)
         if isinstance(exc, SystemExit):
             raise RuntimeError("Alembic startup migration exited unexpectedly") from exc
         raise
@@ -111,17 +116,10 @@ def _repair_equipment_current_meters() -> None:
                     MeterReading.equipment_id == equipment.id,
                     MeterReading.hours.is_not(None),
                 ).order_by(MeterReading.reading_date.desc(), MeterReading.id.desc()).first()
-            latest_maintenance = db.query(MaintenanceRecord).filter(
-                MaintenanceRecord.equipment_id == equipment.id,
-                MaintenanceRecord.meter_value.is_not(None),
-            ).order_by(MaintenanceRecord.maintenance_date.desc(), MaintenanceRecord.id.desc()).first()
-
             candidates = []
             if latest_reading is not None:
                 value = latest_reading.odometer if unit == "km" else latest_reading.hours
                 candidates.append((latest_reading.reading_date.date(), value) if hasattr(latest_reading.reading_date, "date") else (latest_reading.reading_date, value))
-            if latest_maintenance is not None:
-                candidates.append((latest_maintenance.maintenance_date, latest_maintenance.meter_value))
             if not candidates:
                 continue
             latest_date = max(item[0] for item in candidates)
@@ -155,16 +153,22 @@ def _normalize_equipment_classification_defaults() -> None:
     from app.modules.equipment_types.models import EquipmentCategory, EquipmentType
     from app.database.session import SessionLocal
 
-    default_codes = {"LIGHT", "HEAVY", "CONSTRUCTION", "SUPPORT"}
     db = SessionLocal()
     try:
-        categories = db.query(EquipmentCategory).filter(EquipmentCategory.code.in_(default_codes)).all()
+        # The system classification library is no longer part of the product
+        # model. Remove unused system categories; preserve any category that
+        # already contains types by converting it to a user-owned category.
+        categories = db.query(EquipmentCategory).filter(
+            EquipmentCategory.is_system.is_(True)
+        ).all()
         changed = False
         for category in categories:
-            linked = db.query(EquipmentType).filter(EquipmentType.category_id == category.id).first()
+            linked = db.query(EquipmentType).filter(
+                EquipmentType.category_id == category.id
+            ).first()
             if linked is None:
                 db.delete(category)
-            elif category.is_system:
+            else:
                 category.is_system = False
             changed = True
         if changed:
@@ -178,6 +182,29 @@ def _alembic_config() -> Config:
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL).replace("%", "%%"))
     return config
+
+
+def _alembic_upgrade_is_pending(config: Config) -> bool:
+    with engine.connect() as connection:
+        tables = set(inspect(connection).get_table_names())
+        if "alembic_version" not in tables:
+            return True
+        current_heads = set(MigrationContext.configure(connection).get_current_heads())
+    target_heads = set(ScriptDirectory.from_config(config).get_heads())
+    return current_heads != target_heads
+
+
+def _run_with_database_backup(operation, backup_path: Path | None) -> None:
+    try:
+        operation()
+    except BaseException:
+        if backup_path is not None:
+            try:
+                engine.dispose()
+                restore_sqlite_database(backup_path, settings.DATABASE_URL)
+            except Exception:
+                logger.exception("Automatic restoration from database backup failed: %s", backup_path)
+        raise
 
 
 def _has_current_classification_schema(tables: set[str]) -> bool:
@@ -195,18 +222,22 @@ def init_db() -> None:
         if not tables:
             Base.metadata.create_all(bind=engine); command.stamp(config, "head")
         else:
-            _repair_existing_meter_readings_schema(); _repair_existing_maintenance_schema(); command.stamp(config, "0001_baseline"); _run_alembic_upgrade(config)
-    else: _run_alembic_upgrade(config)
-    logger.info("Database startup: applying post-migration normalization.")
-    _normalize_equipment_classification_defaults()
-    from app.database.session import SessionLocal
-    from app.modules.meter_readings.legacy_cleanup import cleanup_legacy_readings
-    db = SessionLocal()
-    try:
-        removed = cleanup_legacy_readings(db)
-        if removed: print(f"[init_db] تم حذف {removed} قراءة قديمة مخالفة لقواعد التاريخ/القيمة.")
-    finally: db.close()
-    _repair_equipment_current_meters()
+            backup_path = backup_sqlite_database(settings.DATABASE_URL)
+
+            def upgrade_unversioned_database() -> None:
+                _repair_existing_meter_readings_schema()
+                _repair_existing_maintenance_schema()
+                command.stamp(config, "0001_baseline")
+                _run_alembic_upgrade(config)
+
+            _run_with_database_backup(upgrade_unversioned_database, backup_path)
+    elif _alembic_upgrade_is_pending(config):
+        backup_path = backup_sqlite_database(settings.DATABASE_URL)
+        _run_with_database_backup(lambda: _run_alembic_upgrade(config), backup_path)
+    else:
+        logger.info("Database startup: schema already at Alembic head; no migration required.")
+
+    logger.info("Database startup: schema ready; operational rows are not normalized or deleted at launch.")
 
 
 def create_default_admin() -> None:

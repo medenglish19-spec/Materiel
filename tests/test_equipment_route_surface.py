@@ -25,6 +25,9 @@ def _routes():
         ("GET", "/equipment/{equipment_id}"),
         ("GET", "/equipment/{equipment_id}/edit"),
         ("POST", "/equipment/create"),
+        ("GET", "/equipment/import/template"),
+        ("POST", "/equipment/import/preview"),
+        ("POST", "/equipment/import/confirm"),
         ("POST", "/equipment/{equipment_id}/edit"),
         ("POST", "/equipment/{equipment_id}/delete"),
         ("GET", "/equipment/{equipment_id}/meters"),
@@ -33,6 +36,7 @@ def _routes():
         ("POST", "/equipment/{equipment_id}/meters/{reading_id}/delete"),
         ("GET", "/api/equipment"),
         ("GET", "/api/equipment/{equipment_id}"),
+        ("GET", "/api/equipment/{equipment_id}/delete-impact"),
     ],
 )
 def test_core_equipment_route_is_registered(method, path):
@@ -58,6 +62,12 @@ def test_operational_analysis_route_uses_its_own_template():
     source = inspect.getsource(router.equipment_operational_analysis_page)
     assert 'name="equipment_operational_analysis.html"' in source
     assert "build_operational_analysis" in source
+
+
+def test_capacity_analysis_does_not_build_unused_operational_findings():
+    source = inspect.getsource(router.equipment_analysis_page)
+    assert "build_operational_analysis" not in source
+    assert "maintenance_records" not in source
 
 
 def test_equipment_detail_template_is_actually_reachable():

@@ -11,9 +11,9 @@ from app.core.dependencies import get_current_user
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services as equipment_services
-from app.modules.equipment_types import services as type_services
 from app.modules.meter_readings import services
 from app.modules.meter_readings.models import MeterReading
+from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.meter_readings.audit_service import add_validation_details, create_operation
 from app.modules.meter_readings.excel_reader import load_meter_workbook
 from app.modules.users.models import User
@@ -69,15 +69,19 @@ def _annotate_bulk_errors(errors, raw_rows, db):
         if "رقم التسجيل:" in message or "العتاد:" in message: annotated.append(message)
         else: annotated.append(_with_input_context(message, db, registration=registration))
     return annotated
-def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort):
-    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort)
-    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "types": type_services.list_types(db), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "last_update": last_update}
+def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort, date_from=None, date_to=None):
+    date_from_value = datetime.combine(date_from, datetime.min.time()) if date_from else None
+    date_to_value = datetime.combine(date_to, datetime.max.time()) if date_to else None
+    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort, date_from=date_from_value, date_to=date_to_value)
+    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "date_from": date_from, "date_to": date_to, "last_update": last_update}
 def _finish_operation(db: Session, current_user: User, kind: str, filename: str | None, total_rows: int, reading_ids: list[int], rejected_rows: int, errors: list[str], warnings: list[str]):
     op = create_operation(db, kind=kind, user_id=getattr(current_user, "id", None), filename=filename, total_rows=total_rows, reading_ids=reading_ids, rejected_rows=rejected_rows); add_validation_details(db, op.id, getattr(current_user, "id", None), errors=errors, warnings=warnings); db.commit(); return op
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort))
+def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), date_from: date | None = Query(default=None), date_to: date | None = Query(default=None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="تاريخ البداية يجب أن يسبق تاريخ النهاية.")
+    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort, date_from, date_to))
 @router.post("/create")
 def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), equipment_status: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment = equipment_services.get_equipment(db, equipment_id); context = _equipment_label(equipment)
@@ -105,7 +109,7 @@ def meter_readings_bulk_create(payload: dict = Body(...), db: Session = Depends(
     if not isinstance(raw_rows, list): raise HTTPException(status_code=400, detail="بيانات اللصق غير صحيحة.")
     valid_rows, parse_errors = _prepare_paste_rows(raw_rows, db)
     try:
-        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
+        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows, source="paste"); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
         if raw_rows: _finish_operation(db, current_user, "paste", None, len(raw_rows), reading_ids, rejected_total, errors, warnings)
     except SQLAlchemyError:
         db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": len(raw_rows), "errors": [_error_card("تعذر حفظ القراءات بسبب خطأ في قاعدة البيانات.")]})
@@ -175,15 +179,7 @@ def _reading_context(db: Session, equipment_id: int, reading_id: int):
 def _validate_updated_reading(db: Session, equipment_id: int, reading_id: int, reading_date: datetime, value: Decimal, unit: str):
     if reading_date.date() > datetime.now().astimezone().date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي")
     if value < 0: raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
-    for other in services.list_readings(db, equipment_id):
-        if other.id == reading_id: continue
-        other_value = services._value(other, unit)
-        if other_value is None: continue
-        other_value = Decimal(other_value)
-        if other.reading_date < reading_date and other_value > value:
-            raise ValueError(f"القيمة ({value:g}) أقل من القراءة المسجلة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
-        if other.reading_date > reading_date and other_value < value:
-            raise ValueError(f"القيمة ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
+    services._validate_reading_position(db, equipment_id, reading_date, value, unit, exclude_reading_id=reading_id)
 @router.post("/history/{equipment_id}/update")
 def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment); unit = services._unit(equipment)
@@ -201,10 +197,80 @@ def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading
 def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment)
     try:
+        unit = services._unit(equipment)
+        db.add(MeterReadingChange(
+            reading_id=reading.id, equipment_id=equipment_id, changed_at=utc_now(),
+            action="delete", source=reading.source or "manual", reading_date=reading.reading_date,
+            unit=unit, old_value=services._value(reading, unit), new_value=None,
+            actor_id=current_user.id if current_user else None, details="حذف قراءة مسجلة.",
+        ))
         db.delete(reading); db.flush(); services._refresh_equipment_current(db, equipment, services._unit(equipment)); db.commit()
         return JSONResponse({"ok": True, "message": "تم حذف القراءة بنجاح"})
     except SQLAlchemyError:
         db.rollback(); return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. تعذر حذف القراءة بسبب خطأ في قاعدة البيانات."})
+
+
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
 @router.get("/history/{equipment_id}", response_class=HTMLResponse)
 def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)

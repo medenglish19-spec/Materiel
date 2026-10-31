@@ -1,5 +1,10 @@
+from datetime import date
+
+import pytest
+from pydantic import ValidationError
 from sqlalchemy import CheckConstraint
 from app.modules.faults_repairs.models import Fault, Repair, RepairPart, SparePart, Technician, TechnicianIntervention
+from app.modules.faults_repairs.schemas import FaultStatusUpdate, RepairCreate, RepairStatusUpdate
 
 
 def test_fault_repair_part_model_contracts():
@@ -16,7 +21,7 @@ def test_fault_repair_part_model_contracts():
 
 
 def test_fault_statuses_are_explicit():
-    checks = {c.name: str(c.sqltext) for c in Fault.__table__.constraints if c.name}
+    checks = {c.name: str(c.sqltext) for c in Fault.__table__.constraints if isinstance(c, CheckConstraint) and c.name}
     assert "ck_fault_status" in checks
     assert "waiting_parts" in checks["ck_fault_status"]
     assert "ck_fault_severity" in checks
@@ -42,7 +47,58 @@ def test_technician_contracts():
     assert Technician.__tablename__ == "workshop_technicians"
     assert TechnicianIntervention.__tablename__ == "technician_interventions"
     assert "employee_number" in Technician.__table__.columns
+    assert "professional_rank" in Technician.__table__.columns
+    assert "registration_number" in Technician.__table__.columns
     assert "specialization" in Technician.__table__.columns
     assert "technician_id" in TechnicianIntervention.__table__.columns
     assert "hours" in TechnicianIntervention.__table__.columns
     assert "work_description" in TechnicianIntervention.__table__.columns
+
+
+def test_closed_fault_status_is_rejected():
+    with pytest.raises(ValidationError):
+        FaultStatusUpdate(status="closed")
+
+
+def test_repair_end_date_cannot_precede_start_date():
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            repair_start_date=date(2026, 1, 5),
+            repair_end_date=date(2026, 1, 4),
+            action_taken="اختبار",
+        )
+
+
+def test_repair_end_date_requires_start_date():
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            repair_end_date=date(2026, 1, 4),
+            action_taken="اختبار",
+        )
+
+
+def test_repair_cancellation_is_not_a_supported_status():
+    checks = {
+        c.name: str(c.sqltext)
+        for c in Repair.__table__.constraints
+        if isinstance(c, CheckConstraint) and c.name
+    }
+    assert checks["ck_repair_status"] == "status IN ('in_progress', 'completed')"
+    with pytest.raises(ValidationError):
+        RepairCreate(
+            fault_id=1,
+            repair_date=date(2026, 1, 2),
+            action_taken="اختبار",
+            status="cancelled",
+        )
+    with pytest.raises(ValidationError):
+        RepairStatusUpdate(status="cancelled")
+
+
+def test_repair_model_has_start_and_end_dates():
+    assert "repair_start_date" in Repair.__table__.columns
+    assert "repair_end_date" in Repair.__table__.columns

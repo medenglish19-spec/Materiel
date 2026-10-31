@@ -19,6 +19,8 @@ class Tire(Base, AuditMixin):
     expiry_date = Column(Date, nullable=True, index=True)
     expiry_date_manual = Column(Boolean, nullable=False, default=False)
     acquisition_document = Column(String(100), nullable=True)
+    acquisition_receipt_id = Column(Integer, ForeignKey("asset_receipts.id", ondelete="RESTRICT", name="fk_tires_acquisition_receipt_id_asset_receipts"), nullable=True, index=True)
+    acquisition_request_item_id = Column(Integer, ForeignKey("spare_part_request_items.id", ondelete="RESTRICT", name="fk_tires_acquisition_request_item_id_spare_part_request_items"), nullable=True, index=True)
     notes = Column(Text, nullable=True)
     movements = relationship("TireMovement", back_populates="tire", order_by="TireMovement.movement_datetime.desc(), TireMovement.id.desc()", cascade="all, delete-orphan")
     disposal = relationship("TireDisposal", back_populates="tire", uselist=False, cascade="all, delete-orphan")
@@ -72,7 +74,6 @@ class TireMovement(Base, AuditMixin):
     movement_type = Column(String(20), nullable=False)
     equipment_id = Column(Integer, ForeignKey("equipment.id", ondelete="SET NULL"), nullable=True, index=True)
     position_id = Column(Integer, ForeignKey("tire_positions.id", ondelete="SET NULL"), nullable=True)
-    meter_value = Column(Numeric(10, 1), nullable=True)
     document_number = Column(String(100), nullable=True)
     reason = Column(String(250), nullable=True)
     removal_disposition = Column(String(20), nullable=True)
@@ -81,6 +82,16 @@ class TireMovement(Base, AuditMixin):
     equipment = relationship("Equipment")
     position = relationship("TirePosition", back_populates="movements")
     __table_args__ = (UniqueConstraint("tire_id", "movement_datetime", name="uq_tire_movement_timestamp"),)
+
+    @property
+    def meter_value(self):
+        from app.modules.meter_readings.source_values import read_source_value
+        return read_source_value(self, "meter_value")
+
+    @meter_value.setter
+    def meter_value(self, value):
+        from app.modules.meter_readings.source_values import write_source_value
+        write_source_value(self, "meter_value", value)
 
 
 @event.listens_for(TireMovement, "before_insert")
