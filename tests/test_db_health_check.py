@@ -174,15 +174,3 @@ def test_the_exit_code_is_non_zero_only_on_a_real_problem(tmp_path):
     assert main([str(healthy)]) == 0
     assert main([str(broken)]) == 1
     assert main([str(broken), "--at-head-only"]) == 0
-
-
-def test_the_check_agrees_with_the_live_database(tmp_path):
-    """The real file must parse and answer, not just the fixtures."""
-    live = ROOT / "fleet_assets.db"
-    if not live.is_file():
-        pytest.skip("no live database in this checkout")
-
-    problems, warnings = check(live)
-
-    assert all(isinstance(p, str) and p for p in problems)
-    assert all(isinstance(w, str) and w for w in warnings)

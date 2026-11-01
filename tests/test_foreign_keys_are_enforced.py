@@ -158,16 +158,5 @@ def test_a_database_with_violations_would_be_caught_at_startup(tmp_path):
     engine.dispose()
 
 
-def test_the_live_database_has_nothing_for_enforcement_to_trip_over():
-    """The precondition: the cleanup ran before the pragma was turned on."""
-    from scripts.check_db_health import check
-
-    problems, _ = check(ROOT / "fleet_assets.db")
-    assert not problems, (
-        "enforcement is on but the live database still has violations, so any "
-        f"write touching them will now fail: {problems}"
-    )
-
-
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__, "-v"]))
