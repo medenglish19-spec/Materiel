@@ -1,13 +1,66 @@
 from datetime import date
+from io import BytesIO
+from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.storage import uploads_directory
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentCreate, EquipmentUpdate
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.missions.models import Mission
+
+
+EQUIPMENT_IMAGE_PREFIX = "/static/uploads/equipment/"
+
+
+def store_equipment_image(data: bytes, filename: str) -> str:
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise ValueError("يجب ألا يتجاوز حجم الصورة 5 ميغابايت.")
+    extension = Path(filename or "").suffix.lower()
+    formats = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+    if extension not in formats:
+        raise ValueError("نوع الصورة غير مدعوم. استخدم JPEG أو PNG أو WebP.")
+    try:
+        from PIL import Image
+
+        source = BytesIO(data)
+        with Image.open(source) as image:
+            if image.format != formats[extension] or image.width * image.height > 50_000_000:
+                raise ValueError("الصورة غير صالحة أو أبعادها تتجاوز الحد المسموح.")
+            image.verify()
+        source.seek(0)
+        with Image.open(source) as image:
+            output = BytesIO()
+            if formats[extension] == "JPEG":
+                image.convert("RGB").save(output, format="JPEG", quality=90, optimize=True)
+                extension = ".jpg"
+            else:
+                image.save(output, format=formats[extension])
+    except ImportError as exc:
+        raise ValueError("رفع الصور يتطلب مكتبة Pillow المثبتة مع التطبيق.") from exc
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("ملف الصورة تالف أو غير صالح.") from exc
+
+    root = uploads_directory(__file__) / "equipment"
+    root.mkdir(parents=True, exist_ok=True)
+    stored_name = uuid4().hex + extension
+    (root / stored_name).write_bytes(output.getvalue())
+    return EQUIPMENT_IMAGE_PREFIX + stored_name
+
+
+def remove_equipment_image(image_url: str | None) -> None:
+    if not image_url or not image_url.startswith(EQUIPMENT_IMAGE_PREFIX):
+        return
+    root = (uploads_directory(__file__) / "equipment").resolve()
+    target = (root / Path(image_url[len(EQUIPMENT_IMAGE_PREFIX):]).name).resolve()
+    if target.parent == root and target.is_file():
+        target.unlink()
 
 
 def active_mission_equipment_ids(db: Session, equipment_ids: list, today: Optional[date] = None) -> set:
@@ -118,6 +171,9 @@ def generate_asset_code(db: Session, registration_number: Optional[str] = None) 
 
 def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] = None) -> Equipment:
     asset_code = generate_asset_code(db, data.registration_number); values = data.model_dump(); type_id = values["equipment_type_id"]; model_id = values.get("equipment_model_id")
+    values["image_url"] = (values.get("image_url") or "").strip() or None
+    if values["image_url"] and not values["image_url"].startswith(EQUIPMENT_IMAGE_PREFIX):
+        raise ValueError("مسار صورة العتاد غير صالح.")
     # Equipment creation is not a meter-reading operation. The current-meter
     # fields are a derived cache and must start empty until the central ledger
     # receives its first sourced reading.
@@ -137,6 +193,10 @@ def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] 
 
 def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, user_id: Optional[int] = None) -> Equipment:
     values = data.model_dump(exclude_unset=True)
+    if "image_url" in values:
+        values["image_url"] = (values["image_url"] or "").strip() or None
+        if values["image_url"] and not values["image_url"].startswith(EQUIPMENT_IMAGE_PREFIX):
+            raise ValueError("مسار صورة العتاد غير صالح.")
     if "registration_number" in values:
         values["registration_number"] = (values["registration_number"] or "").strip() or None
         if values["registration_number"] is not None and db.query(Equipment).filter(Equipment.registration_number == values["registration_number"], Equipment.id != equipment.id).first(): raise ValueError("رقم التسجيل مستخدم بالفعل لعتاد آخر")

@@ -24,6 +24,7 @@ class EquipmentBase(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: int
     equipment_model_id: Optional[int] = None
@@ -63,6 +64,7 @@ class EquipmentUpdate(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: Optional[int] = None
     equipment_model_id: Optional[int] = None
@@ -113,6 +115,7 @@ class EquipmentOut(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: int
     equipment_model_id: Optional[int] = None

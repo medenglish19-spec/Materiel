@@ -2,6 +2,9 @@
 {% block title %}تعديل العتاد{% endblock %}
 
 {% block content %}
+<style>
+.equipment-image-preview{display:flex;align-items:center;gap:9px;margin:8px 0;color:var(--text-secondary);font-size:12px}.equipment-image-preview[hidden]{display:none}.equipment-image-preview img{width:150px;height:105px;object-fit:cover;border:1px solid rgba(57,122,84,.18);border-radius:8px}
+</style>
 <div class="page-header">
     <h2>تعديل العتاد</h2>
     <a href="/equipment/{{ item.id }}" class="btn-outline">العودة إلى تفاصيل العتاد</a>
@@ -10,7 +13,7 @@
 <div class="card">
     <h3>{{ item.vin }}</h3>
     <div class="alert-warning" style="margin-bottom:14px;">الحالة الفنية والوضعية لا تُعدلان من شاشة بيانات العتاد. يتم تحديثهما من الإجراءات التشغيلية المخصصة.</div>
-    <form method="post" action="/equipment/{{ item.id }}/edit" class="grid-form" id="equipmentEditForm" data-em-root onsubmit="return confirm('هل تؤكد تثبيت جميع تعديلات بيانات العتاد؟');">
+    <form method="post" action="/equipment/{{ item.id }}/edit" enctype="multipart/form-data" class="grid-form" id="equipmentEditForm" data-em-root onsubmit="return confirm('هل تؤكد تثبيت جميع تعديلات بيانات العتاد؟');">
         <div class="field"><label>الوثيقة</label><input type="text" name="acquisition_document" value="{{ item.acquisition_document or '' }}"></div>
         <div class="field">
             <label>الطراز *</label>
@@ -30,6 +33,7 @@
                     data-battery-voltage="{{ m.battery_voltage_v or '' }}"
                     data-mobility="{{ m.mobility_type or '' }}"
                     data-driver="{{ 'نعم' if m.requires_driver else 'لا' }}"
+                    data-image-url="{{ m.image_url or '' }}"
                     {% if m.id == item.equipment_model_id %}selected{% endif %}
                     {% if m.is_frozen and m.id != item.equipment_model_id %}disabled{% endif %}>{{ m.name }}{% if m.is_frozen %} — غير معتمد{% endif %}</option>
                 {% endfor %}{% endfor %}
@@ -45,6 +49,16 @@
             <div id="edit-model-specs" class="alert-info" style="line-height:1.9;">يتم تحميل المواصفات تلقائياً عند اختيار الطراز.</div>
         </div>
         <div class="field"><label>رقم التسجيل</label><input type="text" name="registration_number" value="{{ item.registration_number or '' }}"></div>
+        {% set current_equipment_photo = item.image_url or (item.equipment_model.image_url if item.equipment_model else '') %}
+        <div class="field" style="grid-column:1 / -1;">
+            <label for="edit-equipment-image">صورة هذا العتاد <span class="page-hint">(خاصة بسجل رقم التسجيل الحالي)</span></label>
+            <input type="file" id="edit-equipment-image" name="image" accept="image/jpeg,image/png,image/webp">
+            <div class="equipment-image-preview" id="edit-equipment-image-preview" {% if not current_equipment_photo %}hidden{% endif %}>
+                <img id="edit-equipment-image-preview-img" src="{{ current_equipment_photo or '' }}" alt="معاينة صورة العتاد">
+                <span id="edit-equipment-image-preview-label">{% if item.image_url %}الصورة الخاصة بهذا العتاد{% else %}صورة الطراز الافتراضية{% endif %}</span>
+            </div>
+            {% if item.image_url %}<label style="display:flex;align-items:center;gap:7px;margin-top:8px"><input type="checkbox" name="remove_image" value="1" id="remove-equipment-image"> إزالة الصورة الخاصة وإظهار صورة الطراز بدلاً منها</label>{% endif %}
+        </div>
         <div class="field"><label>رقم الهيكل</label><input type="text" name="vin" value="{{ item.vin or '' }}"></div>
         <div class="field"><label>تاريخ أول سير / بدء الاستغلال *</label><input type="date" name="first_service_date" value="{{ item.first_service_date.strftime('%Y-%m-%d') if item.first_service_date else '' }}" required></div>
         <div class="field"><label>تاريخ الاقتناء</label><input type="date" name="acquisition_date" value="{{ item.acquisition_date.strftime('%Y-%m-%d') if item.acquisition_date else '' }}"></div>
@@ -56,6 +70,28 @@
 </div>
 
 <script>
+const originalEquipmentImage={{ item.image_url|tojson }};
+let editEquipmentImagePreviewUrl=null,editEquipmentImageToken=null;
+const editEquipmentImageFiles=new Map();
+function renderEditEquipmentImagePreview(){
+    const input=document.getElementById('edit-equipment-image');
+    const preview=document.getElementById('edit-equipment-image-preview');
+    const image=document.getElementById('edit-equipment-image-preview-img');
+    const label=document.getElementById('edit-equipment-image-preview-label');
+    const option=document.getElementById('edit-model-select')?.selectedOptions[0];
+    const remove=document.getElementById('remove-equipment-image');
+    const file=input?.files?.[0];
+    if(editEquipmentImagePreviewUrl){URL.revokeObjectURL(editEquipmentImagePreviewUrl);editEquipmentImagePreviewUrl=null}
+    const fallback=remove?.checked?(option?.dataset.imageUrl||''):(originalEquipmentImage||(option?.dataset.imageUrl||''));
+    const source=file?URL.createObjectURL(file):fallback;
+    if(!source){preview.hidden=true;image.removeAttribute('src');label.textContent='';return}
+    editEquipmentImagePreviewUrl=file?source:null;image.src=source;
+    label.textContent=file?'معاينة الصورة الجديدة لهذا العتاد':(remove?.checked?'سيُعرض بدلاً منها صورة الطراز إن وجدت':(originalEquipmentImage?'الصورة الخاصة بهذا العتاد':'صورة الطراز الافتراضية'));
+    preview.hidden=false;
+}
+document.getElementById('edit-equipment-image').addEventListener('change',event=>{const remove=document.getElementById('remove-equipment-image');if(remove)remove.checked=false;const file=event.currentTarget.files[0];editEquipmentImageToken=null;if(file){editEquipmentImageToken=`image-${Date.now()}-${Math.random().toString(36).slice(2)}`;editEquipmentImageFiles.set(editEquipmentImageToken,file)}renderEditEquipmentImagePreview();if(window.EditManager)EditManager.commit('اختيار صورة العتاد')});
+document.getElementById('remove-equipment-image')?.addEventListener('change',()=>renderEditEquipmentImagePreview());
+if(window.EditManager){EditManager.register('equipment-image-selection',{capture:()=>editEquipmentImageToken,restore:token=>{editEquipmentImageToken=token||null;const input=document.getElementById('edit-equipment-image');const file=token?editEquipmentImageFiles.get(token):null;if(file){const transfer=new DataTransfer();transfer.items.add(file);input.files=transfer.files}else input.value='';renderEditEquipmentImagePreview()},form:()=>document.getElementById('equipmentEditForm'),label:'صورة العتاد'})}
 function onEditModelChange(){
     const modelSelect=document.getElementById('edit-model-select');
     const typeHidden=document.getElementById('edit-type-hidden');
@@ -67,6 +103,7 @@ function onEditModelChange(){
         if(typeHidden)typeHidden.value='';
         if(typePreview)typePreview.value='';
         if(specs)specs.textContent='يتم تحميل المواصفات تلقائياً عند اختيار الطراز.';
+        renderEditEquipmentImagePreview();
         return;
     }
     const d=option.dataset;
@@ -86,6 +123,7 @@ function onEditModelChange(){
         parts.push('يتطلب سائقاً: '+(d.driver||'لا'));
         specs.textContent=parts.join(' • ');
     }
+    renderEditEquipmentImagePreview();
 }
 onEditModelChange();
 </script>

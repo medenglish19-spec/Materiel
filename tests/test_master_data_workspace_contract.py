@@ -65,6 +65,20 @@ def test_model_workspace_loads_every_model_field_from_its_own_payload():
         assert expression in script
 
 
+def test_model_image_has_preview_save_and_removal_flow():
+    template = _template()
+    for fragment in (
+        'id="modelImage" name="image"',
+        'id="modelImagePreview"',
+        'id="saveModelBtn"',
+        'id="removeModelImage"',
+        "model-image-selection",
+        "إزالة صورة الطراز",
+        "حفظ الطراز والصورة",
+    ):
+        assert fragment in template
+
+
 
 def test_new_model_creation_is_scoped_to_selected_type_and_loads_applicable_specs():
     template = _template()

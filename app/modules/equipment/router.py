@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session, joinedload
@@ -146,11 +147,57 @@ def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
 @router.post("/equipment/create")
-def equipment_create_form(request:Request,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),first_service_date:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+async def equipment_create_form(
+    request: Request,
+    equipment_type_id: int = Form(...),
+    equipment_model_id: Optional[str] = Form(None),
+    acquisition_document: str = Form(""),
+    registration_number: str = Form(""),
+    vin: str = Form(""),
+    first_service_date: str = Form(""),
+    acquisition_date: str = Form(""),
+    technical_condition: str = Form("ready"),
+    operational_status: str = Form("available"),
+    image: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     from datetime import date
-    try: services.create_equipment(db,EquipmentCreate(equipment_type_id=equipment_type_id,equipment_model_id=int(equipment_model_id) if equipment_model_id else None,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,first_service_date=date.fromisoformat(first_service_date) if first_service_date else None,acquisition_date=date.fromisoformat(acquisition_date) if acquisition_date else None,technical_condition=technical_condition,operational_status=operational_status),user_id=current_user.id)
-    except ValueError: pass
-    return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
+
+    uploaded_image_url = None
+    try:
+        if image and image.filename:
+            uploaded_image_url = services.store_equipment_image(
+                await image.read(5 * 1024 * 1024 + 1), image.filename
+            )
+        services.create_equipment(
+            db,
+            EquipmentCreate(
+                equipment_type_id=equipment_type_id,
+                equipment_model_id=int(equipment_model_id) if equipment_model_id else None,
+                acquisition_document=acquisition_document or None,
+                registration_number=registration_number or None,
+                vin=vin or None,
+                first_service_date=date.fromisoformat(first_service_date) if first_service_date else None,
+                acquisition_date=date.fromisoformat(acquisition_date) if acquisition_date else None,
+                technical_condition=technical_condition,
+                operational_status=operational_status,
+                image_url=uploaded_image_url,
+            ),
+            user_id=current_user.id,
+        )
+    except ValueError as exc:
+        db.rollback()
+        services.remove_equipment_image(uploaded_image_url)
+        return RedirectResponse(
+            url=f"/equipment?notice={quote(str(exc))}&notice_type=warning",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    except Exception:
+        db.rollback()
+        services.remove_equipment_image(uploaded_image_url)
+        raise
+    return RedirectResponse(url="/equipment", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/equipment/import/template")
@@ -184,17 +231,37 @@ async def equipment_import_confirm(file:UploadFile=File(...),db:Session=Depends(
     rejected_count = len(result["rejected"])
     return JSONResponse({"ok": rejected_count == 0, "created": created_count, "rejected": rejected_count, "rows": result["rejected"], "message": f"تمت إضافة {created_count} عتاد." + (f" تعذر إضافة {rejected_count} صف؛ راجع أسباب الرفض أدناه." if rejected_count else "")})
 @router.post("/equipment/{equipment_id}/edit")
-def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+async def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),remove_image:bool=Form(False),image:UploadFile|None=File(None),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
+    old_image_url = item.image_url
+    uploaded_image_url = None
     try:
-        date_value=datetime.strptime(acquisition_date,"%Y-%m-%d").date() if acquisition_date.strip() else None; model_id=int(equipment_model_id) if equipment_model_id else None; services.update_equipment(db,item,EquipmentUpdate(equipment_type_id=equipment_type_id,equipment_model_id=model_id,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,acquisition_date=date_value,technical_condition=technical_condition,operational_status=operational_status,notes=notes or None),user_id=current_user.id)
-    except (ValueError,InvalidOperation) as exc: raise HTTPException(status_code=400,detail=str(exc) or "بيانات التعديل غير صحيحة")
+        if image and image.filename:
+            uploaded_image_url = services.store_equipment_image(
+                await image.read(5 * 1024 * 1024 + 1), image.filename
+            )
+        date_value=datetime.strptime(acquisition_date,"%Y-%m-%d").date() if acquisition_date.strip() else None; model_id=int(equipment_model_id) if equipment_model_id else None
+        image_updates = {"image_url": uploaded_image_url} if uploaded_image_url else ({"image_url": None} if remove_image else {})
+        services.update_equipment(db,item,EquipmentUpdate(equipment_type_id=equipment_type_id,equipment_model_id=model_id,acquisition_document=acquisition_document or None,registration_number=registration_number or None,vin=vin or None,acquisition_date=date_value,technical_condition=technical_condition,operational_status=operational_status,notes=notes or None,**image_updates),user_id=current_user.id)
+    except (ValueError,InvalidOperation) as exc:
+        db.rollback()
+        services.remove_equipment_image(uploaded_image_url)
+        raise HTTPException(status_code=400,detail=str(exc) or "بيانات التعديل غير صحيحة")
+    except Exception:
+        db.rollback()
+        services.remove_equipment_image(uploaded_image_url)
+        raise
+    if item.image_url != old_image_url:
+        services.remove_equipment_image(old_image_url)
     return RedirectResponse(url=f"/equipment/{equipment_id}",status_code=status.HTTP_303_SEE_OTHER)
 @router.post("/equipment/{equipment_id}/delete")
 def equipment_delete_form(equipment_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_role(Role.ADMIN))):
     item=services.get_equipment(db,equipment_id)
-    if item: services.delete_equipment(db,item)
+    if item:
+        image_url = item.image_url
+        services.delete_equipment(db,item)
+        services.remove_equipment_image(image_url)
     return RedirectResponse(url="/equipment",status_code=status.HTTP_302_FOUND)
 
 @router.get("/api/equipment/{equipment_id}/delete-impact")
@@ -251,6 +318,7 @@ def api_equipment_bulk_delete(
         for item in db.query(Equipment).filter(Equipment.id.in_(equipment_ids)).all()
     }
     deleted_ids = []
+    deleted_images = []
     rejected = []
     try:
         for equipment_id in equipment_ids:
@@ -264,10 +332,14 @@ def api_equipment_bulk_delete(
                 continue
             db.delete(item)
             deleted_ids.append(equipment_id)
+            if item.image_url:
+                deleted_images.append(item.image_url)
         db.commit()
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="تعذر حذف العتاد والسجلات المرتبطة به.") from exc
+    for image_url in deleted_images:
+        services.remove_equipment_image(image_url)
     return {"success": len(deleted_ids), "deleted_ids": deleted_ids, "rejected": rejected}
 
 @router.get("/equipment/{equipment_id}/meters",response_class=HTMLResponse)

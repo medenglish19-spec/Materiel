@@ -51,6 +51,9 @@ def test_catalog_migration_up_and_down_on_isolated_legacy_schema(tmp_path):
     Base.metadata.create_all(engine, tables=legacy_tables)
     with engine.begin() as connection:
         _create_legacy_missions(connection)
+        # Model metadata includes the new photo column even though this
+        # migration fixture starts before that revision.
+        connection.execute(text("ALTER TABLE equipment DROP COLUMN image_url"))
         connection.execute(text("ALTER TABLE batteries RENAME COLUMN capacity TO model"))
         connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN professional_rank"))
         connection.execute(text("ALTER TABLE workshop_technicians DROP COLUMN registration_number"))

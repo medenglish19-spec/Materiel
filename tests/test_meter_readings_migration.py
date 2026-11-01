@@ -90,6 +90,8 @@ def test_migration_removes_local_values_backfills_and_guards_raw_writes(tmp_path
         second_equipment_id = second_equipment.id
     # Recreate the relevant pre-centralization schema on this disposable DB.
     with engine.begin() as connection:
+        # The ORM metadata is newer than the migration revision under test.
+        connection.execute(text("ALTER TABLE equipment DROP COLUMN image_url"))
         connection.execute(text("DROP INDEX ix_meter_readings_source_reference"))
         connection.execute(text("ALTER TABLE meter_readings DROP COLUMN source_reference"))
         for table, column in (

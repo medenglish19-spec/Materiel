@@ -150,6 +150,8 @@ def _seed(db):
     return {
         "user": user.id,
         "equipment": equipment.id,
+        "equipment_type": equipment_type.id,
+        "equipment_model": model.id,
         "fault": fault.id,
         "repair": repair.id,
     }
@@ -985,8 +987,167 @@ def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     assert "111-TEST" in body, "العتاد المزروع غير ظاهر في القائمة"
     assert "في الصيانة" in body, "الوضعية الفعّالة لم تُعرض"
     assert 'data-status="in_maintenance"' in body, "البطاقة لم تحمل الوضعية الفعّالة"
-    assert '<form method="post" action="/equipment/create" class="grid-form" id="equipmentCreateForm" data-em-root>' in body
+    assert '<form method="post" action="/equipment/create" enctype="multipart/form-data" class="grid-form" id="equipmentCreateForm" data-em-root>' in body
+    assert 'name="image"' in body and 'data-image-url=' in body
     assert 'data-em-action="save"' in body
+
+
+def test_model_and_registered_equipment_images_upload_display_replace_and_remove(monkeypatch, tmp_path):
+    from PIL import Image
+
+    from app.modules.equipment import services as equipment_services
+    from app.modules.equipment.models import Equipment
+    from app.modules.equipment_types import services as equipment_type_services
+    from app.modules.equipment_types.models import EquipmentCategory, EquipmentModel, EquipmentType
+
+    with _isolated_app() as (app, TestingSession, ids):
+        with TestClient(app) as client:
+            login = client.post(
+                "/login",
+                data={"username": SEEDED_USERNAME, "password": SEEDED_PASSWORD},
+                follow_redirects=False,
+            )
+            assert login.status_code in (302, 303)
+
+            equipment_module_path = tmp_path / "app" / "modules" / "equipment" / "services.py"
+            equipment_type_module_path = tmp_path / "app" / "modules" / "equipment_types" / "services.py"
+            equipment_module_path.parent.mkdir(parents=True)
+            equipment_type_module_path.parent.mkdir(parents=True)
+            equipment_module_path.touch()
+            equipment_type_module_path.touch()
+            monkeypatch.setattr(equipment_services, "__file__", str(equipment_module_path))
+            monkeypatch.setattr(equipment_type_services, "__file__", str(equipment_type_module_path))
+
+            db = TestingSession()
+            try:
+                category = EquipmentCategory(name="فئة صور الاختبار", code="photo-tests", is_system=False)
+                db.add(category)
+                db.flush()
+                db.get(EquipmentType, ids["equipment_type"]).category_id = category.id
+                db.commit()
+            finally:
+                db.close()
+
+            png = BytesIO()
+            Image.new("RGB", (8, 8), color="green").save(png, format="PNG")
+            image_bytes = png.getvalue()
+
+            created_model = client.post(
+                "/equipment-types/models/create",
+                data={"name": "طراز بصورة", "equipment_type_id": str(ids["equipment_type"])},
+                files={"image": ("model.png", image_bytes, "image/png")},
+                follow_redirects=False,
+            )
+            assert created_model.status_code == 303, created_model.text
+
+            db = TestingSession()
+            try:
+                model = db.query(EquipmentModel).filter_by(name="طراز بصورة").first()
+                assert model is not None, created_model.headers.get("location")
+                model_id = model.id
+                model_image_url = model.image_url
+            finally:
+                db.close()
+            model_image = tmp_path / "static" / "uploads" / "equipment-models" / model_image_url.rsplit("/", 1)[-1]
+            assert model_image_url.startswith("/static/uploads/equipment-models/")
+            assert model_image.is_file()
+            assert model_image_url in client.get("/equipment-types").text
+
+            created_equipment = client.post(
+                "/equipment/create",
+                data={
+                    "equipment_type_id": str(ids["equipment_type"]),
+                    "equipment_model_id": str(model_id),
+                    "registration_number": "PHOTO-REG-1",
+                    "vin": "PHOTO-VIN-1",
+                    "first_service_date": "2026-11-01",
+                },
+                files={"image": ("equipment.png", image_bytes, "image/png")},
+                follow_redirects=False,
+            )
+            assert created_equipment.status_code == 303, created_equipment.text
+
+            db = TestingSession()
+            try:
+                item = db.query(Equipment).filter_by(registration_number="PHOTO-REG-1").one()
+                equipment_id = item.id
+                first_equipment_image_url = item.image_url
+            finally:
+                db.close()
+            first_equipment_image = tmp_path / "static" / "uploads" / "equipment" / first_equipment_image_url.rsplit("/", 1)[-1]
+            assert first_equipment_image.is_file()
+            equipment_page = client.get("/equipment").text
+            assert first_equipment_image_url in equipment_page
+            assert 'alt="صورة PHOTO-REG-1"' in equipment_page
+            assert model_image_url in equipment_page, "اختيار الطراز لا يعرض صورته الافتراضية في قائمة الطرازات"
+            detail = client.get(f"/equipment/{equipment_id}")
+            assert detail.status_code == 200
+            assert first_equipment_image_url in detail.text
+
+            edit_data = {
+                "equipment_type_id": str(ids["equipment_type"]),
+                "equipment_model_id": str(model_id),
+                "registration_number": "PHOTO-REG-1",
+                "vin": "PHOTO-VIN-1",
+                "acquisition_date": "",
+                "technical_condition": "ready",
+                "operational_status": "available",
+                "notes": "",
+            }
+            replaced = client.post(
+                f"/equipment/{equipment_id}/edit",
+                data=edit_data,
+                files={"image": ("replacement.png", image_bytes, "image/png")},
+                follow_redirects=False,
+            )
+            assert replaced.status_code == 303, replaced.text
+            db = TestingSession()
+            try:
+                item = db.get(Equipment, equipment_id)
+                replacement_url = item.image_url
+            finally:
+                db.close()
+            replacement_file = tmp_path / "static" / "uploads" / "equipment" / replacement_url.rsplit("/", 1)[-1]
+            assert replacement_url != first_equipment_image_url
+            assert replacement_file.is_file()
+            assert not first_equipment_image.exists(), "استبدال صورة العتاد أبقى الملف القديم"
+
+            removed = client.post(
+                f"/equipment/{equipment_id}/edit",
+                data={**edit_data, "remove_image": "1"},
+                follow_redirects=False,
+            )
+            assert removed.status_code == 303, removed.text
+            db = TestingSession()
+            try:
+                item = db.get(Equipment, equipment_id)
+                assert item.image_url is None
+            finally:
+                db.close()
+            assert not replacement_file.exists(), "إزالة صورة العتاد أبقت الملف القديم"
+            detail = client.get(f"/equipment/{equipment_id}")
+            assert model_image_url in detail.text, "بعد إزالة الصورة الخاصة يجب الرجوع لصورة الطراز"
+
+            model_form = {
+                "name": "طراز بصورة",
+                "equipment_type_id": str(ids["equipment_type"]),
+                "image_url": "",
+            }
+            model_files = {key: (None, value) for key, value in model_form.items()}
+            model_files["image"] = ("", b"", "application/octet-stream")
+            removed_model_image = client.post(
+                f"/equipment-types/models/{model_id}/update",
+                files=model_files,
+                follow_redirects=False,
+            )
+            assert removed_model_image.status_code == 303, removed_model_image.text
+            assert not model_image.exists(), "إزالة صورة الطراز أبقت الملف القديم"
+            db = TestingSession()
+            try:
+                model = db.get(EquipmentModel, model_id)
+                assert model.image_url is None
+            finally:
+                db.close()
 
 
 def test_fault_list_shows_spare_request_linked_through_repair(pages):

@@ -250,12 +250,12 @@ async def update_model_form(request:Request,model_id:int,name:str=Form(...),equi
         positions_data=json.loads(positions_json);sizes_data=json.loads(sizes_json);specs_data=json.loads(specs_json)
         if not isinstance(positions_data,list) or not isinstance(sizes_data,list) or not isinstance(specs_data,list):raise ValueError("بيانات المواضع أو المقاسات أو الخصائص غير صالحة")
         form=await request.form(); brand_raw=str(form.get("brand_id") or "").strip(); brand_value=int(brand_raw) if brand_raw else None
-        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=uploaded_image_url or image_url.strip() or None))
+        services.update_model(db,obj,EquipmentModelCreate(name=name,equipment_type_id=equipment_type_id,brand_id=brand_value,has_tires=has_tires,tire_positions_required=tire_positions_required,axle_count=None if not axle_count.strip() else int(axle_count),tire_size=tire_size.strip() or None,positions=positions_data,sizes=sizes_data,specs=[SpecValueInput.model_validate(x) for x in specs_data],has_batteries=has_batteries,battery_count_required=battery_count_required,battery_capacity_ah=None if not battery_capacity_ah.strip() else float(battery_capacity_ah),battery_voltage_v=None if not battery_voltage_v.strip() else float(battery_voltage_v),mobility_type=mobility_type,requires_driver=requires_driver,image_url=uploaded_image_url or image_url.strip()))
     except (ValueError,TypeError) as exc:
         db.rollback();services.remove_model_image(uploaded_image_url);return _redirect(str(exc),"warning")
     except Exception:
         db.rollback();services.remove_model_image(uploaded_image_url);raise
-    if uploaded_image_url and old_image_url != uploaded_image_url:
+    if old_image_url != obj.image_url:
         services.remove_model_image(old_image_url)
     return _redirect("تم حفظ تعديلات الطراز والمواصفات")
 @router.post("/equipment-types/models/{model_id}/move")
