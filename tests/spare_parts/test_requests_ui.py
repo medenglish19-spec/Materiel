@@ -1,7 +1,7 @@
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
+from threading import Condition, Thread
 
 import pytest
 from jinja2 import ChoiceLoader, Environment, FileSystemLoader, select_autoescape
@@ -13,6 +13,21 @@ from playwright.sync_api import expect, sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "app" / "modules" / "spare_parts_requests" / "templates" / "requests.html"
 BASE = ROOT / "web" / "templates"
+
+
+class _ObservedCalls(list):
+    def __init__(self):
+        super().__init__()
+        self._condition = Condition()
+
+    def append(self, value):
+        with self._condition:
+            super().append(value)
+            self._condition.notify_all()
+
+    def wait_for_count(self, count, timeout=10):
+        with self._condition:
+            return self._condition.wait_for(lambda: len(self) >= count, timeout=timeout)
 
 
 class _Request:
@@ -88,7 +103,7 @@ def requests_page():
             ],
         },
     ]
-    calls = []
+    calls = _ObservedCalls()
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -121,37 +136,37 @@ def requests_page():
 
         def do_DELETE(self):
             if self.path == "/api/spare-parts-requests/101":
-                calls.append(("DELETE", self.path))
                 self.send_response(204)
                 self.end_headers()
+                calls.append(("DELETE", self.path))
                 return
             self.send_response(404)
             self.end_headers()
 
         def do_POST(self):
-            calls.append(("POST", self.path))
             self.send_response(303)
             self.send_header("Location", "/spare-parts-requests?submitted=1")
             self.end_headers()
+            calls.append(("POST", self.path))
 
         def do_PATCH(self):
             if self.path == "/api/spare-parts-requests/101":
                 payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
                 requests_data[0].update(payload)
-                calls.append(("PATCH", self.path))
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(b"{}")
+                calls.append(("PATCH", self.path))
                 return
             if self.path == "/api/spare-parts-requests/items/201":
                 payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
                 requests_data[0]["items"][0].update(payload)
-                calls.append(("PATCH", self.path))
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(b"{}")
+                calls.append(("PATCH", self.path))
                 return
             self.send_response(404)
             self.end_headers()
@@ -233,6 +248,7 @@ def test_top_save_persists_an_open_request_without_bypassing_its_api(requests_pa
     expect(page.locator("#detailPane .f-number")).to_have_value("6541-UPDATED")
     expect(page.locator("#detailPane .i-qty")).to_have_value("4")
     expect(page.locator('[data-em-action="save"]')).to_be_disabled()
+    assert calls.wait_for_count(2), "لم تكتمل استجابات طلبات حفظ الطلب وبنوده"
     assert calls == [
         ("PATCH", "/api/spare-parts-requests/101"),
         ("PATCH", "/api/spare-parts-requests/items/201"),
