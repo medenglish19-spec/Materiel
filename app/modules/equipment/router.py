@@ -12,7 +12,6 @@ from app.database.session import get_db
 from app.modules.equipment import services
 from app.modules.equipment import bulk_import as equipment_bulk_import
 from app.modules.equipment.analytics import build_capacity_readiness_analysis, build_utilization_analysis
-from app.modules.equipment.operational_analysis import build_operational_analysis
 from app.modules.equipment.models import Equipment
 from app.modules.equipment.schemas import EquipmentBulkDelete, EquipmentCreate, EquipmentOut, EquipmentUpdate
 from app.modules.equipment_types import services as type_services
@@ -84,30 +83,6 @@ def equipment_analysis_page(request: Request, db: Session = Depends(get_db), cur
         request=request,
         name="equipment_analysis.html",
         context={"request": request, "user": current_user, **analysis, "utilization": utilization},
-    )
-
-
-@router.get("/equipment/analysis/operational", response_class=HTMLResponse)
-def equipment_operational_analysis_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = (
-        db.query(Equipment)
-        .options(joinedload(Equipment.equipment_model), joinedload(Equipment.equipment_type))
-        .order_by(Equipment.id)
-        .all()
-    )
-    equipment_ids = [x.id for x in items]
-    meter_readings = db.query(MeterReading).filter(MeterReading.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    missions = db.query(Mission).filter(Mission.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    fuel_records = db.query(FuelRecord).filter(FuelRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    faults = db.query(Fault).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    maintenance_records = db.query(MaintenanceRecord).filter(MaintenanceRecord.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    repairs = db.query(Repair).join(Fault, Repair.fault_id == Fault.id).filter(Fault.equipment_id.in_(equipment_ids)).all() if equipment_ids else []
-    utilization = build_utilization_analysis(items, meter_readings, missions, fuel_records)
-    operational = build_operational_analysis(items, faults, maintenance_records, repairs=repairs, utilization=utilization)
-    return templates.TemplateResponse(
-        request=request,
-        name="equipment_operational_analysis.html",
-        context={"request": request, "user": current_user, "utilization": utilization, "operational": operational},
     )
 
 

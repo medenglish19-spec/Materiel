@@ -484,8 +484,8 @@ const moduleNavigation=(function(){
     return unit('العدادات','◷',links);
   }
   if(p.startsWith('/fuel'))return unit('الوقود','⛽',[['/fuel','سجل الوقود'],['/fuel/equipment','استهلاك العتاد'],['/fuel/model-rates','معايير الاستهلاك']]);
-  if(p.startsWith('/equipment-types'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
-  if(p.startsWith('/equipment'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment/analysis/operational','التحليل التشغيلي'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
+  if(p.startsWith('/equipment-types'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
+  if(p.startsWith('/equipment'))return unit('العتاد','▦',[['/equipment','قائمة العتاد'],['/equipment/numerical-status','الحالة العددية'],['/equipment/analysis','تحليل القدرة والجاهزية'],['/equipment-types','أنواع وطرازات العتاد',['admin']],['/equipment-types/structure','هيكلة الأنواع والطرازات',['admin']]]);
   if(p.startsWith('/document-import')){
     const modelId=new URLSearchParams(window.location.search).get('model_id');
     const uploadHref='/document-import/upload'+(modelId?'?model_id='+encodeURIComponent(modelId):'');

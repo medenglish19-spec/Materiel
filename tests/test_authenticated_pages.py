@@ -963,7 +963,7 @@ def test_dashboard_shows_the_seeded_equipment_with_arabic_labels(pages):
         assert f">{raw}<" not in body, f"مفتاح خام في اللوحة: {raw}"
 
 
-def test_equipment_analysis_pages_avoid_duplicate_sections_and_raw_states(pages):
+def test_equipment_analysis_page_remains_and_operational_page_is_removed(pages):
     client, _ = pages
 
     capacity = client.get("/equipment/analysis")
@@ -974,17 +974,8 @@ def test_equipment_analysis_pages_avoid_duplicate_sections_and_raw_states(pages)
     assert "جاهز فنيًا" in capacity.text
     assert "في مهمة" in capacity.text
 
-    operational = client.get("/equipment/analysis/operational")
-    assert operational.status_code == 200
-    assert "تفاصيل عينة المقارنة متاحة داخل كل صف" in operational.text
-    assert "<summary>العينة</summary>" in operational.text
-    assert "مرجع الأعطال" not in operational.text
-    assert re.search(
-        r"(?:جاهز|جاهز مع قيود|عاطل) / (?:متاح|في مهمة|في الصيانة|في ورشة خارجية|غير متاح)",
-        operational.text,
-    )
-    assert "ready / in_mission" not in operational.text
-
+    removed_page = client.get("/equipment/analysis/operational")
+    assert removed_page.status_code == 404
 
 def test_equipment_list_renders_the_effective_status_not_the_stored_one(pages):
     """العتاد مخزَّن `available` لكن لديه تصليح داخلي نشط ⇒ الواجهة تعرض الحالة الفعّالة."""

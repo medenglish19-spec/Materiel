@@ -96,7 +96,6 @@ def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
     static_paths = set(re.findall(r"\['(/[^']*)','[^']*'", mapper))
 
     assert {
-        "/equipment/analysis/operational",
         "/equipment-types/structure",
         "/maintenance/catalog-imports",
         "/meter-readings/operations",
