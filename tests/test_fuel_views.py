@@ -146,6 +146,14 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
 
             fuel_page = client.get("/fuel")
             assert fuel_page.status_code == 200
+            assert 'data-open-fuel-create' in fuel_page.text
+            assert 'id="fuelCreateDialog"' in fuel_page.text
+            create_dialog = fuel_page.text.split(
+                '<dialog class="fuel-create-dialog" id="fuelCreateDialog"', 1
+            )[1].split("</dialog>", 1)[0]
+            assert 'action="/fuel"' in create_dialog
+            assert 'class="fuel-form" data-em-root' in create_dialog
+            assert 'createDialog.showModal()' in fuel_page.text
             assert 'name="model_id"' in fuel_page.text
             assert 'name="equipment_id"' in fuel_page.text
             assert '<select id="fuelType" name="fuel_type" required>' in fuel_page.text
