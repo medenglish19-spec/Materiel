@@ -46,7 +46,15 @@ def fuel_page(request: Request, edit: int | None = Query(None), return_to: str =
     if edit is not None and editing_record is None:
         raise HTTPException(404, "سجل التعبئة غير موجود")
     edit_return_to = _fuel_return_path(return_to, editing_record.equipment_id if editing_record else None)
-    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": equipment, "models": models, "fuel_types": FUEL_TYPE_OPTIONS, "monthly": services.monthly_summary(db, records), "editing_record": editing_record, "edit_return_to": edit_return_to})
+    return templates.TemplateResponse(request=request, name="fuel.html", context={"request": request, "user": current_user, "records": enriched, "equipment": equipment, "models": models, "fuel_types": FUEL_TYPE_OPTIONS, "editing_record": editing_record, "edit_return_to": edit_return_to})
+
+
+@router.get("/fuel/monthly", response_class=HTMLResponse)
+def fuel_monthly_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    monthly = services.monthly_summary(db)
+    return templates.TemplateResponse(request=request, name="fuel_monthly.html", context={
+        "request": request, "user": current_user, "monthly": monthly,
+    })
 
 
 @router.get("/fuel/model-rates", response_class=HTMLResponse)

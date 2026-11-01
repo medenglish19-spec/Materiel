@@ -177,8 +177,15 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             saved_fuel = client.post("/fuel", data=form_data, follow_redirects=False)
             assert saved_fuel.status_code == 303
             fuel_page = client.get("/fuel")
+            assert '<nav class="fuel-panel fuel-links"' not in fuel_page.text
+            assert "إجمالي الكمية (لتر)" not in fuel_page.text
             assert '<th>الإجراءات</th>' not in fuel_page.text
             assert 'class="fuel-date-actions"' in fuel_page.text
+            monthly_page = client.get("/fuel/monthly")
+            assert monthly_page.status_code == 200
+            assert "الاستهلاك الشهري" in monthly_page.text
+            assert "إجمالي الكمية (لتر)" in monthly_page.text
+            assert "20.00" in monthly_page.text
             verify = testing_session()
             fuel_record = verify.query(FuelRecord).one()
             fuel_record_id = fuel_record.id

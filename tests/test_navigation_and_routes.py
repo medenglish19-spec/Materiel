@@ -6,7 +6,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 
 from web import main
 
-NAVIGATION_PATHS = {"/dashboard", "/equipment", "/equipment/numerical-status", "/meter-readings", "/meter-readings/operations", "/equipment-types", "/maintenance", "/faults-repairs", "/tires", "/batteries", "/fuel", "/missions", "/users", "/logout"}
+NAVIGATION_PATHS = {"/dashboard", "/equipment", "/equipment/numerical-status", "/meter-readings", "/meter-readings/operations", "/equipment-types", "/maintenance", "/faults-repairs", "/tires", "/batteries", "/fuel", "/fuel/monthly", "/missions", "/users", "/logout"}
 PAGE_PATHS = {*NAVIGATION_PATHS, "/maintenance/periodic", "/maintenance/rules", "/tires/settings", "/tires/inventory", "/missions/drivers"}
 
 
@@ -99,6 +99,7 @@ def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
         "/equipment-types/structure",
         "/maintenance/catalog-imports",
         "/meter-readings/operations",
+        "/fuel/monthly",
         "/fuel/model-rates",
         "/batteries/equipment",
         "/missions/drivers",
@@ -107,6 +108,9 @@ def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
     assert "['/equipment-types','أنواع وطرازات العتاد',['admin']]" in mapper
     assert "['/maintenance/catalog-imports','استيراد الكتالوجات',['admin','fleet_manager']]" in mapper
     assert "[[uploadHref,'استيراد من مستند',['admin','fleet_manager']]]" in mapper
+    fuel_navigation = mapper.split("if(p.startsWith('/fuel'))", 1)[1].split("if(p.startsWith('/equipment-types'))", 1)[0]
+    assert fuel_navigation.index("['/fuel/equipment','استهلاك العتاد']") < fuel_navigation.index("['/fuel/monthly','الاستهلاك الشهري']")
+    assert "['/fuel/model-rates','معدلات الاستهلاك حسب الطراز']" in fuel_navigation
     assert "main.querySelectorAll('nav.module-nav,nav.module-tabs,nav.tires-nav,.ed-tabs')" in html
     assert ".navigation-actions" not in html.split("if(main&&moduleNavigation&&moduleNavigation.links.length){", 1)[1].split("if(main){", 1)[0]
 
