@@ -11,6 +11,7 @@ DEFAULTS = {
     "institution_name": "اسم المؤسسة",
     "description": "مساحة للنص التعريفي أو رسالة الترحيب",
     "developer_name": "اسم المطوّر أو الفريق",
+    "supervisor_name": "",
     "version": "1.0.0",
     "logo_file": "logo.png",
 }
