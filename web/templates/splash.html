@@ -19,9 +19,9 @@
     h1{margin:0;font-size:clamp(27px,4vw,42px);line-height:1.5;font-weight:700;color:#f7f7f1}.description{max-width:760px;min-height:34px;margin:12px 0 0;color:#c6d8ce;font-size:clamp(16px,2vw,21px);line-height:1.9;white-space:pre-line}
     .gold-rule{width:min(280px,55vw);height:1px;margin:24px 0;background:linear-gradient(90deg,transparent,#d4b779,transparent)}
     .start{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:180px;margin-top:12px;padding:12px 26px;border:1px solid rgba(233,215,170,.8);border-radius:8px;background:linear-gradient(135deg,#d7bf85,#bea366);color:#173b34;text-decoration:none;font-size:16px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.16);transition:transform .16s ease,filter .16s ease}.start:hover{transform:translateY(-2px);filter:brightness(1.06)}.start:focus-visible{outline:3px solid #fff;outline-offset:4px}
-    .credits{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px 20px;margin:8px 0 2px;color:#e8eee5;font-size:15px;font-weight:600;line-height:1.7}.credits span+span{padding-inline-start:20px;border-inline-start:1px solid rgba(232,238,229,.38)}.credits strong{color:#e8cf93;font-weight:700}
+    .credits{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;margin:8px 0 2px;color:#e8eee5;font-size:15px;font-weight:600;line-height:1.7}.credits strong{color:#e8cf93;font-weight:700}
     footer{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 22px;margin-top:auto;padding-top:28px;color:#c1d2c5;font-size:13px}.version{color:#9fb6a8}
-    @media(max-width:600px){.splash{padding:22px 16px 18px}.topline{font-size:11px;letter-spacing:0}.institution{margin-top:38px}.emblem{width:126px;height:126px;margin:22px 0 18px}.emblem-fallback{width:74px;height:74px;font-size:32px}.emblem-fallback:before{width:54px}.emblem-fallback:after{height:54px}.credits{flex-direction:column;gap:3px;margin-top:6px;font-size:14px}.credits span+span{padding-inline-start:0;border-inline-start:0}footer{padding-top:22px}}
+    @media(max-width:600px){.splash{padding:22px 16px 18px}.topline{font-size:11px;letter-spacing:0}.institution{margin-top:38px}.emblem{width:126px;height:126px;margin:22px 0 18px}.emblem-fallback{width:74px;height:74px;font-size:32px}.emblem-fallback:before{width:54px}.emblem-fallback:after{height:54px}.credits{gap:3px;margin-top:6px;font-size:14px}footer{padding-top:22px}}
     @media(prefers-reduced-motion:reduce){.start{transition:none}}
   </style>
 </head>
@@ -35,7 +35,7 @@
     <h1>نظام تسيير و محاسبة العتاد</h1>
     <p class="description">{{ description }}</p>
     <div class="gold-rule" aria-hidden="true"></div>
-    <div class="credits" aria-label="بيانات التطوير والإشراف"><span>المطور: <strong>{{ developer_name }}</strong></span>{% if supervisor_name %}<span>المشرف: <strong>{{ supervisor_name }}</strong></span>{% endif %}</div>
+    <div class="credits" aria-label="بيانات الإشراف والتطوير">{% if supervisor_name %}<span>المشرف: <strong>{{ supervisor_name }}</strong></span>{% endif %}<span>المطور: <strong>{{ developer_name }}</strong></span></div>
     <a class="start" href="{{ continue_url }}">الدخول إلى البرنامج <span aria-hidden="true">←</span></a>
     <footer><span class="version">الإصدار {{ version }}</span></footer>
   </main>

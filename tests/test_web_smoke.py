@@ -19,14 +19,20 @@ def test_health_endpoint(monkeypatch):
 
 def test_root_renders_splash_and_offers_dashboard_when_auth_is_disabled(monkeypatch):
     """تظهر شاشة الافتتاحية ويقود زر الدخول إلى الوجهة المناسبة."""
+    splash_content = load_splash_content()
     with _client(monkeypatch) as client:
         response = client.get("/", follow_redirects=False)
     assert response.status_code == 200
     assert "نظام تسيير و محاسبة العتاد" in response.text
-    assert "شركة النقل البري" in response.text
-    assert "تتمنى لكم طريق السلامة" in response.text
-    assert "تحت اشراف حميد" in response.text
-    assert f"الإصدار {load_splash_content()['version']}" in response.text
+    assert splash_content["institution_name"] in response.text
+    assert splash_content["description"] in response.text
+    developer_credit = f"المطور: <strong>{splash_content['developer_name']}</strong>"
+    assert developer_credit in response.text
+    if splash_content["supervisor_name"]:
+        supervisor_credit = f"المشرف: <strong>{splash_content['supervisor_name']}</strong>"
+        assert supervisor_credit in response.text
+        assert response.text.index(supervisor_credit) < response.text.index(developer_credit)
+    assert f"الإصدار {splash_content['version']}" in response.text
     assert 'href="/dashboard"' in response.text
 
 

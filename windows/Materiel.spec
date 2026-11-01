@@ -54,8 +54,7 @@ if not logo_name or Path(logo_name).name != logo_name:
 logo_path = SPLASH_DIR / logo_name
 if not logo_path.is_file():
     raise FileNotFoundError(f"Configured splash logo is missing: {logo_path}")
-datas.append((str(SPLASH_CONFIG), "splash-screen"))
-datas.append((str(logo_path), "splash-screen"))
+datas += data_tree(SPLASH_DIR, "splash-screen")
 
 hiddenimports = sorted(set(
     collect_submodules("app")

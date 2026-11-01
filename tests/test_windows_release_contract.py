@@ -32,3 +32,9 @@ def test_windows_installer_has_one_stable_setup_filename():
 
     assert "OutputBaseFilename=Materiel-Setup" in installer
     assert 'Join-Path $ReleaseRoot "Materiel-Setup.exe"' in build
+
+
+def test_windows_package_collects_all_splash_assets():
+    spec = (ROOT / "windows" / "Materiel.spec").read_text(encoding="utf-8")
+
+    assert 'datas += data_tree(SPLASH_DIR, "splash-screen")' in spec

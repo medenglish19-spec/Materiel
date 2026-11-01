@@ -28,4 +28,7 @@ def test_supervisor_from_splash_config_appears_before_entry_button(monkeypatch, 
     assert response.status_code == 200
     assert "المطور: <strong>فريق الاختبار</strong>" in response.text
     assert "المشرف: <strong>المشرف التجريبي</strong>" in response.text
+    supervisor_position = response.text.index("المشرف: <strong>المشرف التجريبي</strong>")
+    developer_position = response.text.index("المطور: <strong>فريق الاختبار</strong>")
+    assert supervisor_position < developer_position
     assert response.text.index('class="credits"') < response.text.index('class="start"')
