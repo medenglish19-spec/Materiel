@@ -58,12 +58,11 @@ jobs:
       - name: Install, start, update, and verify packaged application
         shell: pwsh
         run: |
-          $version = (Get-Content .\windows\version.txt -Raw).Trim()
-          $installer = Join-Path $env:RUNNER_TEMP "Materiel\release\Materiel-Setup-$version.exe"
+          $installer = Join-Path $env:RUNNER_TEMP "Materiel\release\Materiel-Setup.exe"
           .\windows\smoke_test_installer.ps1 -InstallerPath $installer
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: Materiel-Windows-x64
-          path: ${{ runner.temp }}\Materiel\release\Materiel-Setup-*.exe
+          path: ${{ runner.temp }}\Materiel\release\Materiel-Setup.exe
           if-no-files-found: error

@@ -9,14 +9,12 @@ $Root = Join-Path (Join-Path $env:LOCALAPPDATA "Materiel\smoke-tests") ([guid]::
 $InstallDir = Join-Path $Root "program"
 $DataDir = Join-Path $Root "user-data"
 $DatabasePath = Join-Path $DataDir "fleet_assets.db"
+$AttachmentPath = Join-Path $DataDir "uploads\installer-smoke\preserve.txt"
 $SplashDir = Join-Path $InstallDir "_internal\splash-screen"
 $LogPath = Join-Path $Root "installer.log"
-$PortListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-$PortListener.Start()
-$Port = $PortListener.LocalEndpoint.Port
-$PortListener.Stop()
-$BaseUrl = "http://127.0.0.1:$Port"
+$BaseUrl = $null
 $Process = $null
+$UsedPort = $null
 $script:InitialAdminPassword = "SmokeTest-$([guid]::NewGuid().ToString('N'))!Aa"
 $OldEnvironment = @{}
 
@@ -25,7 +23,7 @@ foreach ($Name in @("MATERIEL_DATA_DIR", "APP_HOST", "APP_PORT", "MATERIEL_NO_BR
 }
 [Environment]::SetEnvironmentVariable("MATERIEL_DATA_DIR", $DataDir, "Process")
 [Environment]::SetEnvironmentVariable("APP_HOST", "127.0.0.1", "Process")
-[Environment]::SetEnvironmentVariable("APP_PORT", [string]$Port, "Process")
+[Environment]::SetEnvironmentVariable("APP_PORT", "8000", "Process")
 [Environment]::SetEnvironmentVariable("MATERIEL_NO_BROWSER", "1", "Process")
 [Environment]::SetEnvironmentVariable("DATABASE_URL", $null, "Process")
 [Environment]::SetEnvironmentVariable("SECRET_KEY", $null, "Process")
@@ -47,20 +45,81 @@ function Invoke-Installer {
     }
 }
 
-function Start-PackagedApp {
-    $script:Process = Start-Process -FilePath (Join-Path $InstallDir "Materiel.exe") -WorkingDirectory $InstallDir -PassThru -WindowStyle Hidden
-    $Deadline = (Get-Date).AddSeconds(90)
-    while ((Get-Date) -lt $Deadline) {
-        if ($script:Process.HasExited) {
-            throw "Packaged application exited with code $($script:Process.ExitCode). Review $(Join-Path $DataDir 'logs\app.log')"
+function Assert-GuiExecutable {
+    $ExePath = Join-Path $InstallDir "Materiel.exe"
+    $Stream = [IO.File]::OpenRead($ExePath)
+    $Reader = [IO.BinaryReader]::new($Stream)
+    try {
+        $Stream.Position = 0
+        if ($Reader.ReadUInt16() -ne 0x5A4D) { throw "Installed executable has no valid DOS header." }
+        $Stream.Position = 0x3c
+        $PeOffset = $Reader.ReadInt32()
+        $Stream.Position = $PeOffset
+        if ($Reader.ReadUInt32() -ne 0x00004550) { throw "Installed executable has no valid PE header." }
+        $Stream.Position = $PeOffset + 24 + 68
+        $Subsystem = $Reader.ReadUInt16()
+        if ($Subsystem -ne 2) {
+            throw "Installed executable is not a Windows GUI executable (PE subsystem=$Subsystem)."
         }
-        try {
-            $Response = Invoke-WebRequest -Uri "$BaseUrl/health" -TimeoutSec 2 -UseBasicParsing
-            if ($Response.StatusCode -eq 200) { return }
-        }
-        catch { Start-Sleep -Milliseconds 400 }
     }
-    throw "Packaged application did not become healthy at $BaseUrl."
+    finally {
+        $Reader.Dispose()
+        $Stream.Dispose()
+    }
+}
+
+function Start-PackagedApp {
+    Assert-GuiExecutable
+    $PortFile = Join-Path $DataDir "server-Materiel.port"
+    Remove-Item -LiteralPath $PortFile -Force -ErrorAction SilentlyContinue
+    $PortBlocker = $null
+    try {
+        $PortBlocker = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 8000)
+        $PortBlocker.Start()
+    }
+    catch [System.Net.Sockets.SocketException] {
+        if ($PortBlocker) { $PortBlocker.Stop() }
+        $PortBlocker = $null
+        Write-Output "Port 8000 was already occupied; testing the existing conflict."
+    }
+
+    try {
+        $script:Process = Start-Process -FilePath (Join-Path $InstallDir "Materiel.exe") -WorkingDirectory $InstallDir -PassThru -WindowStyle Hidden
+        $Deadline = (Get-Date).AddSeconds(90)
+        while ((Get-Date) -lt $Deadline) {
+            if ($script:Process.HasExited) {
+                throw "Packaged application exited with code $($script:Process.ExitCode). Review $(Join-Path $DataDir 'logs\error.log')"
+            }
+            if (Test-Path -LiteralPath $PortFile) {
+                $CandidatePort = 0
+                if ([int]::TryParse((Get-Content -LiteralPath $PortFile -Raw).Trim(), [ref]$CandidatePort) -and $CandidatePort -gt 0) {
+                    if ($PortBlocker -and $CandidatePort -eq 8000) {
+                        throw "The packaged application claimed occupied port 8000 instead of choosing a free port."
+                    }
+                    $script:BaseUrl = "http://127.0.0.1:$CandidatePort"
+                    try {
+                        $Response = Invoke-WebRequest -Uri "$script:BaseUrl/health" -TimeoutSec 2 -UseBasicParsing
+                        if ($Response.StatusCode -eq 200) {
+                            $script:UsedPort = $CandidatePort
+                            $Children = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($script:Process.Id)" -ErrorAction SilentlyContinue
+                            if ($Children | Where-Object { $_.Name -ieq "conhost.exe" }) {
+                                throw "A console host process was created by the packaged GUI application."
+                            }
+                            return
+                        }
+                    }
+                    catch [System.Net.WebException] { }
+                    catch [System.Net.Http.HttpRequestException] { }
+                    catch [System.Threading.Tasks.TaskCanceledException] { }
+                }
+            }
+            Start-Sleep -Milliseconds 250
+        }
+        throw "Packaged application did not become healthy at its recorded local server port."
+    }
+    finally {
+        if ($PortBlocker) { $PortBlocker.Stop() }
+    }
 }
 
 function Stop-PackagedApp {
@@ -83,6 +142,15 @@ function Stop-PackagedApp {
         }
     }
     $script:Process = $null
+}
+
+function Invoke-Uninstaller {
+    $UninstallerPath = Join-Path $InstallDir "unins000.exe"
+    if (-not (Test-Path -LiteralPath $UninstallerPath)) { throw "Uninstaller was not installed." }
+    $UninstallLog = Join-Path $Root "uninstaller.log"
+    $Arguments = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$UninstallLog`"")
+    $Uninstaller = Start-Process -FilePath $UninstallerPath -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden
+    if ($Uninstaller.ExitCode -ne 0) { throw "Uninstaller exited with code $($Uninstaller.ExitCode). Review $UninstallLog" }
 }
 
 function Get-PackagedBranding {
@@ -176,10 +244,13 @@ try {
     }
 
     Start-PackagedApp
+    Write-Output "PASS: installed GUI EXE started on port $UsedPort while the default port 8000 was reserved."
     Assert-SplashContent
     Assert-SidebarInstitution
     Stop-PackagedApp
 
+    New-Item -ItemType Directory -Path (Split-Path -Parent $AttachmentPath) -Force | Out-Null
+    [IO.File]::WriteAllText($AttachmentPath, "preserve-this-attachment")
     @'
 import sqlite3, sys
 path = sys.argv[1]
@@ -189,6 +260,17 @@ with sqlite3.connect(path) as db:
     db.execute("INSERT INTO installer_smoke_probe(marker) VALUES (?)", ("preserve-me-across-update",))
 '@ | python - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "Could not write the isolated database preservation marker." }
+
+    @'
+import sqlite3, sys
+path = sys.argv[1]
+with sqlite3.connect(path) as db:
+    columns = {row[1] for row in db.execute("PRAGMA table_info(equipment)")}
+    if "image_url" in columns:
+        db.execute("ALTER TABLE equipment DROP COLUMN image_url")
+    db.execute("UPDATE alembic_version SET version_num=?", ("20261030_driver_model",))
+'@ | python - $DatabasePath
+    if ($LASTEXITCODE -ne 0) { throw "Could not prepare the isolated database as a previous release schema." }
 
     Invoke-Installer
 
@@ -202,15 +284,48 @@ import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
     row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
     assert row == ("preserve-me-across-update",), row
+    stamp = db.execute("SELECT version_num FROM alembic_version").fetchone()
+    assert stamp == ("20261101_equipment_image",), stamp
+    assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 '@ | python - $DatabasePath
-    if ($LASTEXITCODE -ne 0) { throw "User database marker was not preserved across upgrade and startup." }
+    if ($LASTEXITCODE -ne 0) { throw "User data, schema migration, or SQLite integrity did not survive the update." }
+    if (-not (Test-Path -LiteralPath $AttachmentPath) -or (Get-Content -LiteralPath $AttachmentPath -Raw) -ne "preserve-this-attachment") {
+        throw "An existing user attachment did not survive the update."
+    }
+    if (-not (Get-ChildItem (Join-Path $DataDir "backups") -Filter "fleet_assets.before-upgrade-*.db" -ErrorAction SilentlyContinue)) {
+        throw "Application startup did not make a verified database backup before migration."
+    }
 
-    Write-Output "PASS: installed EXE started and served /health and splash page."
+    Stop-PackagedApp
+    Invoke-Uninstaller
+    if (-not (Test-Path -LiteralPath $DatabasePath)) { throw "Uninstall removed the user database." }
+    if (-not (Test-Path -LiteralPath $AttachmentPath)) { throw "Uninstall removed user attachments." }
+    if (-not (Get-ChildItem (Join-Path $DataDir "backups") -Filter "fleet_assets.before-*.db" -ErrorAction SilentlyContinue)) {
+        throw "Uninstall removed the database backups."
+    }
+    if (Test-Path -LiteralPath (Join-Path $InstallDir "Materiel.exe")) { throw "Uninstall left the application executable behind." }
+
+    Invoke-Installer
+    if (-not (Test-Path -LiteralPath (Join-Path $InstallDir "Materiel.exe"))) { throw "Reinstall did not restore the application executable." }
+    Start-PackagedApp
+    Assert-SplashContent
+    Assert-SidebarInstitution
+    @'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
+    assert row == ("preserve-me-across-update",), row
+'@ | python - $DatabasePath
+    if ($LASTEXITCODE -ne 0) { throw "User database marker was not preserved across uninstall and reinstall." }
+    if (-not (Test-Path -LiteralPath $AttachmentPath)) { throw "Reinstall removed the preserved user attachment." }
+    Stop-PackagedApp
+
+    Write-Output "PASS: installed GUI EXE started without a console host and served /health on a fallback port."
     Write-Output "PASS: release welcome text, version and logo rendered from the installed application bundle."
     Write-Output "PASS: configured institution name rendered in the application sidebar."
     Write-Output "PASS: standard users cannot modify the installed branding, and user-data overrides are ignored."
-    Write-Output "PASS: installer update retained release branding and user database data."
-    Write-Output "PASS: user database marker survived installer update and application startup."
+    Write-Output "PASS: installer update and application migration preserved the database, backup and attachment."
+    Write-Output "PASS: uninstall and reinstall preserved user data and backups."
     Write-Output "QA installation retained for inspection: $Root"
     Write-Output "Installer log: $LogPath"
 }

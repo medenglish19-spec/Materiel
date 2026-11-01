@@ -36,7 +36,8 @@ python run_web.py
 ```
 
 ينشئ السكربت بيئة بناء مستقلة ويثبت متطلبات التطبيق والبناء، ثم يحفظ المثبّت
-`Materiel-Setup-<version>.exe` في `D:\Materiel-release`. تفاصيل الحزمة موجودة في
+`Materiel-Setup.exe` في `%LOCALAPPDATA%\Materiel\release` افتراضيًا. يمكن تحديد
+مجلدي البناء والإصدار عبر `-BuildDirectory` و`-ReleaseDirectory`. تفاصيل الحزمة موجودة في
 `windows/`.
 
 ## أي قاعدة بيانات يعمل عليها التطبيق

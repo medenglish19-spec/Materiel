@@ -75,6 +75,6 @@ $CompilerArguments = @(
 & $Iscc @CompilerArguments
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
 
-$SetupExe = Join-Path $ReleaseRoot "Materiel-Setup-$Version.exe"
+$SetupExe = Join-Path $ReleaseRoot "Materiel-Setup.exe"
 if (-not (Test-Path -LiteralPath $SetupExe)) { throw "Installer output was not created: $SetupExe" }
 Write-Output "Installer created: $SetupExe"

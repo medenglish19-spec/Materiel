@@ -1,6 +1,7 @@
 """Single entry point for source and packaged Windows application runs."""
 
 import ctypes
+from ctypes import wintypes
 import json
 import os
 import socket
@@ -20,6 +21,7 @@ _WAIT_OBJECT_0 = 0
 _WAIT_TIMEOUT = 258
 _MB_ICONERROR = 0x00000010
 _MB_OK = 0x00000000
+_GLOBAL_OBJECT_SDDL = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;BU)"
 
 
 def _fallback_data_dir() -> Path:
@@ -92,25 +94,27 @@ def _identity() -> str:
 
 def _kernel32():
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
     kernel32.CreateEventW.argtypes = [
         ctypes.c_void_p,
-        ctypes.c_bool,
-        ctypes.c_bool,
-        ctypes.c_wchar_p,
+        wintypes.BOOL,
+        wintypes.BOOL,
+        wintypes.LPCWSTR,
     ]
-    kernel32.CreateEventW.restype = ctypes.c_void_p
-    kernel32.OpenEventW.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_wchar_p]
-    kernel32.OpenEventW.restype = ctypes.c_void_p
-    kernel32.SetEvent.argtypes = [ctypes.c_void_p]
-    kernel32.SetEvent.restype = ctypes.c_bool
-    kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-    kernel32.WaitForSingleObject.restype = ctypes.c_uint32
-    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-    kernel32.CloseHandle.restype = ctypes.c_bool
-    kernel32.ReleaseMutex.argtypes = [ctypes.c_void_p]
-    kernel32.ReleaseMutex.restype = ctypes.c_bool
+    kernel32.CreateEventW.restype = wintypes.HANDLE
+    kernel32.OpenEventW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.OpenEventW.restype = wintypes.HANDLE
+    kernel32.SetEvent.argtypes = [wintypes.HANDLE]
+    kernel32.SetEvent.restype = wintypes.BOOL
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
+    kernel32.ReleaseMutex.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
+    kernel32.LocalFree.restype = wintypes.HLOCAL
     return kernel32
 
 
@@ -194,20 +198,87 @@ def _open_existing_instance(data_dir: Path, identity: str) -> bool:
 
 
 def _shutdown_event_name(identity: str) -> str:
+    return f"Global\\{identity}-shutdown"
+
+
+def _legacy_shutdown_event_name(identity: str) -> str:
     return f"Local\\{identity}-shutdown"
+
+
+def _global_mutex_name(identity: str) -> str:
+    return f"Global\\{identity}"
+
+
+def _create_global_kernel_object(kernel32, create_object):
+    """Create a cross-session mutex/event accessible to installed users."""
+    class SecurityAttributes(ctypes.Structure):
+        _fields_ = [
+            ("nLength", wintypes.DWORD),
+            ("lpSecurityDescriptor", ctypes.c_void_p),
+            ("bInheritHandle", wintypes.BOOL),
+        ]
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    converter = advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    converter.argtypes = [
+        ctypes.c_wchar_p,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    converter.restype = ctypes.c_int
+    descriptor = ctypes.c_void_p()
+    if not converter(_GLOBAL_OBJECT_SDDL, 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+    attributes = SecurityAttributes(
+        ctypes.sizeof(SecurityAttributes), descriptor, False
+    )
+    try:
+        ctypes.set_last_error(0)
+        handle = create_object(
+            ctypes.cast(ctypes.byref(attributes), ctypes.c_void_p)
+        )
+        error = ctypes.get_last_error()
+        if not handle:
+            raise ctypes.WinError(error)
+        return handle, error
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
+def _create_global_mutex(kernel32, identity: str):
+    name = _global_mutex_name(identity)
+    return _create_global_kernel_object(
+        kernel32,
+        lambda security: kernel32.CreateMutexW(security, True, name),
+    )
+
+
+def _create_global_shutdown_event(kernel32, identity: str):
+    name = _shutdown_event_name(identity)
+    return _create_global_kernel_object(
+        kernel32,
+        lambda security: kernel32.CreateEventW(security, True, False, name),
+    )
 
 
 def _request_shutdown(identity: str) -> bool:
     kernel32 = _kernel32()
-    event_handle = kernel32.OpenEventW(_EVENT_MODIFY_STATE, False, _shutdown_event_name(identity))
-    if not event_handle:
-        return False
-    try:
-        if not kernel32.SetEvent(event_handle):
-            raise ctypes.WinError()
-        return True
-    finally:
-        kernel32.CloseHandle(event_handle)
+    for event_name in (
+        _shutdown_event_name(identity),
+        _legacy_shutdown_event_name(identity),
+    ):
+        event_handle = kernel32.OpenEventW(_EVENT_MODIFY_STATE, False, event_name)
+        if not event_handle:
+            continue
+        try:
+            if not kernel32.SetEvent(event_handle):
+                raise ctypes.WinError()
+            return True
+        finally:
+            kernel32.CloseHandle(event_handle)
+    return False
 
 
 def _run_packaged_windows() -> int:
@@ -240,6 +311,25 @@ def _run_packaged_windows() -> int:
         finally:
             kernel32.CloseHandle(mutex_handle)
 
+    try:
+        global_mutex_handle, global_mutex_error = _create_global_mutex(
+            kernel32, identity
+        )
+    except Exception:
+        kernel32.ReleaseMutex(mutex_handle)
+        kernel32.CloseHandle(mutex_handle)
+        raise
+    if global_mutex_error == _ERROR_ALREADY_EXISTS:
+        kernel32.CloseHandle(global_mutex_handle)
+        kernel32.ReleaseMutex(mutex_handle)
+        kernel32.CloseHandle(mutex_handle)
+        if not _open_existing_instance(data_dir, identity):
+            raise RuntimeError(
+                "توجد نسخة من Materiel تعمل في جلسة مستخدم أخرى، لكن تعذر الاتصال بها. "
+                "أغلقها قبل إعادة المحاولة."
+            )
+        return 0
+
     logger = get_logger("run_web")
     server = None
     server_thread = None
@@ -251,11 +341,9 @@ def _run_packaged_windows() -> int:
         configure_logging()
         logger.info("Starting packaged Materiel; version=%s", _release_version())
         migrate_packaged_uploads()
-        event_handle = kernel32.CreateEventW(
-            None, True, False, _shutdown_event_name(identity)
+        event_handle, _event_error = _create_global_shutdown_event(
+            kernel32, identity
         )
-        if not event_handle:
-            raise ctypes.WinError()
 
         server_socket = _bind_server_socket(settings.HOST, settings.PORT)
         port = int(server_socket.getsockname()[1])
@@ -377,6 +465,8 @@ def _run_packaged_windows() -> int:
         shutdown_logging()
         kernel32.ReleaseMutex(mutex_handle)
         kernel32.CloseHandle(mutex_handle)
+        kernel32.ReleaseMutex(global_mutex_handle)
+        kernel32.CloseHandle(global_mutex_handle)
 
 
 def _release_version() -> str:
