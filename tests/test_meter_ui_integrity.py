@@ -152,9 +152,36 @@ def test_meter_operations_table_omits_reading_date_column_and_keeps_cells_aligne
 
     assert header is not None and record_row is not None
     assert "تاريخ القراءة" not in header.group(1)
-    assert len(re.findall(r"<th\b", header.group(1))) == 9
-    assert len(re.findall(r"<td\b", record_row.group(1))) == 9
-    assert 'colspan="9"' in text
+    assert len(re.findall(r"<th\b", header.group(1))) == 11
+    assert len(re.findall(r"<td\b", record_row.group(1))) == 11
+    assert 'colspan="{{ 11 if can_delete_audit else 9 }}"' in text
+
+
+def test_meter_operations_single_and_bulk_delete_controls_and_script():
+    text = OPERATIONS_TEMPLATE.read_text(encoding="utf-8")
+    scripts = _scripts(OPERATIONS_TEMPLATE)
+    selection_script = next(
+        (script for script in scripts if "data-audit-select-all" in script), None
+    )
+
+    assert 'action="/meter-readings/operations/delete-selected"' in text
+    assert 'action="/meter-readings/operations/{{ change.id }}/delete"' in text
+    assert "data-audit-delete-selected" in text
+    assert "ولا يحذف القراءات المسجلة" in text
+    assert selection_script is not None
+    assert "button.disabled=selected===0" in selection_script
+
+    node = shutil.which("node")
+    if not node:
+        return
+    with tempfile.NamedTemporaryFile("w", suffix=".js", encoding="utf-8", delete=False) as handle:
+        handle.write(selection_script)
+        filename = handle.name
+    try:
+        result = subprocess.run([node, "--check", filename], text=True, capture_output=True)
+    finally:
+        Path(filename).unlink(missing_ok=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_meter_history_page_keeps_edit_delete_actions():

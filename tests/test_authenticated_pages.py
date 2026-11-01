@@ -1053,3 +1053,69 @@ def test_fault_pages_show_arabic_status_and_severity(pages):
     assert ">open<" not in body and ">high<" not in body
     assert "قيد الإصلاح" in body, "حالة التصليح غير مترجمة"
     assert ">in_progress<" not in body
+
+
+def test_meter_operations_delete_individual_and_bulk_rows_without_deleting_readings(anonymous):
+    from datetime import datetime
+
+    from app.modules.meter_readings.audit import MeterReadingChange
+    from app.modules.meter_readings.models import MeterReading
+
+    client, ids, TestingSession = anonymous
+    db = TestingSession()
+    try:
+        older = MeterReading(
+            equipment_id=ids["equipment"],
+            reading_date=datetime.combine(date.today() - timedelta(days=2), datetime.min.time()),
+            odometer=100,
+        )
+        newer = MeterReading(
+            equipment_id=ids["equipment"],
+            reading_date=datetime.combine(date.today() - timedelta(days=1), datetime.min.time()),
+            odometer=200,
+        )
+        db.add_all([older, newer])
+        db.commit()
+        changes = (
+            db.query(MeterReadingChange)
+            .filter(MeterReadingChange.reading_id.in_([older.id, newer.id]))
+            .order_by(MeterReadingChange.id)
+            .all()
+        )
+        change_ids = [change.id for change in changes]
+        reading_ids = [older.id, newer.id]
+    finally:
+        db.close()
+
+    assert len(change_ids) == 2
+    page = client.get("/meter-readings/operations")
+    assert page.status_code == 200
+    assert 'data-audit-delete-selected' in page.text
+    assert 'data-audit-select-all' in page.text
+
+    individual = client.post(
+        f"/meter-readings/operations/{change_ids[0]}/delete", follow_redirects=False
+    )
+    assert individual.status_code == 303
+
+    db = TestingSession()
+    try:
+        assert db.query(MeterReading).filter(MeterReading.id.in_(reading_ids)).count() == 2
+        assert db.query(MeterReadingChange).filter_by(id=change_ids[0]).count() == 0
+        assert db.query(MeterReadingChange).filter_by(id=change_ids[1]).count() == 1
+    finally:
+        db.close()
+
+    bulk = client.post(
+        "/meter-readings/operations/delete-selected",
+        data={"change_ids": [str(change_ids[1])]},
+        follow_redirects=False,
+    )
+    assert bulk.status_code == 303
+
+    db = TestingSession()
+    try:
+        assert db.query(MeterReading).filter(MeterReading.id.in_(reading_ids)).count() == 2
+        assert db.query(MeterReadingChange).filter(MeterReadingChange.id.in_(change_ids)).count() == 0
+    finally:
+        db.close()
