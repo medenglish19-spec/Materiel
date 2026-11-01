@@ -19,12 +19,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import DEFAULT_ADMIN_PASSWORD, settings
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.security import create_access_token
 from app.core.templating import get_module_templates
-from app.database.init_db import admin_setup_required, complete_admin_setup
+from app.database.init_db import (
+    admin_setup_required,
+    admin_setup_requires_password_change,
+    complete_admin_setup,
+)
 from app.database.session import get_db
 from app.modules.users import services
 from app.modules.users.models import User
@@ -124,7 +128,12 @@ def setup_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"error": None, "password_changed": False, "setup_required": True},
+        context={
+            "error": None,
+            "password_changed": False,
+            "setup_required": True,
+            "setup_change_default_password": admin_setup_requires_password_change(),
+        },
     )
 
 
@@ -150,23 +159,50 @@ def setup_admin(
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"error": error, "password_changed": False, "setup_required": True},
+            context={
+                "error": error,
+                "password_changed": False,
+                "setup_required": True,
+                "setup_change_default_password": admin_setup_requires_password_change(),
+            },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     try:
-        user = services.create_user(
-            db,
-            UserCreate(
-                username="admin",
-                full_name="مدير النظام",
-                password=password,
-                role=Role.ADMIN.value,
-            ),
+        if admin_setup_requires_password_change():
+            user = services.get_user_by_username(db, "admin")
+            if user is None:
+                raise ValueError("تعذر العثور على حساب المدير الحالي؛ أعد تشغيل البرنامج أو راجع سجل الأخطاء.")
+            services.change_own_password(
+                db, user, DEFAULT_ADMIN_PASSWORD, password, confirmation
+            )
+        else:
+            user = services.create_user(
+                db,
+                UserCreate(
+                    username="admin",
+                    full_name="مدير النظام",
+                    password=password,
+                    role=Role.ADMIN.value,
+                ),
+            )
+    except ValueError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": str(exc),
+                "password_changed": False,
+                "setup_required": True,
+                "setup_change_default_password": admin_setup_requires_password_change(),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
     except IntegrityError:
         db.rollback()
-        if services.get_user_by_username(db, "admin") is not None:
+        existing_admin = services.get_user_by_username(db, "admin")
+        if existing_admin is not None and not admin_setup_requires_password_change():
             complete_admin_setup()
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 

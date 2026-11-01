@@ -75,7 +75,7 @@ def test_frozen_settings_use_secure_defaults_and_a_persistent_signing_key(tmp_pa
     assert (tmp_path / "data" / "secret.key").read_text(encoding="utf-8") == key
 
 
-def test_frozen_auth_can_only_be_disabled_by_an_explicit_override(monkeypatch):
+def test_frozen_auth_cannot_be_disabled_by_environment_override(monkeypatch):
     monkeypatch.setattr(config.sys, "frozen", True, raising=False)
     monkeypatch.delenv("DEV_DISABLE_AUTH", raising=False)
 
@@ -83,4 +83,4 @@ def test_frozen_auth_can_only_be_disabled_by_an_explicit_override(monkeypatch):
 
     monkeypatch.setenv("DEV_DISABLE_AUTH", "true")
 
-    assert config.dev_auth_disabled() is True
+    assert config.dev_auth_disabled() is False

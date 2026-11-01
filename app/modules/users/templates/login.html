@@ -9,13 +9,17 @@
     <div class="login-box">
         <h1>تسيير ومحاسبة العتاد</h1>
         {% if setup_required %}
-        <p class="subtitle">إعداد أول استخدام — أنشئ كلمة مرور مدير النظام</p>
+        <p class="subtitle">{% if setup_change_default_password %}تغيير كلمة مرور المدير الأولية{% else %}إعداد أول استخدام — أنشئ كلمة مرور مدير النظام{% endif %}</p>
 
         {% if error %}
         <div class="alert alert-error">{{ error }}</div>
         {% endif %}
 
+        {% if setup_change_default_password %}
+        <p>حساب المدير الحالي ما زال يستخدم كلمة المرور الأولية المنشورة. أنشئ كلمة مرور جديدة لا تقل عن 12 خانة؛ سيبقى الحساب وصلاحياته كما هي.</p>
+        {% else %}
         <p>هذه الخطوة متاحة من هذا الجهاز فقط. اختر كلمة مرور خاصة لا تقل عن 12 خانة؛ لا توجد كلمة مرور افتراضية في النسخة المثبتة.</p>
+        {% endif %}
         <form method="post" action="/setup">
             <label for="password">كلمة مرور مدير النظام</label>
             <input type="password" id="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" required autofocus>

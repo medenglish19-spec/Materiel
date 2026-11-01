@@ -14,15 +14,21 @@ from app.database import model_registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
 _ADMIN_SETUP_REQUIRED = False
+_ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD = False
 
 
 def admin_setup_required() -> bool:
     return _ADMIN_SETUP_REQUIRED
 
 
+def admin_setup_requires_password_change() -> bool:
+    return _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD
+
+
 def complete_admin_setup() -> None:
-    global _ADMIN_SETUP_REQUIRED
+    global _ADMIN_SETUP_REQUIRED, _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD
     _ADMIN_SETUP_REQUIRED = False
+    _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD = False
 
 
 def _run_alembic_upgrade(config: Config) -> None:
@@ -252,8 +258,9 @@ def init_db() -> None:
 
 
 def create_default_admin() -> None:
-    global _ADMIN_SETUP_REQUIRED
+    global _ADMIN_SETUP_REQUIRED, _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD
     _ADMIN_SETUP_REQUIRED = False
+    _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD = False
     from app.database.session import SessionLocal
     from app.modules.users.services import get_user_by_username, create_user
     from app.modules.users.schemas import UserCreate
@@ -268,5 +275,17 @@ def create_default_admin() -> None:
             create_user(db, UserCreate(username="admin", full_name="مدير النظام", password="Admin@123", role="admin"))
             logger.info("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
         else:
-            _ADMIN_SETUP_REQUIRED = False
+            if getattr(sys, "frozen", False):
+                from app.core.config import DEFAULT_ADMIN_PASSWORD
+                from app.core.security import verify_password
+
+                try:
+                    _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD = verify_password(
+                        DEFAULT_ADMIN_PASSWORD, existing.hashed_password
+                    )
+                except (TypeError, ValueError):
+                    logger.warning("[init_db] Could not validate the existing administrator password hash.")
+                _ADMIN_SETUP_REQUIRED = _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD
+                if _ADMIN_SETUP_CHANGE_DEFAULT_PASSWORD:
+                    logger.warning("[init_db] Existing administrator must replace the published default password before login.")
     finally: db.close()

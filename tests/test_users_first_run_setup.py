@@ -12,6 +12,7 @@ from app.database import session as database_session
 from app.database.session import get_db
 from app.modules.users import services
 from app.modules.users.models import User
+from app.modules.users.schemas import UserCreate
 from web import main
 
 
@@ -163,3 +164,85 @@ def test_frozen_startup_does_not_create_the_published_default_admin(tmp_path, mo
         init_db_module.complete_admin_setup()
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_frozen_startup_forces_existing_default_admin_to_change_password(first_run_app, monkeypatch):
+    client, testing_session = first_run_app
+    with testing_session() as db:
+        original = services.create_user(
+            db,
+            UserCreate(
+                username="admin",
+                full_name="مدير قائم",
+                role="admin",
+                password="Admin@123",
+            ),
+        )
+        original_id = original.id
+
+    monkeypatch.setattr(init_db_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database_session, "SessionLocal", testing_session)
+    init_db_module.create_default_admin()
+
+    assert init_db_module.admin_setup_required()
+    assert init_db_module.admin_setup_requires_password_change()
+    setup = client.get("/setup")
+    assert setup.status_code == 200
+    assert "حساب المدير الحالي ما زال يستخدم كلمة المرور الأولية المنشورة" in setup.text
+
+    new_password = "A-replaced-admin-password-2026!"
+    response = client.post(
+        "/setup",
+        headers={"Origin": "http://127.0.0.1:8000"},
+        data={"password": new_password, "confirmation": new_password},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    assert not init_db_module.admin_setup_required()
+
+    with testing_session() as db:
+        admin = db.query(User).filter(User.username == "admin").one()
+        assert admin.id == original_id
+        assert admin.full_name == "مدير قائم"
+        assert admin.role == "admin"
+        assert admin.is_active is True
+        assert services.authenticate_user(db, "admin", "Admin@123") is None
+        assert services.authenticate_user(db, "admin", new_password) is not None
+
+
+def test_frozen_runtime_ignores_environment_development_overrides(tmp_path, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(config, "packaged_data_directory", lambda: tmp_path / "MaterielData")
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEV_DISABLE_AUTH", "true")
+    monkeypatch.setenv("SECRET_KEY", config.DEFAULT_SECRET_KEY)
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///D:/must-not-be-used.db")
+    monkeypatch.setenv("APP_HOST", "0.0.0.0")
+    monkeypatch.setenv("APP_PORT", "not-a-port")
+    monkeypatch.setenv("LOG_DIR", "D:/must-not-be-used/logs")
+
+    assert config.application_environment() == "production"
+    assert config.application_debug_enabled() is False
+    assert config.dev_auth_disabled() is False
+    generated = config.application_secret_key()
+    assert generated != config.DEFAULT_SECRET_KEY
+    assert len(generated) >= 32
+    assert config.application_secret_key() == generated
+    assert config.application_database_url().endswith("/MaterielData/fleet_assets.db")
+    assert config.application_host() == "127.0.0.1"
+    assert config.application_port() == 8000
+    assert config.application_log_dir() == str(tmp_path / "MaterielData" / "logs")
+
+
+def test_source_runtime_keeps_explicit_development_overrides(monkeypatch):
+    from app.core import config
+
+    monkeypatch.delattr(config.sys, "frozen", raising=False)
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("DEV_DISABLE_AUTH", "true")
+    assert config.application_environment() == "development"
+    assert config.application_debug_enabled() is True
+    assert config.dev_auth_disabled() is True

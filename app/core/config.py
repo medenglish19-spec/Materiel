@@ -65,9 +65,50 @@ def default_environment() -> str:
     return "production" if getattr(sys, "frozen", False) else "development"
 
 
+def application_environment() -> str:
+    """Frozen Windows releases always run with production settings."""
+    if getattr(sys, "frozen", False):
+        return "production"
+    return os.getenv("APP_ENV", default_environment())
+
+
+def application_debug_enabled() -> bool:
+    return not getattr(sys, "frozen", False) and application_environment() != "production"
+
+
+def application_secret_key() -> str:
+    """Use a stable per-install key in packaged builds, ignoring env overrides."""
+    if getattr(sys, "frozen", False):
+        return packaged_secret_key()
+    return os.getenv("SECRET_KEY") or DEFAULT_SECRET_KEY
+
+
+def application_database_url() -> str:
+    if getattr(sys, "frozen", False):
+        return default_database_url()
+    return resolve_database_url(os.getenv("DATABASE_URL") or default_database_url())
+
+
+def application_host() -> str:
+    if getattr(sys, "frozen", False):
+        return "127.0.0.1"
+    return os.getenv("APP_HOST", "127.0.0.1")
+
+
+def application_port() -> int:
+    return 8000 if getattr(sys, "frozen", False) else int(os.getenv("APP_PORT", "8000"))
+
+
+def application_log_dir() -> str:
+    if getattr(sys, "frozen", False):
+        return str(packaged_data_directory() / "logs")
+    return os.getenv("LOG_DIR", "logs")
+
+
 def dev_auth_disabled() -> bool:
-    default = "false" if getattr(sys, "frozen", False) else "true"
-    return os.getenv("DEV_DISABLE_AUTH", default).strip().lower() in {
+    if getattr(sys, "frozen", False):
+        return False
+    return os.getenv("DEV_DISABLE_AUTH", "true").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -99,16 +140,12 @@ def resolve_database_url(database_url: str, project_root: Path = PROJECT_ROOT) -
 
 class Settings:
     APP_NAME: str = "تسيير ومحاسبة العتاد"
-    ENV: str = os.getenv("APP_ENV", default_environment())
-    DEBUG: bool = ENV != "production"
+    ENV: str = application_environment()
+    DEBUG: bool = application_debug_enabled()
 
-    DATABASE_URL: str = resolve_database_url(
-        os.getenv("DATABASE_URL") or default_database_url()
-    )
+    DATABASE_URL: str = application_database_url()
 
-    SECRET_KEY: str = os.getenv("SECRET_KEY") or (
-        packaged_secret_key() if getattr(sys, "frozen", False) else DEFAULT_SECRET_KEY
-    )
+    SECRET_KEY: str = application_secret_key()
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480")
@@ -138,15 +175,12 @@ class Settings:
 
     # Logging (طبقتك غير الحظري في app/core/logging.py)
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_DIR: str = os.getenv(
-        "LOG_DIR",
-        str(packaged_data_directory() / "logs") if getattr(sys, "frozen", False) else "logs",
-    )
+    LOG_DIR: str = application_log_dir()
 
     # مربوط بالمضيف المحلي فقط أثناء التعطيل المؤقت للمصادقة.
     # استعادة قيمة "0.0.0.0" عند إعادة تفعيل المصادقة إن لزم النشر على الشبكة.
-    HOST: str = os.getenv("APP_HOST", "127.0.0.1")
-    PORT: int = int(os.getenv("APP_PORT", "8000"))
+    HOST: str = application_host()
+    PORT: int = application_port()
 
     # لا نستخدم Uvicorn reload تلقائيًا؛ إعادة تشغيل التطبيق تلقائيًا أثناء
     # startup كانت تجعل init_db/Alembic يعمل أكثر من مرة داخل Codespaces.
