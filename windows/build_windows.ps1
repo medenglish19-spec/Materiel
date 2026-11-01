@@ -46,10 +46,28 @@ if (Test-Path -LiteralPath $BuildRoot) {
 }
 New-Item -ItemType Directory -Path $BuildRoot, $ReleaseRoot -Force | Out-Null
 
+$PythonCommand = Get-Command py -ErrorAction SilentlyContinue
+$PythonArguments = @("-3.14")
+if (-not $PythonCommand) {
+    $PythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    $PythonArguments = @()
+}
+if (-not $PythonCommand) {
+    throw "Python 3.14 is required to build the Windows release."
+}
+$PythonVersion = & $PythonCommand.Source @PythonArguments -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+if ($LASTEXITCODE -ne 0 -or $PythonVersion.Trim() -ne "3.14") {
+    throw "The Windows release requires Python 3.14; selected interpreter reports '$PythonVersion'."
+}
+
 $Venv = Join-Path $BuildRoot "venv"
-& python -m venv $Venv
+& $PythonCommand.Source @PythonArguments -m venv $Venv
 if ($LASTEXITCODE -ne 0) { throw "Could not create the isolated build environment." }
 $BuildPython = Join-Path $Venv "Scripts\python.exe"
+$BuildPythonVersion = & $BuildPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
+if ($LASTEXITCODE -ne 0 -or $BuildPythonVersion.Trim() -ne "3.14") {
+    throw "The isolated build environment must use Python 3.14; it reports '$BuildPythonVersion'."
+}
 & $BuildPython -m pip install --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "Could not prepare pip in the build environment." }
 & $BuildPython -m pip install -r (Join-Path $RepoRoot "requirements.txt") -r (Join-Path $PSScriptRoot "requirements-build.txt")

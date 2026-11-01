@@ -38,3 +38,11 @@ def test_windows_package_collects_all_splash_assets():
     spec = (ROOT / "windows" / "Materiel.spec").read_text(encoding="utf-8")
 
     assert 'datas += data_tree(SPLASH_DIR, "splash-screen")' in spec
+
+
+def test_windows_build_requires_python_314_for_the_build_environment():
+    build = (ROOT / "windows" / "build_windows.ps1").read_text(encoding="utf-8")
+
+    assert '"-3.14"' in build
+    assert 'PythonVersion.Trim() -ne "3.14"' in build
+    assert 'BuildPythonVersion.Trim() -ne "3.14"' in build
