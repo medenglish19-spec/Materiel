@@ -4,7 +4,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from unittest.mock import Mock
 from urllib.request import urlopen
+
+import run_web
+
 
 
 def _free_port() -> int:
@@ -55,3 +59,24 @@ def test_official_run_web_starts_and_serves_login(tmp_path):
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+
+
+def test_packaged_mutex_matches_installer_mutex():
+    identity = run_web._identity()
+
+    assert f"Local\\{identity}" == "Local\\Materiel"
+
+
+def test_shutdown_event_name_is_stable_for_installed_app():
+    identity = run_web._identity()
+
+    assert run_web._shutdown_event_name(identity) == "Local\\Materiel-shutdown"
+
+
+def test_browser_can_be_disabled_for_installer_smoke_tests(monkeypatch):
+    monkeypatch.setenv("MATERIEL_NO_BROWSER", "1")
+    browser_open = Mock()
+    monkeypatch.setattr(run_web.webbrowser, "open", browser_open)
+
+    assert run_web._open_url("127.0.0.1", 8000)
+    browser_open.assert_not_called()

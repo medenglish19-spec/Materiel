@@ -13,13 +13,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-def data_tree(source: Path, destination: str, *, exclude_uploads: bool = False):
+def data_tree(
+    source: Path,
+    destination: str,
+    *,
+    exclude_uploads: bool = False,
+    include_python: bool = False,
+):
     entries = []
     for path in source.rglob("*"):
         if not path.is_file():
             continue
         relative = path.relative_to(source)
         if any(part == "__pycache__" for part in relative.parts) or path.suffix in {".pyc", ".pyo"}:
+            continue
+        if not include_python and path.suffix == ".py":
             continue
         if exclude_uploads and relative.parts and relative.parts[0] == "uploads":
             continue
@@ -32,7 +40,7 @@ datas = []
 datas += data_tree(ROOT / "app" / "modules", "app/modules")
 datas += data_tree(ROOT / "web" / "templates", "web/templates")
 datas += data_tree(ROOT / "static", "static", exclude_uploads=True)
-datas += data_tree(ROOT / "migrations", "migrations")
+datas += data_tree(ROOT / "migrations", "migrations", include_python=True)
 datas.append((str(ROOT / "alembic.ini"), "."))
 
 # Splash text and logo are release assets. They are installed with the protected
@@ -52,10 +60,14 @@ datas.append((str(logo_path), "splash-screen"))
 hiddenimports = sorted(set(
     collect_submodules("app")
     + collect_submodules("web")
-    + collect_submodules("alembic")
+    + collect_submodules(
+        "alembic",
+        filter=lambda module_name: not module_name.startswith("alembic.testing"),
+    )
     + collect_submodules("uvicorn")
     + collect_submodules("passlib.handlers")
     + collect_submodules("jose")
+    + collect_submodules("pystray")
 ))
 
 a = Analysis(
@@ -82,8 +94,8 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
-    disable_windowed_traceback=False,
+    console=False,
+    disable_windowed_traceback=True,
 )
 coll = COLLECT(
     exe,

@@ -5,7 +5,7 @@
 
 $ErrorActionPreference = "Stop"
 $InstallerPath = (Resolve-Path -LiteralPath $InstallerPath).Path
-$Root = Join-Path "D:\Materiel-smoke-tests" ([guid]::NewGuid().ToString("N"))
+$Root = Join-Path (Join-Path $env:LOCALAPPDATA "Materiel\smoke-tests") ([guid]::NewGuid().ToString("N"))
 $InstallDir = Join-Path $Root "program"
 $DataDir = Join-Path $Root "user-data"
 $DatabasePath = Join-Path $DataDir "fleet_assets.db"
@@ -17,23 +17,29 @@ $Port = $PortListener.LocalEndpoint.Port
 $PortListener.Stop()
 $BaseUrl = "http://127.0.0.1:$Port"
 $Process = $null
+$script:InitialAdminPassword = "SmokeTest-$([guid]::NewGuid().ToString('N'))!Aa"
 $OldEnvironment = @{}
 
-foreach ($Name in @("MATERIEL_DATA_DIR", "APP_HOST", "APP_PORT", "MATERIEL_NO_BROWSER")) {
+foreach ($Name in @("MATERIEL_DATA_DIR", "APP_HOST", "APP_PORT", "MATERIEL_NO_BROWSER", "DATABASE_URL", "SECRET_KEY", "LOG_DIR", "APP_ENV", "DEV_DISABLE_AUTH")) {
     $OldEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, "Process")
 }
 [Environment]::SetEnvironmentVariable("MATERIEL_DATA_DIR", $DataDir, "Process")
 [Environment]::SetEnvironmentVariable("APP_HOST", "127.0.0.1", "Process")
 [Environment]::SetEnvironmentVariable("APP_PORT", [string]$Port, "Process")
 [Environment]::SetEnvironmentVariable("MATERIEL_NO_BROWSER", "1", "Process")
+[Environment]::SetEnvironmentVariable("DATABASE_URL", $null, "Process")
+[Environment]::SetEnvironmentVariable("SECRET_KEY", $null, "Process")
+[Environment]::SetEnvironmentVariable("LOG_DIR", $null, "Process")
+[Environment]::SetEnvironmentVariable("APP_ENV", "production", "Process")
+[Environment]::SetEnvironmentVariable("DEV_DISABLE_AUTH", "false", "Process")
 
 function Invoke-Installer {
     $Arguments = @(
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
-        "/DIR=$InstallDir",
-        "/LOG=$LogPath"
+        "/DIR=`"$InstallDir`"",
+        "/LOG=`"$LogPath`""
     )
     $Setup = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden
     if ($Setup.ExitCode -ne 0) {
@@ -59,8 +65,22 @@ function Start-PackagedApp {
 
 function Stop-PackagedApp {
     if ($script:Process -and -not $script:Process.HasExited) {
-        Stop-Process -Id $script:Process.Id -Force
-        $script:Process.WaitForExit(10000)
+        $Shutdown = Start-Process `
+            -FilePath (Join-Path $InstallDir "Materiel.exe") `
+            -ArgumentList "--shutdown" `
+            -WorkingDirectory $InstallDir `
+            -Wait `
+            -PassThru `
+            -WindowStyle Hidden
+        if ($Shutdown.ExitCode -ne 0) {
+            throw "Graceful shutdown request failed with exit code $($Shutdown.ExitCode)."
+        }
+        if (-not $script:Process.WaitForExit(30000)) {
+            throw "Packaged application did not stop after the graceful shutdown request."
+        }
+        if ($script:Process.ExitCode -ne 0) {
+            throw "Packaged application exited with code $($script:Process.ExitCode) during shutdown."
+        }
     }
     $script:Process = $null
 }
@@ -89,8 +109,30 @@ function Assert-SplashContent {
 
 function Assert-SidebarInstitution {
     $Branding = Get-PackagedBranding
+    try {
+        $UnauthenticatedDashboard = Invoke-WebRequest -Uri "$BaseUrl/dashboard" -TimeoutSec 10 -UseBasicParsing
+        throw "The packaged application allowed an unauthenticated dashboard request."
+    }
+    catch {
+        $Response = $_.Exception.Response
+        if (-not $Response -or [int]$Response.StatusCode -ne 401) {
+            throw "The packaged application did not reject an unauthenticated dashboard request with HTTP 401."
+        }
+    }
     $WebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
-    Invoke-WebRequest -Uri "$BaseUrl/login" -Method Post -Body @{ username = "admin"; password = "Admin@123" } -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing | Out-Null
+    $SetupPage = Invoke-WebRequest -Uri "$BaseUrl/setup" -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing
+    if ($SetupPage.Content.Contains('action="/setup"')) {
+        Invoke-WebRequest -Uri "$BaseUrl/setup" -Method Post -Body @{
+            password = $script:InitialAdminPassword
+            confirmation = $script:InitialAdminPassword
+        } -Headers @{ Origin = $BaseUrl } -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing | Out-Null
+    }
+    else {
+        Invoke-WebRequest -Uri "$BaseUrl/login" -Method Post -Body @{
+            username = "admin"
+            password = $script:InitialAdminPassword
+        } -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing | Out-Null
+    }
     $Dashboard = (Invoke-WebRequest -Uri "$BaseUrl/dashboard" -WebSession $WebSession -TimeoutSec 10 -UseBasicParsing).Content
     if (-not $Dashboard.Contains("<span class=`"app-brand-institution`">$($Branding.institution_name)</span>")) {
         throw "Packaged institution text was not rendered in the application sidebar."

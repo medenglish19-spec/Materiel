@@ -82,9 +82,12 @@ class _TolerantRotatingFileHandler(RotatingFileHandler):
 def _build_output_handlers() -> list:
     level = getattr(logging, str(settings.LOG_LEVEL).upper(), logging.INFO)
 
-    stream = logging.StreamHandler(stream=sys.stderr)
-    stream.setFormatter(logging.Formatter(_LOG_FORMAT))
-    stream.setLevel(level)
+    handlers = []
+    if sys.stderr is not None:
+        stream = logging.StreamHandler(stream=sys.stderr)
+        stream.setFormatter(logging.Formatter(_LOG_FORMAT))
+        stream.setLevel(level)
+        handlers.append(stream)
 
     log_dir = Path(settings.LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -96,9 +99,19 @@ def _build_output_handlers() -> list:
     )
     file_handler.setFormatter(logging.Formatter(_LOG_FORMAT))
     file_handler.setLevel(level)
+    handlers.append(file_handler)
 
-    return [stream, file_handler]
+    error_handler = _TolerantRotatingFileHandler(
+        log_dir / "error.log",
+        maxBytes=1_000_000,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    error_handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+    error_handler.setLevel(logging.ERROR)
+    handlers.append(error_handler)
 
+    return handlers
 
 def _build_listener() -> QueueListener:
     global _OUTPUT_HANDLERS

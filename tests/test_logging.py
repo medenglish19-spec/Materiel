@@ -9,6 +9,7 @@ from queue import Full, Queue
 
 from app.core.logging import (
     _SafeQueueHandler,
+    _build_output_handlers,
     configure_logging,
     get_logger,
     shutdown_logging,
@@ -64,6 +65,24 @@ def test_queue_handler_never_raises_on_full_queue():
     handler.enqueue(
         logging.LogRecord("x", logging.INFO, __file__, 1, "m", None, None)
     )  # يجب ألا ترمي
+
+
+def test_output_handlers_still_write_files_without_stderr(tmp_path, monkeypatch):
+    import app.core.logging as logging_module
+
+    monkeypatch.setattr(logging_module.sys, "stderr", None)
+    monkeypatch.setattr(logging_module.settings, "LOG_DIR", str(tmp_path))
+
+    handlers = _build_output_handlers()
+    try:
+        assert not any(type(handler) is logging.StreamHandler for handler in handlers)
+        assert {Path(handler.baseFilename).name for handler in handlers} == {
+            "app.log",
+            "error.log",
+        }
+    finally:
+        for handler in handlers:
+            handler.close()
 
 
 def test_app_modules_do_not_use_print():

@@ -15,7 +15,7 @@ from app.core.logging import configure_logging, get_logger, shutdown_logging
 from app.core.security import decode_access_token
 from app.core.storage import uploads_directory
 from app.core.templating import get_module_templates
-from app.database.init_db import create_default_admin, init_db
+from app.database.init_db import admin_setup_required, create_default_admin, init_db
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.equipment.router import router as equipment_router
 from app.modules.equipment_maintenance.router import router as equipment_maintenance_router
@@ -184,7 +184,10 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     def root(request: Request):
-        continue_url = "/dashboard" if settings.DEV_DISABLE_AUTH else "/login"
+        if admin_setup_required():
+            continue_url = "/setup"
+        else:
+            continue_url = "/dashboard" if settings.DEV_DISABLE_AUTH else "/login"
         token = request.cookies.get(settings.SESSION_COOKIE_NAME)
         if not settings.DEV_DISABLE_AUTH and token:
             payload = decode_access_token(token)

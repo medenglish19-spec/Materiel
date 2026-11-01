@@ -5,6 +5,7 @@ core/config.py
 """
 
 import os
+import secrets
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -42,6 +43,38 @@ def packaged_data_directory(executable: Path | None = None) -> Path:
     return Path.home() / ".local" / "share" / "materiel" / "data"
 
 
+def packaged_secret_key() -> str:
+    """Load or create the persistent signing key for an installed copy."""
+    key_path = packaged_data_directory() / "secret.key"
+    try:
+        key = key_path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key = secrets.token_urlsafe(48)
+        try:
+            with key_path.open("x", encoding="utf-8") as key_file:
+                key_file.write(key)
+        except FileExistsError:
+            key = key_path.read_text(encoding="utf-8").strip()
+    if len(key) < 32:
+        raise RuntimeError(f"Packaged application signing key is missing or invalid: {key_path}")
+    return key
+
+
+def default_environment() -> str:
+    return "production" if getattr(sys, "frozen", False) else "development"
+
+
+def dev_auth_disabled() -> bool:
+    default = "false" if getattr(sys, "frozen", False) else "true"
+    return os.getenv("DEV_DISABLE_AUTH", default).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def default_database_url(project_root: Path = PROJECT_ROOT) -> str:
     """Keep the default operational database independent of the launch cwd."""
     if getattr(sys, "frozen", False):
@@ -66,14 +99,16 @@ def resolve_database_url(database_url: str, project_root: Path = PROJECT_ROOT) -
 
 class Settings:
     APP_NAME: str = "تسيير ومحاسبة العتاد"
-    ENV: str = os.getenv("APP_ENV", "development")
+    ENV: str = os.getenv("APP_ENV", default_environment())
     DEBUG: bool = ENV != "production"
 
     DATABASE_URL: str = resolve_database_url(
         os.getenv("DATABASE_URL") or default_database_url()
     )
 
-    SECRET_KEY: str = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
+    SECRET_KEY: str = os.getenv("SECRET_KEY") or (
+        packaged_secret_key() if getattr(sys, "frozen", False) else DEFAULT_SECRET_KEY
+    )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480")
@@ -98,12 +133,7 @@ class Settings:
     #     $env:DEV_DISABLE_AUTH = "false"   # PowerShell
     # أو أضف DEV_DISABLE_AUTH=false إلى بيئة التشغيل. لا تُستخدم هذه
     # القيمة على أي جهاز يمكن الوصول إليه من الشبكة.
-    DEV_DISABLE_AUTH: bool = os.getenv("DEV_DISABLE_AUTH", "true").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    DEV_DISABLE_AUTH: bool = dev_auth_disabled()
     DEV_AUTH_USERNAME: str = os.getenv("DEV_AUTH_USERNAME", "admin")
 
     # Logging (طبقتك غير الحظري في app/core/logging.py)

@@ -11,8 +11,12 @@ modules/users/router.py
 - API لإدارة المستخدمين (خاص بالـ admin فقط)
 """
 
+import ipaddress
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -20,6 +24,7 @@ from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.security import create_access_token
 from app.core.templating import get_module_templates
+from app.database.init_db import admin_setup_required, complete_admin_setup
 from app.database.session import get_db
 from app.modules.users import services
 from app.modules.users.models import User
@@ -28,6 +33,37 @@ from app.modules.users.schemas import UserCreate, UserOut, UserUpdate
 router = APIRouter()
 templates = get_module_templates("app/modules/users/templates")
 
+
+def _require_local_first_run(request: Request) -> None:
+    client = request.client
+    if client is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المسار غير موجود")
+    try:
+        address = client.host.split("%", 1)[0]
+        is_loopback = ipaddress.ip_address(address).is_loopback
+    except ValueError:
+        is_loopback = False
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if request.method == "POST" and not origin:
+        is_loopback = False
+    if origin:
+        parsed_origin = urlsplit(origin)
+        hostname = (parsed_origin.hostname or "").lower()
+        try:
+            origin_is_loopback = hostname == "localhost" or ipaddress.ip_address(
+                hostname.split("%", 1)[0]
+            ).is_loopback
+        except ValueError:
+            origin_is_loopback = False
+        is_loopback = (
+            is_loopback
+            and origin_is_loopback
+            and parsed_origin.netloc.lower() == request.url.netloc.lower()
+        )
+    if not is_loopback:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المسار غير موجود")
+
+
 # ---------------------------------------------------------------
 # صفحات الواجهة (تسجيل الدخول / الخروج / المستخدمون)
 # ---------------------------------------------------------------
@@ -35,18 +71,23 @@ templates = get_module_templates("app/modules/users/templates")
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
+    if admin_setup_required():
+        return RedirectResponse(url="/setup", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
         request=request,
         name="login.html",
         context={
             "error": None,
             "password_changed": request.query_params.get("password_changed") == "1",
+            "setup_required": False,
         },
     )
 
 
 @router.post("/login")
 async def login_submit(request: Request, db: Session = Depends(get_db)):
+    if admin_setup_required():
+        return RedirectResponse(url="/setup", status_code=status.HTTP_303_SEE_OTHER)
     form = await request.form()
     username = form.get("username", "")
     password = form.get("password", "")
@@ -59,12 +100,79 @@ async def login_submit(request: Request, db: Session = Depends(get_db)):
             context={
                 "error": "اسم المستخدم أو كلمة المرور غير صحيحة",
                 "password_changed": False,
+                "setup_required": False,
             },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
     token = create_access_token({"sub": user.username, "role": user.role})
     response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    return response
+
+
+@router.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request):
+    _require_local_first_run(request)
+    if not admin_setup_required():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": None, "password_changed": False, "setup_required": True},
+    )
+
+
+@router.post("/setup")
+def setup_admin(
+    request: Request,
+    password: str = Form(...),
+    confirmation: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    _require_local_first_run(request)
+    if not admin_setup_required():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    error = None
+    if len(password) < 12:
+        error = "يجب أن تتكون كلمة المرور من 12 خانة على الأقل."
+    elif len(password.encode("utf-8")) > 72:
+        error = "كلمة المرور طويلة جدًا؛ الحد الأقصى 72 بايتًا."
+    elif password != confirmation:
+        error = "تأكيد كلمة المرور غير مطابق."
+    if error:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": error, "password_changed": False, "setup_required": True},
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        user = services.create_user(
+            db,
+            UserCreate(
+                username="admin",
+                full_name="مدير النظام",
+                password=password,
+                role=Role.ADMIN.value,
+            ),
+        )
+    except IntegrityError:
+        db.rollback()
+        if services.get_user_by_username(db, "admin") is not None:
+            complete_admin_setup()
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    complete_admin_setup()
+    token = create_access_token({"sub": user.username, "role": user.role})
+    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
         value=token,

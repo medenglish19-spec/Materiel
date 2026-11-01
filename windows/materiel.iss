@@ -2,10 +2,10 @@
   #error SourceDir must point to the PyInstaller onedir output.
 #endif
 #ifndef OutputDir
-  #define OutputDir "D:\Materiel-release"
+  #error OutputDir must be supplied by windows\build_windows.ps1.
 #endif
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #error AppVersion must be supplied by windows\build_windows.ps1.
 #endif
 
 [Setup]
@@ -13,7 +13,8 @@ AppId={{B8C2C5F7-2B2D-4F62-95B4-78D6F44C0501}
 AppName=تسيير ومحاسبة العتاد
 AppVersion={#AppVersion}
 AppPublisher=تسيير ومحاسبة العتاد
-DefaultDirName=D:\Materiel
+AppMutex=Local\Materiel
+DefaultDirName={autopf64}\Materiel
 DefaultGroupName=تسيير ومحاسبة العتاد
 OutputDir={#OutputDir}
 OutputBaseFilename=Materiel-Setup-{#AppVersion}
@@ -49,6 +50,7 @@ Source: "{#SourceDir}\_internal\*"; DestDir: "{app}\_internal"; Flags: recursesu
 
 [Icons]
 Name: "{autoprograms}\تسيير ومحاسبة العتاد"; Filename: "{app}\Materiel.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\إيقاف تسيير ومحاسبة العتاد"; Filename: "{app}\Materiel.exe"; Parameters: "--shutdown"; WorkingDir: "{app}"
 Name: "{autodesktop}\تسيير ومحاسبة العتاد"; Filename: "{app}\Materiel.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Tasks]
@@ -67,10 +69,7 @@ begin
     Result := EnvDir;
     Exit;
   end;
-  if DirExists('D:\') then
-    Result := 'D:\MaterielData'
-  else
-    Result := ExpandConstant('{localappdata}\Materiel\data');
+  Result := ExpandConstant('{commonappdata}\Materiel\data');
 end;
 
 function GetDataDir(Param: String): String;

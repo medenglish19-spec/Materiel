@@ -269,7 +269,19 @@ body:has(.mdx){
 }
 
 /* --- login page contract -------------------------------------------------- */
-.login-body{display:flex;align-items:center;justify-content:center;height:100vh}
+.login-body{box-sizing:border-box;display:grid;place-items:center;min-height:100vh;padding:24px;background:#F3F4F6}
+.login-box{box-sizing:border-box;width:min(100%,440px);padding:30px;background:#fff;border:1px solid #E5E7EB;border-radius:12px;box-shadow:0 12px 32px rgba(17,24,39,.1);text-align:right}
+.login-box h1{margin:0 0 8px;color:#111827;font-size:23px}
+.login-box .subtitle{margin:0 0 18px;color:#4B5563;font-size:15px;font-weight:700}
+.login-box p{color:#4B5563;line-height:1.75}
+.login-box form{display:grid;gap:10px;margin-top:18px}
+.login-box label{color:#374151;font-size:13px;font-weight:700}
+.login-box input{box-sizing:border-box;width:100%;min-height:42px;padding:8px 11px;border:1px solid #D1D5DB;border-radius:6px;background:#fff;color:#111827;font:inherit}
+.login-box input:focus{outline:2px solid #6B7280;outline-offset:1px}
+.login-box button{min-height:44px;padding:9px 14px;border:0;border-radius:6px;background:#374151;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.login-box button:hover{background:#1F2937}
+.login-box .alert-error{padding:10px 12px;border:1px solid #FECACA;border-radius:6px;background:#FEF2F2;color:#991B1B}
+@media(max-width:480px){.login-body{padding:16px}.login-box{padding:23px 18px}.login-box h1{font-size:20px}}
 
 
 /* --- global visual standard: neutral management UI (visual only) --- */

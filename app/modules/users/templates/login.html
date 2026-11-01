@@ -8,6 +8,24 @@
 <body class="login-body">
     <div class="login-box">
         <h1>تسيير ومحاسبة العتاد</h1>
+        {% if setup_required %}
+        <p class="subtitle">إعداد أول استخدام — أنشئ كلمة مرور مدير النظام</p>
+
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+
+        <p>هذه الخطوة متاحة من هذا الجهاز فقط. اختر كلمة مرور خاصة لا تقل عن 12 خانة؛ لا توجد كلمة مرور افتراضية في النسخة المثبتة.</p>
+        <form method="post" action="/setup">
+            <label for="password">كلمة مرور مدير النظام</label>
+            <input type="password" id="password" name="password" minlength="12" maxlength="72" autocomplete="new-password" required autofocus>
+
+            <label for="confirmation">تأكيد كلمة المرور</label>
+            <input type="password" id="confirmation" name="confirmation" minlength="12" maxlength="72" autocomplete="new-password" required>
+
+            <button type="submit">إنشاء الحساب والمتابعة</button>
+        </form>
+        {% else %}
         <p class="subtitle">تسجيل الدخول</p>
 
         {% if password_changed %}
@@ -27,6 +45,7 @@
 
             <button type="submit">دخول</button>
         </form>
+        {% endif %}
     </div>
 </body>
 </html>

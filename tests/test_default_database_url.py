@@ -56,3 +56,31 @@ def test_startup_database_path_uses_the_decoded_resolved_sqlite_path(monkeypatch
     )
 
     assert main._database_file() == expected_path
+
+
+def test_frozen_settings_use_secure_defaults_and_a_persistent_signing_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(config.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(config, "packaged_data_directory", lambda: tmp_path / "data")
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("DEV_DISABLE_AUTH", raising=False)
+    monkeypatch.delenv("SECRET_KEY", raising=False)
+
+    key = config.packaged_secret_key()
+
+    assert config.default_environment() == "production"
+    assert config.dev_auth_disabled() is False
+    assert len(key) >= 32
+    assert key != config.DEFAULT_SECRET_KEY
+    assert config.packaged_secret_key() == key
+    assert (tmp_path / "data" / "secret.key").read_text(encoding="utf-8") == key
+
+
+def test_frozen_auth_can_only_be_disabled_by_an_explicit_override(monkeypatch):
+    monkeypatch.setattr(config.sys, "frozen", True, raising=False)
+    monkeypatch.delenv("DEV_DISABLE_AUTH", raising=False)
+
+    assert config.dev_auth_disabled() is False
+
+    monkeypatch.setenv("DEV_DISABLE_AUTH", "true")
+
+    assert config.dev_auth_disabled() is True

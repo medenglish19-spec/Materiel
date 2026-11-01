@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.core.branding import load_splash_content
 from web import main
 
 
@@ -25,7 +26,7 @@ def test_root_renders_splash_and_offers_dashboard_when_auth_is_disabled(monkeypa
     assert "شركة النقل البري" in response.text
     assert "تتمنى لكم طريق السلامة" in response.text
     assert "تحت اشراف حميد" in response.text
-    assert "الإصدار 1.0.0" in response.text
+    assert f"الإصدار {load_splash_content()['version']}" in response.text
     assert 'href="/dashboard"' in response.text
 
 
@@ -149,3 +150,6 @@ def test_login_page_can_load_static_css(monkeypatch):
         response = client.get("/static/css/style.css")
     assert response.status_code == 200
     assert ".login-body" in response.text
+    assert ".login-box{" in response.text
+    assert ".login-box input" in response.text
+    assert "@media(max-width:480px)" in response.text

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import sys
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
@@ -12,6 +13,16 @@ from app.database.session import engine
 from app.database import model_registry  # noqa: F401
 
 logger = logging.getLogger(__name__)
+_ADMIN_SETUP_REQUIRED = False
+
+
+def admin_setup_required() -> bool:
+    return _ADMIN_SETUP_REQUIRED
+
+
+def complete_admin_setup() -> None:
+    global _ADMIN_SETUP_REQUIRED
+    _ADMIN_SETUP_REQUIRED = False
 
 
 def _run_alembic_upgrade(config: Config) -> None:
@@ -241,6 +252,8 @@ def init_db() -> None:
 
 
 def create_default_admin() -> None:
+    global _ADMIN_SETUP_REQUIRED
+    _ADMIN_SETUP_REQUIRED = False
     from app.database.session import SessionLocal
     from app.modules.users.services import get_user_by_username, create_user
     from app.modules.users.schemas import UserCreate
@@ -248,6 +261,12 @@ def create_default_admin() -> None:
     try:
         existing = get_user_by_username(db, "admin")
         if not existing:
+            if getattr(sys, "frozen", False):
+                _ADMIN_SETUP_REQUIRED = True
+                logger.info("[init_db] No administrator exists; waiting for local first-run setup.")
+                return
             create_user(db, UserCreate(username="admin", full_name="مدير النظام", password="Admin@123", role="admin"))
             logger.info("[init_db] تم إنشاء مستخدم افتراضي: admin / Admin@123")
+        else:
+            _ADMIN_SETUP_REQUIRED = False
     finally: db.close()
