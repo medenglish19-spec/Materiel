@@ -59,7 +59,10 @@ jobs:
         shell: pwsh
         run: |
           $installer = Join-Path $env:RUNNER_TEMP "Materiel\release\Materiel-Setup.exe"
-          .\windows\smoke_test_installer.ps1 -InstallerPath $installer
+          $buildDirectory = Join-Path $env:RUNNER_TEMP "Materiel\build"
+          $buildRoot = Get-ChildItem $buildDirectory -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $python = Join-Path $buildRoot.FullName "venv\Scripts\python.exe"
+          .\windows\smoke_test_installer.ps1 -InstallerPath $installer -PythonExecutable $python
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

@@ -32,7 +32,9 @@ PowerShell -ExecutionPolicy Bypass -File .\windows\build_windows.ps1
 
 ```powershell
 $installer = Join-Path "$env:LOCALAPPDATA\Materiel\release" "Materiel-Setup.exe"
-& .\windows\smoke_test_installer.ps1 -InstallerPath $installer
+$buildRoot = Get-ChildItem "$env:LOCALAPPDATA\Materiel\build" -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$python = Join-Path $buildRoot.FullName "venv\Scripts\python.exe"
+& .\windows\smoke_test_installer.ps1 -InstallerPath $installer -PythonExecutable $python
 ```
 
 يتطلب الاختبار حسابًا يستطيع الموافقة على مطالبة UAC. يثبّت الملف في مسار QA مؤقت تحت `%LOCALAPPDATA%\Materiel\smoke-tests`، ويحجز المنفذ 8000 لمحاكاة تعارضه، ثم يفحص اختيار منفذ بديل وواجهة GUI بلا Console وصفحات HTTP وتسجيل الدخول والهوية والشعار وصلاحيات الملفات. كما يختبر ترقية مخطط قديم مع نسخة احتياطية وعلامة بيانات، ثم إلغاء التثبيت وإعادة التثبيت للتأكد من بقاء قاعدة البيانات والمرفقات. يترك مجلد QA وسجلاته للمراجعة؛ لا يحذفها تلقائيًا.

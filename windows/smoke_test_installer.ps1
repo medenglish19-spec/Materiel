@@ -1,10 +1,16 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [string]$InstallerPath
+    [string]$InstallerPath,
+    [Parameter(Mandatory = $true)]
+    [string]$PythonExecutable
 )
 
 $ErrorActionPreference = "Stop"
 $InstallerPath = (Resolve-Path -LiteralPath $InstallerPath).Path
+$PythonExecutable = (Resolve-Path -LiteralPath $PythonExecutable).Path
+if ([IO.Path]::GetFileName($PythonExecutable) -ine "python.exe") {
+    throw "PythonExecutable must point to the build environment's python.exe: $PythonExecutable"
+}
 $Root = Join-Path (Join-Path $env:LOCALAPPDATA "Materiel\smoke-tests") ([guid]::NewGuid().ToString("N"))
 $InstallDir = Join-Path $Root "program"
 $DataDir = Join-Path $Root "user-data"
@@ -258,7 +264,7 @@ with sqlite3.connect(path) as db:
     db.execute("CREATE TABLE IF NOT EXISTS installer_smoke_probe (marker TEXT NOT NULL)")
     db.execute("DELETE FROM installer_smoke_probe")
     db.execute("INSERT INTO installer_smoke_probe(marker) VALUES (?)", ("preserve-me-across-update",))
-'@ | python - $DatabasePath
+'@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "Could not write the isolated database preservation marker." }
 
     @'
@@ -269,7 +275,7 @@ with sqlite3.connect(path) as db:
     if "image_url" in columns:
         db.execute("ALTER TABLE equipment DROP COLUMN image_url")
     db.execute("UPDATE alembic_version SET version_num=?", ("20261030_driver_model",))
-'@ | python - $DatabasePath
+'@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "Could not prepare the isolated database as a previous release schema." }
 
     Invoke-Installer
@@ -287,7 +293,7 @@ with sqlite3.connect(sys.argv[1]) as db:
     stamp = db.execute("SELECT version_num FROM alembic_version").fetchone()
     assert stamp == ("20261101_equipment_image",), stamp
     assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-'@ | python - $DatabasePath
+'@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "User data, schema migration, or SQLite integrity did not survive the update." }
     if (-not (Test-Path -LiteralPath $AttachmentPath) -or (Get-Content -LiteralPath $AttachmentPath -Raw) -ne "preserve-this-attachment") {
         throw "An existing user attachment did not survive the update."
@@ -315,7 +321,7 @@ import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
     row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
     assert row == ("preserve-me-across-update",), row
-'@ | python - $DatabasePath
+'@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "User database marker was not preserved across uninstall and reinstall." }
     if (-not (Test-Path -LiteralPath $AttachmentPath)) { throw "Reinstall removed the preserved user attachment." }
     Stop-PackagedApp
