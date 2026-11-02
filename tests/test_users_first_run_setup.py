@@ -54,7 +54,7 @@ def first_run_app(monkeypatch):
         engine.dispose()
 
 
-def test_packaged_first_run_requires_a_private_admin_password(first_run_app):
+def test_packaged_first_run_accepts_an_arabic_admin_name_and_short_password(first_run_app):
     client, testing_session = first_run_app
 
     login = client.get("/login", follow_redirects=False)
@@ -64,22 +64,32 @@ def test_packaged_first_run_requires_a_private_admin_password(first_run_app):
     setup = client.get("/setup")
     assert setup.status_code == 200
     assert 'action="/setup"' in setup.text
-    assert "لا توجد كلمة مرور افتراضية" in setup.text
+    assert "لا توجد بيانات دخول افتراضية" in setup.text
+    assert 'name="username"' in setup.text
 
-    weak_password = client.post(
+    empty_password = client.post(
         "/setup",
         headers={"Origin": "http://127.0.0.1:8000"},
-        data={"password": "short", "confirmation": "short"},
+        data={"username": "", "password": "", "confirmation": ""},
     )
-    assert weak_password.status_code == 400
-    assert "12 خانة" in weak_password.text
+    assert empty_password.status_code == 400
+    assert "اسم المستخدم مطلوب" in empty_password.text
+    assert init_db_module.admin_setup_required()
+    empty_only_password = client.post(
+        "/setup",
+        headers={"Origin": "http://127.0.0.1:8000"},
+        data={"username": "admin", "password": "", "confirmation": ""},
+    )
+    assert empty_only_password.status_code == 400
+    assert "كلمة المرور مطلوبة" in empty_only_password.text
     assert init_db_module.admin_setup_required()
 
-    password = "A-private-admin-password-2026!"
+    username = "مدير-اختبار"
+    password = "س"
     created = client.post(
         "/setup",
         headers={"Origin": "http://127.0.0.1:8000"},
-        data={"password": password, "confirmation": password},
+        data={"username": username, "password": password, "confirmation": password},
         follow_redirects=False,
     )
     assert created.status_code == 303
@@ -88,15 +98,82 @@ def test_packaged_first_run_requires_a_private_admin_password(first_run_app):
     assert not init_db_module.admin_setup_required()
 
     with testing_session() as db:
-        admin = db.query(User).filter(User.username == "admin").one()
+        admin = db.query(User).filter(User.username == username).one()
         assert admin.role == "admin"
         assert admin.hashed_password != password
-        assert services.authenticate_user(db, "admin", password) is not None
-        assert services.authenticate_user(db, "admin", "Admin@123") is None
+        assert services.authenticate_user(db, username, password) is not None
+        assert services.authenticate_user(db, username, "") is None
 
     setup_afterward = client.get("/setup", follow_redirects=False)
     assert setup_afterward.status_code == 303
     assert setup_afterward.headers["location"] == "/login"
+    assert client.get("/dashboard").status_code == 200
+
+    client.get("/logout")
+    login = client.post(
+        "/login",
+        data={"username": username, "password": password},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+    assert login.headers["location"] == "/dashboard"
+
+
+def test_packaged_first_run_accepts_long_password_without_bcrypt_truncation(first_run_app):
+    client, testing_session = first_run_app
+    username = "مستخدم-طويل"
+    password = ("أ" * 36) + "🔐Symbols!"
+    different_password = ("أ" * 36) + "🔐Symbols?"
+    assert len(password.encode("utf-8")) > 72
+
+    response = client.post(
+        "/setup",
+        headers={"Origin": "http://127.0.0.1:8000"},
+        data={"username": username, "password": password, "confirmation": password},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    client.get("/logout")
+    login = client.post(
+        "/login",
+        data={"username": username, "password": password},
+        follow_redirects=False,
+    )
+    assert login.status_code == 302
+    assert login.headers["location"] == "/dashboard"
+    incorrect_login = client.post(
+        "/login",
+        data={"username": username, "password": different_password},
+    )
+    assert incorrect_login.status_code == 401
+    with testing_session() as db:
+        user = db.query(User).filter(User.username == username).one()
+        assert services.authenticate_user(db, username, password) is not None
+        assert services.authenticate_user(db, username, different_password) is None
+        assert user.role == "admin"
+
+
+def test_existing_administrator_with_custom_username_does_not_trigger_first_run(
+    first_run_app, monkeypatch
+):
+    _client, testing_session = first_run_app
+    with testing_session() as db:
+        services.create_user(
+            db,
+            UserCreate(
+                username="مدير-قائم",
+                full_name="مدير قائم",
+                role="admin",
+                password="temporary",
+            ),
+        )
+
+    monkeypatch.setattr(init_db_module.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(database_session, "SessionLocal", testing_session)
+    init_db_module.create_default_admin()
+
+    assert not init_db_module.admin_setup_required()
 
 
 def test_first_run_setup_is_not_available_from_a_remote_address(first_run_app):
@@ -118,6 +195,7 @@ def test_first_run_setup_rejects_cross_origin_password_claim(first_run_app):
         "/setup",
         headers={"Origin": "http://attacker.example"},
         data={
+            "username": "admin",
             "password": "A-private-admin-password-2026!",
             "confirmation": "A-private-admin-password-2026!",
         },
@@ -133,6 +211,7 @@ def test_first_run_setup_requires_origin_or_referer(first_run_app):
     response = client.post(
         "/setup",
         data={
+            "username": "admin",
             "password": "A-private-admin-password-2026!",
             "confirmation": "A-private-admin-password-2026!",
         },

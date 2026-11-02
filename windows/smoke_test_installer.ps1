@@ -2,7 +2,8 @@
     [Parameter(Mandatory = $true)]
     [string]$InstallerPath,
     [Parameter(Mandatory = $true)]
-    [string]$PythonExecutable
+    [string]$PythonExecutable,
+    [string]$Root = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +12,21 @@ $PythonExecutable = (Resolve-Path -LiteralPath $PythonExecutable).Path
 if ([IO.Path]::GetFileName($PythonExecutable) -ine "python.exe") {
     throw "PythonExecutable must point to the build environment's python.exe: $PythonExecutable"
 }
-$Root = Join-Path (Join-Path $env:LOCALAPPDATA "Materiel\smoke-tests") ([guid]::NewGuid().ToString("N"))
+$SmokeTestRoot = [IO.Path]::GetFullPath(
+    (Join-Path $env:LOCALAPPDATA "Materiel\smoke-tests")
+)
+if (-not $Root) {
+    $Root = Join-Path $SmokeTestRoot ([guid]::NewGuid().ToString("N"))
+}
+else {
+    $Root = [IO.Path]::GetFullPath($Root)
+    if (-not $Root.StartsWith(
+        $SmokeTestRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Root must be a dedicated directory inside $SmokeTestRoot."
+    }
+}
 $InstallDir = Join-Path $Root "program"
 $DataDir = Join-Path $Root "user-data"
 $DatabasePath = Join-Path $DataDir "fleet_assets.db"
@@ -45,7 +60,7 @@ function Invoke-Installer {
         "/DIR=`"$InstallDir`"",
         "/LOG=`"$LogPath`""
     )
-    $Setup = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden
+    $Setup = Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
     if ($Setup.ExitCode -ne 0) {
         throw "Installer exited with code $($Setup.ExitCode). Review $LogPath"
     }
@@ -155,7 +170,7 @@ function Invoke-Uninstaller {
     if (-not (Test-Path -LiteralPath $UninstallerPath)) { throw "Uninstaller was not installed." }
     $UninstallLog = Join-Path $Root "uninstaller.log"
     $Arguments = @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=`"$UninstallLog`"")
-    $Uninstaller = Start-Process -FilePath $UninstallerPath -ArgumentList $Arguments -Wait -PassThru -WindowStyle Hidden
+    $Uninstaller = Start-Process -FilePath $UninstallerPath -ArgumentList $Arguments -Verb RunAs -Wait -PassThru
     if ($Uninstaller.ExitCode -ne 0) { throw "Uninstaller exited with code $($Uninstaller.ExitCode). Review $UninstallLog" }
 }
 
@@ -170,7 +185,7 @@ function Assert-SplashContent {
     $Page = (Invoke-WebRequest -Uri "$BaseUrl/" -TimeoutSec 10 -UseBasicParsing).Content
     if (-not $Page.Contains($Branding.institution_name)) { throw "Packaged institution text was not rendered." }
     if (-not $Page.Contains($Branding.description)) { throw "Packaged splash description was not rendered." }
-    if (-not $Page.Contains($Branding.developer_name)) { throw "Packaged developer text was not rendered." }
+    if (-not $Page.Contains($Branding.developer_name.Trim())) { throw "Packaged developer text was not rendered." }
     if (-not $Page.Contains("الإصدار $($Branding.version)")) { throw "Packaged version text was not rendered." }
 
     $LogoPath = Join-Path $SplashDir $Branding.logo_file
@@ -291,7 +306,7 @@ with sqlite3.connect(sys.argv[1]) as db:
     row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
     assert row == ("preserve-me-across-update",), row
     stamp = db.execute("SELECT version_num FROM alembic_version").fetchone()
-    assert stamp == ("20261101_equipment_image",), stamp
+    assert stamp == ("20261102_user_credentials",), stamp
     assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 '@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "User data, schema migration, or SQLite integrity did not survive the update." }

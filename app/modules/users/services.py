@@ -26,6 +26,10 @@ def list_users(db: Session, skip: int = 0, limit: int = 100) -> list[User]:
 
 
 def create_user(db: Session, user_in: UserCreate) -> User:
+    if not user_in.username:
+        raise ValueError("اسم المستخدم مطلوب")
+    if not user_in.password:
+        raise ValueError("كلمة المرور مطلوبة")
     if get_user_by_username(db, user_in.username):
         raise ValueError("اسم المستخدم موجود مسبقًا")
 
@@ -48,7 +52,7 @@ def update_user(db: Session, user: User, user_in: UserUpdate) -> User:
         user.role = user_in.role
     if user_in.is_active is not None:
         user.is_active = user_in.is_active
-    if user_in.password:
+    if user_in.password is not None:
         user.hashed_password = hash_password(user_in.password)
 
     db.commit()
@@ -65,8 +69,8 @@ def change_own_password(
 ) -> User:
     if not verify_password(current_password, user.hashed_password):
         raise ValueError("كلمة المرور الحالية غير صحيحة")
-    if len(new_password) < 6:
-        raise ValueError("كلمة المرور الجديدة يجب ألا تقل عن 6 خانات")
+    if not new_password:
+        raise ValueError("كلمة المرور الجديدة مطلوبة")
     if new_password != confirmation:
         raise ValueError("تأكيد كلمة المرور غير مطابق")
     if verify_password(new_password, user.hashed_password):
@@ -80,6 +84,8 @@ def change_own_password(
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     """يرجع المستخدم لو صحّت بيانات الدخول، وإلا None."""
+    if not username or not password:
+        return None
     user = get_user_by_username(db, username)
     if not user:
         return None

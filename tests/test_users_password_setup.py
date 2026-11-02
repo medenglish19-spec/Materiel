@@ -101,7 +101,7 @@ def test_admin_can_set_and_use_a_private_password_after_install(users_app):
     [
         ("wrong", "PrivateAdmin@2026", "PrivateAdmin@2026", "الحالية غير صحيحة"),
         ("Admin@123", "PrivateAdmin@2026", "DifferentPassword@2026", "غير مطابق"),
-        ("Admin@123", "short", "short", "6 خانات"),
+        ("Admin@123", "", "", "مطلوبة"),
     ],
 )
 def test_admin_password_change_rejects_invalid_values(

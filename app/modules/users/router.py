@@ -138,21 +138,25 @@ def setup_page(request: Request):
 
 
 @router.post("/setup")
-def setup_admin(
-    request: Request,
-    password: str = Form(...),
-    confirmation: str = Form(...),
-    db: Session = Depends(get_db),
-):
+async def setup_admin(request: Request, db: Session = Depends(get_db)):
     _require_local_first_run(request)
     if not admin_setup_required():
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
+    form = await request.form()
+    submitted_username = form.get("username", "admin")
+    username = submitted_username if isinstance(submitted_username, str) else ""
+    submitted_password = form.get("password", "")
+    password = submitted_password if isinstance(submitted_password, str) else ""
+    submitted_confirmation = form.get("confirmation", "")
+    confirmation = (
+        submitted_confirmation if isinstance(submitted_confirmation, str) else ""
+    )
     error = None
-    if len(password) < 12:
-        error = "يجب أن تتكون كلمة المرور من 12 خانة على الأقل."
-    elif len(password.encode("utf-8")) > 72:
-        error = "كلمة المرور طويلة جدًا؛ الحد الأقصى 72 بايتًا."
+    if not admin_setup_requires_password_change() and username == "":
+        error = "اسم المستخدم مطلوب."
+    elif not password:
+        error = "كلمة المرور مطلوبة."
     elif password != confirmation:
         error = "تأكيد كلمة المرور غير مطابق."
     if error:
@@ -180,7 +184,7 @@ def setup_admin(
             user = services.create_user(
                 db,
                 UserCreate(
-                    username="admin",
+                    username=username,
                     full_name="مدير النظام",
                     password=password,
                     role=Role.ADMIN.value,
@@ -240,9 +244,9 @@ def users_page(
 
 @router.post("/users/password")
 def change_own_password(
-    current_password: str = Form(...),
-    new_password: str = Form(...),
-    confirmation: str = Form(...),
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirmation: str = Form(""),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(Role.ADMIN)),
 ):

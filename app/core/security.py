@@ -16,14 +16,23 @@ from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def hash_password(plain_password: str) -> str:
+    if not plain_password:
+        raise ValueError("كلمة المرور مطلوبة")
     return pwd_context.hash(plain_password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not plain_password:
+        return False
+    if (
+        pwd_context.identify(hashed_password) == "bcrypt"
+        and len(plain_password.encode("utf-8")) > 72
+    ):
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 

@@ -264,10 +264,18 @@ def create_default_admin() -> None:
     from app.database.session import SessionLocal
     from app.modules.users.services import get_user_by_username, create_user
     from app.modules.users.schemas import UserCreate
+    from app.modules.users.models import User
     db = SessionLocal()
     try:
         existing = get_user_by_username(db, "admin")
         if not existing:
+            existing_administrator = db.query(User).filter(User.role == "admin").first()
+            if existing_administrator is not None:
+                logger.info(
+                    "[init_db] Administrator account already exists as username=%r.",
+                    existing_administrator.username,
+                )
+                return
             if getattr(sys, "frozen", False):
                 _ADMIN_SETUP_REQUIRED = True
                 logger.info("[init_db] No administrator exists; waiting for local first-run setup.")
