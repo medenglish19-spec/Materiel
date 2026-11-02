@@ -50,8 +50,13 @@ def test_maintenance_plans_new_plan_control_contract():
     path = ROOT / "app/modules/maintenance/templates/maintenance_plans.html"
     text = path.read_text(encoding="utf-8")
 
-    assert 'id="btnNewPlan"' in text
+    assert 'id="btnAdd"' in text
+    assert 'aria-controls="addMenu"' in text
+    assert 'id="addMenu"' in text
+    assert 'id="menuNewPlan"' in text
     assert 'data-action="new-plan"' in text
+    assert 'id="menuNewStandalone"' in text
+    assert 'data-action="new-standalone"' in text
     assert "function newPlan()" in text
 
     content_start = text.index("{% block content %}")

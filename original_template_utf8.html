@@ -1,0 +1,359 @@
+﻿{% extends "base.html" %}
+{% block title %}┘à┘âÏ¬Ï¿Ï® Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block content %}
+<div class="maintenance-page" dir="rtl">
+  <div class="page-top">
+    <div class="page-heading">
+      <h2>┘à┘âÏ¬Ï¿Ï® Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</h2>
+      <div class="breadcrumb"><a href="/">Ïº┘äÏ▒Ïª┘èÏ│┘èÏ®</a> ÔÇ║ <a href="/maintenance">Ïº┘äÏÁ┘èÏº┘åÏ®</a> ÔÇ║ <span class="current">┘à┘âÏ¬Ï¿Ï® Ïº┘äÏ┤Ï▒┘êÏÀ</span></div>
+    </div>
+    <div class="hero-actions">
+      <a class="m-btn" href="/maintenance/periodic">ÔåÉ &nbsp;Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</a>
+      <button class="m-btn primary" type="button" id="newOperationBtn">´╝ï &nbsp;ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</button>
+    </div>
+  </div>
+
+  <nav class="module-tabs" aria-label="┘êÏ¡Ï»Ï® Ïº┘äÏÁ┘èÏº┘åÏ®">
+    <a href="/maintenance/periodic">1. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘äÏ»┘êÏ▒┘èÏ®</a>
+    <a class="active" href="/maintenance/rules">2. Ï┤Ï▒┘êÏÀ Ïº┘äÏÁ┘èÏº┘åÏ®</a>
+    <a href="/maintenance/plans">3. Ï«ÏÀÏÀ Ïº┘äÏÁ┘èÏº┘åÏ®</a><a href="/maintenance/records">4. Ï│Ï¼┘ä Ïº┘äÏÁ┘èÏº┘åÏ®</a>
+    <a href="/maintenance/due">5. Ïº┘äÏÁ┘èÏº┘åÏ® Ïº┘ä┘àÏ│Ï¬Ï¡┘éÏ®</a>
+  </nav>
+
+  <div id="libraryAlert" class="alert" style="display:none;margin-bottom:16px"></div>
+  <div id="planModeBar" class="plan-mode-bar">
+    <div><strong id="planModeTitle">ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏºÏ¬ ÏÑ┘ä┘ë Ïº┘äÏ«ÏÀÏ®</strong><div class="muted">ÏºÏÂÏ║ÏÀ Ï╣┘ä┘ë Ïº┘äÏ╣┘à┘ä┘èÏ® ┘äÏ¬Ï¡Ï»┘èÏ»┘çÏº. Ïº┘äÏ╣┘à┘ä┘èÏºÏ¬ Ïº┘ä┘àÏ¡Ï»Ï»Ï® Ï¬Ï©┘çÏ▒ Ï¿┘ä┘ê┘å Ï«┘ü┘è┘ü.</div></div>
+    <div class="plan-mode-actions"><span class="badge info" id="planSelectedCount">0 ┘àÏ¡Ï»Ï»Ï®</span><button class="m-btn primary" type="button" id="savePlanOperations">Ô£ô Ï¡┘üÏ© Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏ«ÏÀÏ®</button><button class="m-btn" type="button" id="cancelPlanMode">ÔåÉ Ïº┘äÏ╣┘êÏ»Ï® ÏÑ┘ä┘ë Ïº┘äÏ«ÏÀÏÀ</button></div>
+  </div>
+
+  <div class="toolbar-card">
+    <div class="toolbar">
+      <div class="search-wrap"><span class="search-icon">Ôîò</span><input id="operationSearch" class="m-input" placeholder="Ï¿Ï¡Ï½ ┘ü┘è Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®..."></div>
+      <select id="groupFilter" class="m-select"><option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option></select>
+      <button class="m-btn" type="button" id="newGroupBtn">´╝ï &nbsp;┘àÏ¼┘à┘êÏ╣Ï®</button>
+      <button class="m-btn" type="button" id="editGroupBtn" disabled>Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+      <button class="m-btn" type="button" id="deleteGroupBtn" disabled>­ƒùæ Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+      <select id="statusFilter" class="m-select"><option value="">┘â┘ä Ïº┘äÏ¡Ïº┘äÏºÏ¬</option><option value="active">┘à┘üÏ╣┘äÏ®</option><option value="inactive">┘àÏ¬┘ê┘é┘üÏ®</option></select>
+      <button class="m-btn" type="button" id="refreshLibrary">Ôå╗ &nbsp;Ï¬Ï¡Ï»┘èÏ½</button>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3>Ïº┘äÏ╣┘à┘ä┘èÏºÏ¬ Ïº┘ä┘ü┘å┘èÏ®</h3>
+        <p>┘çÏ░┘ç Ïº┘ä┘à┘âÏ¬Ï¿Ï® ┘ç┘è Ïº┘ä┘àÏ▒Ï¼Ï╣ Ïº┘ä┘ü┘å┘è ┘ä┘äÏ╣┘à┘ä┘èÏºÏ¬ ┘êÏ┤Ï▒┘êÏÀ ÏºÏ│Ï¬Ï¡┘éÏº┘é┘çÏº. Ïº┘äÏ╣┘à┘ä┘èÏ® ┘äÏº Ï¬Ï¡Ï¬ÏºÏ¼ ÏÑ┘ä┘ë Ïº┘äÏº┘åÏ¬┘àÏºÏí ┘äÏ«ÏÀÏ®Ïø ┘ê┘è┘à┘â┘å Ï▒Ï¿ÏÀ┘çÏº ┘äÏºÏ¡┘é┘ïÏº Ï¿Ï«ÏÀÏ® ┘êÏºÏ¡Ï»Ï® Ïú┘ê Ï╣Ï»Ï® Ï«ÏÀÏÀ.</p>
+      </div>
+      <span class="badge info" id="operationCount">0 Ï╣┘à┘ä┘èÏ®</span>
+    </div>
+    <div class="table-wrap">
+      <table class="m-table" id="operationsTable">
+        <thead><tr>
+  <th>#</th>
+  <th class="filter-head" data-filter-col="name">Ïº┘äÏ╣┘à┘ä┘èÏ® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+  <th class="filter-head" data-filter-col="group">Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+  <th class="filter-head" data-filter-col="condition">Ïº┘äÏ┤Ï▒ÏÀ <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+  <th class="filter-head" data-filter-col="warning">Ïº┘äÏÑ┘åÏ░ÏºÏ▒ <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+  <th class="filter-head" data-filter-col="status">Ïº┘äÏ¡Ïº┘äÏ® <button class="col-filter" type="button" title="Ï¬ÏÁ┘ü┘èÏ®">Ôû╝</button></th>
+  <th>Ïº┘äÏÑÏ¼Ï▒ÏºÏíÏºÏ¬</th>
+</tr></thead>
+        <tbody id="operationsBody"><tr><td colspan="7" class="muted">Ï¼ÏºÏ▒┘ì Ï¬Ï¡┘à┘è┘ä Ïº┘ä┘à┘âÏ¬Ï¿Ï®...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="operationEditor" style="display:none;margin-top:16px">
+    <div class="panel-head"><div><h3 id="editorTitle">ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</h3><p>Ï¡Ï»Ï» Ï┤Ï▒ÏÀ Ïº┘äÏ╣┘à┘ä┘èÏ® ┘å┘üÏ│┘ç. ┘çÏ░Ïº Ïº┘äÏ┤Ï▒ÏÀ ┘èÏ¿┘é┘ë ┘àÏ▒Ï¼Ï╣┘ïÏº ┘ü┘å┘è┘ïÏº Ï¡Ï¬┘ë Ï╣┘åÏ» ÏÑÏ»Ï▒ÏºÏ¼ Ïº┘äÏ╣┘à┘ä┘èÏ® ┘ü┘è Ï«ÏÀÏ®.</p></div></div>
+    <form id="operationForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+      <input type="hidden" id="operationId">
+      <input class="m-input" id="operationName" required placeholder="ÏºÏ│┘à Ïº┘äÏ╣┘à┘ä┘èÏ®">
+      <select class="m-select" id="operationGroup"><option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option></select>
+      <input class="m-input meter-km-field" id="intervalKm" type="number" min="0.01" step="any" placeholder="┘â┘ä ┘â┘à">
+      <input class="m-input meter-hours-field" id="intervalHours" type="number" min="0.01" step="any" placeholder="┘â┘ä Ï│ÏºÏ╣Ï® Ï¬Ï┤Ï║┘è┘ä">
+      <input class="m-input" id="intervalDays" type="number" min="1" step="1" placeholder="┘â┘ä ┘â┘à ┘è┘ê┘à">
+      <input class="m-input meter-km-field" id="warningKm" type="number" min="0" step="0.1" placeholder="ÏÑ┘åÏ░ÏºÏ▒ ┘éÏ¿┘ä ┘â┘à">
+      <input class="m-input" id="warningDays" type="number" min="0" step="1" placeholder="ÏÑ┘åÏ░ÏºÏ▒ ┘éÏ¿┘ä Ïú┘èÏº┘à">
+      <input class="m-input" id="operationDescription" placeholder="┘êÏÁ┘ü Ïº┘äÏ╣┘à┘ä┘èÏ® / ┘à┘äÏºÏ¡Ï©ÏºÏ¬ ┘ü┘å┘èÏ®">
+      <label style="display:flex;align-items:center;gap:8px;padding:8px 4px"><input type="checkbox" id="operationActive" checked> ┘à┘üÏ╣┘äÏ®</label>
+      <button class="m-btn primary" type="submit">Ï¡┘üÏ©</button>
+      <button class="m-btn" type="button" id="cancelEditor">ÏÑ┘äÏ║ÏºÏí</button>
+    </form>
+  </section>
+</div>
+
+<style>
+  #operationsTable .filter-head{position:relative;white-space:nowrap}
+  #operationsTable tr[data-plan-select]{cursor:pointer}
+  #operationsTable tr.plan-selected{background:rgba(45, 115, 160, .07)}
+  #operationsTable tr.plan-selected td:first-child{box-shadow:inset -3px 0 0 rgba(45, 115, 160, .35)}
+  .plan-mode-bar{display:none;margin-bottom:16px;padding:12px 14px;border:1px solid #dbe5ee;border-radius:8px;background:#f7fafc;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .plan-mode-bar.active{display:flex}
+  .plan-mode-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .plan-selected-mark{font-size:12px;opacity:.72;margin-right:6px}
+  #operationsTable .col-filter{border:0;background:transparent;cursor:pointer;padding:2px 4px;font-size:11px;color:inherit}
+  #operationsTable .col-filter.active{font-weight:700;text-decoration:underline}
+  .excel-filter-menu{position:fixed;z-index:9999;min-width:230px;max-width:300px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:10px;color:#222}
+  .excel-filter-menu .filter-tools{display:flex;gap:6px;margin-bottom:8px}
+  .excel-filter-menu input[type="search"]{width:100%;box-sizing:border-box;padding:7px;border:1px solid #d8dee8;border-radius:6px}
+  .excel-filter-menu .filter-actions{display:flex;gap:6px;margin-bottom:8px}
+  .excel-filter-menu .filter-actions button{border:1px solid #d8dee8;background:#f7f8fa;border-radius:6px;padding:5px 8px;cursor:pointer}
+  .excel-filter-values{max-height:260px;overflow:auto;border-top:1px solid #eee;padding-top:6px}
+  .excel-filter-values label{display:flex;align-items:center;gap:7px;padding:5px 3px;cursor:pointer}
+  .excel-filter-values label:hover{background:#f5f6f8}
+</style>
+<script>
+(function(){
+  const api='/api/maintenance';
+  const state={groups:[],operations:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set()};
+  const columnFilters={name:new Set(),group:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
+  let openFilterMenu=null;
+  const $=id=>document.getElementById(id);
+  const alertBox=$('libraryAlert');
+
+  function showAlert(message, kind='success'){
+    alertBox.textContent=message;
+    alertBox.className='alert '+kind;
+    alertBox.style.display='';
+    setTimeout(()=>{alertBox.style.display='none'},3500);
+  }
+  async function request(url, options={}){
+    const response=await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
+    let data=null; try{data=await response.json()}catch(_){}
+    if(!response.ok) throw new Error(data?.detail||'Ï¬Ï╣Ï░Ï▒ Ï¬┘å┘ü┘èÏ░ Ïº┘äÏ╣┘à┘ä┘èÏ®.');
+    return data;
+  }
+  function groupName(id){return state.groups.find(g=>g.id===id)?.name||'Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®'}
+  function conditionText(op){
+    const a=[];
+    if(op.interval_km!=null)a.push(Number(op.interval_km).toLocaleString('ar-DZ')+' ┘â┘à');
+    if(op.interval_hours!=null)a.push(Number(op.interval_hours).toLocaleString('ar-DZ')+' Ï│ÏºÏ╣Ï®');
+    if(op.interval_days!=null)a.push(op.interval_days+' ┘è┘ê┘à');
+    return a.length?a.join(' Ïú┘ê '):'ÔÇö';
+  }
+  function warningText(op){
+    const a=[];
+    if(op.warning_km!=null)a.push(Number(op.warning_km).toLocaleString('ar-DZ')+' ┘â┘à');
+    if(op.warning_days!=null)a.push(op.warning_days+' ┘è┘ê┘à');
+    return a.length?a.join(' / '):'ÔÇö';
+  }
+  function renderGroups(){
+    const filter=$('groupFilter'), editor=$('operationGroup');
+    const currentFilter=filter.value, currentEditor=editor.value;
+    filter.innerHTML='<option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option>';
+    editor.innerHTML='<option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option>';
+    state.groups.forEach(g=>{
+      filter.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+      editor.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+    });
+    filter.value=currentFilter; editor.value=currentEditor;
+  }
+  function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+  function filterValue(op,col){
+    if(col==='name') return op.name||'';
+    if(col==='group') return groupName(op.group_id);
+    if(col==='condition') return conditionText(op);
+    if(col==='warning') return warningText(op);
+    if(col==='status') return op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®';
+    return '';
+  }
+  function passesColumnFilters(op){
+    return Object.entries(columnFilters).every(([col,set])=>!set.size||set.has(filterValue(op,col)));
+  }
+  function updateFilterButtons(){
+    document.querySelectorAll('.filter-head').forEach(th=>{
+      const col=th.dataset.filterCol, btn=th.querySelector('.col-filter');
+      btn.classList.toggle('active',!!columnFilters[col]?.size);
+      btn.textContent=columnFilters[col]?.size?'Ôû╝ÔÇó':'Ôû╝';
+    });
+  }
+  function closeFilterMenu(){
+    if(openFilterMenu){openFilterMenu.remove();openFilterMenu=null}
+  }
+  function openColumnFilter(col,button){
+    closeFilterMenu();
+    const values=[...new Set(state.operations.map(op=>filterValue(op,col)))].sort((a,b)=>a.localeCompare(b,'ar'));
+    const selected=columnFilters[col];
+    const menu=document.createElement('div');
+    menu.className='excel-filter-menu';
+    menu.innerHTML=`
+      <div class="filter-tools"><input type="search" placeholder="Ï¿Ï¡Ï½ ┘ü┘è Ïº┘ä┘é┘è┘à..." aria-label="Ï¿Ï¡Ï½"></div>
+      <div class="filter-actions">
+        <button type="button" data-select-all>Ï¬Ï¡Ï»┘èÏ» Ïº┘ä┘â┘ä</button>
+        <button type="button" data-clear>┘àÏ│Ï¡</button>
+        <button type="button" data-apply>Ï¬ÏÀÏ¿┘è┘é</button>
+      </div>
+      <div class="excel-filter-values"></div>`;
+    const valuesBox=menu.querySelector('.excel-filter-values');
+    function drawValues(term=''){
+      const t=term.toLowerCase().trim();
+      valuesBox.innerHTML='';
+      values.filter(v=>!t||v.toLowerCase().includes(t)).forEach(v=>{
+        const label=document.createElement('label');
+        const cb=document.createElement('input'); cb.type='checkbox'; cb.value=v; cb.checked=selected.size?selected.has(v):true;
+        label.append(cb,document.createTextNode(v||'ÔÇö')); valuesBox.appendChild(label);
+      });
+    }
+    drawValues();
+    document.body.appendChild(menu);
+    const rect=button.getBoundingClientRect();
+    menu.style.top=Math.min(rect.bottom+4,window.innerHeight-menu.offsetHeight-8)+'px';
+    menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-menu.offsetWidth-8))+'px';
+    menu.querySelector('input[type=search]').oninput=e=>drawValues(e.target.value);
+    menu.querySelector('[data-select-all]').onclick=()=>{valuesBox.querySelectorAll('input').forEach(cb=>cb.checked=true)};
+    menu.querySelector('[data-clear]').onclick=()=>{valuesBox.querySelectorAll('input').forEach(cb=>cb.checked=false)};
+    menu.querySelector('[data-apply]').onclick=()=>{
+      const checked=[...valuesBox.querySelectorAll('input:checked')].map(cb=>cb.value);
+      columnFilters[col]=checked.length===values.length?new Set():new Set(checked);
+      closeFilterMenu(); updateFilterButtons(); render();
+    };
+    openFilterMenu=menu;
+  }
+  function isPlanMode(){return !!state.planId}
+  async function togglePlanSelection(id){
+    if(!isPlanMode())return;
+    const wasSelected=state.planOps.has(id);
+    await EditManager.execute({
+      label:wasSelected?'ÏÑÏ▓Ïº┘äÏ® Ïº┘äÏ╣┘à┘ä┘èÏ® ┘à┘å Ïº┘äÏ«ÏÀÏ®':'ÏÑÏÂÏº┘üÏ® Ïº┘äÏ╣┘à┘ä┘èÏ® ÏÑ┘ä┘ë Ïº┘äÏ«ÏÀÏ®',
+      do(){wasSelected?state.planOps.delete(id):state.planOps.add(id);render()},
+      undo(){wasSelected?state.planOps.add(id):state.planOps.delete(id);render()},
+      redo(){wasSelected?state.planOps.delete(id):state.planOps.add(id);render()}
+    });
+  }
+  function render(){
+    const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
+    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
+    $('operationCount').textContent=rows.length+' Ï╣┘à┘ä┘èÏ®';
+    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
+      const selected=isPlanMode() && state.planOps.has(op.id);
+      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}">
+      <td>${i+1}</td><td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">Ô£ô ÏÂ┘à┘å Ïº┘äÏ«ÏÀÏ®</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®'}</span></td>
+      <td style="white-space:nowrap"><button class="m-btn" type="button" data-edit="${op.id}">Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä</button><button class="m-btn" type="button" data-toggle="${op.id}">${op.is_active?'ÔÅ© Ï¬Ï╣ÏÀ┘è┘ä':'ÔûÂ Ï¬┘üÏ╣┘è┘ä'}</button><button class="m-btn" type="button" data-delete="${op.id}">­ƒùæ Ï¡Ï░┘ü</button></td>
+    </tr>`;
+    }).join(''):'<tr><td colspan="7" class="muted">┘äÏº Ï¬┘êÏ¼Ï» Ï╣┘à┘ä┘èÏºÏ¬ ┘àÏÀÏºÏ¿┘éÏ®.</td></tr>';
+    document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editOperation(Number(b.dataset.edit)));
+    document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>toggleOperation(Number(b.dataset.toggle)));
+    document.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>deleteOperation(Number(b.dataset.delete)));
+    if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' ┘àÏ¡Ï»Ï»Ï®';
+    updateFilterButtons();
+  }
+  $('operationsBody').addEventListener('click',e=>{
+    if(!isPlanMode())return;
+    if(e.target.closest('button,a,input,select'))return;
+    const row=e.target.closest('tr[data-plan-select]');
+    if(!row)return;
+    const id=Number(row.dataset.planSelect);
+    if(!Number.isInteger(id)||id<=0)return;
+    togglePlanSelection(id);
+  });
+  document.querySelectorAll('.filter-head .col-filter').forEach(btn=>{
+    btn.onclick=e=>{e.stopPropagation();openColumnFilter(btn.closest('.filter-head').dataset.filterCol,btn)};
+  });
+  document.addEventListener('click',e=>{
+    if(openFilterMenu && !openFilterMenu.contains(e.target) && !e.target.closest('.col-filter')) closeFilterMenu();
+  });
+  function syncMeterFields(){
+    document.querySelectorAll('.meter-km-field').forEach(el=>{el.style.display='';});
+    document.querySelectorAll('.meter-hours-field').forEach(el=>{el.style.display='';});
+  }
+  function resetEditor(){
+    $('operationId').value=''; $('operationName').value=''; $('operationGroup').value='';
+    $('intervalKm').value=''; $('intervalHours').value=''; $('intervalDays').value='';
+    $('warningKm').value=''; $('warningDays').value=''; $('operationDescription').value=''; $('operationActive').checked=true;
+    $('editorTitle').textContent='ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®'; $('operationEditor').style.display='';
+    syncMeterFields();
+  }
+  function editOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    $('operationId').value=op.id; $('operationName').value=op.name; $('operationGroup').value=op.group_id??'';
+    $('intervalKm').value=op.interval_km??''; $('intervalHours').value=op.interval_hours??''; $('intervalDays').value=op.interval_days??'';
+    $('warningKm').value=op.warning_km??''; $('warningDays').value=op.warning_days??'';
+    $('operationDescription').value=op.description??''; $('operationActive').checked=!!op.is_active;
+    $('editorTitle').textContent='Ï¬Ï╣Ï»┘è┘ä Ï╣┘à┘ä┘èÏ® Ïº┘äÏÁ┘èÏº┘åÏ®'; $('operationEditor').style.display='';
+    window.scrollTo({top:$('operationEditor').offsetTop-20,behavior:'smooth'});
+  }
+  async function toggleOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    try{
+      await request(`${api}/operations/${id}`,{method:'PUT',body:JSON.stringify({...op,is_active:!op.is_active})});
+      showAlert(op.is_active?'Ï¬┘à Ï¬Ï╣ÏÀ┘è┘ä Ïº┘äÏ╣┘à┘ä┘èÏ®.':'Ï¬┘à Ï¬┘üÏ╣┘è┘ä Ïº┘äÏ╣┘à┘ä┘èÏ®.');
+      await load();
+    }catch(e){showAlert(e.message,'danger')}
+  }
+  async function deleteOperation(id){
+    const op=state.operations.find(x=>x.id===id); if(!op)return;
+    if(!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘äÏ╣┘à┘ä┘èÏ® ┘å┘çÏºÏª┘è┘ïÏº. ÏÑÏ░Ïº ┘âÏº┘åÏ¬ ┘àÏ▒Ï¬Ï¿ÏÀÏ® Ï¿Ï«ÏÀÏ® Ïú┘ê Ï│Ï¼┘ä ÏÁ┘èÏº┘åÏ® Ï│┘è┘ÅÏ▒┘üÏÂ Ïº┘äÏ¡Ï░┘ü. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ'))return;
+    try{
+      await request(`${api}/operations/${id}`,{method:'DELETE'});
+      showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘äÏ╣┘à┘ä┘èÏ®.');
+      await load();
+    }catch(e){showAlert(e.message,'danger')}
+  }
+  async function loadPlanContext(){
+    const params=new URLSearchParams(window.location.search); state.planId=Number(params.get("plan_id"))||null;
+    if(!state.planId){$("planModeBar").classList.remove("active");return}
+    const plans=await request(api+"/plans"); const plan=plans.find(x=>Number(x.id)===state.planId); if(!plan)throw new Error("Ï«ÏÀÏ® Ïº┘äÏÁ┘èÏº┘åÏ® Ï║┘èÏ▒ ┘à┘êÏ¼┘êÏ»Ï®."); state.planName=plan.name||("Ï«ÏÀÏ® #"+state.planId);
+    const links=await request(api+"/plans/"+state.planId+"/operations"); state.planOps=new Set(links.map(x=>Number(x.operation_id))); state.initialPlanOps=new Set(state.planOps);
+    $("planModeTitle").textContent="ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏºÏ¬ ÏÑ┘ä┘ë Ïº┘äÏ«ÏÀÏ®: "+state.planName; $("planModeBar").classList.add("active"); $("planSelectedCount").textContent=state.planOps.size+" ┘àÏ¡Ï»Ï»Ï®";
+  }
+  async function savePlanOperations(navigate=true){
+    if(!state.planId)return false;
+    try{
+      const added=[...state.planOps].filter(id=>!state.initialPlanOps.has(id)); const removed=[...state.initialPlanOps].filter(id=>!state.planOps.has(id)); let order=state.initialPlanOps.size;
+      for(const operationId of added){await request(api+"/plans/"+state.planId+"/operations",{method:"POST",body:JSON.stringify({plan_id:state.planId,operation_id:operationId,sort_order:order++})})}
+      for(const operationId of removed){await request(api+"/plans/"+state.planId+"/operations/"+operationId,{method:"DELETE"})}
+      state.initialPlanOps=new Set(state.planOps); if(window.EditManager)EditManager.markSaved('maintenance-plan-selection'); showAlert("Ï¬┘à Ï¬Ï¡Ï»┘èÏ½ Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏ«ÏÀÏ®.");
+      if(navigate)setTimeout(()=>window.location.href="/maintenance/plans",450);
+      return true;
+    }catch(e){showAlert(e.message,"danger");return false}
+  }
+  async function load(){
+    try{
+      const [groups,operations]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`)]);
+      state.groups=groups; state.operations=operations; await loadPlanContext();
+      if(isPlanMode()){
+        EditManager.register('maintenance-plan-selection',{
+          label:'Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏ«ÏÀÏ®',
+          capture:()=>({planId:state.planId,operationIds:[...state.planOps].sort((a,b)=>a-b)}),
+          restore:s=>{if(!s||Number(s.planId)!==Number(state.planId))return;state.planOps=new Set(s.operationIds||[]);render()},
+          save:()=>savePlanOperations(false)
+        });
+      }
+      renderGroups(); render(); syncGroupButtons();
+    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="7" class="muted">${escapeHtml(e.message)}</td></tr>`}
+  }
+  $('operationForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const id=$('operationId').value;
+    const payload={
+      name:$('operationName').value.trim(),group_id:$('operationGroup').value?Number($('operationGroup').value):null,
+      interval_km:$('intervalKm').value?Number($('intervalKm').value):null,
+      interval_hours:$('intervalHours').value?Number($('intervalHours').value):null,
+      interval_days:$('intervalDays').value?Number($('intervalDays').value):null,
+      warning_km:$('warningKm').value?Number($('warningKm').value):null,
+      warning_days:$('warningDays').value?Number($('warningDays').value):null,
+      description:$('operationDescription').value.trim()||null,is_active:$('operationActive').checked
+    };
+    try{
+      await request(id?`${api}/operations/${id}`:`${api}/operations`,{method:id?'PUT':'POST',body:JSON.stringify(payload)});
+      showAlert(id?'Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘äÏ╣┘à┘ä┘èÏ®.':'Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘äÏ╣┘à┘ä┘èÏ®.');
+      $('operationEditor').style.display='none'; await load();
+    }catch(err){showAlert(err.message,'danger')}
+  });
+  $('newGroupBtn').onclick=async()=>{const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® Ïº┘äÏ¼Ï»┘èÏ»Ï®:')||'').trim();if(!name)return;try{await request(`${api}/operation-groups`,{method:'POST',body:JSON.stringify({name,sort_order:state.groups.length})});showAlert('Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+  function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
+  function syncGroupButtons(){const has=!!selectedGroup();$('editGroupBtn').disabled=!has;$('deleteGroupBtn').disabled=!has}
+  $('groupFilter').addEventListener('change',syncGroupButtons);
+  $('editGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®:',g.name)||'').trim();if(!name||name===g.name)return;try{await request(`${api}/operation-groups/${g.id}`,{method:'PUT',body:JSON.stringify({name,sort_order:g.sort_order})});showAlert('Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+  $('deleteGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;if(!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® ┘ü┘éÏÀÏî ┘êÏ│Ï¬Ï¿┘é┘ë Ï╣┘à┘ä┘èÏºÏ¬┘çÏº Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ'))return;try{await request(`${api}/operation-groups/${g.id}`,{method:'DELETE'});showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+  $('newOperationBtn').onclick=resetEditor;
+  $('savePlanOperations').onclick=savePlanOperations;
+  $('cancelPlanMode').onclick=()=>{window.location.href='/maintenance/plans'};
+  $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
+  $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
+  load();
+})();
+</script>
+{% endblock %}

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block title %}سجل الصيانة{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css?v=record-actions-20261013">{% endblock %}
 {% block content %}
 <div class="maintenance-page" dir="rtl">
   <div class="page-top">
     <div class="page-heading"><h2>سجل الصيانة</h2><div class="breadcrumb"><a href="/">الرئيسية</a> › <a href="/maintenance">الصيانة</a> › <span class="current">سجل الصيانة</span></div></div>
-    <div class="hero-actions"><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a><a class="m-btn primary" href="#newRecord">＋ &nbsp;تسجيل صيانة جديدة</a></div>
+    <div class="hero-actions"><button class="m-btn primary" type="button" data-open-record-dialog>＋ &nbsp;تسجيل صيانة جديدة</button><button class="m-btn warning" type="button" id="openUnapprovedModels">⚠ طرازات بدون خطط ({{ unapproved_model_rows|length }})</button><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة والقريبة ({{ due_count }})</a><a class="m-btn" href="/maintenance/due?status=unrecorded">□ &nbsp;بلا سجل ({{ unrecorded_count }})</a><a class="m-btn" href="/maintenance/periodic">← &nbsp;الصيانة الدورية</a></div>
   </div>
-  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. شروط الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
+  <nav class="module-tabs"><a href="/maintenance/periodic">1. الصيانة الدورية</a><a href="/maintenance/rules">2. عمليات الصيانة</a><a href="/maintenance/plans">3. خطط الصيانة</a><a class="active" href="/maintenance/records">4. سجل الصيانة</a><a href="/maintenance/due">5. الصيانة المستحقة</a></nav>
 
   {% set error = request.query_params.get('error') %}{% set changed = request.query_params.get('changed') %}{% set saved = request.query_params.get('saved') %}
   {% if error %}
@@ -21,50 +21,95 @@
       {% elif error == 'meter' %}قيمة العداد غير صحيحة. أدخل رقمًا موجبًا أو صفرًا.
       {% elif error == 'meter_required' %}هذه العملية تعتمد على العداد، لذلك يجب إدخال قراءة العداد عند التنفيذ.
       {% elif error == 'chronology' %}قيمة العداد تخالف التسلسل التاريخي لسجل الصيانة.
+      {% elif error == 'work_order' %}رقم أمر العمل يجب أن يتكوّن من أرقام فقط.
+      {% elif error == 'technician' %}الفني المنفذ المحدد غير موجود أو غير نشط.
+      {% elif error == 'protected_record' %}لا يمكن حذف سجل صيانة بهذه الحالة.
       {% elif error == 'validation' %}تعذر حفظ السجل بسبب مخالفة أحد شروط صحة سجل الصيانة.
       {% elif error == 'not_found' %}السجل أو العملية المطلوبة غير موجودة.
       {% else %}تعذر تنفيذ العملية. تحقق من البيانات ثم أعد المحاولة.{% endif %}
     </div>
   </div>
   {% endif %}
-  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المحدد. لم يتم حذف المركبة أو عملية الصيانة.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
+  {% if changed %}<div class="alert success" style="margin-bottom:16px">{% if changed == 'deleted' %}تم حذف سجل الصيانة المحدد.{% else %}تم تنفيذ العملية بنجاح.{% endif %}</div>{% endif %}
   {% if saved %}<div class="alert success" style="margin-bottom:16px">{% if saved == 'updated' %}تم تعديل سجل الصيانة بنجاح.{% else %}تم تسجيل عملية الصيانة بنجاح.{% endif %}</div>{% endif %}
 
   <section class="panel">
-    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>كل تنفيذ محفوظ كسجل فعلي مرتبط بالمركبة والعملية، ويمكن ربطه بخطة عند التنفيذ ضمن خطة.</p></div><span class="badge success">{{ records|length }} سجل</span></div>
-    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div><a class="m-btn" href="/maintenance/due">⚠ &nbsp;الصيانة المستحقة</a></div></div>
-    <div class="table-wrap"><table class="m-table" id="recordsTable"><thead><tr><th>#</th><th>طراز العتاد</th><th>رقم العتاد</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>أمر العمل</th><th>الورشة / الجهة</th><th>الحالة</th><th>الوصف</th><th>الإجراءات</th></tr></thead><tbody>
+    <div class="panel-head"><div><h3>سجل عمليات الصيانة</h3><p>يمكن حذف سجل الصيانة المحدد بعد تأكيد التحذير.</p></div><span class="badge success" id="recordCount">{{ records|length }} سجل</span></div>
+    <div class="toolbar-card"><div class="toolbar"><div class="search-wrap"><span class="search-icon">⌕</span><input id="recordsSearch" class="m-input" placeholder="بحث في السجل..."></div></div></div>
+    <dialog id="unapprovedModelsDialog" class="maintenance-model-dialog" aria-labelledby="unapprovedModelsTitle">
+      <section class="panel">
+        <div class="panel-head"><div><h3 id="unapprovedModelsTitle">طرازات بلا خطة صيانة معتمدة</h3><p>اختر طرازًا للانتقال مباشرة إلى إعداد خطة صيانة له.</p></div><button class="m-btn dialog-close" type="button" id="closeUnapprovedModels" aria-label="إغلاق">×</button></div>
+        <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table"><thead><tr><th>#</th><th>طراز العتاد</th><th data-mt-no-filter>الإجراء</th></tr></thead><tbody>
+          {% for model_id, model_name in unapproved_model_rows %}
+          <tr><td>{{ loop.index }}</td><td class="vehicle">{{ model_name }}</td><td><a class="m-btn primary" href="/maintenance/plans?model_id={{ model_id }}&amp;new=1">إعداد الخطة</a></td></tr>
+          {% else %}<tr><td colspan="3" class="muted">جميع الطرازات لديها خطط صيانة معتمدة.</td></tr>{% endfor %}
+        </tbody></table></div>
+      </section>
+    </dialog>
+    <div id="recordsActionAlert" class="alert" role="status" aria-live="polite" hidden style="display:none;margin:0 8px 10px;white-space:pre-line"></div>
+    {% if can_manage_records %}
+    <div id="recordsBulkBar" class="toolbar-card" hidden style="display:none">
+      <div class="toolbar" style="display:flex;flex-wrap:wrap;justify-content:space-between">
+        <span id="recordsSelectedCount" class="muted">0 محددة</span>
+        <button class="m-btn danger" type="button" id="bulkDeleteRecords">حذف المحدد (0)</button>
+      </div>
+    </div>
+    {% endif %}
+    <div class="table-wrap mt-table-theme-green" data-mt-region><table class="m-table" id="recordsTable"><thead><tr>{% if can_manage_records %}<th><input type="checkbox" id="selectAllRecords" aria-label="تحديد كل السجلات الظاهرة"></th>{% endif %}<th>#</th><th>طراز العتاد</th><th>رقم التسجيل</th><th>عملية الصيانة</th><th>الخطة</th><th>تاريخ التنفيذ</th><th>العداد</th><th>رقم أمر العمل</th><th>الفني المنفذ</th><th>الورشة / الجهة</th><th>الأعمال المنجزة</th><th>الملاحظة</th></tr></thead><tbody>
       {% for r in records %}
-      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}">
-        <td>{{ loop.index }}</td>
+      <tr data-record-id="{{ r.id }}" data-equipment-id="{{ r.equipment_id }}" data-maintenance-date="{{ r.maintenance_date }}" data-meter-value="{{ r.meter_value if r.meter_value is not none else '' }}" data-can-delete="{{ 'true' if (r.is_scheduled and r.status == 'scheduled') or r.status == 'completed' else 'false' }}">
+        {% if can_manage_records %}
+        <td><input type="checkbox" class="record-check" value="{{ r.id }}" aria-label="تحديد سجل الصيانة {{ r.id }}"></td>
+        {% endif %}
+        <td class="record-number">{{ loop.index }}</td>
         <td>{{ r.equipment.equipment_model.name if r.equipment.equipment_model and r.equipment.equipment_model.name is defined else '—' }}</td>
         <td class="vehicle">{{ r.equipment.registration_number or r.equipment.vin }}</td>
-        <td>{{ r.operation.name if r.operation else (r.rule.name if r.rule else 'سجل قديم') }}</td>
+        <td class="record-operation-cell">
+          <span class="row-action-menu">
+            <button type="button" class="row-action-toggle" aria-label="خيارات" aria-haspopup="menu" aria-expanded="false" data-action-toggle="record-menu-{{ r.id }}">⋯</button>
+            <div id="record-menu-{{ r.id }}" data-action-menu role="menu" hidden>
+              <button type="button" role="menuitem" data-menu-action="record-details" data-id="{{ r.id }}">◉ عرض التفاصيل</button>
+              {% if can_manage_records and (r.operation_id or r.model_operation_id) %}<button type="button" role="menuitem" data-menu-action="record-edit" data-id="{{ r.id }}">✏️ تعديل</button>{% endif %}
+              {% if can_manage_records and ((r.is_scheduled and r.status == 'scheduled') or r.status == 'completed') %}<button type="button" role="menuitem" data-menu-action="record-delete" data-id="{{ r.id }}" class="danger">🗑 حذف سجل الصيانة</button>{% endif %}
+            </div>
+          </span>
+          <span class="record-operation-name">{{ r.operation.name if r.operation else (r.model_operation.name if r.model_operation else (r.rule.name if r.rule else 'سجل قديم')) }}</span>
+        </td>
         <td>{{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</td>
         <td>{{ r.maintenance_date.strftime('%d/%m/%Y') }}</td>
         <td class="num">{{ '{:,.0f}'.format(r.meter_value) if r.meter_value is not none else '—' }}</td>
-        <td>{{ r.work_order or '—' }}</td><td>{{ r.workshop or '—' }}</td>
-        <td><span class="badge success">{{ 'مكتملة' if r.status == 'completed' else r.status }}</span></td><td>{{ r.description or '—' }}</td>
-        <td style="white-space:nowrap">
-          {% if r.operation_id %}<a class="m-btn" href="/maintenance/records?edit={{ r.id }}#editRecord">✏️ تعديل</a>{% endif %}
-          <form method="post" action="/maintenance/records/{{ r.id }}/delete" style="display:inline" onsubmit="return confirm('سيتم حذف سجل الصيانة المحدد نهائيًا. هل أنت متأكد؟');"><button class="m-btn" type="submit">🗑 حذف</button></form>
+        <td>{{ r.work_order or '—' }}</td><td>{{ r.technician.full_name if r.technician else '—' }}</td><td>{{ r.workshop or '—' }}</td>
+        <td>{{ r.description or '—' }}</td><td>{{ r.note or '—' }}</td>
+      </tr>
+      <tr id="record-details-{{ r.id }}" class="record-details-row" data-mt-filter-auxiliary hidden>
+        <td colspan="{{ 13 if can_manage_records else 12 }}">
+          <strong>تفاصيل سجل الصيانة #{{ r.id }}</strong>
+          <span>العملية: {{ r.operation.name if r.operation else (r.model_operation.name if r.model_operation else (r.rule.name if r.rule else 'سجل قديم')) }}</span>
+          <span>الخطة: {{ r.plan.name if r.plan else 'تنفيذ مستقل' }}</span>
+          <span>الحالة: {{ 'موعد مجدول غير منفذ' if r.is_scheduled and r.status == 'scheduled' else 'تنفيذ فعلي محفوظ' }}</span>
+          <span>الأعمال المنجزة: {{ r.description or '—' }}</span>
+          <span>الملاحظة: {{ r.note or '—' }}</span>
         </td>
       </tr>
-      {% else %}<tr><td colspan="12" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="{{ 13 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>{% endfor %}
     </tbody></table></div>
   </section>
 
-  {% if edit_record %}
-    {% if edit_record.operation_id %}
+  {% if edit_record and can_manage_records %}
+    {% if edit_record.operation_id or edit_record.model_operation_id %}
     <section class="panel" id="editRecord" style="margin-top:16px">
       <div class="panel-head"><div><h3>تعديل سجل الصيانة #{{ edit_record.id }}</h3><p>التعديل يظل خاضعًا لشروط العملية والطراز وتسلسل العداد.</p></div></div>
-      <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
-        <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}" {% if o.id == edit_record.operation_id %}selected{% endif %}>{{ o.name }}</option>{% endfor %}</select>
-        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+      <form method="post" action="/maintenance/records/{{ edit_record.id }}/update" id="maintenanceEditForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
+        <select class="m-select" name="equipment_id" id="editEquipment" required><option value="">رقم التسجيل</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-type-id="{{ e.equipment_type_id }}" data-unit="{{ e.equipment_type.measurement_unit }}" {% if e.id == edit_record.equipment_id %}selected{% endif %}>{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
+        <select class="m-select" name="plan_id" id="editPlan"><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ 'model:' if link.model_operation_id else 'general:' }}{{ link.model_operation_id or link.operation_id }},{% endfor %}" {% if edit_record.plan_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>
+        <select class="m-select" name="operation_id" id="editOperation" required>{% for o in operations %}<option value="{{ o.value }}" data-model-ids="{{ operation_model_ids.get(o.value, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.value, '') }}" {% if (edit_record.model_operation_id and o.source == 'model' and o.id == edit_record.model_operation_id) or (edit_record.operation_id and o.source == 'general' and o.id == edit_record.operation_id) %}selected{% endif %}>{{ o.name }}{% if o.source == 'model' %} — عملية خاصة بالطراز{% endif %}</option>{% endfor %}</select>
         <input class="m-input" name="maintenance_date" id="maintenanceEditDate" type="date" required value="{{ edit_record.maintenance_date }}">
-        <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="العداد عند التنفيذ">
-        <input class="m-input" name="work_order" value="{{ edit_record.work_order or '' }}" placeholder="أمر العمل"><input class="m-input" name="workshop" value="{{ edit_record.workshop or '' }}" placeholder="الورشة / الجهة"><input class="m-input" name="description" value="{{ edit_record.description or '' }}" placeholder="الوصف / الأعمال المنجزة">
+        <input class="m-input" name="meter_value" id="editMeter" type="number" step="0.1" min="0" value="{{ edit_record.meter_value if edit_record.meter_value is not none else '' }}" placeholder="قراءة العداد">
+        <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" value="{{ edit_record.work_order or '' }}" placeholder="رقم أمر العمل">
+        <select class="m-select" name="technician_id" id="editTechnician"><option value="">{% if technicians %}الفني المنفذ{% else %}لا يوجد فنيون مسجّلون{% endif %}</option>{% for t in technicians %}<option value="{{ t.id }}" {% if edit_record.technician_id == t.id %}selected{% endif %}>{{ t.full_name }}{% if t.employee_number %} — {{ t.employee_number }}{% endif %}</option>{% endfor %}</select>
+        <textarea class="m-input" name="description" rows="2" placeholder="الأعمال المنجزة">{{ edit_record.description or '' }}</textarea>
+        <textarea class="m-input" name="note" rows="2" placeholder="الملاحظة">{{ edit_record.note or '' }}</textarea>
+        <input class="m-input" name="workshop" value="{{ edit_record.workshop or '' }}" placeholder="الورشة / الجهة">
         <button class="m-btn primary" type="submit">حفظ التعديل</button><a class="m-btn" href="/maintenance/records">إلغاء</a>
       </form>
     </section>
@@ -73,63 +118,293 @@
     {% endif %}
   {% endif %}
 
-  <section class="panel" id="newRecord" style="margin-top:16px">
-    <div class="panel-head"><div><h3>تسجيل صيانة جديدة</h3><p>التنفيذ يكون لعملية صيانة محددة. الخطة اختيارية؛ وإذا اختيرت فلا بد أن تكون العملية منضوية تحتها.</p></div></div>
-    <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap">
+  <dialog id="newRecordDialog" class="maintenance-record-dialog" aria-labelledby="newRecordTitle">
+  <section class="panel" id="newRecord">
+    <div class="panel-head"><div><h3 id="newRecordTitle">تسجيل صيانة جديدة</h3><p>التنفيذ يكون لعملية صيانة محددة. الخطة اختيارية؛ وإذا اختيرت فلا بد أن تكون العملية منضوية تحتها.</p></div><button class="m-btn dialog-close" type="button" data-close-record-dialog aria-label="إغلاق">×</button></div>
+    <form method="post" action="/maintenance/records/create" id="maintenanceRecordForm" class="toolbar" style="padding:18px;flex-wrap:wrap" data-em-root>
       <select class="m-select" id="modelFilter" required><option value="">طراز العتاد</option>{% set model_ids = [] %}{% for e in equipment %}{% if e.equipment_model_id and e.equipment_model_id not in model_ids %}{% set _ = model_ids.append(e.equipment_model_id) %}<option value="{{ e.equipment_model_id }}">{{ e.equipment_model.name if e.equipment_model and e.equipment_model.name is defined else 'بدون طراز' }}</option>{% endif %}{% endfor %}</select>
-      <select class="m-select" name="equipment_id" id="equipmentSelect" required><option value="">رقم العتاد</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
-      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية بعد تحديد العتاد</option>{% for o in operations %}<option value="{{ o.id }}" data-equipment-ids="{{ operation_equipment_ids.get(o.id, '') }}" data-requires-meter="{{ '1' if ((o.interval_km is not none) or (o.interval_hours is not none)) else '0' }}">{{ o.name }}</option>{% endfor %}</select>
-      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
-      <div id="currentMeterHint" class="muted" style="min-width:210px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
-      <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="العداد عند التنفيذ"><input class="m-input" name="work_order" placeholder="أمر العمل"><input class="m-input" name="workshop" placeholder="الورشة / الجهة"><input class="m-input" name="description" placeholder="الوصف / الأعمال المنجزة"><button class="m-btn primary" type="submit">حفظ الصيانة</button>
+      <select class="m-select" name="equipment_id" id="equipmentSelect" required disabled><option value="">رقم التسجيل</option>{% for e in equipment %}<option value="{{ e.id }}" data-model-id="{{ e.equipment_model_id or '' }}" data-unit="{{ e.equipment_type.measurement_unit }}" data-current-km="{{ e.current_odometer or '' }}" data-current-hours="{{ e.current_hours or '' }}">{{ e.registration_number or e.vin }}</option>{% endfor %}</select>
+      <select class="m-select" name="plan_id" id="planSelect" disabled><option value="">تنفيذ مستقل — بدون خطة</option>{% for p in plans %}<option value="{{ p.id }}" data-model-id="{{ p.equipment_model_id }}" data-operation-ids="{% for link in p.plan_operations %}{{ 'model:' if link.model_operation_id else 'general:' }}{{ link.model_operation_id or link.operation_id }},{% endfor %}">{{ p.name }}</option>{% endfor %}</select>
+      <select class="m-select" name="operation_id" id="operationSelect" required disabled><option value="">اختر العملية</option>{% for o in operations %}<option value="{{ o.value }}" data-model-ids="{{ operation_model_ids.get(o.value, '') }}" data-meter-models="{{ meter_required_by_operation.get(o.value, '') }}">{{ o.name }}{% if o.source == 'model' %} — عملية خاصة بالطراز{% endif %}</option>{% endfor %}</select>
+      <div id="operationEmptyHint" class="muted" style="min-width:200px;align-self:center" hidden>لا توجد عمليات صيانة مرتبطة بهذا الطراز</div>
+      <input class="m-input" name="maintenance_date" id="maintenanceDate" type="date" required><input class="m-input" name="meter_value" id="maintenanceMeter" type="number" step="0.1" min="0" placeholder="قراءة العداد"><div id="currentMeterHint" class="muted" style="min-width:180px;align-self:center">اختر العتاد لعرض العداد الحالي.</div>
+      <input class="m-input" name="work_order" type="number" min="0" step="1" inputmode="numeric" placeholder="رقم أمر العمل">
+      <select class="m-select" name="technician_id" id="technicianSelect"><option value="">{% if technicians %}الفني المنفذ{% else %}لا يوجد فنيون مسجّلون{% endif %}</option>{% for t in technicians %}<option value="{{ t.id }}">{{ t.full_name }}{% if t.employee_number %} — {{ t.employee_number }}{% endif %}</option>{% endfor %}</select>
+      <textarea class="m-input" name="description" rows="2" placeholder="الأعمال المنجزة"></textarea>
+      <textarea class="m-input" name="note" rows="2" placeholder="الملاحظة"></textarea>
+      <input class="m-input" name="workshop" placeholder="الورشة / الجهة">
+      <button class="m-btn primary" type="submit">حفظ الصيانة</button>
     </form>
   </section>
+  </dialog>
 </div>
 
 <script>
 (function(){
   const search=document.getElementById('recordsSearch');
-  if(search)search.addEventListener('input',()=>{const x=search.value.toLowerCase().trim();document.querySelectorAll('#recordsTable tbody tr').forEach(r=>r.style.display=!x||r.innerText.toLowerCase().includes(x)?'':'none')});
+  const recordDialog=document.getElementById('newRecordDialog');
+  document.querySelectorAll('[data-open-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.showModal()));
+  document.querySelectorAll('[data-close-record-dialog]').forEach(button=>button.addEventListener('click',()=>recordDialog?.close()));
+  if(recordDialog)recordDialog.addEventListener('click',event=>{if(event.target===recordDialog)recordDialog.close()});
+  const unapprovedModelsDialog=document.getElementById('unapprovedModelsDialog');
+  document.getElementById('openUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.showModal());
+  document.getElementById('closeUnapprovedModels')?.addEventListener('click',()=>unapprovedModelsDialog?.close());
+  if(unapprovedModelsDialog)unapprovedModelsDialog.addEventListener('click',event=>{if(event.target===unapprovedModelsDialog)unapprovedModelsDialog.close()});
+  const recordsTable=document.getElementById('recordsTable');
+  const selectedRecordIds=new Set();
+  const selectAllRecords=document.getElementById('selectAllRecords');
+  const recordsBulkBar=document.getElementById('recordsBulkBar');
+  const bulkDeleteRecords=document.getElementById('bulkDeleteRecords');
+  const recordsSelectedCount=document.getElementById('recordsSelectedCount');
+  const recordsActionAlert=document.getElementById('recordsActionAlert');
+  function recordRows(){return [...recordsTable.querySelectorAll('tbody tr[data-record-id]')]}
+  function visibleRecordRows(){return recordRows().filter(row=>row.style.display!=='none'&&getComputedStyle(row).display!=='none')}
+  function updateRecordCount(){
+    const count=recordRows().length;
+    const badge=document.getElementById('recordCount');
+    if(badge)badge.textContent=count+' سجل';
+    recordRows().forEach((row,index)=>{row.querySelector('.record-number').textContent=String(index+1)});
+    if(!count)recordsTable.querySelector('tbody').innerHTML='<tr><td colspan="{{ 13 if can_manage_records else 12 }}" class="muted">لا يوجد سجل صيانة بعد.</td></tr>';
+  }
+  function updateRecordSelection(){
+    if(!selectAllRecords||!recordsBulkBar||!bulkDeleteRecords)return;
+    const checks=recordRows().map(row=>row.querySelector('.record-check'));
+    const visible=visibleRecordRows().map(row=>row.querySelector('.record-check'));
+    const visibleSelected=visible.filter(check=>selectedRecordIds.has(Number(check.value))).length;
+    selectAllRecords.checked=visible.length>0&&visibleSelected===visible.length;
+    selectAllRecords.indeterminate=visibleSelected>0&&visibleSelected<visible.length;
+    recordsBulkBar.hidden=selectedRecordIds.size===0;
+    recordsBulkBar.style.display=selectedRecordIds.size?'':'none';
+    recordsSelectedCount.textContent=selectedRecordIds.size+' محددة';
+    bulkDeleteRecords.textContent='حذف المحدد ('+selectedRecordIds.size+')';
+    bulkDeleteRecords.disabled=selectedRecordIds.size===0;
+    checks.forEach(check=>{check.checked=selectedRecordIds.has(Number(check.value))});
+  }
+  recordsTable.addEventListener('mt:filters-applied',updateRecordSelection);
+  function showRecordActionResult(message,bad=false){
+    recordsActionAlert.textContent=message;
+    recordsActionAlert.className='alert '+(bad?'danger':'success');
+    recordsActionAlert.hidden=false;
+    recordsActionAlert.style.display='';
+  }
+  function removeRecordRows(ids){
+    ids.forEach(id=>{
+      const row=recordsTable.querySelector('tr[data-record-id="'+id+'"]');
+      if(row)row.remove();
+      document.getElementById('record-details-'+id)?.remove();
+      selectedRecordIds.delete(Number(id));
+    });
+    updateRecordCount();
+    updateRecordSelection();
+  }
+  if(search)search.addEventListener('input',()=>{
+    const x=search.value.toLowerCase().trim();
+    recordRows().forEach(row=>row.style.display=!x||row.innerText.toLowerCase().includes(x)?'':'none');
+    updateRecordSelection();
+  });
+  recordsTable.addEventListener('change',event=>{
+    const check=event.target.closest('.record-check');
+    if(!check)return;
+    const id=Number(check.value);
+    if(check.checked)selectedRecordIds.add(id);else selectedRecordIds.delete(id);
+    updateRecordSelection();
+  });
+  if(selectAllRecords)selectAllRecords.addEventListener('change',()=>{
+      visibleRecordRows().forEach(row=>{
+        const id=Number(row.dataset.recordId);
+        if(selectAllRecords.checked)selectedRecordIds.add(id);else selectedRecordIds.delete(id);
+      });
+      updateRecordSelection();
+    });
+  async function bulkDeleteSelectedRecords(){
+    const ids=[...selectedRecordIds];
+    if(!ids.length||!await window.MaterielDeleteImpact.confirmMany(ids.map(id=>api+'/records/'+id+'/delete-impact'),'مراجعة أثر حذف سجلات الصيانة المحددة'))return;
+    bulkDeleteRecords.disabled=true;
+    bulkDeleteRecords.textContent='جارٍ الحذف...';
+    try{
+      const response=await fetch('/api/maintenance/records/bulk-delete',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({record_ids:ids})
+      });
+      const contentType=response.headers.get('content-type')||'';
+      let result=null;
+      if(contentType.includes('application/json')){
+        try{result=await response.json()}catch(_){throw new Error('استجابة الخادم غير صالحة.')}
+      }
+      if(!response.ok)throw new Error(result?.detail||'فشل طلب الحذف الجماعي (HTTP '+response.status+').');
+      if(!result||!Number.isInteger(result.success)||!Array.isArray(result.rejected)||!Array.isArray(result.deleted_ids)){
+        throw new Error('استجابة الحذف الجماعي غير متوقعة؛ لم يتم تحديث الجدول.');
+      }
+      removeRecordRows(result.deleted_ids);
+      selectedRecordIds.clear();
+      updateRecordSelection();
+      const rejectedDetails=result.rejected.map(item=>'• '+(item.record_label||('سجل #'+item.record_id))+': '+item.reason).join('\n');
+      const message='تم حذف '+result.success+' سجل، ورُفض حذف '+result.rejected.length+' سجل.'+(rejectedDetails?'\n'+rejectedDetails:'');
+      showRecordActionResult(message,result.rejected.length>0||result.success===0);
+    }catch(error){
+      showRecordActionResult(error.message||'تعذر تنفيذ الحذف الجماعي.',true);
+    }finally{
+      bulkDeleteRecords.disabled=false;
+      updateRecordSelection();
+    }
+  }
+  if(bulkDeleteRecords)bulkDeleteRecords.addEventListener('click',bulkDeleteSelectedRecords);
+  updateRecordSelection();
   const today=new Date().toISOString().slice(0,10);
-  const model=document.getElementById('modelFilter'), equipment=document.getElementById('equipmentSelect'), operation=document.getElementById('operationSelect'), plan=document.getElementById('planSelect'), meter=document.getElementById('maintenanceMeter'), hint=document.getElementById('currentMeterHint');
-  const allEquipment=equipment?[...equipment.options].slice(1):[], allOperations=operation?[...operation.options].slice(1):[], allPlans=plan?[...plan.options].slice(1):[];
+  const model=document.getElementById('modelFilter'), equipment=document.getElementById('equipmentSelect'), operation=document.getElementById('operationSelect'), plan=document.getElementById('planSelect'), meter=document.getElementById('maintenanceMeter'), hint=document.getElementById('currentMeterHint'), operationEmptyHint=document.getElementById('operationEmptyHint');
+  const editEquipment=document.getElementById('editEquipment'), editPlan=document.getElementById('editPlan'), editOperation=document.getElementById('editOperation');
+  const allEquipment=equipment?[...equipment.options].slice(1):[], allOperations=operation?[...operation.options].slice(1):[], allPlans=plan?[...plan.options].slice(1):[], allEditOperations=editOperation?[...editOperation.options].slice(1):[];
   const newDate=document.getElementById('maintenanceDate'),editDate=document.getElementById('maintenanceEditDate'); if(newDate)newDate.max=today;if(editDate)editDate.max=today;
 
-  function refreshNew(){
-    const modelId=model?.value||''; equipment.innerHTML='<option value="">رقم العتاد</option>';
+  function buildEquipment(){
+    const modelId=model?.value||''; equipment.innerHTML='<option value="">رقم التسجيل</option>';
     allEquipment.forEach(o=>{if(o.dataset.modelId===modelId)equipment.appendChild(o.cloneNode(true))});
-    operation.innerHTML='<option value="">اختر العملية</option>'; operation.disabled=true;
-    plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>'; plan.disabled=true;
+    equipment.disabled=equipment.options.length===1;
+  }
+  function buildPlans(){
+    const modelId=model?.value||'', previous=plan.value;
+    plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>';
+    allPlans.forEach(o=>{if(o.dataset.modelId===modelId)plan.appendChild(o.cloneNode(true))});
+    plan.disabled=plan.options.length===1;
+    plan.value=[...plan.options].some(o=>o.value===previous)?previous:'';
+  }
+  function operationModelIds(option){return (option.dataset.modelIds||'').split(',').filter(Boolean)}
+  function planLinkedOperationIds(planSelect,planId){if(!planSelect||!planId)return null;const option=[...planSelect.options].find(o=>o.value===planId);return option?(option.dataset.operationIds||'').split(',').filter(Boolean):null}
+  function eligibleOperations(source,modelId,linked){if(!modelId)return[];return source.filter(o=>operationModelIds(o).includes(String(modelId))&&(!linked||linked.includes(o.value)))}
+  function renderOperationOptions(select,source,modelId,linked,previous,emptyHint){
+    const ops=eligibleOperations(source,modelId,linked);
+    const empty=Boolean(modelId)&&ops.length===0;
+    select.innerHTML='<option value="">'+(empty?'لا توجد عمليات صيانة مرتبطة بهذا الطراز':'اختر العملية')+'</option>';
+    ops.forEach(o=>select.appendChild(o.cloneNode(true)));
+    select.disabled=ops.length===0;
+    select.value=[...select.options].some(o=>o.value===previous)?previous:'';
+    if(emptyHint)emptyHint.hidden=!empty;
+  }
+  function buildOperations(){
+    renderOperationOptions(operation,allOperations,model?.value||'',planLinkedOperationIds(plan,plan.value),operation.value,operationEmptyHint);
+  }
+  function buildEditOperations(){
+    if(!editOperation)return;
+    renderOperationOptions(editOperation,allEditOperations,editEquipment?.selectedOptions[0]?.dataset.modelId||'',planLinkedOperationIds(editPlan,editPlan.value),editOperation.value,null);
+  }
+  function updateMeterHint(){
+    const selected=equipment.selectedOptions[0];
+    if(!selected){hint.textContent='اختر العتاد لعرض العداد الحالي.';return}
+    const unit=selected.dataset.unit,value=unit==='hours'?selected.dataset.currentHours:selected.dataset.currentKm;
+    hint.textContent=value?'العداد الحالي: '+Number(value).toLocaleString('ar-DZ')+' '+(unit==='hours'?'ساعة':'كم'):'لا توجد قراءة حالية للعداد.';
+    meter.placeholder=unit==='hours'?'قراءة العداد (ساعة)':'قراءة العداد (كم)';
+  }
+  function onModelChange(){
+    buildEquipment();
+    buildPlans();
+    buildOperations();
     meter.value=''; hint.textContent='اختر العتاد لعرض العداد الحالي.';
   }
-  function refreshPlans(){
-    const modelId=equipment.selectedOptions[0]?.dataset.modelId||'', opId=operation.value;
-    plan.innerHTML='<option value="">تنفيذ مستقل — بدون خطة</option>';
-    allPlans.forEach(o=>{if(o.dataset.modelId===modelId && (o.dataset.operationIds||'').split(',').includes(opId))plan.appendChild(o.cloneNode(true))});
-    plan.disabled=plan.options.length===1;
+  function onEquipmentChange(){
+    buildOperations();
+    meter.value=''; updateMeterHint();
   }
-  function refreshOperationAndPlans(){
-    const selected=equipment.selectedOptions[0], equipmentId=selected?.value||'';
-    operation.innerHTML='<option value="">اختر العملية</option>';
-    allOperations.forEach(o=>{const ids=(o.dataset.equipmentIds||'').split(',').filter(Boolean);if(ids.includes(equipmentId))operation.appendChild(o.cloneNode(true))});
-    operation.disabled=operation.options.length===1;
-    refreshPlans();
-    if(selected){const unit=selected.dataset.unit,value=unit==='hours'?selected.dataset.currentHours:selected.dataset.currentKm;hint.textContent=value?'العداد الحالي: '+Number(value).toLocaleString('ar-DZ')+' '+(unit==='hours'?'ساعة':'كم'):'لا توجد قراءة حالية للعداد.';meter.placeholder=unit==='hours'?'العداد عند التنفيذ (ساعة)':'العداد عند التنفيذ (كم)'}
+  function onPlanChange(){
+    buildOperations();
   }
-  function filterPlanByOperation(){
-    refreshOperationAndPlans();
+  function requiresMeterFor(option,modelId){
+    if(!option||!modelId)return false;
+    const models=(option.dataset.meterModels||'').split(',').filter(Boolean).map(pair=>pair.split(':'));
+    const hit=models.find(pair=>pair[0]===String(modelId));
+    return hit?hit[1]==='1':false;
+  }
+  function selectedModelId(form){
+    const select=form?.querySelector('[name="equipment_id"]')||document.getElementById('equipmentSelect');
+    return select?.selectedOptions[0]?.dataset.modelId||'';
   }
   function validate(form,isEdit){
     const date=form.querySelector('[name="maintenance_date"]'), meterInput=form.querySelector('[name="meter_value"]'), op=form.querySelector('[name="operation_id"]');
     if(date?.value&&date.value>today){alert('لا يمكن تسجيل صيانة بتاريخ مستقبلي.');date.focus();return false}
     if(!op?.value){alert('يجب اختيار عملية صيانة.');op?.focus();return false}
     if(meterInput?.value!==''&&(!Number.isFinite(Number(meterInput.value))||Number(meterInput.value)<0)){alert('قيمة العداد غير صحيحة.');meterInput.focus();return false}
-    if(!isEdit&&op.selectedOptions[0]?.dataset.requiresMeter==='1'&&meterInput&&!meterInput.value){alert('هذه العملية تعتمد على العداد، ويجب إدخال القراءة عند التنفيذ.');meterInput.focus();return false}
+    if(requiresMeterFor(op.selectedOptions[0],selectedModelId(form))&&meterInput&&!meterInput.value){alert('هذه العملية تعتمد على العداد وفق شرط هذا الطراز، ويجب إدخال القراءة عند التنفيذ.');meterInput.focus();return false}
     return true
   }
-  if(model)model.addEventListener('change',refreshNew);if(equipment)equipment.addEventListener('change',refreshOperationAndPlans);if(operation)operation.addEventListener('change',refreshPlans);
+  if(model)model.addEventListener('change',onModelChange);if(equipment)equipment.addEventListener('change',onEquipmentChange);if(plan)plan.addEventListener('change',onPlanChange);
+  if(editOperation)buildEditOperations();
+  if(editEquipment)editEquipment.addEventListener('change',()=>{if(editPlan)editPlan.value='';buildEditOperations()});
+  if(editPlan)editPlan.addEventListener('change',buildEditOperations);
   const newForm=document.getElementById('maintenanceRecordForm');if(newForm)newForm.addEventListener('submit',e=>{if(!validate(newForm,false))e.preventDefault()});
   const editForm=document.getElementById('maintenanceEditForm');if(editForm)editForm.addEventListener('submit',e=>{if(!validate(editForm,true))e.preventDefault()});
+
+  // قائمة الإجراءات الموحّدة (⋯) لجدول سجل الصيانة
+  const api='/api/maintenance';
+  function alert(msg,bad=false){const a=document.getElementById('alert');if(!a)return;a.textContent=msg;a.className='alert '+(bad?'danger':'success');a.style.display='';setTimeout(()=>a.style.display='none',4000)}
+  async function req(url,opt={}){const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});let d=null;try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d?.detail||'تعذر تنفيذ العملية.');return d}
+  function closeActionMenus(except=null){
+    document.querySelectorAll("[data-action-menu]").forEach(menu=>{if(menu!==except)menu.hidden=true;});
+    document.querySelectorAll("[data-action-toggle]").forEach(button=>{const menu=document.getElementById(button.dataset.actionToggle);button.setAttribute("aria-expanded",String(Boolean(menu&&!menu.hidden)));});
+  }
+  function positionActionMenu(menu,toggle){
+    const rect=toggle.getBoundingClientRect();
+    const width=menu.offsetWidth||180;
+    let left=rect.right-width;
+    if(left<8)left=8;
+    if(left+width>window.innerWidth-8)left=Math.max(8,window.innerWidth-width-8);
+    menu.style.top=Math.max(8,rect.bottom+4)+"px";
+    menu.style.left=left+"px";
+  }
+  document.addEventListener("click",event=>{
+    const toggle=event.target.closest("[data-action-toggle]");
+    if(toggle){
+      const menu=document.getElementById(toggle.dataset.actionToggle);
+      if(!menu)return;
+      const shouldOpen=menu.hidden;
+      closeActionMenus(menu);
+      menu.hidden=!shouldOpen;
+      if(shouldOpen){
+        positionActionMenu(menu,toggle);
+        const first=menu.querySelector("[data-menu-action]:not(:disabled)");
+        if(first&&event.detail===0)first.focus({preventScroll:true});
+      }
+      toggle.setAttribute("aria-expanded",String(shouldOpen));
+      return;
+    }
+    const action=event.target.closest("[data-menu-action]");
+    if(action){
+      if(action.disabled)return;
+      const id=Number(action.dataset.id);
+      const handlers={
+        "record-details":()=>{
+          const details=document.getElementById("record-details-"+id);
+          if(details)details.hidden=!details.hidden;
+        },
+        "record-edit":()=>{window.location.href="/maintenance/records?edit="+id+"#editRecord";},
+        "record-delete":async()=>{
+          if(!await window.MaterielDeleteImpact.confirmOne(api+'/records/'+id+'/delete-impact','مراجعة أثر حذف سجل الصيانة'))return;
+          action.disabled=true;
+          try{
+            await req(api+"/records/"+id,{method:"DELETE"});
+            removeRecordRows([id]);
+            showRecordActionResult("تم حذف سجل الصيانة المحدد.");
+          }catch(e){showRecordActionResult(e.message||"تعذر حذف سجل الصيانة.",true)}
+          finally{action.disabled=false}
+        }
+      };
+      closeActionMenus();
+      const handler=handlers[action.dataset.menuAction];
+      if(handler)handler();
+      return;
+    }
+    closeActionMenus();
+  });
+  document.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){closeActionMenus();return;}
+    const menu=event.target.closest("[data-action-menu]");
+    if(!menu)return;
+    const items=Array.from(menu.querySelectorAll("[data-menu-action]:not(:disabled)"));
+    if(!items.length)return;
+    const i=items.indexOf(document.activeElement);
+    if(event.key==="ArrowDown"){event.preventDefault();items[(i+1)%items.length].focus()}
+    else if(event.key==="ArrowUp"){event.preventDefault();items[(i-1+items.length)%items.length].focus()}
+  });
+  document.addEventListener("scroll",()=>closeActionMenus(),true);
 })();
 </script>
 {% endblock %}

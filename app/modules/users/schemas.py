@@ -15,16 +15,23 @@ class UserBase(BaseModel):
     full_name: str
     role: str = "viewer"
 
+    @field_validator("username")
+    @classmethod
+    def username_must_not_be_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError("اسم المستخدم مطلوب")
+        return value
+
 
 class UserCreate(UserBase):
     password: str
 
     @field_validator("password")
     @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 6:
-            raise ValueError("كلمة المرور يجب ألا تقل عن 6 خانات")
-        return v
+    def password_must_not_be_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError("كلمة المرور مطلوبة")
+        return value
 
     @field_validator("role")
     @classmethod
@@ -41,6 +48,13 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     password: Optional[str] = None
 
+    @field_validator("password")
+    @classmethod
+    def password_must_not_be_empty_when_provided(cls, value: Optional[str]) -> Optional[str]:
+        if value == "":
+            raise ValueError("كلمة المرور مطلوبة")
+        return value
+
 
 class UserOut(UserBase):
     model_config = ConfigDict(from_attributes=True)
@@ -52,3 +66,17 @@ class UserOut(UserBase):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def username_must_not_be_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError("اسم المستخدم مطلوب")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def password_must_not_be_empty(cls, value: str) -> str:
+        if not value:
+            raise ValueError("كلمة المرور مطلوبة")
+        return value

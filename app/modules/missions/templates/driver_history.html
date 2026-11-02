@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}سجل مهمات السائق | المهمات والسواق{% endblock %}
+{% block extra_head %}
+<style>
+.driver-history{max-width:1180px;margin:0 auto}.driver-history *{box-sizing:border-box}.driver-history .panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:18px;margin-top:16px}.driver-history .top{display:flex;justify-content:space-between;align-items:center;gap:12px}.driver-history h1{font-size:25px;margin:0 0 6px}.driver-history p{color:#667085;line-height:1.7}.driver-history .back{display:inline-flex;padding:9px 13px;border:1px solid #d0d5dd;border-radius:8px;color:#344054;text-decoration:none;font-weight:700}.driver-history .table-wrap{overflow:auto;border:1px solid #e5e9f0;border-radius:10px}.driver-history table{width:100%;min-width:850px;border-collapse:separate;border-spacing:0}.driver-history th,.driver-history td{padding:11px 10px;text-align:right;border-bottom:1px solid #e5e9f0;white-space:nowrap}.driver-history th{background:#f8fafc;color:#475467;font-size:12px}.driver-history tbody tr:last-child td{border-bottom:0}.driver-history .empty{text-align:center;padding:28px;color:#667085}@media(max-width:600px){.driver-history .top{align-items:flex-start;flex-direction:column}.driver-history .panel{padding:13px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="driver-history" dir="rtl">
+  <section class="panel top">
+    <div>
+      <h1>سجل مهمات {{ driver.first_name }} {{ driver.last_name }}</h1>
+      <p>الرتبة: {{ driver.driving_rank or '—' }} · صنف الرخصة: {{ driver.license_class }}</p>
+      {% if legacy_match_count %}<p>يتضمن السجل {{ legacy_match_count }} مهمة قديمة طابقت اسم السائق بدقة قبل ربط سجلات السائقين.</p>{% endif %}
+    </div>
+    <a class="back" href="/missions/drivers">العودة إلى السائقين</a>
+  </section>
+  <section class="panel">
+    <div class="table-wrap" data-mt-region>
+      <table>
+        <thead><tr><th>العتاد</th><th>السائق</th><th>رقم المهمة</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>عداد الانطلاق</th><th>عداد العودة</th></tr></thead>
+        <tbody>
+          {% for mission in missions %}
+          <tr>
+            <td>{{ mission.equipment.equipment_model.name ~ ' - ' if mission.equipment and mission.equipment.equipment_model else '' }}{{ mission.equipment.registration_number or mission.equipment.vin or mission.equipment.asset_code if mission.equipment else mission.equipment_id }}</td>
+            <td>{{ (mission.driver.driving_rank if mission.driver else driver.driving_rank) ~ ' - ' if (mission.driver and mission.driver.driving_rank) or (not mission.driver and driver.driving_rank) else '' }}{{ mission.driver.first_name ~ ' ' ~ mission.driver.last_name if mission.driver else mission.driver_name or (driver.first_name ~ ' ' ~ driver.last_name) }}</td>
+            <td>{{ mission.mission_document or mission.id }}</td><td>{{ mission.purpose or '—' }}</td><td>{{ mission.destination or '—' }}</td>
+            <td>{{ mission.start_date }}</td><td>{{ mission.end_date or '—' }}</td>
+            <td>{{ mission.departure_meter if mission.departure_meter is not none else '—' }}</td>
+            <td>{{ mission.return_meter if mission.return_meter is not none else '—' }}</td>
+          </tr>
+          {% else %}<tr><td class="empty" colspan="9">لا توجد مهمات مرتبطة بهذا السائق.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

@@ -18,12 +18,14 @@ from sqlalchemy.orm import joinedload
 from app.modules.batteries import services as battery_services
 from app.modules.equipment.models import Equipment
 from app.modules.maintenance.services import (
+    condition_for_equipment,
     current_meter_value,
     effective_operations_for_equipment,
     latest_readings,
     latest_records,
     measurement_unit,
-    status_for,
+    operation_reference,
+    operation_condition_meta,
 )
 from app.modules.notifications.services import register_provider
 from app.modules.tires import batch_state as tire_batch_state
@@ -79,18 +81,20 @@ def maintenance_due_provider(db) -> list[dict]:
             continue
         model_id = eq.equipment_model_id
         if model_id not in operations_by_model:
-            operations_by_model[model_id] = effective_operations_for_equipment(db, eq)
+            operations_by_model[model_id] = effective_operations_for_equipment(db, eq, include_standalone=False)
         current_value = current_meter_value(eq, readings.get(eq.id))
         for operation in operations_by_model[model_id]:
-            record = records.get((eq.id, operation.id))
-            state, css, remaining, meta = status_for(
-                operation, eq, record, current_value
+            record = records.get((eq.id, *operation_reference(operation)))
+            # شرط الطراز الفعلي هو المرجع؛ شرط غير محدد لا يولّد إنذارًا ولا يُخترع له بديل.
+            condition = condition_for_equipment(db, operation, eq)
+            state, css, remaining, meta = operation_condition_meta(
+                operation, condition, eq, record, current_value
             )
             if css not in {"danger", "warning"}:
                 continue
             notes.append(
                 {
-                    "key": f"maintenance:{eq.id}:{operation.id}",
+                    "key": f"maintenance:{eq.id}:{operation_reference(operation)[0]}:{operation.id}",
                     "severity": "overdue" if css == "danger" else "upcoming",
                     "module": "maintenance",
                     "title": f"{operation.name} — {_equipment_label(eq)}",
@@ -152,7 +156,7 @@ def battery_replacement_provider(db) -> list[dict]:
                 "key": f"battery:{battery.id}",
                 "severity": "overdue",
                 "module": "batteries",
-                "title": f"بطارية مستحقة الاستبدال: {battery.serial_number}",
+                "title": f"بطارية مستحقة الاستبدال: {getattr(battery, 'battery_type', None) or battery.serial_number or battery.id}",
                 "detail": f"{_equipment_label(equipment)} · موعد الاستبدال {due_date}",
                 "url": f"/batteries/{battery.id}",
             }

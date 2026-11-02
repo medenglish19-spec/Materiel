@@ -52,16 +52,46 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
+class _TolerantRotatingFileHandler(RotatingFileHandler):
+    """دوران السجل بقدر الإمكان: فشل التدوير لا يُسقط السجل.
+
+    ``doRollover()`` يعيد تسمية ``app.log`` إلى ``app.log.1``، وعلى ويندوز يفشل
+    ذلك بـ ``PermissionError`` متى كان أي عملية أخرى تمسك الملف مفتوحاً — وهو
+    الحال الطبيعي هنا، إذ قد يعمل أكثر من خادم على الملف نفسه. الصنف الأصلي
+    يترك الخطأ يخرج من ``emit()``: تضيع السجلات المكتوبة في تلك اللحظة،
+    ويُطبع ``--- Logging error ---`` على stderr فيخفي ما حدث بدل أن يعلنه.
+
+    فقدان الدوران أمرٌ محتمل، وفقدان السجلات مع traceback فوقه لا. لذا يُبتلع
+    الفشل وتُعاد فتح اللغة على الملف نفسه لتستمر الكتابة.
+    """
+
+    def doRollover(self) -> None:
+        try:
+            super().doRollover()
+        except OSError:
+            # لم يُدوَّر شيء، لكن المقبض المفتوح ما زال هو السجل الحالي.
+            # إعادة فتحه تُبقي السجلات تجري بدل أن تضيع.
+            try:
+                if self.stream:
+                    self.stream.close()
+                self.stream = self._open()
+            except OSError:  # pragma: no cover - لا سبيل للتبليغ من هنا
+                pass
+
+
 def _build_output_handlers() -> list:
     level = getattr(logging, str(settings.LOG_LEVEL).upper(), logging.INFO)
 
-    stream = logging.StreamHandler(stream=sys.stderr)
-    stream.setFormatter(logging.Formatter(_LOG_FORMAT))
-    stream.setLevel(level)
+    handlers = []
+    if sys.stderr is not None:
+        stream = logging.StreamHandler(stream=sys.stderr)
+        stream.setFormatter(logging.Formatter(_LOG_FORMAT))
+        stream.setLevel(level)
+        handlers.append(stream)
 
     log_dir = Path(settings.LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
-    file_handler = RotatingFileHandler(
+    file_handler = _TolerantRotatingFileHandler(
         log_dir / "app.log",
         maxBytes=1_000_000,  # 1 MB
         backupCount=3,
@@ -69,9 +99,19 @@ def _build_output_handlers() -> list:
     )
     file_handler.setFormatter(logging.Formatter(_LOG_FORMAT))
     file_handler.setLevel(level)
+    handlers.append(file_handler)
 
-    return [stream, file_handler]
+    error_handler = _TolerantRotatingFileHandler(
+        log_dir / "error.log",
+        maxBytes=1_000_000,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    error_handler.setFormatter(logging.Formatter(_LOG_FORMAT))
+    error_handler.setLevel(logging.ERROR)
+    handlers.append(error_handler)
 
+    return handlers
 
 def _build_listener() -> QueueListener:
     global _OUTPUT_HANDLERS

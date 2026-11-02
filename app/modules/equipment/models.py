@@ -13,6 +13,7 @@ class Equipment(Base, AuditMixin):
     acquisition_document = Column(String(100), nullable=True)
     registration_number = Column(String(30), unique=True, index=True, nullable=True)
     vin = Column(String(50), unique=True, nullable=True)
+    image_url = Column(String(500), nullable=True)
 
     equipment_type_id = Column(Integer, ForeignKey("equipment_types.id"), nullable=False)
     equipment_model_id = Column(Integer, ForeignKey("equipment_models.id"), nullable=True)

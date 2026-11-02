@@ -88,7 +88,6 @@ def test_analysis_template_and_route_remain_reachable():
 
     paths = {r.path for r in router.router.routes}
     assert "/equipment/analysis" in paths
-    assert "/equipment/analysis/operational" in paths
 
     template = Path(
         "app/modules/equipment/templates/equipment_analysis.html"

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}السواق | المهمات والسواق{% endblock %}
+{% block extra_head %}
+<style>
+.drivers-page{max-width:1240px;margin:0 auto}.drivers-page *{box-sizing:border-box}.drivers-page .drivers-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}.drivers-page h1{font-size:28px;margin:0 0 6px}.drivers-page .muted{color:#667085;line-height:1.7}.drivers-page .drivers-nav{display:flex;gap:8px;flex-wrap:wrap}.drivers-page .drivers-nav a,.drivers-page button,.drivers-page input,.drivers-page select,.drivers-page textarea{font:inherit}.drivers-page .drivers-nav a{padding:9px 13px;border:1px solid #e2e8f0;background:#fff;border-radius:9px;color:#172033;text-decoration:none;font-weight:700}.drivers-page .drivers-panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:18px;margin-top:14px;box-shadow:0 4px 18px rgba(15,23,42,.04)}.drivers-page .drivers-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.drivers-page h2{font-size:18px;margin:0}.drivers-page .drivers-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}.drivers-page .drivers-form label{display:grid;gap:6px;min-width:0;font-size:12px;color:#475467;font-weight:700}.drivers-page .drivers-form input,.drivers-page .drivers-form select,.drivers-page .drivers-form textarea{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid #d0d5dd;border-radius:8px;background:#fff}.drivers-page .wide{grid-column:1/-1}.drivers-page .primary{min-height:42px;padding:9px 15px;border:0;border-radius:8px;background:#315f42;color:#fff;font-weight:800;cursor:pointer}.drivers-page .small-button{padding:7px 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;cursor:pointer;font-weight:700}.drivers-page .danger{color:#9f2d2d}.drivers-page .table-wrap{overflow:auto;border:1px solid #e5e9f0;border-radius:10px}.drivers-page table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0}.drivers-page th,.drivers-page td{padding:11px 10px;border-bottom:1px solid #e5e9f0;text-align:right;vertical-align:middle;white-space:nowrap}.drivers-page th{background:#f8fafc;color:#475467;font-size:12px;font-weight:800}.drivers-page tbody tr:last-child td{border-bottom:0}.drivers-page .action-link{color:#276749;text-decoration:none;font-weight:800}.drivers-page .status{display:inline-flex;padding:4px 9px;border-radius:999px;background:#edf7f0;color:#22663a;font-size:12px;font-weight:800}.drivers-page .status.inactive{background:#f2f4f7;color:#667085}.drivers-page .status.expired{background:#fff1f1;color:#9f2d2d}.drivers-page .status.expiring{background:#fff6e8;color:#8a4b08}.drivers-page .empty{text-align:center;color:#667085;padding:28px}.drivers-page .alert-counts{display:flex;gap:10px;flex-wrap:wrap}.drivers-page .alert-count{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e5e9f0;border-radius:9px;background:#fff;font-size:13px;font-weight:700}.drivers-page .alert-count b{font-size:17px}.drivers-page .alert-count.warning b{color:#a15c00}.drivers-page .alert-count.critical b{color:#b42318}@media(max-width:850px){.drivers-page .drivers-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.drivers-page .drivers-top{align-items:flex-start;flex-direction:column}.drivers-page h1{font-size:24px}.drivers-page .drivers-form{grid-template-columns:1fr}.drivers-page .wide{grid-column:auto}.drivers-page .drivers-panel{padding:13px}.drivers-page .drivers-head{align-items:flex-start;flex-direction:column}}
+.drivers-page .drivers-list-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.drivers-page .add-driver-list-button{min-height:38px;padding:7px 12px;border:0;border-radius:8px;background:#315f42;color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.drivers-page .add-driver-list-button:hover{background:#244b33}
+.drivers-page .driver-dialog{position:fixed;inset:0;margin:auto;width:min(820px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);overflow:auto;padding:22px;border:1px solid #d0d5dd;border-radius:16px;background:#fff;box-shadow:0 24px 72px #10182855;direction:rtl}
+.drivers-page .driver-dialog::backdrop{background:#10182888}
+.drivers-page .driver-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.drivers-page .driver-dialog-head h2{margin:0}
+.drivers-page .driver-dialog-close{min-height:38px;padding:7px 12px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit;cursor:pointer}
+.drivers-page .unassigned-equipment-trigger{display:flex;width:100%;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#172033;text-align:right;cursor:pointer}
+.drivers-page .unassigned-equipment-trigger:hover{border-color:#315f42;background:#f8faf9}
+.drivers-page .unassigned-equipment-trigger strong{font-size:16px}
+.drivers-page .unassigned-equipment-trigger span{color:#667085;font-size:13px}
+.drivers-page .unassigned-equipment-trigger b{display:inline-flex;min-width:34px;min-height:30px;align-items:center;justify-content:center;padding:2px 9px;border:1px solid #e4e7ec;border-radius:999px;background:#f8fafc;color:#1f2937;font-size:14px}
+.drivers-page .unassigned-equipment-dialog{width:min(1040px,calc(100vw - 32px))}
+.drivers-page .unassigned-equipment-dialog h2{margin:0}
+.drivers-page .unassigned-equipment-dialog .table-wrap{margin-top:16px}
+.drivers-page .row-add-driver{padding:7px 10px;border:0;border-radius:7px;background:#315f42;color:#fff;cursor:pointer;font-weight:800}
+.drivers-page .row-add-driver:hover{background:#244b33}
+@media(max-width:560px){.drivers-page .driver-dialog{padding:15px}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="drivers-page" dir="rtl">
+  <header class="drivers-top">
+    <div><h1>المهمات والسواق</h1><div class="muted">إدارة بيانات السائقين وتعيينهم إلى العتاد الذي يتطلب سائقًا.</div></div>
+  </header>
+  <section class="drivers-panel">
+    <button class="unassigned-equipment-trigger" type="button" id="openUnassignedEquipment" aria-haspopup="dialog" aria-controls="unassignedEquipmentDialog">
+      <span><strong>العتاد الذي لا يوجد له سائق</strong><br>عرض العتاد الذي يتطلب سائقًا ولا يرتبط بسائق نشط.</span>
+      <b>({{ unassigned_equipment|length }})</b>
+    </button>
+  </section>
+  <dialog class="driver-dialog unassigned-equipment-dialog" id="unassignedEquipmentDialog" aria-labelledby="unassignedEquipmentTitle">
+    <div class="driver-dialog-head"><h2 id="unassignedEquipmentTitle">العتاد الذي لا يوجد له سائق</h2><button class="driver-dialog-close" type="button" id="closeUnassignedEquipment">إغلاق</button></div>
+    <div class="table-wrap" data-mt-region><table>
+      <thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>النوع</th><th>الطراز</th><th data-mt-no-filter>الإجراء</th></tr></thead>
+      <tbody>{% for item in unassigned_equipment %}
+        <tr><td><a class="action-link" href="/equipment/{{ item.id }}">{{ item.equipment_model.name if item.equipment_model else (item.equipment_type.name if item.equipment_type else 'فتح العتاد') }}</a></td><td>{{ item.registration_number or item.vin or '—' }}</td><td>{{ item.equipment_type.name if item.equipment_type else '—' }}</td><td>{{ item.equipment_model.name if item.equipment_model else '—' }}</td><td><button class="row-add-driver" type="button" data-add-driver-for="{{ item.id }}" data-equipment-model-id="{{ item.equipment_model_id }}">إضافة سائق</button></td></tr>
+      {% else %}<tr><td class="empty" colspan="5">لا يوجد عتاد يتطلب سائقًا دون سائق نشط.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </dialog>
+  <dialog class="driver-dialog" id="driverDialog" aria-labelledby="driverDialogTitle">
+    <div class="driver-dialog-head"><div><h2 id="driverDialogTitle">إضافة سائق</h2><div class="muted">يمكن ربط أكثر من سائق بالعتاد نفسه. تعطيل السجل يحفظ بياناته.</div></div><button class="driver-dialog-close" type="button" id="closeDriverDialog">إغلاق</button></div>
+    <form method="post" action="/missions/drivers" class="drivers-form" data-em-root>
+      <label>الاسم *<input name="first_name" maxlength="100" required></label>
+      <label>اللقب *<input name="last_name" maxlength="100" required></label>
+      <label>صنف الرخصة *<input name="license_class" maxlength="50" required placeholder="مثال: B أو C"></label>
+      <label>تاريخ الإصدار<input type="date" name="license_issue_date"></label>
+      <label>تاريخ نهاية الصلاحية<input type="date" name="license_expiry_date"></label>
+      <label>الرتبة<input name="driving_rank" maxlength="120" placeholder="أدخل رتبة السائق"></label>
+      <label>رقم تسجيل السائق<input name="registration_number" maxlength="80" placeholder="أدخل رقم تسجيل السائق"></label>
+      <label>طراز العتاد
+        <select id="driverEquipmentModel" name="equipment_model_id"><option value="">غير معيّن</option>{% for model in equipment_models %}<option value="{{ model.id }}">{{ model.name }}</option>{% endfor %}</select>
+      </label>
+      <label>رقم تسجيل العتاد
+        <select id="driverAssignedEquipment" name="assigned_equipment_id" disabled><option value="">اختر الطراز أولًا</option>{% for item in equipment %}<option value="{{ item.id }}" data-model-id="{{ item.equipment_model_id }}">{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select>
+      </label>
+      <label class="wide">ملاحظات<input name="notes"></label>
+      <button class="primary" type="submit" data-em-action="save">حفظ السائق</button>
+    </form>
+  </dialog>
+  <section class="drivers-panel">
+    <div class="drivers-head">
+      <h2>قائمة السائقين</h2>
+      <div class="drivers-list-actions"><button class="add-driver-list-button" type="button" id="openDriverDialog" aria-haspopup="dialog">＋ إضافة سائق</button>
+      </div>
+    </div>
+    <div class="table-wrap" data-mt-region>
+      <table>
+        <thead><tr><th data-mt-force-filter>الرقم</th><th data-mt-force-filter>الاسم</th><th data-mt-force-filter>اللقب</th><th data-mt-force-filter>الرتبة</th><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>صنف الرخصة</th><th data-mt-force-filter>تاريخ الإصدار</th><th data-mt-force-filter>تاريخ نهاية الصلاحية</th><th data-mt-force-filter>التعيين</th><th data-mt-force-filter>ملاحظات</th><th data-mt-no-filter>الإجراءات</th></tr></thead>
+        <tbody>
+          {% for driver in drivers %}
+          <tr>
+            <td>{{ loop.index }}</td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.first_name }}</a></td><td><a class="action-link" href="/missions/drivers/{{ driver.id }}">{{ driver.last_name }}</a></td>
+            <td>{{ driver.driving_rank or '—' }}</td><td>{{ driver.registration_number or '—' }}</td><td>{{ driver.license_class }}</td><td>{{ driver.license_issue_date or '—' }}</td><td>{{ driver.license_expiry_date or '—' }}</td>
+            <td>{{ driver.equipment_model.name if driver.equipment_model else (driver.assigned_equipment.equipment_model.name if driver.assigned_equipment and driver.assigned_equipment.equipment_model else (driver.assigned_equipment.equipment_type.name if driver.assigned_equipment and driver.assigned_equipment.equipment_type else ('معيّن' if driver.assigned_equipment else 'غير معيّن'))) }}</td>
+            <td>{{ driver.notes or '—' }}</td>
+            <td><a class="action-link" href="/missions/drivers/{{ driver.id }}/edit">تعديل</a>
+              <form method="post" action="/missions/drivers/{{ driver.id }}/status" style="display:inline">
+                <input type="hidden" name="is_active" value="{{ 'false' if driver.is_active else 'true' }}">
+                <button class="small-button {% if driver.is_active %}danger{% endif %}" type="submit">{{ 'تعطيل' if driver.is_active else 'إعادة تفعيل' }}</button>
+              </form>
+              <span class="status {% if not driver.is_active %}inactive{% endif %}">{{ 'فعال' if driver.is_active else 'معطّل' }}</span>
+            </td>
+          </tr>
+          {% else %}<tr><td class="empty" colspan="11">لا توجد سجلات سائقين.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script>
+(function(){var dialog=document.getElementById('driverDialog');var open=document.getElementById('openDriverDialog');var close=document.getElementById('closeDriverDialog');var equipmentDialog=document.getElementById('unassignedEquipmentDialog');var equipmentOpen=document.getElementById('openUnassignedEquipment');var equipmentClose=document.getElementById('closeUnassignedEquipment');var modelSelect=document.getElementById('driverEquipmentModel');var equipmentSelect=document.getElementById('driverAssignedEquipment');function filterEquipment(reset){if(!modelSelect||!equipmentSelect)return;var modelId=modelSelect.value;Array.from(equipmentSelect.options).forEach(function(option){if(!option.value)return;var compatible=!!modelId&&option.getAttribute('data-model-id')===modelId;option.hidden=!compatible;option.disabled=!compatible;});equipmentSelect.disabled=!modelId;equipmentSelect.required=!!modelId;if(reset||!modelId||(equipmentSelect.selectedOptions[0]&&equipmentSelect.selectedOptions[0].disabled))equipmentSelect.value='';}if(modelSelect){modelSelect.addEventListener('change',function(){filterEquipment(true);});filterEquipment(false);}if(dialog&&open){open.addEventListener('click',function(){dialog.showModal();});}if(dialog&&close){close.addEventListener('click',function(){dialog.close();});dialog.addEventListener('click',function(event){if(event.target===dialog)dialog.close();});}if(equipmentDialog&&equipmentOpen&&equipmentClose){equipmentOpen.addEventListener('click',function(){equipmentDialog.showModal();});equipmentClose.addEventListener('click',function(){equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){if(event.target===equipmentDialog)equipmentDialog.close();});equipmentDialog.addEventListener('click',function(event){var addButton=event.target.closest('[data-add-driver-for]');if(!addButton||!dialog||!modelSelect||!equipmentSelect)return;modelSelect.value=addButton.getAttribute('data-equipment-model-id')||'';filterEquipment(true);equipmentSelect.value=addButton.getAttribute('data-add-driver-for');equipmentDialog.close();dialog.showModal();});}})();
+</script>
+{% endblock %}

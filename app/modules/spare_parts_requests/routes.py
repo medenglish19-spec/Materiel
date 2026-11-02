@@ -12,6 +12,11 @@ router = APIRouter()
 templates = get_module_templates("app/modules/spare_parts_requests/templates")
 
 
+@router.get("/spare-parts", response_class=HTMLResponse)
+def spare_parts_page(request: Request, user: User = Depends(get_current_user)):
+    return templates.TemplateResponse(request=request, name="index.html", context={"request": request, "user": user})
+
+
 @router.get("/spare-parts-requests", response_class=HTMLResponse)
 def requests_page(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     parts = db.query(SparePart).order_by(SparePart.name).all()

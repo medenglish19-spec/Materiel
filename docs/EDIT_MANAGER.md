@@ -54,6 +54,8 @@ If more than one form has unsaved changes, the manager refuses to guess and iden
 
 A normal POST navigation marks only that form's state as saved; changes in other forms remain dirty. Custom `fetch()` saves are associated with the submitting form and awaited by the manager; no arbitrary 20ms completion delay is used.
 
+The page's own non-GET form save path remains available. While its submit handler's write requests are pending, the manager locks page interaction and disables undo/redo; it releases the lock after the requests settle. Page handlers should call `markSavedForm(form)` after a successful save so the toolbar reflects the saved baseline.
+
 ## History and dirty state
 
 The baseline is captured after page load settles. History is limited to 100 steps and consecutive field edits are grouped with a 400 ms debounce. Dirty state is a comparison with the last saved baseline, so undoing all the way back to the saved state makes the page clean again.

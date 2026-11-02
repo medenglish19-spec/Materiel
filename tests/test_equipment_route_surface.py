@@ -5,6 +5,7 @@ commit b58a336 (أعمال التحليلات) حذف 11 مسارًا من app/m
 القوالب تشير إليها. هذه الاختبارات تمنع تكرار ذلك.
 """
 import inspect
+from pathlib import Path
 
 import pytest
 
@@ -20,11 +21,13 @@ def _routes():
     [
         ("GET", "/equipment"),
         ("GET", "/equipment/analysis"),
-        ("GET", "/equipment/analysis/operational"),
         ("GET", "/equipment/numerical-status"),
         ("GET", "/equipment/{equipment_id}"),
         ("GET", "/equipment/{equipment_id}/edit"),
         ("POST", "/equipment/create"),
+        ("GET", "/equipment/import/template"),
+        ("POST", "/equipment/import/preview"),
+        ("POST", "/equipment/import/confirm"),
         ("POST", "/equipment/{equipment_id}/edit"),
         ("POST", "/equipment/{equipment_id}/delete"),
         ("GET", "/equipment/{equipment_id}/meters"),
@@ -33,6 +36,7 @@ def _routes():
         ("POST", "/equipment/{equipment_id}/meters/{reading_id}/delete"),
         ("GET", "/api/equipment"),
         ("GET", "/api/equipment/{equipment_id}"),
+        ("GET", "/api/equipment/{equipment_id}/delete-impact"),
     ],
 )
 def test_core_equipment_route_is_registered(method, path):
@@ -54,10 +58,15 @@ def test_detail_page_still_receives_installed_tire_and_battery_data():
     assert 'name="equipment_detail.html"' in source
 
 
-def test_operational_analysis_route_uses_its_own_template():
-    source = inspect.getsource(router.equipment_operational_analysis_page)
-    assert 'name="equipment_operational_analysis.html"' in source
-    assert "build_operational_analysis" in source
+def test_operational_analysis_page_and_route_are_removed():
+    assert ("GET", "/equipment/analysis/operational") not in _routes()
+    assert not Path("app/modules/equipment/templates/equipment_operational_analysis.html").exists()
+
+
+def test_capacity_analysis_does_not_build_unused_operational_findings():
+    source = inspect.getsource(router.equipment_analysis_page)
+    assert "build_operational_analysis" not in source
+    assert "maintenance_records" not in source
 
 
 def test_equipment_detail_template_is_actually_reachable():

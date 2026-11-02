@@ -11,15 +11,24 @@ modules/users/router.py
 - API لإدارة المستخدمين (خاص بالـ admin فقط)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+import ipaddress
+from urllib.parse import urlsplit
+
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import DEFAULT_ADMIN_PASSWORD, settings
 from app.core.dependencies import get_current_user
 from app.core.permissions import Role, require_role
 from app.core.security import create_access_token
 from app.core.templating import get_module_templates
+from app.database.init_db import (
+    admin_setup_required,
+    admin_setup_requires_password_change,
+    complete_admin_setup,
+)
 from app.database.session import get_db
 from app.modules.users import services
 from app.modules.users.models import User
@@ -28,6 +37,37 @@ from app.modules.users.schemas import UserCreate, UserOut, UserUpdate
 router = APIRouter()
 templates = get_module_templates("app/modules/users/templates")
 
+
+def _require_local_first_run(request: Request) -> None:
+    client = request.client
+    if client is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المسار غير موجود")
+    try:
+        address = client.host.split("%", 1)[0]
+        is_loopback = ipaddress.ip_address(address).is_loopback
+    except ValueError:
+        is_loopback = False
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if request.method == "POST" and not origin:
+        is_loopback = False
+    if origin:
+        parsed_origin = urlsplit(origin)
+        hostname = (parsed_origin.hostname or "").lower()
+        try:
+            origin_is_loopback = hostname == "localhost" or ipaddress.ip_address(
+                hostname.split("%", 1)[0]
+            ).is_loopback
+        except ValueError:
+            origin_is_loopback = False
+        is_loopback = (
+            is_loopback
+            and origin_is_loopback
+            and parsed_origin.netloc.lower() == request.url.netloc.lower()
+        )
+    if not is_loopback:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المسار غير موجود")
+
+
 # ---------------------------------------------------------------
 # صفحات الواجهة (تسجيل الدخول / الخروج / المستخدمون)
 # ---------------------------------------------------------------
@@ -35,13 +75,23 @@ templates = get_module_templates("app/modules/users/templates")
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
+    if admin_setup_required():
+        return RedirectResponse(url="/setup", status_code=status.HTTP_303_SEE_OTHER)
     return templates.TemplateResponse(
-        request=request, name="login.html", context={"error": None}
+        request=request,
+        name="login.html",
+        context={
+            "error": None,
+            "password_changed": request.query_params.get("password_changed") == "1",
+            "setup_required": False,
+        },
     )
 
 
 @router.post("/login")
 async def login_submit(request: Request, db: Session = Depends(get_db)):
+    if admin_setup_required():
+        return RedirectResponse(url="/setup", status_code=status.HTTP_303_SEE_OTHER)
     form = await request.form()
     username = form.get("username", "")
     password = form.get("password", "")
@@ -51,12 +101,118 @@ async def login_submit(request: Request, db: Session = Depends(get_db)):
         return templates.TemplateResponse(
             request=request,
             name="login.html",
-            context={"error": "اسم المستخدم أو كلمة المرور غير صحيحة"},
+            context={
+                "error": "اسم المستخدم أو كلمة المرور غير صحيحة",
+                "password_changed": False,
+                "setup_required": False,
+            },
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
     token = create_access_token({"sub": user.username, "role": user.role})
     response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    return response
+
+
+@router.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request):
+    _require_local_first_run(request)
+    if not admin_setup_required():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={
+            "error": None,
+            "password_changed": False,
+            "setup_required": True,
+            "setup_change_default_password": admin_setup_requires_password_change(),
+        },
+    )
+
+
+@router.post("/setup")
+async def setup_admin(request: Request, db: Session = Depends(get_db)):
+    _require_local_first_run(request)
+    if not admin_setup_required():
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    form = await request.form()
+    submitted_username = form.get("username", "admin")
+    username = submitted_username if isinstance(submitted_username, str) else ""
+    submitted_password = form.get("password", "")
+    password = submitted_password if isinstance(submitted_password, str) else ""
+    submitted_confirmation = form.get("confirmation", "")
+    confirmation = (
+        submitted_confirmation if isinstance(submitted_confirmation, str) else ""
+    )
+    error = None
+    if not admin_setup_requires_password_change() and username == "":
+        error = "اسم المستخدم مطلوب."
+    elif not password:
+        error = "كلمة المرور مطلوبة."
+    elif password != confirmation:
+        error = "تأكيد كلمة المرور غير مطابق."
+    if error:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": error,
+                "password_changed": False,
+                "setup_required": True,
+                "setup_change_default_password": admin_setup_requires_password_change(),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        if admin_setup_requires_password_change():
+            user = services.get_user_by_username(db, "admin")
+            if user is None:
+                raise ValueError("تعذر العثور على حساب المدير الحالي؛ أعد تشغيل البرنامج أو راجع سجل الأخطاء.")
+            services.change_own_password(
+                db, user, DEFAULT_ADMIN_PASSWORD, password, confirmation
+            )
+        else:
+            user = services.create_user(
+                db,
+                UserCreate(
+                    username=username,
+                    full_name="مدير النظام",
+                    password=password,
+                    role=Role.ADMIN.value,
+                ),
+            )
+    except ValueError as exc:
+        db.rollback()
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={
+                "error": str(exc),
+                "password_changed": False,
+                "setup_required": True,
+                "setup_change_default_password": admin_setup_requires_password_change(),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except IntegrityError:
+        db.rollback()
+        existing_admin = services.get_user_by_username(db, "admin")
+        if existing_admin is not None and not admin_setup_requires_password_change():
+            complete_admin_setup()
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    complete_admin_setup()
+    token = create_access_token({"sub": user.username, "role": user.role})
+    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
     response.set_cookie(
         key=settings.SESSION_COOKIE_NAME,
         value=token,
@@ -77,11 +233,34 @@ def logout():
 def users_page(
     request: Request,
     db: Session = Depends(get_db),
-    _: User = Depends(require_role(Role.ADMIN)),
+    current_user: User = Depends(require_role(Role.ADMIN)),
 ):
     return templates.TemplateResponse(
-        request=request, name="users.html", context={"users": services.list_users(db)}
+        request=request,
+        name="users.html",
+        context={"users": services.list_users(db), "user": current_user},
     )
+
+
+@router.post("/users/password")
+def change_own_password(
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirmation: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.ADMIN)),
+):
+    try:
+        services.change_own_password(
+            db, current_user, current_password, new_password, confirmation
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    response = RedirectResponse("/login?password_changed=1", status_code=303)
+    response.delete_cookie(settings.SESSION_COOKIE_NAME)
+    return response
 
 
 # ---------------------------------------------------------------

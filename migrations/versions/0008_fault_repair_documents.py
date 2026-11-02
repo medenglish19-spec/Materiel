@@ -11,6 +11,8 @@ down_revision = "0007_faults_repairs"
 branch_labels = None
 depends_on = None
 
+_FOREIGN_KEY_NAMING_CONVENTION = {"fk": "fk_%(table_name)s_%(column_0_name)s"}
+
 
 def upgrade() -> None:
     op.add_column("faults", sa.Column("report_number", sa.String(80), nullable=True))
@@ -21,24 +23,35 @@ def upgrade() -> None:
     op.add_column("repairs", sa.Column("repair_document", sa.String(255), nullable=True))
     op.add_column("repairs", sa.Column("external_dispatch_document", sa.String(255), nullable=True))
     op.add_column("repair_parts", sa.Column("distribution_document", sa.String(255), nullable=True))
-    op.alter_column("repair_parts", "distribution_document", nullable=True)
-    op.create_check_constraint(
-        "ck_repair_workshop_type", "repairs",
-        "workshop_type IN ('internal', 'external')",
-    )
-    op.create_check_constraint(
-        "ck_external_repair_requires_dispatch_document", "repairs",
-        "(workshop_type = 'internal') OR external_dispatch_document IS NOT NULL",
-    )
+    with op.batch_alter_table(
+        "repairs", naming_convention=_FOREIGN_KEY_NAMING_CONVENTION
+    ) as batch_op:
+        batch_op.create_check_constraint(
+            "ck_repair_workshop_type",
+            "workshop_type IN ('internal', 'external')",
+        )
+        batch_op.create_check_constraint(
+            "ck_external_repair_requires_dispatch_document",
+            "(workshop_type = 'internal') OR external_dispatch_document IS NOT NULL",
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_external_repair_requires_dispatch_document", "repairs", type_="check")
-    op.drop_constraint("ck_repair_workshop_type", "repairs", type_="check")
-    op.drop_column("repair_parts", "distribution_document")
-    op.drop_column("repairs", "external_dispatch_document")
-    op.drop_column("repairs", "repair_document")
-    op.drop_column("repairs", "workshop_type")
+    with op.batch_alter_table(
+        "repairs", naming_convention=_FOREIGN_KEY_NAMING_CONVENTION
+    ) as batch_op:
+        batch_op.drop_constraint("ck_external_repair_requires_dispatch_document", type_="check")
+        batch_op.drop_constraint("ck_repair_workshop_type", type_="check")
+        batch_op.drop_column("external_dispatch_document")
+        batch_op.drop_column("repair_document")
+        batch_op.drop_column("workshop_type")
+    with op.batch_alter_table(
+        "repair_parts", naming_convention=_FOREIGN_KEY_NAMING_CONVENTION
+    ) as batch_op:
+        batch_op.drop_column("distribution_document")
     op.drop_index("ix_faults_report_number", table_name="faults")
-    op.drop_column("faults", "note")
-    op.drop_column("faults", "report_number")
+    with op.batch_alter_table(
+        "faults", naming_convention=_FOREIGN_KEY_NAMING_CONVENTION
+    ) as batch_op:
+        batch_op.drop_column("note")
+        batch_op.drop_column("report_number")

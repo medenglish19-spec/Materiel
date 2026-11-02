@@ -1,0 +1,7 @@
+nCount">0 عملية</span>
+    </div>
+    <div class="table-wrap">
+      <table class="m-table" id="operationsTable">
+        <thead><tr>
+  <th class="mt-actions-th" aria-label="إجراءات"></th>
+  <th class="filter-head" data-filter-col="name">العملية <but

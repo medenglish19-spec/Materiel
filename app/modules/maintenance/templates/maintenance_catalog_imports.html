@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}استيراد كتالوجات الصيانة{% endblock %}
+{% block content %}
+<main class="maintenance-page" dir="rtl">
+  <div class="page-top"><div class="page-heading"><h2>كتالوجات الصيانة الفنية</h2><div class="breadcrumb"><a href="/maintenance">الصيانة</a> › <span class="current">استيراد الكتالوجات</span></div></div></div>
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>استيراد مصدر فني</h3><p>يرتبط الملف بطراز محدد، وتبقى النتائج مسودة حتى مراجعتها.</p></div></div>
+    <form method="post" action="/maintenance/catalog-imports" enctype="multipart/form-data" class="form-grid">
+      <label>طراز العتاد<select name="model_id" required><option value="">اختر الطراز</option>{% for model in models %}<option value="{{ model.id }}">{{ model.brand.name if model.brand else 'بلا علامة' }} — {{ model.name }}</option>{% endfor %}</select></label>
+      <label>ملف الكتالوج<input type="file" name="file" accept=".pdf,.docx,.xlsx,.xls" required></label>
+      <div><button class="btn primary" type="submit">رفع واستخراج العمليات</button><a class="btn" href="/maintenance">عودة</a></div>
+    </form>
+    <p class="muted" style="margin-top:12px">الحد الأقصى 10 ميغابايت. الاستيراد لا يغيّر الخطط أو سجلات التنفيذ.</p>
+  </section>
+  <section class="panel" style="margin-top:18px">
+    <div class="panel-head"><div><h3>سجل الكتالوجات والإصدارات</h3><p>بصمة الملف تمنع إنشاء نسخة مكررة للطراز نفسه.</p></div></div>
+    <div class="table-wrap mt-table-theme-green" data-mt-region><table><thead><tr><th>المصدر</th><th>الطراز</th><th>الإصدار</th><th>الحالة</th><th>تاريخ الاستيراد</th><th data-mt-no-filter></th></tr></thead><tbody>
+      {% for item in imports %}<tr><td>{{ item.document_title or item.filename }}</td><td>{{ item.equipment_model.name }}</td><td>{{ item.version_number }}</td><td>{{ {'draft':'مسودة','reviewed':'مراجع','applied':'أضيفت للمكتبة','rejected':'مرفوض'}.get(item.status, item.status) }}</td><td>{{ item.created_at.strftime('%Y-%m-%d %H:%M') }}</td><td><a class="btn" href="/maintenance/catalog-imports/{{ item.id }}">فتح</a></td></tr>{% else %}<tr><td colspan="6">لا توجد كتالوجات مستوردة.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</main>
+{% endblock %}

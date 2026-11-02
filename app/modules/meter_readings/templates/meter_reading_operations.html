@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}سجل عمليات قراءات العدادات{% endblock %}
+{% block content %}
+<section class="reading-audit-page" dir="rtl">
+  <header class="page-header">
+    <div>
+      <h1>سجل عمليات قراءات العدادات</h1>
+      <p class="page-hint">مرجع موحد يوضح من أجرى العملية ومتى تمت وما الذي تغير. تفاصيل ملفات الاستيراد والأخطاء محفوظة ضمن مسار الاستيراد.</p>
+    </div>
+    <a class="btn btn-outline" href="/meter-readings">العودة إلى قراءات العدادات</a>
+  </header>
+
+  <section class="card reading-audit-card" aria-label="عمليات قراءات العدادات">
+    <div class="reading-audit-summary"><span>عدد العمليات المعروضة</span><strong>{{ changes|length }}</strong></div>
+    {% if deleted_count %}<p class="reading-audit-notice" role="status">تم حذف {{ deleted_count }} سطر من السجل فقط، وبقيت قراءات العداد كما هي.</p>{% endif %}
+    {% if can_delete_audit %}<div class="reading-audit-actions"><form id="readingAuditBulkDeleteForm" method="post" action="/meter-readings/operations/delete-selected" onsubmit="return confirm('حذف أسطر السجل المحددة؟ لن تُحذف قراءات العداد نفسها.')"><button class="reading-audit-delete-selected" type="submit" data-audit-delete-selected disabled>حذف المحدد</button></form><span data-audit-selection-count>0 محددة</span><small>الحذف يزيل أسطر السجل فقط ولا يحذف القراءات المسجلة.</small></div>{% endif %}
+    <div class="table-scroll mt-table-theme-green" data-mt-region>
+      <table class="data-table reading-audit-table">
+        <thead><tr>{% if can_delete_audit %}<th><input type="checkbox" data-audit-select-all aria-label="تحديد كل السجلات"></th>{% endif %}<th>التاريخ والوقت</th><th>المستخدم</th><th>نوع العملية</th><th>العتاد</th><th>رقم التسجيل</th><th>القيمة السابقة</th><th>القيمة الجديدة</th><th>الوحدة</th><th>المصدر</th>{% if can_delete_audit %}<th>إجراء</th>{% endif %}</tr></thead>
+        <tbody>
+          {% for change in changes %}
+          {% set equipment = equipment_map.get(change.equipment_id) %}
+          {% set model = equipment.equipment_model.name if equipment and equipment.equipment_model else '—' %}
+          {% set registration = (equipment.registration_number or equipment.asset_code or '—') if equipment else '—' %}
+          <tr>
+            {% if can_delete_audit %}<td><input class="reading-audit-select" type="checkbox" name="change_ids" value="{{ change.id }}" form="readingAuditBulkDeleteForm" aria-label="تحديد سجل {{ change.id }}"></td>{% endif %}
+            <td class="reading-audit-date">{{ change.changed_at.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+            <td>{{ names.get(change.actor_id, 'غير محدد') }}</td>
+            <td>{{ action_label(change.action) }}</td>
+            <td>{{ model }}</td>
+            <td class="reading-audit-id">{{ registration }}</td>
+            <td class="old">{{ format_value(change.old_value) }}</td>
+            <td class="new">{{ format_value(change.new_value) }}</td>
+            <td>{{ 'كم' if change.unit == 'km' else 'ساعة عمل' }}</td>
+            <td>{{ change.source or '—' }}</td>
+            {% if can_delete_audit %}<td class="reading-audit-row-actions"><form method="post" action="/meter-readings/operations/{{ change.id }}/delete" onsubmit="return confirm('حذف هذا السطر من السجل؟ لن تُحذف قراءة العداد نفسها.')"><button class="reading-audit-delete-one" type="submit">حذف</button></form></td>{% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{{ 11 if can_delete_audit else 9 }}" class="empty"><div class="empty-state"><strong>لا توجد عمليات مسجلة بعد.</strong><span>ستظهر هنا التغييرات التي تُجرى على قراءات العدادات.</span><a class="btn btn-outline" href="/meter-readings">فتح قراءات العدادات</a></div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>
+<style>
+.reading-audit-page .page-header{align-items:flex-start}
+.reading-audit-page .reading-audit-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 14px;border-bottom:1px solid #d8e5da;color:#52695a;font-size:12px}
+.reading-audit-page .reading-audit-summary strong{display:inline-flex;min-width:30px;height:28px;align-items:center;justify-content:center;padding:0 8px;border-radius:8px;background:#eaf2ec;color:#315f42;font-size:12px}
+.reading-audit-page .reading-audit-table{min-width:960px}
+.reading-audit-page .reading-audit-table th,.reading-audit-page .reading-audit-table td{text-align:center;white-space:nowrap}
+.reading-audit-page .reading-audit-date,.reading-audit-page .reading-audit-id{font-variant-numeric:tabular-nums}
+.reading-audit-page .reading-audit-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;padding:12px 14px;border-bottom:1px solid #e5eee7;color:#52695a;font-size:12px}.reading-audit-page .reading-audit-actions form{margin:0}.reading-audit-page .reading-audit-actions label{display:inline-flex;align-items:center;gap:6px;font-weight:700}.reading-audit-page .reading-audit-actions input,.reading-audit-page .reading-audit-table input{width:16px;height:16px;accent-color:#397a54;cursor:pointer}.reading-audit-page .reading-audit-actions small{color:#718477}.reading-audit-page .reading-audit-delete-selected,.reading-audit-page .reading-audit-delete-one{border:1px solid #b42318;border-radius:7px;background:#fff;color:#b42318;padding:7px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.reading-audit-page .reading-audit-delete-selected:disabled{opacity:.45;cursor:not-allowed}.reading-audit-page .reading-audit-row-actions{display:flex;align-items:center;gap:8px}.reading-audit-page .reading-audit-row-actions form{margin:0}.reading-audit-page .reading-audit-row-actions input{flex:0 0 auto}.reading-audit-page .reading-audit-notice{margin:10px 14px 0;padding:10px 12px;border:1px solid #c6e2ce;border-radius:8px;background:#f1f8f3;color:#286143;font-size:12px;font-weight:700}
+.reading-audit-page .old{font-weight:700;color:#9a6200}
+.reading-audit-page .new{font-weight:700;color:#23734b}
+.reading-audit-page .empty-state{gap:8px}
+@media(max-width:700px){.reading-audit-page .page-header{align-items:stretch}.reading-audit-page .page-header>.btn{align-self:flex-start}.reading-audit-page .reading-audit-card{padding:0}.reading-audit-page .reading-audit-summary{padding:10px}}
+</style>
+{% if can_delete_audit %}
+<script>
+(function(){
+  const selectAll=document.querySelector("[data-audit-select-all]");
+  const rows=[...document.querySelectorAll(".reading-audit-select")];
+  const button=document.querySelector("[data-audit-delete-selected]");
+  const count=document.querySelector("[data-audit-selection-count]");
+  if(!selectAll||!button||!count)return;
+  function updateSelection(){
+    const selected=rows.filter(item=>item.checked).length;
+    button.disabled=selected===0;
+    count.textContent=`${selected} محددة`;
+    selectAll.checked=rows.length>0&&selected===rows.length;
+    selectAll.indeterminate=selected>0&&selected<rows.length;
+  }
+  selectAll.addEventListener("change",()=>{rows.forEach(item=>item.checked=selectAll.checked);updateSelection()});
+  rows.forEach(item=>item.addEventListener("change",updateSelection));
+  updateSelection();
+})();
+</script>
+{% endif %}
+{% endblock %}

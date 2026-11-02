@@ -12,7 +12,7 @@ def test_operational_analysis_counts_fault_and_maintenance_burden():
     )
     faults = [
         SimpleNamespace(equipment_id=1, status="open", severity="high", exploitation_impact="prohibited", fault_type=None, reported_date=date(2026, 1, 10)),
-        SimpleNamespace(equipment_id=1, status="closed", severity="low", exploitation_impact="none", fault_type=None, reported_date=date(2026, 2, 10)),
+        SimpleNamespace(equipment_id=1, status="repaired", severity="low", exploitation_impact="none", fault_type=None, reported_date=date(2026, 2, 10)),
     ]
     records = [
         SimpleNamespace(equipment_id=1, is_scheduled=True, maintenance_date=date(2026, 1, 5)),
