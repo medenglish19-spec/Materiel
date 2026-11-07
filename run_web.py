@@ -178,22 +178,52 @@ def _write_port_file(path: Path, port: int) -> None:
     os.replace(temporary_path, path)
 
 
-def _open_existing_instance(data_dir: Path, identity: str) -> bool:
+def _open_existing_instance(
+    data_dir: Path,
+    identity: str,
+    fallback_port: int = 8000,
+    timeout: float = 10,
+) -> bool:
     port_file = data_dir / f"server-{identity}.port"
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        ports = []
         try:
-            port = int(port_file.read_text(encoding="ascii").strip())
-            with urllib.request.urlopen(_health_url("127.0.0.1", port), timeout=1) as response:
-                if response.status == 200:
-                    if not _open_url("127.0.0.1", port):
-                        _show_fatal_error(
-                            RuntimeError(f"تعذر فتح المتصفح. افتح هذا الرابط يدويًا: http://127.0.0.1:{port}/"),
-                            data_dir / "logs" / "error.log",
-                        )
-                    return True
-        except (OSError, ValueError, urllib.error.URLError):
-            time.sleep(0.2)
+            ports.append(int(port_file.read_text(encoding="ascii").strip()))
+        except (OSError, ValueError):
+            pass
+        if fallback_port not in ports:
+            ports.append(fallback_port)
+
+        for port in ports:
+            if not 1 <= port <= 65535:
+                continue
+            try:
+                with urllib.request.urlopen(
+                    _health_url("127.0.0.1", port), timeout=1
+                ) as health_response:
+                    if health_response.status != 200:
+                        continue
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/login", timeout=1
+                ) as app_response:
+                    if app_response.status != 200:
+                        continue
+                    page = app_response.read().decode("utf-8", errors="replace")
+                if "تسيير ومحاسبة العتاد" not in page:
+                    continue
+            except (OSError, urllib.error.URLError):
+                continue
+
+            if not _open_url("127.0.0.1", port):
+                _show_fatal_error(
+                    RuntimeError(
+                        f"تعذر فتح المتصفح. افتح هذا الرابط يدويًا: http://127.0.0.1:{port}/"
+                    ),
+                    data_dir / "logs" / "error.log",
+                )
+            return True
+        time.sleep(0.2)
     return False
 
 
@@ -303,7 +333,9 @@ def _run_packaged_windows() -> int:
         raise ctypes.WinError()
     if ctypes.get_last_error() == _ERROR_ALREADY_EXISTS:
         try:
-            if not _open_existing_instance(data_dir, identity):
+            if not _open_existing_instance(
+                data_dir, identity, fallback_port=settings.PORT
+            ):
                 raise RuntimeError(
                     "تعذر الاتصال بالنسخة المفتوحة. أغلقها من أيقونة Materiel بجانب الساعة ثم أعد المحاولة."
                 )
@@ -323,7 +355,9 @@ def _run_packaged_windows() -> int:
         kernel32.CloseHandle(global_mutex_handle)
         kernel32.ReleaseMutex(mutex_handle)
         kernel32.CloseHandle(mutex_handle)
-        if not _open_existing_instance(data_dir, identity):
+        if not _open_existing_instance(
+            data_dir, identity, fallback_port=settings.PORT
+        ):
             raise RuntimeError(
                 "توجد نسخة من Materiel تعمل في جلسة مستخدم أخرى، لكن تعذر الاتصال بها. "
                 "أغلقها قبل إعادة المحاولة."

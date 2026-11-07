@@ -40,7 +40,6 @@ PAGE_MARKERS = [
     ("/maintenance/periodic", None),
     ("/maintenance/plans", None),
     ("/maintenance/rules", None),
-    ("/maintenance/catalog-imports", "كتالوجات الصيانة الفنية"),
     ("/faults-repairs", "الأعطال"),
     ("/faults-repairs/faults", None),
     ("/faults-repairs/repairs", None),
@@ -409,6 +408,40 @@ def test_spare_parts_catalog_can_delete_an_unused_part_from_its_row(pages):
     assert "PAGE-DELETE-001" not in client.get("/spare-parts/catalog").text
 
 
+def test_spare_parts_catalog_update_archives_when_active_checkbox_is_unchecked(pages):
+    client, _ = pages
+    part_name = "قطعة مؤرشفة عند غياب مربع النشاط"
+    created = client.post(
+        "/spare-parts/catalog/parts",
+        data={"name": part_name, "reference": "PAGE-ARCHIVE-001"},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+
+    page = client.get("/spare-parts/catalog", params={"q": "PAGE-ARCHIVE-001"})
+    update_action = re.search(
+        r'<form action="(/spare-parts/catalog/parts/\d+/update)"', page.text
+    )
+    assert update_action, "the catalog row is missing its edit form"
+
+    # An unchecked HTML checkbox is omitted from form data, matching a real submit.
+    updated = client.post(
+        update_action.group(1),
+        data={"name": part_name, "reference": "PAGE-ARCHIVE-001"},
+        follow_redirects=False,
+    )
+    assert updated.status_code == 303
+
+    archived = client.get(
+        "/spare-parts/catalog", params={"q": "PAGE-ARCHIVE-001", "active": "false"}
+    )
+    active = client.get(
+        "/spare-parts/catalog", params={"q": "PAGE-ARCHIVE-001", "active": "true"}
+    )
+    assert part_name in archived.text
+    assert part_name not in active.text
+
+
 def test_maintenance_records_labels_equipment_number_as_registration(pages):
     client, _ = pages
     response = client.get("/maintenance/records")
@@ -582,6 +615,51 @@ def test_tire_battery_procurement_and_asset_creation_work_end_to_end(pages):
     assert client.post(f"/batteries/{battery_id}/delete", follow_redirects=False).status_code == 303
 
 
+def test_battery_cannot_be_installed_on_model_without_batteries(pages):
+    client, ids = pages
+    today = date.today().isoformat()
+    request = client.post("/api/spare-parts-requests", json={
+        "request_number": "E2E-BATTERY-UNSUPPORTED-MODEL",
+        "request_date": today,
+        "received_date": today,
+        "recipient": "مستلم الاختبار",
+        "supplier_institution": "مورد الاختبار",
+        "source_type": "fault",
+        "source_id": ids["fault"],
+        "items": [{
+            "asset_type": "battery",
+            "part_name": "بطارية لطراز لا يستخدم البطاريات",
+            "requested_quantity": 1,
+            "received_quantity": 1,
+        }],
+    })
+    assert request.status_code == 201, request.text
+    item_id = request.json()["items"][0]["id"]
+    created = client.post(
+        "/batteries",
+        data={"battery_type": "AGM", "acquisition_request_item_id": item_id},
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    battery_id = re.search(r'href="/batteries/(\d+)"', client.get("/batteries").text).group(1)
+
+    rejected = client.post(
+        f"/batteries/{battery_id}/movements",
+        data={
+            "movement_type": "install",
+            "movement_date": today,
+            "equipment_id": ids["equipment"],
+            "reason": "اختبار توافق الطراز",
+        },
+    )
+    assert rejected.status_code == 400
+    assert "غير معرّف بأنه يستخدم البطاريات" in rejected.text
+    assert "لا توجد حركات مسجلة لهذه البطارية" in client.get(f"/batteries/{battery_id}").text
+    equipment_batteries = client.get(f"/equipment/{ids['equipment']}/batteries")
+    assert equipment_batteries.status_code == 200
+    assert "لا توجد بطارية مركبة حاليًا." in equipment_batteries.text
+
+
 def test_faults_repairs_dashboard_shows_repair_metrics_by_status(pages):
     client, _ = pages
     response = client.get("/faults-repairs")
@@ -695,6 +773,17 @@ def test_meter_history_modal_returns_selected_equipment_readings():
                 follow_redirects=False,
             )
             assert login.status_code in (302, 303)
+            previous = client.post(
+                "/meter-readings/create",
+                data={
+                    "equipment_id": ids["equipment"],
+                    "reading_date": (date.today() - timedelta(days=1)).isoformat(),
+                    "value": "1200",
+                    "equipment_status": "available",
+                    "notes": "قراءة سابقة لاختبار الفرق",
+                },
+            )
+            assert previous.status_code == 200
             created = client.post(
                 "/meter-readings/create",
                 data={
@@ -723,8 +812,11 @@ def test_meter_history_modal_returns_selected_equipment_readings():
     payload = response.json()
     assert payload["equipment"]["registration"] == "111-TEST"
     assert payload["unit"] == "كم"
-    assert payload["total"] == 1
+    assert payload["total"] == 2
     assert payload["rows"][0]["reading"].replace(",", "") == "1234"
+    assert payload["rows"][0]["difference"] == "+34"
+    assert payload["rows"][1]["reading"].replace(",", "") == "1200"
+    assert payload["rows"][1]["difference"] == "—"
     assert payload["rows"][0]["note"] == "قراءة للنافذة المنبثقة"
     assert readings_page.status_code == 200
     assert "111-TEST" in readings_page.text
@@ -732,6 +824,97 @@ def test_meter_history_modal_returns_selected_equipment_readings():
     assert 'id="dateModal"' in readings_page.text
     assert 'value="' + date.today().isoformat() + '"' in readings_page.text
     assert invalid_date_range.status_code == 400
+
+
+def test_viewer_cannot_create_missions_or_manage_drivers():
+    from app.core.config import settings
+    from app.modules.missions.models import Driver, Mission
+    from app.modules.missions.services import create_driver
+    from app.modules.users.models import User
+
+    with _isolated_app() as (app, TestingSession, ids):
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(settings, "DEV_DISABLE_AUTH", False)
+            db = TestingSession()
+            viewer = db.query(User).filter(User.id == ids["user"]).one()
+            viewer.role = "viewer"
+            driver = create_driver(
+                db,
+                {
+                    "employee_number": "VIEWER-DRIVER-GUARD",
+                    "first_name": "سائق",
+                    "last_name": "للقراءة فقط",
+                    "license_class": "B",
+                },
+            )
+            driver_id = driver.id
+            missions_before = db.query(Mission).count()
+            drivers_before = db.query(Driver).count()
+            db.close()
+
+            with TestClient(app) as client:
+                login = client.post(
+                    "/login",
+                    data={"username": SEEDED_USERNAME, "password": SEEDED_PASSWORD},
+                    follow_redirects=False,
+                )
+                assert login.status_code in (302, 303)
+
+                mission_page = client.get("/missions")
+                records_page = client.get("/missions/records")
+                drivers_page = client.get("/missions/drivers")
+                assert mission_page.status_code == 200
+                assert records_page.status_code == 200
+                assert drivers_page.status_code == 200
+                assert 'id="openMissionDialog"' not in mission_page.text
+                assert 'id="missionDialog"' not in mission_page.text
+                assert 'class="mission-add-button"' not in records_page.text
+                assert 'id="openDriverDialog"' not in drivers_page.text
+                assert f'href="/missions/drivers/{driver_id}/edit"' not in drivers_page.text
+                assert f'action="/missions/drivers/{driver_id}/status"' not in drivers_page.text
+
+                mission = client.post(
+                    "/missions",
+                    data={
+                        "equipment_id": ids["equipment"],
+                        "start_date": date.today().isoformat(),
+                        "driver_name": "محاولة غير مخوّلة",
+                    },
+                )
+                driver_create = client.post(
+                    "/missions/drivers",
+                    data={
+                        "first_name": "قارئ",
+                        "last_name": "غير مخوّل",
+                        "license_class": "B",
+                    },
+                )
+                driver_edit = client.post(
+                    f"/missions/drivers/{driver_id}/edit",
+                    data={
+                        "first_name": "سائق",
+                        "last_name": "معدل",
+                        "license_class": "B",
+                    },
+                )
+                driver_status = client.post(
+                    f"/missions/drivers/{driver_id}/status",
+                    data={"is_active": "false"},
+                )
+                driver_edit_page = client.get(
+                    f"/missions/drivers/{driver_id}/edit"
+                )
+                assert mission.status_code == 403
+                assert driver_create.status_code == 403
+                assert driver_edit.status_code == 403
+                assert driver_status.status_code == 403
+                assert driver_edit_page.status_code == 403
+
+            db = TestingSession()
+            assert db.query(Mission).count() == missions_before
+            assert db.query(Driver).count() == drivers_before
+            assert db.query(Driver).filter(Driver.id == driver_id).one().is_active
+            db.close()
 
 
 def test_single_form_pages_are_connected_to_the_shared_editor(pages):

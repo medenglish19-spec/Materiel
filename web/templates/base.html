@@ -458,7 +458,7 @@ const moduleNavigation=(function(){
   const allowed=function(item){return !item[2]||item[2].includes(role)};
   const matchesRoute=function(path,candidate){const target=new URL(candidate||'/',window.location.origin).pathname;return path===target||(target!=='/'&&path.startsWith(target+'/'))};
   const unit=function(title,icon,links,activePath,currentLabel){const visibleLinks=links.filter(allowed);const rootPath=new URL(visibleLinks[0]?.[0]||'/',window.location.origin).pathname;return {title:title,icon:icon,label:'التنقل بين صفحات '+title,links:visibleLinks,rootPath:rootPath,activePath:activePath||null,currentLabel:currentLabel||null,matches:function(path,candidate){return matchesRoute(path,candidate||rootPath)}}};
-  const maintenanceLinks=[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة'],['/maintenance/catalog-imports','استيراد الكتالوجات',['admin','fleet_manager']]];
+  const maintenanceLinks=[['/maintenance','لوحة الصيانة'],['/maintenance/periodic','الصيانة الدورية'],['/maintenance/rules','عمليات الصيانة'],['/maintenance/plans','خطط الصيانة'],['/maintenance/records','سجل الصيانة'],['/maintenance/due','الصيانة المستحقة']];
   const equipmentDetail=p.match(/^\/equipment\/(\d+)(?:\/([^/]+))?$/);
   if(equipmentDetail){
     const id=equipmentDetail[1],section=equipmentDetail[2]||'';

@@ -61,7 +61,11 @@ class MaintenanceOperationGroup(Base):
 
 
 class MaintenanceCatalogImport(Base):
-    """Versioned, reviewable manufacturer source; never an operational plan."""
+    """Legacy PDF-import rows retained in SQLite to preserve existing user data.
+
+    The PDF catalog import routes have been removed; do not drop this table in a
+    migration because an existing installation may still contain reviewed files.
+    """
     __tablename__ = "maintenance_catalog_imports"
     __table_args__ = (
         UniqueConstraint("equipment_model_id", "content_sha256", name="uq_maintenance_catalog_model_sha256"),

@@ -21,10 +21,6 @@ from app.database.session import get_db
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.maintenance.models import (MaintenanceOperation, MaintenanceModelOperation, MaintenanceOperationGroup, MaintenancePlan, MaintenancePlanOperation, MaintenanceRecord, maintenance_operation_models)
-from app.modules.maintenance.models import MaintenanceCatalogImport
-from app.modules.maintenance.catalog_import import (
-    compare_previous_version, create_catalog_import, get_catalog_items, update_catalog_item,
-)
 from app.modules.maintenance.operation_excel_import import (
     GENERAL_OPERATION_IMPORT_HEADERS,
     OPERATION_IMPORT_HEADERS,
@@ -64,7 +60,6 @@ from app.modules.users.models import User
 from app.modules.faults_repairs.models import Technician, Fault
 from app.modules.faults_repairs.services import list_technicians
 from app.modules.document_import.upload import read_upload_bytes, UploadTooLargeError
-from app.modules.document_import.extraction.extractor import ExtractionError
 
 router = APIRouter()
 templates = get_module_templates("app/modules/maintenance/templates")
@@ -255,312 +250,6 @@ def _maintenance_status_counts(db: Session, equipment: list[Equipment]) -> dict[
     return counts
 
 
-@router.get("/maintenance/catalog-imports", response_class=HTMLResponse)
-def maintenance_catalog_imports_page(
-    request: Request, db: Session = Depends(get_db),
-    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    models = db.query(EquipmentModel).options(joinedload(EquipmentModel.brand)).order_by(EquipmentModel.name).all()
-    imports = db.query(MaintenanceCatalogImport).options(
-        joinedload(MaintenanceCatalogImport.equipment_model),
-    ).order_by(MaintenanceCatalogImport.created_at.desc(), MaintenanceCatalogImport.id.desc()).all()
-    return templates.TemplateResponse(request=request, name="maintenance_catalog_imports.html", context={
-        "request": request, "user": current_user, "models": models, "imports": imports,
-    })
-
-
-@router.post("/maintenance/catalog-imports")
-async def maintenance_catalog_import_create(
-    model_id: int = Form(...), file: UploadFile = File(...),
-    db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    from pathlib import Path
-    filename = file.filename or ""
-    try:
-        data = await read_upload_bytes(file)
-    except UploadTooLargeError as exc:
-        raise HTTPException(status_code=413, detail=str(exc)) from exc
-    try:
-        record, duplicate = create_catalog_import(
-            db, model_id=model_id, filename=filename, data=data, user_id=current_user.id if current_user else None,
-        )
-    except ExtractionError as exc:
-        raise HTTPException(status_code=400, detail=exc.message) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    target = f"/maintenance/catalog-imports/{record.id}?duplicate=1" if duplicate else f"/maintenance/catalog-imports/{record.id}"
-    return RedirectResponse(target, status_code=303)
-
-
-@router.get("/maintenance/catalog-imports/{catalog_id}", response_class=HTMLResponse)
-def maintenance_catalog_import_detail(
-    catalog_id: int, request: Request, db: Session = Depends(get_db),
-    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    record = db.query(MaintenanceCatalogImport).options(
-        joinedload(MaintenanceCatalogImport.equipment_model),
-    ).filter(MaintenanceCatalogImport.id == catalog_id).first()
-    if record is None:
-        raise HTTPException(status_code=404, detail="كتالوج الصيانة غير موجود.")
-    all_items = get_catalog_items(record)
-    query_text = request.query_params.get("q", "").strip()
-    schedule_type = request.query_params.get("schedule_type", "").strip()
-    try:
-        page = max(1, int(request.query_params.get("page", "1")))
-    except ValueError:
-        page = 1
-    filtered_items = [
-        (index, item) for index, item in enumerate(all_items)
-        if (not schedule_type or item.get("schedule_type") == schedule_type)
-        and (not query_text or query_text.casefold() in " ".join(str(item.get(key) or "") for key in (
-            "operation_name", "section", "source_excerpt", "condition_note", "source_page",
-        )).casefold())
-    ]
-    page_size = 40
-    page_count = max(1, (len(filtered_items) + page_size - 1) // page_size)
-    page = min(page, page_count)
-    page_start = (page - 1) * page_size
-    page_items = filtered_items[page_start:page_start + page_size]
-    item_groups = []
-    for schedule_key, schedule_label in (
-        ("normal", "الجدول القياسي"),
-        ("severe_conditions", "جدول الظروف القاسية"),
-        ("unclassified", "عمليات غير مصنفة"),
-    ):
-        group_rows = [
-            {"index": item_index, "item": item}
-            for item_index, item in page_items
-            if (
-                item.get("schedule_type") == schedule_key
-                if schedule_key != "unclassified"
-                else item.get("schedule_type") not in {"normal", "severe_conditions"}
-            )
-        ]
-        if group_rows:
-            item_groups.append({"key": schedule_key, "label": schedule_label, "rows": group_rows})
-    try:
-        warnings = json.loads(record.warnings_json or "[]")
-    except json.JSONDecodeError:
-        warnings = ["تعذر قراءة تحذيرات الاستخراج."]
-    return templates.TemplateResponse(request=request, name="maintenance_catalog_import_detail.html", context={
-        "request": request, "user": current_user, "catalog": record,
-        "items": [item for _, item in page_items],
-        "item_indices": [index for index, _ in page_items],
-        "item_groups": item_groups,
-        "items_total": len(all_items), "filtered_total": len(filtered_items),
-        "page": page, "page_count": page_count, "page_start": page_start,
-        "query_text": query_text, "schedule_type_filter": schedule_type,
-        "normal_count": sum(item.get("schedule_type") == "normal" for item in all_items),
-        "severe_count": sum(item.get("schedule_type") == "severe_conditions" for item in all_items),
-        "pending_count": sum(item.get("review_state") == "needs_review" for item in all_items),
-        "warnings": warnings, "version_diff": compare_previous_version(db, record),
-        "operation_groups": db.query(MaintenanceOperationGroup).order_by(MaintenanceOperationGroup.sort_order, MaintenanceOperationGroup.name).all(),
-        "duplicate": request.query_params.get("duplicate") == "1",
-    })
-
-
-@router.post("/maintenance/catalog-imports/{catalog_id}/items/{item_index}")
-async def maintenance_catalog_item_update(
-    catalog_id: int, item_index: int, request: Request, db: Session = Depends(get_db),
-    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    record = db.get(MaintenanceCatalogImport, catalog_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="كتالوج الصيانة غير موجود.")
-    if record.status == "applied":
-        raise HTTPException(status_code=409, detail="تم تطبيق هذا الإصدار؛ لا يمكن تغيير مصدره بعد الاعتماد.")
-    form = await request.form()
-    changes = {
-        "operation_name": str(form.get("operation_name", "")),
-        "review_state": str(form.get("review_state", "needs_review")),
-        "review_note": str(form.get("review_note", "")),
-        "schedule_type": str(form.get("schedule_type", "unclassified")),
-    }
-    raw_condition = str(form.get("corrected_condition", "")).strip()
-    if raw_condition:
-        try:
-            changes["corrected_condition"] = json.loads(raw_condition)
-        except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=422, detail="شرط الصيانة يجب أن يكون JSON صالحًا.") from exc
-    else:
-        changes["corrected_condition"] = None
-    changes["condition_note"] = str(form.get("condition_note", "")).strip() or None
-    raw_group_id = str(form.get("group_id", "")).strip()
-    if raw_group_id:
-        try:
-            group_id = int(raw_group_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail="تصنيف العملية غير صالح.") from exc
-        if db.get(MaintenanceOperationGroup, group_id) is None:
-            raise HTTPException(status_code=422, detail="تصنيف العملية المحدد غير موجود.")
-        changes["group_id"] = group_id
-    else:
-        changes["group_id"] = None
-    try:
-        update_catalog_item(db, record, item_index, changes)
-    except (IndexError, ValueError) as exc:
-        db.rollback()
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    query = {key: value for key, value in {
-        "page": request.query_params.get("page"),
-        "q": request.query_params.get("q"),
-        "schedule_type": request.query_params.get("schedule_type"),
-    }.items() if value not in (None, "")}
-    suffix = f"?{urlencode(query)}" if query else ""
-    return RedirectResponse(f"/maintenance/catalog-imports/{catalog_id}{suffix}#item-{item_index}", status_code=303)
-
-
-@router.post("/maintenance/catalog-imports/{catalog_id}/review-selection")
-async def maintenance_catalog_review_selection(
-    catalog_id: int, request: Request, db: Session = Depends(get_db),
-    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    record = db.get(MaintenanceCatalogImport, catalog_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="كتالوج الصيانة غير موجود.")
-    if record.status == "applied":
-        raise HTTPException(status_code=409, detail="تم تطبيق هذا الإصدار؛ لا يمكن تغيير مراجعته.")
-    form = await request.form()
-    try:
-        indices = [int(value) for value in form.getlist("item_indices")]
-        review_state = str(form.get("review_state", ""))
-        if not indices:
-            raise ValueError("حدد صفًا واحدًا على الأقل.")
-        if review_state not in {"accepted", "rejected"}:
-            raise ValueError("قرار المراجعة غير صالح.")
-        items = get_catalog_items(record)
-        if len(set(indices)) != len(indices) or any(index < 0 or index >= len(items) for index in indices):
-            raise ValueError("تتضمن قائمة المراجعة صفًا غير صالح.")
-        for index in indices:
-            item = items[index]
-            if review_state == "accepted":
-                if item.get("schedule_type") not in {"normal", "severe_conditions"}:
-                    raise ValueError("لا يمكن قبول صف غير مصنف كعملية أساسية أو إضافية.")
-                if not item.get("corrected_condition") and not item.get("condition_note"):
-                    raise ValueError(f"أدخل شرطًا أساسيًا أو وصفًا للصف: {item.get('operation_name', '')}.")
-            item["review_state"] = review_state
-        record.items_json = json.dumps(items, ensure_ascii=False)
-        record.status = "draft"
-        record.reviewed_at = None
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    query = {key: value for key, value in {
-        "page": form.get("page"), "q": form.get("q"),
-        "schedule_type": form.get("schedule_type"),
-    }.items() if value not in (None, "")}
-    suffix = f"?{urlencode(query)}" if query else ""
-    return RedirectResponse(f"/maintenance/catalog-imports/{catalog_id}{suffix}", status_code=303)
-
-
-@router.post("/maintenance/catalog-imports/{catalog_id}/apply")
-def maintenance_catalog_apply(
-    catalog_id: int, db: Session = Depends(get_db),
-    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
-):
-    record = db.get(MaintenanceCatalogImport, catalog_id)
-    if record is None:
-        raise HTTPException(status_code=404, detail="كتالوج الصيانة غير موجود.")
-    if record.status == "applied":
-        raise HTTPException(status_code=409, detail="سبق تطبيق هذا الإصدار على مكتبة العمليات.")
-    items = get_catalog_items(record)
-    accepted = [(index, item) for index, item in enumerate(items) if item.get("review_state") == "accepted"]
-    if not accepted:
-        raise HTTPException(status_code=422, detail="اقبل عملية واحدة على الأقل بعد مراجعتها.")
-    if any(item.get("schedule_type") in {"normal", "severe_conditions"} and item.get("review_state") == "needs_review" for item in items):
-        raise HTTPException(status_code=422, detail="أكمل مراجعة العمليات المستخرجة أو ارفض الصفوف غير المناسبة قبل التطبيق.")
-    if any(not item.get("corrected_condition") and not item.get("condition_note") for _, item in accepted):
-        raise HTTPException(status_code=422, detail="أدخل الشرط الأساسي أو وصف الشرط لكل عملية مقبولة قبل التطبيق.")
-    # Apply in one transaction. This only creates/links maintenance operations;
-    # it never edits an approved plan or an execution record.
-    try:
-        for item_index, item in accepted:
-            if item.get("schedule_type") not in {"normal", "severe_conditions"}:
-                raise ValueError("لا يمكن تطبيق صف غير مصنف كعملية أساسية أو إضافية.")
-            name = item["operation_name"].strip()
-            condition = item.get("corrected_condition") or {}
-            schedule_label = "الجدول القياسي" if item.get("schedule_type") == "normal" else "جدول الظروف القاسية"
-            interval_source = item.get("source_interval", {}).get("raw")
-            variant_description = " | ".join(filter(None, [
-                f"سياق الجدول: {schedule_label}",
-                f"فاصل المصدر: {interval_source}" if interval_source else None,
-                f"صف المصدر: {item.get('source_page') or 'غير محدد'}",
-            ]))
-            variant_match_key = " | ".join(filter(None, [
-                f"سياق الجدول: {schedule_label}",
-                f"فاصل المصدر: {interval_source}" if interval_source else None,
-            ]))
-            group_id = item.get("group_id")
-            if group_id is None:
-                group = db.query(MaintenanceOperationGroup).filter(
-                    MaintenanceOperationGroup.name == "عمليات مستوردة من كتالوجات الصيانة"
-                ).first()
-                if group is None:
-                    group = MaintenanceOperationGroup(name="عمليات مستوردة من كتالوجات الصيانة", sort_order=999)
-                    db.add(group)
-                    db.flush()
-                group_id = group.id
-            # Catalog entries belong to the model-private library. Keep distinct
-            # schedule profiles as distinct rows even when their operation names match.
-            candidates = db.query(MaintenanceModelOperation).filter(
-                MaintenanceModelOperation.equipment_model_id == record.equipment_model_id,
-                MaintenanceModelOperation.name.ilike(name),
-            ).all()
-            op_row = None
-            for candidate in candidates:
-                if variant_match_key not in (candidate.description or ""):
-                    continue
-                same_condition = all(
-                    getattr(candidate, column) == condition.get(key)
-                    for column, key in (
-                        ("interval_km", "interval_km"),
-                        ("interval_hours", "interval_hours"),
-                        ("interval_days", "interval_days"),
-                    )
-                )
-                if same_condition:
-                    op_row = candidate
-                    break
-            if op_row is None:
-                op_row = MaintenanceModelOperation(
-                    name=name, group_id=group_id,
-                    equipment_model_id=record.equipment_model_id,
-                    description="\n".join(filter(None, [
-                        f"استورد من {record.document_title or record.filename}، الإصدار {record.version_number}، الصفحة {item.get('source_page') or 'غير محددة'}.",
-                        item.get("condition_note"),
-                        f"مقطع المصدر: {item.get('source_excerpt')}" if item.get("source_excerpt") else None,
-                        variant_description,
-                    ])),
-                    is_active=True,
-                )
-                db.add(op_row)
-                db.flush()
-            approved_membership = db.query(MaintenancePlanOperation.id).join(
-                MaintenancePlan, MaintenancePlan.id == MaintenancePlanOperation.plan_id,
-            ).filter(
-                MaintenancePlan.equipment_model_id == record.equipment_model_id,
-                MaintenancePlanOperation.model_operation_id == op_row.id,
-                MaintenancePlan.is_active.is_(True), MaintenancePlan.is_approved.is_(True),
-            ).first()
-            if approved_membership:
-                raise ValueError(f"العملية «{name}» مرتبطة بخطة معتمدة للطراز؛ لم يُغيّر الشرط.")
-            op_row.interval_km = condition.get("interval_km")
-            op_row.interval_hours = condition.get("interval_hours")
-            op_row.interval_days = condition.get("interval_days")
-            item["model_operation_id"] = op_row.id
-        record.items_json = json.dumps(items, ensure_ascii=False)
-        record.status = "applied"
-        record.reviewed_at = datetime.utcnow()
-        record.reviewed_by_id = current_user.id if current_user else None
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except Exception:
-        db.rollback()
-        raise
-    return RedirectResponse(f"/maintenance/catalog-imports/{catalog_id}", status_code=303)
 
 
 def _sync_operation_model_conditions(db: Session, operation, submitted: list) -> None:
@@ -1347,6 +1036,12 @@ def maintenance_record_delete(
     return RedirectResponse("/maintenance/records?changed=deleted", status_code=status.HTTP_303_SEE_OTHER)
 
 
+def _maintenance_record_label(record: MaintenanceRecord) -> str:
+    operation = record.model_operation or record.operation
+    operation_name = operation.name if operation else "سجل قديم"
+    return f"{record.maintenance_date} — {operation_name}"
+
+
 @router.get("/api/maintenance/records/{record_id}/delete-impact")
 def maintenance_record_delete_impact(record_id: int, db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.FLEET_MANAGER))):
     rec = db.get(MaintenanceRecord, record_id)
@@ -1359,7 +1054,7 @@ def maintenance_record_delete_impact(record_id: int, db: Session = Depends(get_d
         {"label": "الأعطال التي ستبقى مع فصل ارتباطها بسجل الصيانة", "count": fault_count, "kind": "unlink"},
         {"label": "قيمة العداد الحالية ستعاد مزامنتها من السجلات المتبقية", "count": 1, "kind": "recalculate"},
     ]
-    return {"label": f"{rec.maintenance_date} — {rec.operation.name if rec.operation else 'سجل قديم'}", "effects": effects, "blocked": reason}
+    return {"label": _maintenance_record_label(rec), "effects": effects, "blocked": reason}
 
 
 @router.delete("/api/maintenance/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1411,7 +1106,7 @@ def api_maintenance_records_bulk_delete(
             if reason:
                 rejected.append({
                     "record_id": record.id,
-                    "record_label": f"{record.maintenance_date} — {record.operation.name if record.operation else 'سجل قديم'}",
+                    "record_label": _maintenance_record_label(record),
                     "reason": reason,
                 })
                 continue

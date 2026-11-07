@@ -97,7 +97,6 @@ def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
 
     assert {
         "/equipment-types/structure",
-        "/maintenance/catalog-imports",
         "/meter-readings/operations",
         "/fuel/monthly",
         "/fuel/model-rates",
@@ -105,8 +104,10 @@ def test_shared_module_navigation_covers_page_groups_without_dropping_actions():
         "/missions/drivers",
     } <= static_paths
     assert all(_route_matches(path, registered_paths) for path in static_paths)
+    assert not any(path.startswith("/maintenance/catalog-imports") for path in registered_paths)
+    assert {"/maintenance/rules/import", "/maintenance/rules/import-general"} <= registered_paths
     assert "['/equipment-types','أنواع وطرازات العتاد',['admin']]" in mapper
-    assert "['/maintenance/catalog-imports','استيراد الكتالوجات',['admin','fleet_manager']]" in mapper
+    assert "استيراد الكتالوجات" not in mapper
     assert "[[uploadHref,'استيراد من مستند',['admin','fleet_manager']]]" in mapper
     fuel_navigation = mapper.split("if(p.startsWith('/fuel'))", 1)[1].split("if(p.startsWith('/equipment-types'))", 1)[0]
     assert fuel_navigation.index("['/fuel/equipment','استهلاك العتاد']") < fuel_navigation.index("['/fuel/monthly','الاستهلاك الشهري']")

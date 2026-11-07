@@ -101,3 +101,39 @@ def test_browser_can_be_disabled_for_installer_smoke_tests(monkeypatch):
 
     assert run_web._open_url("127.0.0.1", 8000)
     browser_open.assert_not_called()
+
+
+def test_existing_instance_uses_default_port_when_its_data_directory_differs(
+    tmp_path, monkeypatch
+):
+    port = 8123
+    requests = []
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return "<title>تسيير ومحاسبة العتاد</title>".encode("utf-8")
+
+    def open_url(url, timeout):
+        requests.append((url, timeout))
+        return Response()
+
+    open_existing = Mock(return_value=True)
+    monkeypatch.setattr(run_web.urllib.request, "urlopen", open_url)
+    monkeypatch.setattr(run_web, "_open_url", open_existing)
+
+    assert run_web._open_existing_instance(
+        tmp_path, "Materiel", fallback_port=port, timeout=0.1
+    )
+    assert requests == [
+        (f"http://127.0.0.1:{port}/health", 1),
+        (f"http://127.0.0.1:{port}/login", 1),
+    ]
+    open_existing.assert_called_once_with("127.0.0.1", port)

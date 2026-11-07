@@ -178,7 +178,6 @@ def test_spare_parts_catalog_uses_shared_filters_in_its_single_header_row():
 
 def test_other_read_only_tables_use_the_shared_filter_region():
     templates = {
-        "maintenance_catalog_imports.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_catalog_imports.html",
         "maintenance_due.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_due.html",
         "maintenance_records.html": ROOT / "app" / "modules" / "maintenance" / "templates" / "maintenance_records.html",
         "repair_detail.html": ROOT / "app" / "modules" / "faults_repairs" / "templates" / "repair_detail.html",
@@ -206,7 +205,7 @@ def test_other_read_only_tables_use_the_shared_filter_region():
     assert '<div class="table-wrap" data-mt-region>' in driver_table
     assert driver_table.count("data-mt-force-filter>") == 10
     assert '<th data-mt-force-filter>ملاحظات</th>' in driver_table
-    assert '<th data-mt-no-filter>الإجراءات</th>' in driver_table
+    assert "<th data-mt-no-filter>{{ 'الإجراءات' if can_manage_drivers else 'الحالة' }}</th>" in driver_table
 
 
 def test_standalone_meter_paste_preview_loads_shared_table_filters():

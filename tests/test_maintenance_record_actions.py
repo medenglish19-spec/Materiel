@@ -21,7 +21,7 @@ from app.database.base import Base
 from app.database.session import _enable_sqlite_foreign_keys
 from app.modules.equipment.models import Equipment
 from app.modules.equipment_types.models import EquipmentModel, EquipmentType
-from app.modules.maintenance.models import MaintenanceOperation, MaintenancePlan, MaintenanceRecord
+from app.modules.maintenance.models import MaintenanceModelOperation, MaintenanceOperation, MaintenancePlan, MaintenanceRecord
 from app.modules.faults_repairs.models import Fault
 from app.modules.equipment_maintenance.router import router as equipment_maintenance_router
 from app.modules.maintenance.router import router as maintenance_router
@@ -638,6 +638,43 @@ def test_delete_impact_lists_linked_fault_and_meter_recalculation(api):
     impact = response.json()
     assert any("الأعطال" in row["label"] and row["count"] == 1 for row in impact["effects"])
     assert any("العداد" in row["label"] and row["kind"] == "recalculate" for row in impact["effects"])
+
+
+def test_model_operation_record_delete_labels_use_model_operation_name(api):
+    client, ids = api
+    db = Session()
+    model_operation = MaintenanceModelOperation(
+        equipment_model_id=ids["model_a"],
+        name="عملية خاصة بالطراز",
+        interval_days=30,
+        warning_days=5,
+    )
+    db.add(model_operation)
+    db.flush()
+    record = MaintenanceRecord(
+        equipment_id=ids["equipment_a"],
+        model_operation_id=model_operation.id,
+        maintenance_date=date(2026, 10, 12),
+        reported_date=date(2026, 10, 12),
+        status="cancelled",
+        is_scheduled=False,
+    )
+    db.add(record)
+    db.commit()
+    record_id = record.id
+    db.close()
+
+    expected_label = "2026-10-12 — عملية خاصة بالطراز"
+    impact = client.get(f"/api/maintenance/records/{record_id}/delete-impact")
+    assert impact.status_code == 200
+    assert impact.json()["label"] == expected_label
+
+    bulk = client.post(
+        "/api/maintenance/records/bulk-delete",
+        json={"record_ids": [record_id]},
+    )
+    assert bulk.status_code == 200
+    assert bulk.json()["rejected"][0]["record_label"] == expected_label
 
 
 def test_records_table_exposes_row_actions_and_bulk_selection():
