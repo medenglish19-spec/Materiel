@@ -10,6 +10,7 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import desc, delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
@@ -1059,6 +1060,22 @@ def maintenance_records_page(request: Request, db: Session = Depends(get_db), cu
     )
 
 
+def _maintenance_record_duplicate(db: Session, equipment_id: int, operation_source: str, operation_id: int, maintenance_date: date, exclude_id: int | None = None) -> bool:
+    query = db.query(MaintenanceRecord.id).filter(
+        MaintenanceRecord.equipment_id == equipment_id,
+        MaintenanceRecord.maintenance_date == maintenance_date,
+    )
+    operation_column = (
+        MaintenanceRecord.operation_id
+        if operation_source == "general"
+        else MaintenanceRecord.model_operation_id
+    )
+    query = query.filter(operation_column == operation_id)
+    if exclude_id is not None:
+        query = query.filter(MaintenanceRecord.id != exclude_id)
+    return query.first() is not None
+
+
 @router.post("/maintenance/records/create")
 def maintenance_record_create(
     equipment_id: int = Form(...),
@@ -1101,6 +1118,9 @@ def maintenance_record_create(
         operation_reference(item) for item in effective_operations_for_equipment(db, equipment)
     }:
         return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
+    if _maintenance_record_duplicate(db, equipment_id, operation_source, operation.id, maintenance_date):
+        return RedirectResponse(f"{records_url}?error=duplicate", status_code=status.HTTP_303_SEE_OTHER)
 
     plan = None
     if plan_id is not None:
@@ -1176,7 +1196,11 @@ def maintenance_record_create(
     db.add(rec)
     try:
         db.commit()
-    except ValueError as exc:
+    except IntegrityError:
+        db.rollback()
+        error = "duplicate" if _maintenance_record_duplicate(db, equipment_id, operation_source, operation.id, maintenance_date) else "validation"
+        return RedirectResponse(f"{records_url}?error={error}", status_code=status.HTTP_303_SEE_OTHER)
+    except ValueError:
         db.rollback()
         return RedirectResponse(f"{records_url}?error=validation", status_code=status.HTTP_303_SEE_OTHER)
     return RedirectResponse(f"{records_url}?saved=1", status_code=status.HTTP_303_SEE_OTHER)
@@ -1221,6 +1245,9 @@ def maintenance_record_update(
 
     if operation_reference(operation) not in {operation_reference(item) for item in effective_operations_for_equipment(db, equipment)}:
         return RedirectResponse(f"{records_url}?error=operation_model", status_code=status.HTTP_303_SEE_OTHER)
+
+    if _maintenance_record_duplicate(db, equipment_id, operation_source, operation.id, maintenance_date, exclude_id=record_id):
+        return RedirectResponse(f"{records_url}?error=duplicate", status_code=status.HTTP_303_SEE_OTHER)
 
     plan = None
     if plan_id is not None:
@@ -1291,6 +1318,10 @@ def maintenance_record_update(
     rec.note = note.strip() or None
     try:
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        error = "duplicate" if _maintenance_record_duplicate(db, equipment_id, operation_source, operation.id, maintenance_date, exclude_id=record_id) else "validation"
+        return RedirectResponse(f"{records_url}?error={error}", status_code=status.HTTP_303_SEE_OTHER)
     except ValueError:
         db.rollback()
         return RedirectResponse(f"{records_url}?error=validation", status_code=status.HTTP_303_SEE_OTHER)

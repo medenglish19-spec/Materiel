@@ -330,6 +330,32 @@ def test_create_persists_work_order_technician_work_done_and_note(api):
     assert record.workshop == "الورشة الرئيسية"
 
 
+def test_create_duplicate_operation_on_same_equipment_date_is_rejected_cleanly(api):
+    """قيد التفرّد يمنع التكرار ويُعرض للمستخدم بدل استجابة 500."""
+    client, ids = api
+    first = client.post(
+        "/maintenance/records/create",
+        data=_valid_payload(ids),
+        follow_redirects=False,
+    )
+    assert first.status_code == 303
+    assert "saved=1" in first.headers["location"]
+
+    duplicate = client.post(
+        "/maintenance/records/create",
+        data=_valid_payload(ids),
+        follow_redirects=False,
+    )
+    assert duplicate.status_code == 303
+    assert "error=duplicate" in duplicate.headers["location"]
+    assert "سُجلت هذه العملية لهذا العتاد في التاريخ نفسه مسبقًا" in client.get(duplicate.headers["location"]).text
+    db = Session()
+    try:
+        assert db.query(MaintenanceRecord).count() == 1
+    finally:
+        db.close()
+
+
 def test_edit_form_repopulates_the_saved_fields(api):
     """إعادة فتح السجل للتعديل تُظهر القيم المحفوظة كاملة."""
     client, ids = api
