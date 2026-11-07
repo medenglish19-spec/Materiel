@@ -3,7 +3,9 @@ from decimal import Decimal, InvalidOperation
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session, joinedload
+from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.permissions import Role, require_min_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment.models import Equipment
@@ -43,6 +45,8 @@ def missions_page(request: Request, db: Session = Depends(get_db), current_user:
         "mission_status_rows": mission_status_rows,
         "license_expiry_alerts": services.license_expiry_alerts(drivers, today=today),
         "today": today,
+        "can_create_missions": settings.DEV_DISABLE_AUTH
+        or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value},
     }
     return templates.TemplateResponse(request=request, name="missions.html", context=context)
 
@@ -51,7 +55,7 @@ def missions_page(request: Request, db: Session = Depends(get_db), current_user:
 def mission_records_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     services.sync_mission_statuses(db)
     missions = [{"mission": m, "status": services.mission_status(m)} for m in services.list_missions(db)]
-    return templates.TemplateResponse(request=request, name="mission_records.html", context={"request": request, "user": current_user, "missions": missions})
+    return templates.TemplateResponse(request=request, name="mission_records.html", context={"request": request, "user": current_user, "missions": missions, "can_create_missions": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}})
 
 
 def _driver_equipment_options(db: Session):
@@ -108,6 +112,8 @@ def drivers_page(request: Request, db: Session = Depends(get_db), current_user: 
             "equipment": _driver_equipment_options(db),
             "equipment_models": _driver_equipment_models(db),
             "unassigned_equipment": _unassigned_driver_equipment(db),
+            "can_manage_drivers": settings.DEV_DISABLE_AUTH
+            or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value},
         },
     )
 
@@ -151,7 +157,7 @@ def create_driver(
     assigned_equipment_id: int | None = Form(None),
     notes: str = Form(""),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     try:
         services.create_driver(db, {
@@ -178,7 +184,7 @@ def edit_driver_page(
     driver_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     driver = services.get_driver(db, driver_id)
     if not driver:
@@ -225,7 +231,7 @@ def update_driver(
     assigned_equipment_id: int | None = Form(None),
     notes: str = Form(""),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     try:
         services.update_driver(db, driver_id, {
@@ -252,7 +258,7 @@ def change_driver_status(
     driver_id: int,
     is_active: bool = Form(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     try:
         services.set_driver_active(db, driver_id, is_active)
@@ -263,7 +269,7 @@ def change_driver_status(
 
 
 @router.post("/missions")
-def create_mission(equipment_id: int = Form(...), driver_id: int | None = Form(None), driver_name: str = Form(""), mission_document: str = Form(""), purpose: str = Form(""), destination: str = Form(""), start_date: date = Form(...), end_date: date | None = Form(None), departure_meter: str | None = Form(None), return_meter: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_mission(equipment_id: int = Form(...), driver_id: int | None = Form(None), driver_name: str = Form(""), mission_document: str = Form(""), purpose: str = Form(""), destination: str = Form(""), start_date: date = Form(...), end_date: date | None = Form(None), departure_meter: str | None = Form(None), return_meter: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     try:
         services.add_mission(db, {"equipment_id": equipment_id, "driver_id": driver_id, "driver_name": driver_name.strip() or None, "mission_document": mission_document.strip() or None, "purpose": purpose.strip() or None, "destination": destination.strip() or None, "start_date": start_date, "end_date": end_date, "departure_meter": dec(departure_meter), "return_meter": dec(return_meter), "notes": notes.strip() or None})
     except ValueError as exc:

@@ -53,7 +53,7 @@
 {% endblock %}
 {% block content %}
 <div class="record-page missions-page" dir="rtl">
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div><div class="mission-actions"><button class="mission-open-button" type="button" id="openMissionDialog">＋ تسجيل مهمة</button></div></header>
+  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div>{% if can_create_missions %}<div class="mission-actions"><button class="mission-open-button" type="button" id="openMissionDialog">＋ تسجيل مهمة</button></div>{% endif %}</header>
   <section class="mission-overview" aria-label="ملخص المهمات وتنبيهات الرخص">
     <div><div class="mission-metrics">
       <button class="mission-metric" type="button" data-mission-detail="planned" data-detail-title="المهمات المخططة" aria-haspopup="dialog"><span>مخططة</span><b>{{ counts.planned }}</b></button>
@@ -86,7 +86,7 @@
     </section>
     {% endfor %}
   </dialog>
-  <dialog class="mission-dialog" id="missionDialog" aria-labelledby="missionDialogTitle">
+  {% if can_create_missions %}<dialog class="mission-dialog" id="missionDialog" aria-labelledby="missionDialogTitle">
     <div class="mission-dialog-head"><h3 id="missionDialogTitle">تسجيل مهمة</h3><button class="mission-dialog-close" type="button" id="closeMissionDialog">إغلاق</button></div>
     <p class="mission-dialog-hint">أدخل بيانات المهمة الأساسية وقراءات العداد إن توفرت.</p>
     <form method="post" action="/missions" class="mission-form" data-em-root>
@@ -103,7 +103,7 @@
       <div class="mission-field mission-field-wide"><label for="missionNotes">ملاحظات</label><input id="missionNotes" name="notes" placeholder="ملاحظات إضافية"></div>
       <button class="mission-submit" type="submit" data-em-action="save">حفظ المهمة</button>
     </form>
-  </dialog>
+  </dialog>{% endif %}
 </div>
 <script>
 (function(){

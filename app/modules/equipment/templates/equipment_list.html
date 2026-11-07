@@ -43,8 +43,9 @@
 </style>
 <div class="page-header">
     <div><h2>العتاد</h2><p class="page-hint">إدارة الحضيرة ومتابعة تركيبها وحالتها التشغيلية.</p></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-outline" onclick="openEquipmentImport()">استيراد جماعي</button><button type="button" class="btn btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button></div>
+    {% if can_manage_equipment %}<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-outline" onclick="openEquipmentImport()">استيراد جماعي</button><button type="button" class="btn btn-primary" onclick="toggleAddForm()">+ إضافة عتاد</button></div>{% endif %}
 </div>
+{% if can_manage_equipment %}
 <section class="equipment-import" id="equipmentImportDialog" role="dialog" aria-modal="true" aria-labelledby="equipmentImportTitle">
   <div class="equipment-import-box" dir="rtl">
     <h3 id="equipmentImportTitle">استيراد جماعي للعتاد</h3>
@@ -71,6 +72,7 @@
         <div class="field field-submit"><button type="submit" class="btn btn-primary">حفظ العتاد</button></div>
     </form>
 </div>
+{% endif %}
 {% if not types %}<div class="card alert-warning">لا توجد أنواع عتاد مسجّلة بعد. <a href="/equipment-types">أضف أنواع العتاد أولًا من هنا</a> قبل تسجيل أي عتاد.</div>{% endif %}
 <div class="toolbar" data-mobile-filter-collapse>
     <input type="text" id="search-input" class="search-box" placeholder="بحث برقم التسجيل، رقم الهيكل...">
@@ -149,7 +151,7 @@
         </div>
         <div class="equipment-card-actions">
             <a href="/equipment/{{ item.id }}" class="btn btn-outline">عرض</a>
-            <a href="/equipment/{{ item.id }}/edit" class="btn btn-outline">تعديل</a>
+            {% if can_manage_equipment %}<a href="/equipment/{{ item.id }}/edit" class="btn btn-outline">تعديل</a>{% endif %}
         </div>
     </div>
 </article>

@@ -214,7 +214,7 @@ async def create_part(request: Request, name: str = Form(""), name_ar: str = For
 
 
 @router.post("/spare-parts/catalog/parts/{part_id}/update")
-async def update_part(part_id: int, request: Request, name: str = Form(...), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), equipment_model_ids: list[int] = Form([]), active: str = Form("on"), remove_image: str = Form(""), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
+async def update_part(part_id: int, request: Request, name: str = Form(...), name_ar: str = Form(""), name_fr: str = Form(""), reference: str = Form(""), manufacturer: str = Form(""), category: str = Form(""), notes: str = Form(""), source: str = Form(""), equipment_model_ids: list[int] = Form([]), active: str = Form(""), remove_image: str = Form(""), image: UploadFile | None = File(None), db: Session = Depends(get_db), user: User = Depends(require_role(Role.ADMIN, Role.FLEET_MANAGER))):
     part = db.get(SparePart, part_id)
     if not part:
         raise HTTPException(404, "قطعة الغيار غير موجودة.")

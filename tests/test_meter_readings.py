@@ -16,7 +16,7 @@ from app.modules.equipment_types.models import EquipmentModel, EquipmentType
 from app.modules.meter_readings import services
 from app.modules.meter_readings.audit import MeterReadingOperation, MeterReadingOperationEvent, MeterReadingChange
 from app.modules.meter_readings.models import MeterReading
-from app.modules.meter_readings.router import meter_readings_import_excel
+from app.modules.meter_readings.router import meter_readings_import_excel, meter_readings_import_excel_preview
 from app.modules.fuel.models import FuelRecord
 from app.modules.fuel.services import add_record as add_fuel_record, validate_record as validate_fuel_record
 from app.modules.missions.services import add_mission
@@ -445,3 +445,37 @@ def test_excel_headers_are_detected_without_relying_on_column_order(db):
     reading = db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).one()
     assert float(reading.odometer) == 900.0
     assert reading.equipment_status == "available"
+
+
+def test_excel_preview_validates_without_saving_readings_or_operation(db):
+    equipment = seed_equipment(db, "PREVIEW-688", "km")
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append([
+        "\u0627\u0644\u0637\u0631\u0627\u0632",
+        "\u0631\u0642\u0645 \u0627\u0644\u062a\u0633\u062c\u064a\u0644",
+        "\u0627\u0644\u062a\u0627\u0631\u064a\u062e",
+        "\u0627\u0644\u0643\u064a\u0644\u0648\u0645\u062a\u0631\u0627\u062a",
+        "\u0627\u0644\u0633\u0627\u0639\u0627\u062a",
+        "\u062d\u0627\u0644\u0629 \u0627\u0644\u0639\u062f\u0627\u062f",
+    ])
+    sheet.append([equipment.equipment_model.name, equipment.registration_number, "20/08/2026", 555, None, "\u064a\u0639\u0645\u0644"])
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    upload = UploadFile(filename="preview.xlsx", file=buffer)
+    user = User(username="preview-tester", full_name="Preview Tester", hashed_password="x", role="admin")
+    db.add(user)
+    db.commit()
+    previous_odometer = equipment.current_odometer
+
+    response = meter_readings_import_excel_preview(upload, None, db, user)
+
+    assert response.status_code == 200, response.body.decode("utf-8")
+    assert b'"total":1' in response.body
+    assert b'"valid":1' in response.body
+    assert b'"rejected":0' in response.body
+    assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment.id).count() == 0
+    assert db.query(MeterReadingOperation).count() == 0
+    db.refresh(equipment)
+    assert equipment.current_odometer == previous_odometer

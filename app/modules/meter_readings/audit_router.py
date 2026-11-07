@@ -22,7 +22,13 @@ def _fmt(value):
     except Exception: return str(value)
 
 
-def _action(value): return {'add': 'إضافة قراءة', 'update': 'تعديل قراءة'}.get(value, value)
+def _action(value):
+    return {
+        'add': 'إضافة قراءة',
+        'update': 'تعديل قراءة',
+        'delete': 'حذف قراءة',
+        'unlink': 'فصل القراءة عن مصدرها',
+    }.get(value, value or 'عملية أخرى')
 
 
 @router.get('', response_class=HTMLResponse)

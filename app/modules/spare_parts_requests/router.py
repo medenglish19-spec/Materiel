@@ -38,7 +38,7 @@ def create(data: SparePartRequestCreate, db: Session = Depends(get_db), user: Us
 
 @router.get("/sources/{source_type}")
 def sources(source_type: str, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    if source_type not in {"fault", "repair"}:
+    if source_type not in {"fault", "repair", "need"}:
         raise HTTPException(400, "مصدر غير صالح")
     return services.source_options(db, source_type)
 

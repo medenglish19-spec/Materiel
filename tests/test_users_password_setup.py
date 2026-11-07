@@ -64,6 +64,7 @@ def test_admin_can_set_and_use_a_private_password_after_install(users_app):
     assert page.status_code == 200
     assert "إعداد كلمة مرور مدير النظام" in page.text
     assert 'action="/users/password"' in page.text
+    assert 'type="submit" data-em-action="save">حفظ كلمة المرور' not in page.text
 
     changed = client.post(
         "/users/password",

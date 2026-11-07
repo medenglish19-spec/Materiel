@@ -106,3 +106,9 @@ def test_legacy_install_without_equipment_does_not_render_a_broken_link():
 
     assert "{% if state.equipment and state.equipment.id %}" in template
     assert "سجل التركيب لا يحتوي على رابط عتاد صالح." in template
+
+
+def test_disposed_tire_detail_script_skips_missing_movement_elements():
+    template = Path("app/modules/tires/templates/tire_detail.html").read_text(encoding="utf-8")
+
+    assert "function showModelConfig(showPopup=false){if(!modelLabel||!modelDetails||!modelWarning)return;" in template

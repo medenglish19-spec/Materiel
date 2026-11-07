@@ -28,11 +28,12 @@ class SparePartRequest(Base):
     created_at = Column(DateTime, nullable=False, default=utc_now)
 
     __table_args__ = (
-        CheckConstraint("source_type IN ('fault', 'repair')", name="ck_spare_part_request_source_type"),
+        CheckConstraint("source_type IN ('fault', 'repair', 'need')", name="ck_spare_part_request_source_type"),
         CheckConstraint("status IN ('pending', 'approved', 'rejected', 'cancelled')", name="ck_spare_part_request_status"),
         CheckConstraint(
             "(source_type = 'fault' AND fault_id IS NOT NULL AND repair_id IS NULL) OR "
-            "(source_type = 'repair' AND repair_id IS NOT NULL AND fault_id IS NULL)",
+            "(source_type = 'repair' AND repair_id IS NOT NULL AND fault_id IS NULL) OR "
+            "(source_type = 'need' AND fault_id IS NULL AND repair_id IS NULL AND equipment_id IS NULL)",
             name="ck_spare_part_request_source_match",
         ),
     )

@@ -658,33 +658,33 @@ def test_the_new_request_form_is_a_real_form_element(client):
     assert html.count("<form") == html.count("</form>")
 
 
-def test_need_source_loads_repairs_and_creates_an_executable_linked_request(client):
+def test_need_source_creates_an_unlinked_request_without_repair_options(client):
     page, ids = client
     html = page.get("/spare-parts-requests").text
 
-    assert '<option value="repair">احتياج</option>' in html
-    assert "repair:'احتياج'" in html
-    assert "اختر الاحتياج *" in html
+    assert '<option value="need">احتياج</option>' in html
+    assert "need:'احتياج'" in html
+    assert '<option value="repair">' not in html
 
-    available_needs = page.get("/api/spare-parts-requests/sources/repair")
+    available_needs = page.get("/api/spare-parts-requests/sources/need")
     assert available_needs.status_code == 200
-    assert any(row["id"] == ids["need_repair"] for row in available_needs.json())
+    assert available_needs.json() == []
 
     created = page.post(
         "/api/spare-parts-requests",
         json={
             "request_number": "NEED-SOURCE-E2E",
             "request_date": date.today().isoformat(),
-            "source_type": "repair",
-            "source_id": ids["need_repair"],
+            "source_type": "need",
             "items": [{"part_name": "قطعة احتياج للاختبار", "requested_quantity": 1}],
         },
     )
     assert created.status_code == 201, created.text
     request = created.json()
-    assert request["source_type"] == "repair"
-    assert request["repair_id"] == ids["need_repair"]
-    assert request["equipment_registration"] == "222-TEST"
+    assert request["source_type"] == "need"
+    assert request["repair_id"] is None
+    assert request["fault_id"] is None
+    assert request["equipment_registration"] is None
     assert request["items"][0]["part_name"] == "قطعة احتياج للاختبار"
 
 

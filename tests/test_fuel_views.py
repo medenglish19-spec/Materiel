@@ -1,5 +1,6 @@
 from io import BytesIO
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
@@ -17,6 +18,7 @@ from app.modules.batteries.models import Battery
 from app.modules.faults_repairs.models import Fault
 from app.modules.fuel.model_rate_import import MODEL_RATE_HEADERS
 from app.modules.fuel.models import FuelModelConsumptionRate, FuelRecord
+from app.modules.fuel import services as fuel_services
 from app.modules.meter_readings.models import MeterReading
 from app.modules.users.models import User
 from web import main
@@ -239,6 +241,7 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
             assert 'id="openFuelRateDialog"' in rates_page.text
             assert "تنزيل قالب Excel" in rates_page.text
             assert 'name="file"' in rates_page.text
+            assert 'data-em-action="save">استيراد الملف' not in rates_page.text
             assert "العلامة التجارية" not in rates_page.text
             assert "الإجمالي · عرض الكل" not in rates_page.text
 
@@ -293,5 +296,114 @@ def test_fuel_views_and_model_rate_excel_import(monkeypatch):
         verify = testing_session()
         assert verify.query(FuelModelConsumptionRate).count() == 1
         verify.close()
+        app.dependency_overrides.clear()
+    engine.dispose()
+
+
+def test_fuel_consumption_uses_equipment_meter_unit_and_labels(monkeypatch):
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    testing_session = sessionmaker(bind=engine, autoflush=False)
+    Base.metadata.create_all(engine)
+
+    db = testing_session()
+    user = User(username="fuel-hour-test", full_name="اختبار", hashed_password="unused", role="ADMIN")
+    equipment_type = EquipmentType(name="معدات ساعة الوقود", measurement_unit="hours")
+    brand = EquipmentBrand(name="علامة معدات ساعة الوقود")
+    db.add_all([user, equipment_type, brand])
+    db.flush()
+    model = EquipmentModel(name="طراز معدات ساعة الوقود", equipment_type_id=equipment_type.id, brand_id=brand.id)
+    db.add(model)
+    db.flush()
+    equipment = Equipment(
+        asset_code="FUEL-HOUR-1",
+        registration_number="FUEL-HOUR-1",
+        equipment_type_id=equipment_type.id,
+        equipment_model_id=model.id,
+        operational_status="available",
+    )
+    db.add(equipment)
+    db.commit()
+    user_id = user.id
+    equipment_id = equipment.id
+    model_id = model.id
+    db.close()
+
+    def override_get_db():
+        session = testing_session()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    def override_current_user():
+        session = testing_session()
+        try:
+            yield session.get(User, user_id)
+        finally:
+            session.close()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(main, "init_db", lambda: None)
+        patch.setattr(main, "create_default_admin", lambda: None)
+        patch.setattr(session_module, "SessionLocal", testing_session)
+        app = main.create_app()
+        app.dependency_overrides[session_module.get_db] = override_get_db
+        app.dependency_overrides[get_current_user] = override_current_user
+        with TestClient(app) as client:
+            first = client.post("/fuel", data={
+                "model_id": str(model_id),
+                "equipment_id": str(equipment_id),
+                "fueling_date": (date.today() - timedelta(days=1)).isoformat(),
+                "meter_value": "10",
+                "quantity": "20",
+                "fuel_type": "ديزل",
+            }, follow_redirects=False)
+            assert first.status_code == 303
+            second = client.post("/fuel", data={
+                "model_id": str(model_id),
+                "equipment_id": str(equipment_id),
+                "fueling_date": date.today().isoformat(),
+                "meter_value": "20",
+                "quantity": "2",
+                "fuel_type": "ديزل",
+            }, follow_redirects=False)
+            assert second.status_code == 303
+
+            fuel_page = client.get("/fuel")
+            assert fuel_page.status_code == 200
+            assert "0.20" in fuel_page.text
+            assert "لتر/ساعة" in fuel_page.text
+            assert "<th>فرق العداد</th>" in fuel_page.text
+            assert "<th>معدل الاستهلاك</th>" in fuel_page.text
+
+            equipment_history = client.get(f"/equipment/{equipment_id}/fuel")
+            assert equipment_history.status_code == 200
+            assert "لتر/ساعة" in equipment_history.text
+            assert "ساعة عمل" in equipment_history.text
+            assert "0.20" in equipment_history.text
+
+            equipment_list = client.get("/fuel/equipment")
+            assert equipment_list.status_code == 200
+            assert "لتر/ساعة" in equipment_list.text
+            assert "0.20" in equipment_list.text
+
+            verify = testing_session()
+            records = fuel_services.list_records(verify)
+            enriched, averages = fuel_services.enrich_records(verify, records)
+            latest = next(item for item in enriched if item["record"].equipment_id == equipment_id)
+            current = verify.get(Equipment, equipment_id)
+            assert latest["distance"] == 10
+            assert latest["consumption"] == Decimal("0.20")
+            assert latest["meter_unit"] == "hours"
+            assert latest["consumption_unit"] == "liter_per_hour"
+            assert averages[equipment_id] == Decimal("0.20")
+            assert current.current_hours == 20
+            assert current.current_odometer == 0
+            verify.close()
+
         app.dependency_overrides.clear()
     engine.dispose()

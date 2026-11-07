@@ -4,10 +4,11 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 from app.core.config import settings
 from app.core.dependencies import get_current_user
-from app.core.permissions import Role, require_role
+from app.core.permissions import Role, require_min_role, require_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services
@@ -61,6 +62,7 @@ def equipment_page(request: Request, db: Session = Depends(get_db), current_user
         "spec_definitions_data": spec_definitions_data,
         "equipment_specs_map": equipment_specs_map,
         "operational_statuses": operational_statuses,
+        "can_manage_equipment": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value},
         "can_delete_equipment": settings.DEV_DISABLE_AUTH or current_user.role == Role.ADMIN.value,
     })
 @router.get("/equipment/analysis", response_class=HTMLResponse)
@@ -140,9 +142,14 @@ def equipment_detail_page(equipment_id:int,request:Request,db:Session=Depends(ge
         state=battery_states.get(battery.id)
         if state and state.get("installed") and state.get("equipment") and state["equipment"].id == equipment_id:
             installed_batteries.append({"battery":battery,"state":state,"condition":battery_services.status(battery,state,equipment=item,db=db),"due_date":battery_services.replacement_due_date(db,battery,item)})
-    return templates.TemplateResponse(request=request, name="equipment_detail.html", context={"request":request,"item":item,"user":current_user,"installed_tires":installed_tires,"installed_batteries":installed_batteries})
+    return templates.TemplateResponse(request=request, name="equipment_detail.html", context={
+        "request": request, "item": item, "user": current_user,
+        "installed_tires":installed_tires,"installed_batteries":installed_batteries,
+        "can_manage_equipment": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value},
+        "can_delete_equipment": settings.DEV_DISABLE_AUTH or current_user.role == Role.ADMIN.value,
+    })
 @router.get("/equipment/{equipment_id}/edit", response_class=HTMLResponse)
-def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+def equipment_edit_page(equipment_id:int,request:Request,db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.FLEET_MANAGER))):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     return templates.TemplateResponse(request=request, name="equipment_edit.html", context={"request":request,"item":item,"types":type_services.list_types(db),"user":current_user})
@@ -160,7 +167,7 @@ async def equipment_create_form(
     operational_status: str = Form("available"),
     image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_min_role(Role.FLEET_MANAGER)),
 ):
     from datetime import date
 
@@ -217,21 +224,21 @@ async def _equipment_import_rows(file: UploadFile) -> list[dict]:
 
 
 @router.post("/equipment/import/preview")
-async def equipment_import_preview(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+async def equipment_import_preview(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.FLEET_MANAGER))):
     rows = await _equipment_import_rows(file)
     results = equipment_bulk_import.preview(db, rows)
     return {"total": len(results), "valid": sum(1 for row in results if row["ok"]), "rejected": sum(1 for row in results if not row["ok"]), "rows": results}
 
 
 @router.post("/equipment/import/confirm")
-async def equipment_import_confirm(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+async def equipment_import_confirm(file:UploadFile=File(...),db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.FLEET_MANAGER))):
     rows = await _equipment_import_rows(file)
     result = equipment_bulk_import.import_rows(db, rows, current_user.id)
     created_count = len(result["created"])
     rejected_count = len(result["rejected"])
     return JSONResponse({"ok": rejected_count == 0, "created": created_count, "rejected": rejected_count, "rows": result["rejected"], "message": f"تمت إضافة {created_count} عتاد." + (f" تعذر إضافة {rejected_count} صف؛ راجع أسباب الرفض أدناه." if rejected_count else "")})
 @router.post("/equipment/{equipment_id}/edit")
-async def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),remove_image:bool=Form(False),image:UploadFile|None=File(None),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+async def equipment_edit_form(equipment_id:int,equipment_type_id:int=Form(...),equipment_model_id:Optional[str]=Form(None),acquisition_document:str=Form(""),registration_number:str=Form(""),vin:str=Form(""),acquisition_date:str=Form(""),technical_condition:str=Form("ready"),operational_status:str=Form("available"),notes:str=Form(""),remove_image:bool=Form(False),image:UploadFile|None=File(None),db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.FLEET_MANAGER))):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     old_image_url = item.image_url
@@ -346,7 +353,14 @@ def api_equipment_bulk_delete(
 def equipment_meters_page(equipment_id:int,request:Request,page:int=1,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
     item,readings,total_readings,total_pages,current_page=meter_services.history_rows(db,equipment_id,page=page,page_size=20)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
-    return templates.TemplateResponse(request=request, name="equipment_meters.html", context={"request":request,"item":item,"readings":readings,"total_readings":total_readings,"total_pages":total_pages,"current_page":current_page,"user":current_user})
+    return templates.TemplateResponse(request=request, name="equipment_meters.html", context={
+        "request": request, "item": item, "readings": readings,
+        "total_readings": total_readings, "total_pages": total_pages,
+        "current_page": current_page, "user": current_user,
+        "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {
+            Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value,
+        },
+    })
 
 @router.get("/api/equipment/{equipment_id}/meters/{reading_id}/delete-impact")
 def equipment_meter_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -371,7 +385,7 @@ def equipment_meter_delete_impact(equipment_id: int, reading_id: int, db: Sessio
     }
 
 @router.post("/equipment/{equipment_id}/meters/create")
-def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.OPERATOR))):
     item=services.get_equipment(db,equipment_id)
     if not item: raise HTTPException(status_code=404,detail="العتاد غير موجود")
     try: date_value=datetime.strptime(reading_date,"%Y-%m-%d"); odometer_value=Decimal(odometer) if odometer.strip() else None; hours_value=Decimal(hours) if hours.strip() else None
@@ -381,7 +395,7 @@ def equipment_meter_create(equipment_id:int,reading_date:str=Form(...),odometer:
     except ValueError as exc: raise HTTPException(status_code=400,detail=str(exc))
     return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
 @router.post("/equipment/{equipment_id}/meters/{reading_id}/update")
-def equipment_meter_update(equipment_id:int,reading_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+def equipment_meter_update(equipment_id:int,reading_id:int,reading_date:str=Form(...),odometer:str=Form(""),hours:str=Form(""),equipment_status:str=Form(""),notes:str=Form(""),db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.OPERATOR))):
     item=services.get_equipment(db,equipment_id); reading=db.query(MeterReading).filter(MeterReading.id==reading_id,MeterReading.equipment_id==equipment_id).first()
     if not item or not reading: raise HTTPException(status_code=404,detail="القراءة غير موجودة")
     try:
@@ -391,17 +405,23 @@ def equipment_meter_update(equipment_id:int,reading_id:int,reading_date:str=Form
     except (ValueError,InvalidOperation) as exc: raise HTTPException(status_code=400,detail=str(exc) or "تاريخ أو قيمة عداد غير صحيحة")
     if value<0: raise HTTPException(status_code=400,detail="قيمة العداد لا يمكن أن تكون سالبة")
     if date_value.date()>datetime.now().date(): raise HTTPException(status_code=400,detail="لا يمكن إدخال قراءة بتاريخ مستقبلي")
-    for existing in meter_services.list_readings(db,equipment_id):
-        if existing.id==reading.id: continue
-        existing_value=meter_services._value(existing,unit)
-        if existing_value is None: continue
-        existing_value=Decimal(existing_value)
-        if existing.reading_date<date_value and existing_value>value: raise HTTPException(status_code=400,detail="قيمة القراءة الجديدة أقل من قراءة لاحقة مسجلة")
-        if existing.reading_date>date_value and existing_value<value: raise HTTPException(status_code=400,detail="قيمة القراءة الجديدة أكبر من قراءة لاحقة مسجلة")
-    reading.reading_date=date_value; reading.odometer=value if unit=="km" else None; reading.hours=value if unit=="hours" else None; reading.equipment_status=meter_services.parse_equipment_status(equipment_status) if equipment_status.strip() else reading.equipment_status or meter_services.normalize_equipment_status(item.operational_status); reading.notes=(notes or "").strip()[:300] or None; meter_services._refresh_equipment_current(db,item,unit); db.commit()
+    try:
+        meter_services._validate_reading_position(
+            db, equipment_id, date_value, value, unit, exclude_reading_id=reading_id
+        )
+        reading.reading_date=date_value; reading.odometer=value if unit=="km" else None; reading.hours=value if unit=="hours" else None; reading.equipment_status=meter_services.parse_equipment_status(equipment_status) if equipment_status.strip() else reading.equipment_status or meter_services.normalize_equipment_status(item.operational_status); reading.notes=(notes or "").strip()[:300] or None; meter_services._refresh_equipment_current(db,item,unit); db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="تعذر تحديث قراءة العداد بسبب خطأ في قاعدة البيانات.",
+        ) from exc
     return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)
 @router.post("/equipment/{equipment_id}/meters/{reading_id}/delete")
-def equipment_meter_delete(equipment_id:int,reading_id:int,db:Session=Depends(get_db),current_user:User=Depends(get_current_user)):
+def equipment_meter_delete(equipment_id:int,reading_id:int,db:Session=Depends(get_db),current_user:User=Depends(require_min_role(Role.OPERATOR))):
     item=services.get_equipment(db,equipment_id); reading=db.query(MeterReading).filter(MeterReading.id==reading_id,MeterReading.equipment_id==equipment_id).first()
     if not item or not reading: raise HTTPException(status_code=404,detail="القراءة غير موجودة")
     unit=meter_services._unit(item); old_value=meter_services._value(reading,unit); db.add(MeterReadingChange(reading_id=reading.id,equipment_id=equipment_id,changed_at=utc_now(),action="delete",source=reading.source or "manual",reading_date=reading.reading_date,unit=unit,old_value=old_value,new_value=None,actor_id=current_user.id,details="حذف قراءة مسجلة.")); db.delete(reading); db.flush(); meter_services._refresh_equipment_current(db,item,unit); db.commit(); return RedirectResponse(url=f"/equipment/{equipment_id}/meters",status_code=status.HTTP_302_FOUND)

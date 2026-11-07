@@ -132,7 +132,10 @@ async def import_fuel_model_rates(file: UploadFile = File(...), db: Session = De
 def fuel_equipment_list_page(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment_rows = (
         db.query(Equipment)
-        .options(joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand))
+        .options(
+            joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand),
+            joinedload(Equipment.equipment_type),
+        )
         .order_by(Equipment.registration_number, Equipment.id)
         .all()
     )
@@ -141,9 +144,15 @@ def fuel_equipment_list_page(request: Request, db: Session = Depends(get_db), cu
     counts: dict[int, int] = {}
     for record in records:
         counts[record.equipment_id] = counts.get(record.equipment_id, 0) + 1
+    consumption_units = {
+        equipment.id: services.consumption_unit_code(
+            services.meter_unit_code(equipment)
+        )
+        for equipment in equipment_rows
+    }
     return templates.TemplateResponse(request=request, name="fuel_equipment.html", context={
         "request": request, "user": current_user, "equipment_rows": equipment_rows,
-        "counts": counts, "averages": averages,
+        "counts": counts, "averages": averages, "consumption_units": consumption_units,
     })
 
 
@@ -253,9 +262,18 @@ def delete_selected_fuel(
 
 @router.get("/equipment/{equipment_id}/fuel", response_class=HTMLResponse)
 def equipment_fuel_page(request: Request, equipment_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    equipment = db.query(Equipment).options(joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand)).filter(Equipment.id == equipment_id).first()
+    equipment = db.query(Equipment).options(
+        joinedload(Equipment.equipment_model).joinedload(EquipmentModel.brand),
+        joinedload(Equipment.equipment_type),
+    ).filter(Equipment.id == equipment_id).first()
     if not equipment:
         raise HTTPException(404, "العتاد غير موجود")
     records = db.query(FuelRecord).options(joinedload(FuelRecord.equipment)).filter(FuelRecord.equipment_id == equipment_id).order_by(FuelRecord.fueling_date.desc(), FuelRecord.id.desc()).all()
     enriched, averages = services.enrich_records(db, records)
-    return templates.TemplateResponse(request=request, name="equipment_fuel.html", context={"request": request, "user": current_user, "equipment": equipment, "records": enriched, "average": averages.get(equipment_id)})
+    meter_unit = services.meter_unit_code(equipment)
+    return templates.TemplateResponse(request=request, name="equipment_fuel.html", context={
+        "request": request, "user": current_user, "equipment": equipment,
+        "records": enriched, "average": averages.get(equipment_id),
+        "meter_unit": meter_unit,
+        "consumption_unit": services.consumption_unit_code(meter_unit),
+    })

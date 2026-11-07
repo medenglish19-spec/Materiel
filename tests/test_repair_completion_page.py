@@ -199,6 +199,43 @@ def test_repair_detail_edits_and_persists_fields_for_any_record(repair_page):
         assert db.get(Repair, other_id).action_taken == "سجل آخر مستقل"
 
 
+def test_fault_detail_repair_form_normalizes_empty_optional_end_date(repair_page):
+    client, _, ids = repair_page
+
+    response = client.get(f"/faults-repairs/faults/{ids['fault']}")
+
+    assert response.status_code == 200, response.text
+    assert "if(data.repair_end_date==='')data.repair_end_date=null" in response.text
+
+
+def test_completing_active_repair_through_fault_form_restores_equipment_state(repair_page):
+    client, TestingSession, ids = repair_page
+
+    response = client.post(
+        "/api/faults-repairs/repairs",
+        json={
+            "fault_id": ids["fault"],
+            "repair_date": date.today().isoformat(),
+            "repair_start_date": date.today().isoformat(),
+            "repair_end_date": date.today().isoformat(),
+            "action_taken": "إكمال الإصلاح من نموذج العطل",
+            "workshop_type": "external",
+            "external_dispatch_document": "DISPATCH-REPAIR-COMPLETE-TEST",
+            "status": "completed",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    with TestingSession() as db:
+        fault = db.get(Fault, ids["fault"])
+        repair = db.get(Repair, ids["repair"])
+        equipment = db.get(Equipment, fault.equipment_id)
+        assert (repair.status, repair.repair_end_date) == ("completed", date.today())
+        assert fault.status == "repaired"
+        assert equipment.technical_condition == "ready"
+        assert equipment.operational_status == "available"
+
+
 def test_repair_update_rejects_invalid_dates_without_changing_saved_values(repair_page):
     client, TestingSession, ids = repair_page
     response = client.patch(

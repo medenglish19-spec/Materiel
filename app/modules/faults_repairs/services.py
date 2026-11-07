@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.modules.equipment.models import Equipment
@@ -225,6 +226,7 @@ def create_repair(db: Session, data: RepairCreate, user_id=None):
         else:
             active.status = "in_progress"
             fault.status = "repairing"
+        db.flush()
         _sync_equipment_from_faults(db, fault.equipment_id)
         db.commit()
         db.refresh(active)
@@ -315,13 +317,55 @@ def update_repair_record(db: Session, repair: Repair, data: RepairUpdate):
         raise
 
 
+def _translate_spare_part_integrity_error(db: Session, exc: IntegrityError):
+    """Convert only known uniqueness races to a user-facing ValueError.
+
+    Other database integrity failures are re-raised so genuine defects are not
+    hidden behind a generic validation message.
+    """
+    db.rollback()
+    message = str(getattr(exc, "orig", exc))
+    if "spare_parts.part_number" in message:
+        raise ValueError("رقم القطعة مستخدم مسبقًا") from exc
+    if (
+        "repair_parts.repair_id" in message
+        or "repair_parts.spare_part_id" in message
+        or "uq_repair_spare_part" in message
+    ):
+        raise ValueError("قطعة الغيار مضافة مسبقًا لهذا التصليح") from exc
+    raise exc
+
+
 def create_spare_part(db: Session, data: SparePartCreate):
-    obj = SparePart(**data.model_dump()); db.add(obj); db.commit(); db.refresh(obj); return obj
+    if db.query(SparePart).filter(SparePart.part_number == data.part_number).first():
+        raise ValueError("رقم القطعة مستخدم مسبقًا")
+    obj = SparePart(**data.model_dump())
+    db.add(obj)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        _translate_spare_part_integrity_error(db, exc)
+    db.refresh(obj)
+    return obj
 
 
 def update_spare_part(db: Session, obj: SparePart, data: SparePartUpdate):
-    for k,v in data.model_dump(exclude_unset=True).items(): setattr(obj,k,v)
-    db.commit(); db.refresh(obj); return obj
+    changes = data.model_dump(exclude_unset=True)
+    new_number = changes.get("part_number")
+    if new_number and new_number != obj.part_number:
+        duplicate = db.query(SparePart).filter(
+            SparePart.part_number == new_number,
+            SparePart.id != obj.id,
+        ).first()
+        if duplicate:
+            raise ValueError("رقم القطعة مستخدم مسبقًا")
+    for k,v in changes.items(): setattr(obj,k,v)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        _translate_spare_part_integrity_error(db, exc)
+    db.refresh(obj)
+    return obj
 
 
 def add_repair_part(db: Session, data: RepairPartCreate):
@@ -329,8 +373,19 @@ def add_repair_part(db: Session, data: RepairPartCreate):
     part = db.query(SparePart).filter(SparePart.id == data.spare_part_id).first()
     if not repair: raise ValueError("التصليح غير موجود")
     if not part: raise ValueError("قطعة الغيار غير موجودة")
+    duplicate = db.query(RepairPart).filter(
+        RepairPart.repair_id == data.repair_id,
+        RepairPart.spare_part_id == data.spare_part_id,
+    ).first()
+    if duplicate: raise ValueError("قطعة الغيار مضافة مسبقًا لهذا التصليح")
     obj = RepairPart(**data.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj); return obj
+    db.add(obj)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        _translate_spare_part_integrity_error(db, exc)
+    db.refresh(obj)
+    return obj
 
 
 def dashboard_stats(db: Session):

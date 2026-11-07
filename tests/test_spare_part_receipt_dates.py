@@ -156,6 +156,37 @@ def _seed(db):
     }
 
 
+def test_general_need_request_can_be_created_without_any_source(client):
+    page, _ = client
+    response = page.post(
+        "/api/spare-parts-requests",
+        json={
+            "request_number": "GENERAL-NEED-20261104",
+            "request_date": "2020-01-01",
+            "source_type": "need",
+            "source_id": None,
+            "items": [
+                {"asset_type": "battery", "part_name": "بطارية اختبار عامة", "requested_quantity": 1}
+            ],
+        },
+    )
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["source_type"] == "need"
+    assert created["fault_id"] is None
+    assert created["repair_id"] is None
+    assert created["equipment_id"] is None
+    assert created["items"][0]["asset_type"] == "battery"
+
+    options = page.get("/api/spare-parts-requests/sources/need")
+    assert options.status_code == 200
+    assert options.json() == []
+
+    filtered = page.get("/api/spare-parts-requests", params={"source_type": "need"})
+    assert filtered.status_code == 200
+    assert created["id"] in {row["id"] for row in filtered.json()}
+
+
 def _reread(client, ids):
     return client.get(f"/api/spare-parts-requests/{ids['request']}").json()
 

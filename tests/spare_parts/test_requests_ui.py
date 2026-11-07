@@ -144,6 +144,14 @@ def requests_page():
             self.end_headers()
 
         def do_POST(self):
+            if self.path == "/api/spare-parts-requests":
+                payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                calls.append(("POST", self.path, payload))
+                self.send_response(201)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"id": 103, **payload}, ensure_ascii=False).encode("utf-8"))
+                return
             self.send_response(303)
             self.send_header("Location", "/spare-parts-requests?submitted=1")
             self.end_headers()
@@ -188,6 +196,33 @@ def requests_page():
         browser.close()
 
     server.shutdown()
+
+
+def test_general_need_request_submits_without_fault_or_repair_association(requests_page):
+    page, calls, errors = requests_page
+
+    page.locator("#newBtn").click()
+    page.locator("#requestNumber").fill("GENERAL-NEED-103")
+    page.locator("#requestDate").fill("2026-11-04")
+    page.locator("#sourceType").select_option("need")
+    expect(page.locator("#sourceId")).to_be_hidden()
+    expect(page.locator("#sourceId")).to_be_disabled()
+
+    page.locator("#addRequestItem").click()
+    row = page.locator("#newItems .new-item").first
+    row.locator(".new-kind").select_option("battery")
+    row.locator(".new-name").fill("بطارية اختبار")
+    row.locator(".new-qty").fill("1")
+    page.locator("#saveRequest").click()
+
+    expect(page.locator("#formMsg")).to_have_text("تم حفظ الطلب")
+    assert calls.wait_for_count(1), "لم يُرسل الطلب إلى خدمة إنشاء الطلبات"
+    method, path, payload = calls[0]
+    assert (method, path) == ("POST", "/api/spare-parts-requests")
+    assert payload["source_type"] == "need"
+    assert payload["source_id"] is None
+    assert payload["items"][0]["asset_type"] == "battery"
+    assert not errors
 
 
 def test_requests_page_search_filters_real_rendered_rows(requests_page):

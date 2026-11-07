@@ -114,13 +114,13 @@
     <div class="toolbar" data-mobile-filter-collapse>
       <div class="search-wrap"><input id="requestSearch" type="search" placeholder="ابحث برقم الطلب، الغيار، العتاد، رقم التسجيل أو رقم التقرير" aria-label="بحث في طلبات قطع الغيار"></div>
       <select id="filterStatus" aria-label="تصفية حسب الحالة"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option><option value="cancelled">ملغى</option></select>
-      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="repair">احتياج</option></select>
+      <select id="filterSource" aria-label="تصفية حسب المصدر"><option value="">كل المصادر</option><option value="fault">الأعطال</option><option value="need">احتياج</option></select>
       <div class="toolbar-meta"><span id="resultCount" class="badge">الطلبات: 0</span><span id="pendingCount" class="badge">قيد الانتظار: 0</span></div>
     </div>
     <form id="requestForm" class="form" style="display:none" novalidate data-em-root data-em-ignore>
       <input name="request_number" id="requestNumber" placeholder="رقم وثيقة الطلب *" required>
-      <select name="source_type" id="sourceType"><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="repair">احتياج</option></select>
-      <select name="source_id" id="sourceId" required><option value="">اختر المصدر *</option></select>
+      <select name="source_type" id="sourceType" required><option value="">مصدر الطلب *</option><option value="fault">عطل</option><option value="need">احتياج</option></select>
+      <select name="source_id" id="sourceId" hidden disabled><option value="">اختر العطل *</option></select>
       <input name="request_date" id="requestDate" type="date" required>
       <input id="equipmentView" placeholder="رقم التسجيل" readonly>
       <textarea name="notes" id="requestNotes" class="wide" placeholder="ملاحظات"></textarea>
@@ -145,7 +145,7 @@ const PART_NUMBERS={{ parts|map(attribute='part_number')|list|tojson }};
 function partIndexByCode(value){const code=String(value||'').trim().toLocaleLowerCase();return code?PART_NUMBERS.findIndex(item=>String(item||'').trim().toLocaleLowerCase()===code):-1;}
 function syncPartNameFromCode(row,codeSelector,nameSelector){const codeField=row.querySelector(codeSelector),nameField=row.querySelector(nameSelector);if(!codeField||!nameField)return;const index=partIndexByCode(codeField.value);if(index>=0){nameField.value=PART_NAMES[index]||'';nameField.dataset.catalogPartCode=PART_NUMBERS[index];}else if(nameField.dataset.catalogPartCode&&nameField.value===PART_NAMES[partIndexByCode(nameField.dataset.catalogPartCode)]){nameField.value='';delete nameField.dataset.catalogPartCode;}}
 const STATUS={pending:'قيد الانتظار',approved:'مقبول',rejected:'مرفوض',cancelled:'ملغى'};
-const SOURCE={fault:'الأعطال',repair:'احتياج'};
+const SOURCE={fault:'الأعطال',repair:'احتياج',need:'احتياج'};
 const RECEIPT_BEFORE_REQUEST='تاريخ الاستلام لا يمكن أن يكون قبل تاريخ الطلب.';
 const DUPLICATE_PART='قطعة الغيار موجودة بالفعل في الطلب.';
 let requestsData=[],activeRequestId=null,detailRowsBaseline=null;
@@ -170,21 +170,26 @@ function errText(d,fallback){
 const sourceType=document.getElementById('sourceType'),sourceId=document.getElementById('sourceId'),requestDate=document.getElementById('requestDate'),equipmentView=document.getElementById('equipmentView');
 const repairId=new URLSearchParams(location.search).get('repair_id');
 
+function localToday(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}
 async function loadSources(){
-  sourceId.innerHTML='<option value="">'+(sourceType.value==='repair'?'اختر الاحتياج *':'اختر العطل *')+'</option>';
-  if(!sourceType.value)return;
-  const r=await fetch('/api/spare-parts-requests/sources/'+sourceType.value,{credentials:'same-origin'});
+  const isFault=sourceType.value==='fault';
+  sourceId.hidden=!isFault;sourceId.disabled=!isFault;sourceId.required=isFault;
+  sourceId.innerHTML='<option value="">اختر العطل *</option>';
+  equipmentView.value='';
+  if(sourceType.value==='need'){requestDate.value=localToday();return}
+  if(!isFault)return;
+  const r=await fetch('/api/spare-parts-requests/sources/fault',{credentials:'same-origin'});
   const data=await r.json();
   data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent='#'+x.id+' — '+x.report_number+' — '+x.registration_number;o.dataset.date=x.date;o.dataset.registration=x.registration_number;sourceId.appendChild(o);});
 }
 sourceType.addEventListener('change',loadSources);
-sourceId.addEventListener('change',()=>{const o=sourceId.options[sourceId.selectedIndex];if(!o||!o.value)return;requestDate.value=o.dataset.date||'';equipmentView.value=o.dataset.registration||'—';});
+sourceId.addEventListener('change',()=>{const o=sourceId.options[sourceId.selectedIndex];if(!o||!o.value){equipmentView.value='';return}requestDate.value=o.dataset.date||'';equipmentView.value=o.dataset.registration||'—';});
 
 document.getElementById('newBtn').addEventListener('click',()=>{const f=document.getElementById('requestForm');f.style.display=f.style.display==='none'?'grid':'none';});
 
 async function openRepairRequest(){
   if(!repairId)return;
-  const f=document.getElementById('requestForm');f.style.display='grid';sourceType.value='repair';await loadSources();sourceId.value=repairId;sourceId.dispatchEvent(new Event('change'));
+  const f=document.getElementById('requestForm');f.style.display='grid';sourceType.value='need';await loadSources();
 }
 
 function addRequestItemRow(){
@@ -205,10 +210,12 @@ document.getElementById('requestForm').addEventListener('submit',async e=>{
     const unknownCode=rows.find(row=>row.querySelector('.new-kind').value==='part'&&row.querySelector('.new-code').value.trim()&&partIndexByCode(row.querySelector('.new-code').value)<0);
     const items=rows.map(row=>{const assetType=row.querySelector('.new-kind').value;const code=assetType==='part'?row.querySelector('.new-code').value.trim():'';const partIndex=partIndexByCode(code);const name=row.querySelector('.new-name').value.trim();return {asset_type:assetType,spare_part_id:partIndex>=0?Number(PARTS[partIndex]):null,part_number:code||null,part_name:name||null,requested_quantity:Number(row.querySelector('.new-qty').value||0),notes:row.querySelector('.new-note').value.trim()||null};}).filter(x=>(x.spare_part_id||x.part_name)&&x.requested_quantity>0);
     const msg=document.getElementById('formMsg');
+    if(!fd.get('source_type')){msg.textContent='حدد مصدر الطلب';msg.className='msg err';return;}
+    if(sourceType.value==='fault'&&!fd.get('source_id')){msg.textContent='اختر العطل المرتبط بالطلب';msg.className='msg err';return;}
     if(!rows.length){msg.textContent='أضف بندًا واحدًا على الأقل';msg.className='msg err';return;}
     if(unknownCode){msg.textContent='الرمز التعريفي غير موجود في كتالوج قطع الغيار';msg.className='msg err';return;}
     if(items.length<rows.length){msg.textContent='أكمل كل بند: اكتب اسم قطعة الغيار وأدخل الكمية قبل الحفظ';msg.className='msg err';return;}
-    const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
+    const body={request_number:fd.get('request_number'),request_date:fd.get('request_date'),source_type:fd.get('source_type'),source_id:sourceType.value==='need'?null:Number(fd.get('source_id')),notes:fd.get('notes')||null,items};
     const r=await fetch('/api/spare-parts-requests',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){msg.textContent=errText(data.detail,'تعذر حفظ الطلب');msg.className='msg err';return;}
@@ -231,7 +238,7 @@ function renderRequests(){
   const q=(document.getElementById('requestSearch').value||'').trim().toLowerCase();
   const status=document.getElementById('filterStatus').value;
   const source=document.getElementById('filterSource').value;
-  const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||x.source_type===source)&&matchesRequestSearch(x,q));
+  const rows=requestsData.filter(x=>(!status||x.status===status)&&(!source||(source==='need'?['need','repair'].includes(x.source_type):x.source_type===source))&&matchesRequestSearch(x,q));
   document.getElementById('rows').innerHTML=rows.length?rows.map(row).join(''):'<tr><td colspan="4" class="empty">لا توجد طلبات مطابقة.</td></tr>';
   if(activeRequestId!==null&&!rows.some(x=>Number(x.id)===Number(activeRequestId)))activeRequestId=null;
   document.getElementById('rows').querySelectorAll('.request-row').forEach(tr=>tr.classList.toggle('selected',Number(tr.dataset.id)===Number(activeRequestId)));

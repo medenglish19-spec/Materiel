@@ -17,10 +17,25 @@ def list_records(db: Session):
     return db.query(FuelRecord).options(
         joinedload(FuelRecord.equipment)
         .joinedload(Equipment.equipment_model)
-        .joinedload(EquipmentModel.brand)
+        .joinedload(EquipmentModel.brand),
+        joinedload(FuelRecord.equipment).joinedload(Equipment.equipment_type),
     ).order_by(
         FuelRecord.fueling_date.desc(), FuelRecord.id.desc()
     ).all()
+
+
+def meter_unit_code(equipment: Equipment | None) -> str:
+    equipment_type = getattr(equipment, "equipment_type", None)
+    unit = (getattr(equipment_type, "measurement_unit", None) or "km").strip().lower()
+    return unit if unit in {"km", "hours"} else "km"
+
+
+def consumption_unit_code(meter_unit: str) -> str:
+    return "liter_per_hour" if meter_unit == "hours" else "liter_per_100_km"
+
+
+def _consumption_scale(meter_unit: str) -> Decimal:
+    return Decimal("1") if meter_unit == "hours" else Decimal("100")
 
 
 def _previous(db: Session, equipment_id: int, fueling_date: date, record_id: int | None = None):
@@ -114,7 +129,10 @@ def consumption(db: Session, record: FuelRecord):
     distance = distance_from_previous(db, record)
     if not distance or distance <= 0:
         return None
-    return (Decimal(record.quantity) * Decimal(100) / distance).quantize(Decimal("0.01"))
+    meter_unit = meter_unit_code(record.equipment)
+    return (
+        Decimal(record.quantity) * _consumption_scale(meter_unit) / distance
+    ).quantize(Decimal("0.01"))
 
 
 def equipment_average(db: Session, equipment_id: int):
@@ -155,13 +173,15 @@ def enrich_records(db: Session, records: list[FuelRecord]) -> tuple[list[dict], 
     for record in records:
         grouped.setdefault(record.equipment_id, []).append(record)
 
-    metrics: dict[int, tuple[Decimal | None, Decimal | None, Decimal | None]] = {}
+    metrics: dict[int, tuple[Decimal | None, Decimal | None, Decimal | None, str]] = {}
     averages: dict[int, Decimal | None] = {}
     for equipment_id, equipment_records in grouped.items():
         ordered = sorted(
             equipment_records,
             key=lambda record: (record.fueling_date, record.id or 0),
         )
+        meter_unit = meter_unit_code(ordered[0].equipment)
+        scale = _consumption_scale(meter_unit)
         values: list[Decimal] = []
         previous: FuelRecord | None = None
         for record in ordered:
@@ -179,10 +199,10 @@ def enrich_records(db: Session, records: list[FuelRecord]) -> tuple[list[dict], 
                     distance = difference
                     if distance > 0:
                         rate = (
-                            Decimal(record.quantity) * Decimal(100) / distance
+                            Decimal(record.quantity) * scale / distance
                         ).quantize(Decimal("0.01"))
                         values.append(rate)
-            metrics[record.id] = (value, distance, rate)
+            metrics[record.id] = (value, distance, rate, meter_unit)
             previous = record
 
         average = (
@@ -193,13 +213,15 @@ def enrich_records(db: Session, records: list[FuelRecord]) -> tuple[list[dict], 
 
     enriched = []
     for record in records:
-        meter_value, distance, rate = metrics[record.id]
+        meter_value, distance, rate, meter_unit = metrics[record.id]
         average = averages[record.equipment_id]
         enriched.append({
             "record": record,
             "meter_value": meter_value,
             "distance": distance,
             "consumption": rate,
+            "meter_unit": meter_unit,
+            "consumption_unit": consumption_unit_code(meter_unit),
             "abnormal": bool(
                 rate is not None
                 and average is not None

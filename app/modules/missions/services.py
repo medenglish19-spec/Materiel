@@ -328,7 +328,7 @@ def add_mission(db: Session, data: dict):
     sync_current_meter(db, mission.equipment_id)
     # تحديث وضعية العتاد إلى "في مهمة"
     equipment = db.query(Equipment).filter(Equipment.id == data["equipment_id"]).first()
-    if equipment:
+    if equipment and mission_status(mission) == "running":
         equipment.operational_status = "in_mission"
     db.commit(); db.refresh(mission)
     return mission

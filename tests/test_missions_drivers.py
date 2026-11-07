@@ -320,6 +320,23 @@ def test_registered_driver_must_be_active_and_assigned_to_mission_equipment(db):
         services.add_mission(db, mission_data)
 
 
+def test_future_mission_keeps_equipment_available_until_start_date(db):
+    equipment = _equipment(db, requires_driver=False, registration_number="MISSION-PLANNED-STATUS")
+
+    mission = services.add_mission(
+        db,
+        {
+            "equipment_id": equipment.id,
+            "start_date": date.today() + timedelta(days=1),
+            "mission_document": "MISSION-PLANNED-STATUS-1",
+        },
+    )
+
+    db.refresh(equipment)
+    assert services.mission_status(mission) == "planned"
+    assert equipment.operational_status == "available"
+
+
 def test_driver_mission_history_uses_relationship_and_unambiguous_legacy_names(db):
     equipment = _equipment(db, requires_driver=True, registration_number="DRV-HISTORY")
     driver = services.create_driver(db, _driver_data("EMP-HISTORY", equipment.id))
@@ -546,7 +563,8 @@ def test_driver_rank_and_removed_label_setting_over_http(db, monkeypatch):
         assert "محترف أ - سائق اختبار" in mission_page.text
         records_page = client.get("/missions/records")
         assert records_page.status_code == 200
-        assert "<th>العتاد</th><th>رقم التسجيل</th><th>السائق</th>" in records_page.text
+        assert "<th>العتاد</th><th>رقم التسجيل</th><th>رقم المهمة</th><th>السائق</th>" in records_page.text
+        assert "MISSION-HTTP-1" in records_page.text
         assert "<td>DRV-HTTP</td>" in records_page.text
         assert "مركز الاختبار" in records_page.text
         assert "ملاحظة المهمة" in records_page.text

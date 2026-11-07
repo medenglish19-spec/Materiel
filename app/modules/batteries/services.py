@@ -205,6 +205,16 @@ def _is_damaged_reason(reason: str | None) -> bool:
     return (reason or "").strip().lower() in {"تالف", "damaged", "تلف"}
 
 
+def _required_battery_count(equipment: Equipment) -> int:
+    model = equipment.equipment_model
+    if model is None or not model.has_batteries:
+        raise ValueError("طراز العتاد غير معرّف بأنه يستخدم البطاريات")
+    required_count = model.battery_count_required
+    if required_count is None or required_count < 1:
+        raise ValueError("عدد البطاريات المطلوب غير محدد لهذا الطراز")
+    return required_count
+
+
 def validate_movement(db: Session, battery: Battery, movement_type: str, movement_date: date, equipment_id: int | None, meter_value: Decimal | None):
     if movement_type not in MOVEMENT_TYPES:
         raise ValueError("نوع حركة البطارية غير صالح")
@@ -236,7 +246,7 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
                 raise ValueError("العتاد غير موجود")
             # replacement_due_date is advisory only. Passing it does not make
             # the battery unusable; explicit damage reporting is the blocker.
-            required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
+            required_count = _required_battery_count(equipment)
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count:
                 if required_count == 1:
@@ -263,7 +273,7 @@ def validate_movement(db: Session, battery: Battery, movement_type: str, movemen
             equipment = db.query(Equipment).filter(Equipment.id == movement.equipment_id).first()
             if not equipment:
                 raise ValueError("العتاد غير موجود")
-            required_count = getattr(equipment.equipment_model, "battery_count_required", None) or 1
+            required_count = _required_battery_count(equipment)
             installed_count = _installed_battery_count(db, equipment.id, exclude_battery_id=battery.id, when=movement.movement_date)
             if installed_count >= required_count and movement.equipment_id != state_at["equipment_id"]:
                 raise ValueError(f"العتاد وصل إلى العدد المسموح به من البطاريات لهذا الطراز ({required_count}) في التاريخ المحدد")

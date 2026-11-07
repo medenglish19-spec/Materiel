@@ -87,6 +87,16 @@ MAINTENANCE_ACTION_LABELS: Dict[str, str] = {
     "unspecified": "غير محدد؛ يحتاج مراجعة",
 }
 
+METER_UNIT_LABELS: Dict[str, str] = {
+    "km": "كم",
+    "hours": "ساعة عمل",
+}
+
+FUEL_CONSUMPTION_UNIT_LABELS: Dict[str, str] = {
+    "liter_per_100_km": "لتر/100 كم",
+    "liter_per_hour": "لتر/ساعة",
+}
+
 
 LABELS: Dict[str, Dict[str, str]] = {
     "operational": OPERATIONAL_STATUS_LABELS,
@@ -96,6 +106,8 @@ LABELS: Dict[str, Dict[str, str]] = {
     "severity": SEVERITY_LABELS,
     "spare_request": SPARE_REQUEST_STATUS_LABELS,
     "maintenance_action": MAINTENANCE_ACTION_LABELS,
+    "meter_unit": METER_UNIT_LABELS,
+    "fuel_consumption": FUEL_CONSUMPTION_UNIT_LABELS,
 }
 
 

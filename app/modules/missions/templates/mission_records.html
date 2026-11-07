@@ -18,7 +18,7 @@
 .mission-add-button:hover{background:#244b33;transform:translateY(-1px)}
 .mission-add-button:focus-visible{outline:3px solid #9ac5a5;outline-offset:2px}
 .mission-record-table-wrap{width:100%;overflow:auto}
-.mission-record-table{width:100%;min-width:920px;border-collapse:separate;border-spacing:0;text-align:right}
+.mission-record-table{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;text-align:right}
 .mission-record-table th{padding:13px 14px;border-bottom:1px solid #dfe8e1;background:#edf4ef;color:#3d5545;font-size:12px;font-weight:800;white-space:nowrap}
 .mission-record-table td{padding:13px 14px;border-bottom:1px solid #edf1ee;color:#34443a;font-size:13px;line-height:1.6;vertical-align:middle}
 .mission-record-table tbody tr:nth-child(even){background:#fbfcfb}
@@ -38,10 +38,10 @@
       <h2 id="missionRecordsTitle">المهمات المسجلة</h2>
       <div class="mission-record-toolbar">
         <div class="mission-total"><span class="mission-total-label">الإجمالي</span><span class="mission-total-value"><strong>{{ missions|length }}</strong><span>مهمة</span></span></div>
-        <a class="mission-add-button" href="/missions?open_mission=1"><span aria-hidden="true">＋</span> إضافة مهمة</a>
+        {% if can_create_missions %}<a class="mission-add-button" href="/missions?open_mission=1"><span aria-hidden="true">＋</span> إضافة مهمة</a>{% endif %}
       </div>
     </div>
-    <div class="mission-record-table-wrap" data-mt-region><table class="mission-record-table"><thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b class="mission-record-equipment">{{ x.mission.equipment.equipment_model.name if x.mission.equipment and x.mission.equipment.equipment_model else (x.mission.equipment.equipment_type.name if x.mission.equipment and x.mission.equipment.equipment_type else '—') }}</b></td><td>{{ x.mission.equipment.registration_number or '—' if x.mission.equipment else '—' }}</td><td>{{ (x.mission.driver.driving_rank ~ ' - ' if x.mission.driver and x.mission.driver.driving_rank else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="8" class="mission-record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div>
+    <div class="mission-record-table-wrap" data-mt-region><table class="mission-record-table"><thead><tr><th>العتاد</th><th>رقم التسجيل</th><th>رقم المهمة</th><th>السائق</th><th>الغرض</th><th>الوجهة</th><th>الذهاب</th><th>العودة</th><th>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b class="mission-record-equipment">{{ x.mission.equipment.equipment_model.name if x.mission.equipment and x.mission.equipment.equipment_model else (x.mission.equipment.equipment_type.name if x.mission.equipment and x.mission.equipment.equipment_type else '—') }}</b></td><td>{{ x.mission.equipment.registration_number or '—' if x.mission.equipment else '—' }}</td><td>{{ x.mission.mission_document or '—' }}</td><td>{{ (x.mission.driver.driving_rank ~ ' - ' if x.mission.driver and x.mission.driver.driving_rank else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="9" class="mission-record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div>
   </section>
 </div>
 {% endblock %}

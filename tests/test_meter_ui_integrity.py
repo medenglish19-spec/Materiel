@@ -192,3 +192,12 @@ def test_meter_history_page_keeps_edit_delete_actions():
     assert "if(window.EditManager)EditManager.reset();" in text
     assert '/meter-readings/history/{{ equipment.id }}/update' in text
     assert '/meter-readings/history/{{ equipment.id }}/delete' in text
+
+
+def test_meter_operation_action_labels_are_arabic_for_every_recorded_action():
+    from app.modules.meter_readings.audit_router import _action
+
+    assert _action("add") == "إضافة قراءة"
+    assert _action("update") == "تعديل قراءة"
+    assert _action("delete") == "حذف قراءة"
+    assert _action("unlink") == "فصل القراءة عن مصدرها"

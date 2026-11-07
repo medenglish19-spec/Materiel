@@ -170,7 +170,19 @@ def generate_asset_code(db: Session, registration_number: Optional[str] = None) 
 
 
 def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] = None) -> Equipment:
-    asset_code = generate_asset_code(db, data.registration_number); values = data.model_dump(); type_id = values["equipment_type_id"]; model_id = values.get("equipment_model_id")
+    values = data.model_dump()
+    values["registration_number"] = (values.get("registration_number") or "").strip() or None
+    values["vin"] = (values.get("vin") or "").strip() or None
+    if values["registration_number"] and db.query(Equipment).filter(
+        Equipment.registration_number == values["registration_number"]
+    ).first():
+        raise ValueError("رقم التسجيل مستخدم بالفعل لعتاد آخر")
+    if values["vin"] and db.query(Equipment).filter(Equipment.vin == values["vin"]).first():
+        raise ValueError("رقم الهيكل مستخدم بالفعل لعتاد آخر")
+    asset_code = generate_asset_code(db, values["registration_number"])
+    if get_by_asset_code(db, asset_code):
+        raise ValueError("رمز العتاد مستخدم بالفعل")
+    type_id = values["equipment_type_id"]; model_id = values.get("equipment_model_id")
     values["image_url"] = (values.get("image_url") or "").strip() or None
     if values["image_url"] and not values["image_url"].startswith(EQUIPMENT_IMAGE_PREFIX):
         raise ValueError("مسار صورة العتاد غير صالح.")
@@ -188,7 +200,25 @@ def create_equipment(db: Session, data: EquipmentCreate, user_id: Optional[int] 
         if model.equipment_type_id != type_id: raise ValueError("الطراز المحدد لا ينتمي إلى نوع العتاد المختار")
         if model.is_frozen: raise ValueError("طراز العتاد مجمد؛ لا يمكن اعتماد عتاد جديد عليه قبل إعادة اعتماده")
     if values.get("technical_condition") == "broken": values["operational_status"] = "unavailable"
-    equipment = Equipment(**values, asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id); db.add(equipment); db.commit(); db.refresh(equipment); return equipment
+    equipment = Equipment(**values, asset_code=asset_code, created_by_id=user_id, updated_by_id=user_id)
+    db.add(equipment)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        constraint = str(exc.orig)
+        if any(
+            name in constraint
+            for name in (
+                "equipment.asset_code",
+                "equipment.registration_number",
+                "equipment.vin",
+            )
+        ):
+            raise ValueError("رمز العتاد أو رقم التسجيل أو رقم الهيكل مستخدم بالفعل") from exc
+        raise
+    db.refresh(equipment)
+    return equipment
 
 
 def update_equipment(db: Session, equipment: Equipment, data: EquipmentUpdate, user_id: Optional[int] = None) -> Equipment:

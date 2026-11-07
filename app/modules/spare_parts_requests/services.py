@@ -160,20 +160,27 @@ def refresh_request_statuses(db: Session, requests):
         db.commit()
 
 
-def _source(db: Session, source_type: str, source_id: int):
+def _source(db: Session, source_type: str, source_id: int | None):
+    if source_type == "need":
+        if source_id is not None:
+            raise ValueError("الاحتياج لا يرتبط بعطل أو إصلاح")
+        return None, None, None
     if source_type == "fault":
         obj = db.query(Fault).options(joinedload(Fault.equipment)).filter(Fault.id == source_id).first()
         if not obj:
             raise ValueError("العطل غير موجود")
         return obj, obj.equipment_id, obj.reported_date
     obj = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).filter(Repair.id == source_id).first()
-    if not obj:
-        raise ValueError("التصليح غير موجود")
-    return (
-        obj,
-        obj.fault.equipment_id if obj.fault else None,
-        obj.fault.reported_date if obj.fault else obj.repair_date,
-    )
+    if source_type == "repair":
+        obj = db.query(Repair).options(joinedload(Repair.fault).joinedload(Fault.equipment)).filter(Repair.id == source_id).first()
+        if not obj:
+            raise ValueError("التصليح غير موجود")
+        return (
+            obj,
+            obj.fault.equipment_id if obj.fault else None,
+            obj.fault.reported_date if obj.fault else obj.repair_date,
+        )
+    raise ValueError("مصدر طلب الغيار غير صالح")
 
 
 def _resolve_part(db: Session, part_id: int | None, name: str | None, part_number: str | None = None):
@@ -673,7 +680,10 @@ def list_requests(db: Session, status=None, source_type=None):
         joinedload(SparePartRequest.fault),
         joinedload(SparePartRequest.repair).joinedload(Repair.fault),
     )
-    if source_type:
+    if source_type == "need":
+        # Show legacy repair-linked requests under the user-facing "احتياج" filter.
+        q = q.filter(SparePartRequest.source_type.in_(("need", "repair")))
+    elif source_type:
         q = q.filter(SparePartRequest.source_type == source_type)
     requests = q.order_by(SparePartRequest.request_date.desc(), SparePartRequest.id.desc()).all()
     refresh_request_statuses(db, requests)
@@ -794,6 +804,8 @@ def received_register(db: Session):
 
 
 def source_options(db: Session, source_type: str):
+    if source_type == "need":
+        return []
     if source_type == "fault":
         rows = db.query(Fault).options(joinedload(Fault.equipment)).order_by(
             Fault.reported_date.desc(), Fault.id.desc()

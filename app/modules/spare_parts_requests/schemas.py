@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 REQUEST_STATUSES = {"pending", "approved", "rejected", "cancelled"}
-SOURCE_TYPES = {"fault", "repair"}
+SOURCE_TYPES = {"fault", "repair", "need"}
 
 
 class SparePartRequestItemCreate(BaseModel):
@@ -51,7 +51,7 @@ class SparePartRequestCreate(BaseModel):
     recipient: str | None = None
     supplier_institution: str | None = None
     source_type: str
-    source_id: int
+    source_id: int | None = None
     notes: str | None = None
     items: list[SparePartRequestItemCreate] = Field(default_factory=list)
 
@@ -61,6 +61,14 @@ class SparePartRequestCreate(BaseModel):
         if value not in SOURCE_TYPES:
             raise ValueError("مصدر طلب الغيار غير صالح")
         return value
+
+    @model_validator(mode="after")
+    def source_link_matches_type(self):
+        if self.source_type == "need" and self.source_id is not None:
+            raise ValueError("الاحتياج لا يرتبط بعطل أو إصلاح")
+        if self.source_type != "need" and self.source_id is None:
+            raise ValueError("اختر مصدر الطلب")
+        return self
 
 
 class SparePartRequestUpdate(BaseModel):
