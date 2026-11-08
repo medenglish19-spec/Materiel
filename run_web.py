@@ -312,6 +312,11 @@ def _request_shutdown(identity: str) -> bool:
 
 
 def _run_packaged_windows() -> int:
+    if "--uninstall-cleanup" in sys.argv[1:]:
+        from app.database.uninstall_cleanup import run_uninstall_cleanup
+
+        return run_uninstall_cleanup()
+
     import uvicorn
 
     from app.core.config import packaged_data_directory, settings

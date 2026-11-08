@@ -59,7 +59,70 @@ Name: "desktopicon"; Description: "إنشاء اختصار على سطح الم�
 [Run]
 Filename: "{app}\Materiel.exe"; Description: "تشغيل تسيير ومحاسبة العتاد"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
+[UninstallRun]
+; Remove only the user identity and authentication data. The operational
+; database and uploads live under GetDataDir and are never uninstalled.
+; Materiel.exe reads the update marker written by Setup and skips this cleanup
+; when the uninstaller is running as part of an upgrade.
+Filename: "{app}\Materiel.exe"; Parameters: "--uninstall-cleanup"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveMaterielUserAccounts"
+
 [Code]
+var
+  UpdateMarkerWritten: Boolean;
+  InstallationCompleted: Boolean;
+
+function GetCurrentProcessId: DWORD; external 'GetCurrentProcessId@kernel32.dll stdcall';
+
+function UpdateMarkerPath: String;
+begin
+  Result := ExpandConstant('{commonappdata}\Materiel\update-in-progress');
+end;
+
+procedure WriteUpdateMarker;
+var
+  MarkerDirectory, MarkerContent: String;
+begin
+  MarkerDirectory := ExtractFileDir(UpdateMarkerPath());
+  if ForceDirectories(MarkerDirectory) then begin
+    MarkerContent := IntToStr(GetCurrentProcessId()) + '|' +
+      GetDateTimeString('yyyymmdd-hhnnss', '-', ':');
+    UpdateMarkerWritten := SaveStringToFile(UpdateMarkerPath(), MarkerContent, False);
+  end;
+end;
+
+procedure RemoveUpdateMarker;
+begin
+  if UpdateMarkerWritten then begin
+    DeleteFile(UpdateMarkerPath());
+    UpdateMarkerWritten := False;
+  end;
+end;
+
+function PreviousInstallationExists: Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := FindFirst(ExpandConstant('{app}') + '\unins*.exe', FindRec);
+  if Result then
+    FindClose(FindRec);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  { Remember that this run upgrades an existing installation.  The uninstaller
+    checks the marker and preserves the user accounts if it is ever started
+    while Setup is still running. }
+  Result := '';
+  if PreviousInstallationExists() then
+    WriteUpdateMarker();
+end;
+
+procedure DeinitializeSetup;
+begin
+  if not InstallationCompleted then
+    RemoveUpdateMarker();
+end;
+
 function DefaultDataDir: String;
 var
   EnvDir: String;
@@ -132,5 +195,10 @@ begin
     if not Exec(ExpandConstant('{sys}\icacls.exe'), Parameters, '', SW_HIDE,
       ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       RaiseException('تعذر منح المستخدمين صلاحية قراءة ملفات شاشة البداية.');
+
+    { The upgrade has finished copying the new release. Any uninstaller that
+      ran as part of it has already seen the marker and preserved the users. }
+    InstallationCompleted := True;
+    RemoveUpdateMarker();
   end;
 end;

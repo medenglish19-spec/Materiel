@@ -37,6 +37,7 @@ $BaseUrl = $null
 $Process = $null
 $UsedPort = $null
 $script:InitialAdminPassword = "SmokeTest-$([guid]::NewGuid().ToString('N'))!Aa"
+$script:ReinstallAdminPassword = "Reinstall-$([guid]::NewGuid().ToString('N'))!Bb"
 $OldEnvironment = @{}
 
 foreach ($Name in @("MATERIEL_DATA_DIR", "APP_HOST", "APP_PORT", "MATERIEL_NO_BROWSER", "DATABASE_URL", "SECRET_KEY", "LOG_DIR", "APP_ENV", "DEV_DISABLE_AUTH")) {
@@ -228,6 +229,81 @@ function Assert-SidebarInstitution {
     }
 }
 
+function Assert-SetupNotRequired {
+    $Page = Invoke-WebRequest -Uri "$BaseUrl/setup" -TimeoutSec 10 -UseBasicParsing
+    if ($Page.Content.Contains('action="/setup"')) {
+        throw "The application unexpectedly required first-run setup after an update."
+    }
+}
+
+function Assert-FirstRunSetupAvailable {
+    $Page = Invoke-WebRequest -Uri "$BaseUrl/setup" -TimeoutSec 10 -UseBasicParsing
+    if (-not $Page.Content.Contains('action="/setup"')) {
+        throw "Reinstall did not present the first-run administrator setup page."
+    }
+}
+
+function New-FirstRunAdmin {
+    param(
+        [Parameter(Mandatory = $true)][string]$Username,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+    $Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    Invoke-WebRequest -Uri "$BaseUrl/setup" -Method Post -Body @{
+        username = $Username
+        password = $Password
+        confirmation = $Password
+    } -Headers @{ Origin = $BaseUrl } -WebSession $Session -TimeoutSec 10 -UseBasicParsing | Out-Null
+    $Dashboard = Invoke-WebRequest -Uri "$BaseUrl/dashboard" -WebSession $Session -TimeoutSec 10 -UseBasicParsing
+    if ($Dashboard.StatusCode -ne 200) {
+        throw "The newly created administrator could not open the dashboard."
+    }
+}
+
+function Assert-LoginWorks {
+    param(
+        [Parameter(Mandatory = $true)][string]$Username,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+    $Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+    Invoke-WebRequest -Uri "$BaseUrl/login" -Method Post -Body @{
+        username = $Username
+        password = $Password
+    } -WebSession $Session -TimeoutSec 10 -UseBasicParsing | Out-Null
+    $Dashboard = Invoke-WebRequest -Uri "$BaseUrl/dashboard" -WebSession $Session -TimeoutSec 10 -UseBasicParsing
+    if ($Dashboard.StatusCode -ne 200) {
+        throw "Login for '$Username' did not open the dashboard."
+    }
+}
+
+function Assert-LoginRejected {
+    param(
+        [Parameter(Mandatory = $true)][string]$Username,
+        [Parameter(Mandatory = $true)][string]$Password
+    )
+    $Rejected = $false
+    try {
+        Invoke-WebRequest -Uri "$BaseUrl/login" -Method Post -Body @{
+            username = $Username
+            password = $Password
+        } -WebSession (New-Object Microsoft.PowerShell.Commands.WebRequestSession) -TimeoutSec 10 -UseBasicParsing | Out-Null
+    }
+    catch {
+        $Response = $_.Exception.Response
+        if (-not $Response) {
+            throw "Old credentials did not fail with an HTTP response."
+        }
+        $StatusCode = [int]$Response.StatusCode
+        if ($StatusCode -ne 401) {
+            throw "Old credentials failed with HTTP $StatusCode instead of 401."
+        }
+        $Rejected = $true
+    }
+    if (-not $Rejected) {
+        throw "Old credentials were accepted after uninstall and reinstall."
+    }
+}
+
 try {
     New-Item -ItemType Directory -Path $InstallDir, $DataDir -Force | Out-Null
     # The elevated installer may receive a filtered environment. Preseed its
@@ -296,17 +372,30 @@ with sqlite3.connect(path) as db:
     Invoke-Installer
 
     if (-not (Get-ChildItem (Join-Path $DataDir "backups") -Filter "fleet_assets.before-update-*.db" -ErrorAction SilentlyContinue)) { throw "Installer update did not back up the existing user database." }
+    @'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    assert count >= 1, count
+    assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+'@ | & $PythonExecutable - $DatabasePath
+    if ($LASTEXITCODE -ne 0) { throw "The update removed user accounts or damaged the database." }
+    if (-not (Test-Path -LiteralPath (Join-Path $DataDir "secret.key"))) {
+        throw "The update removed the session signing key."
+    }
 
     Start-PackagedApp
     Assert-SplashContent
+    Assert-SetupNotRequired
     Assert-SidebarInstitution
+    Assert-LoginWorks -Username "admin" -Password $script:InitialAdminPassword
     @'
 import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
     row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
     assert row == ("preserve-me-across-update",), row
     stamp = db.execute("SELECT version_num FROM alembic_version").fetchone()
-    assert stamp == ("20261102_user_credentials",), stamp
+    assert stamp == ("20261104_spare_request_general_need",), stamp
     assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 '@ | & $PythonExecutable - $DatabasePath
     if ($LASTEXITCODE -ne 0) { throw "User data, schema migration, or SQLite integrity did not survive the update." }
@@ -326,18 +415,52 @@ with sqlite3.connect(sys.argv[1]) as db:
     }
     if (Test-Path -LiteralPath (Join-Path $InstallDir "Materiel.exe")) { throw "Uninstall left the application executable behind." }
 
+    @'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    users = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    assert users == 0, f"users remained after uninstall: {users}"
+    assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
+    assert row == ("preserve-me-across-update",), row
+    assert db.execute("SELECT COUNT(*) FROM alembic_version").fetchone()[0] == 1
+'@ | & $PythonExecutable - $DatabasePath
+    if ($LASTEXITCODE -ne 0) { throw "Uninstall did not remove user accounts safely or damaged business data." }
+    if (Test-Path -LiteralPath (Join-Path $DataDir "secret.key")) {
+        throw "Uninstall left the session signing key behind."
+    }
+    $CleanupLog = Join-Path $DataDir "uninstall-auth-cleanup.log"
+    if (-not (Test-Path -LiteralPath $CleanupLog)) {
+        throw "Uninstall did not write the authentication cleanup log."
+    }
+    $CleanupContent = Get-Content -LiteralPath $CleanupLog -Raw
+    if (-not $CleanupContent.Contains('"status": "ok"')) {
+        throw "Uninstall authentication cleanup did not report success: $CleanupContent"
+    }
+    if ($CleanupContent -notmatch '"users_deleted": [1-9]') {
+        throw "Uninstall authentication cleanup did not report a deleted account: $CleanupContent"
+    }
+
     Invoke-Installer
     if (-not (Test-Path -LiteralPath (Join-Path $InstallDir "Materiel.exe"))) { throw "Reinstall did not restore the application executable." }
     Start-PackagedApp
     Assert-SplashContent
-    Assert-SidebarInstitution
+    Assert-FirstRunSetupAvailable
+    New-FirstRunAdmin -Username "admin-new" -Password $script:ReinstallAdminPassword
+    Assert-LoginRejected -Username "admin" -Password $script:InitialAdminPassword
+    Assert-LoginWorks -Username "admin-new" -Password $script:ReinstallAdminPassword
     @'
 import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
+    users = db.execute("SELECT username, role FROM users ORDER BY id").fetchall()
+    assert users == [("admin-new", "admin")], users
     row = db.execute("SELECT marker FROM installer_smoke_probe").fetchone()
     assert row == ("preserve-me-across-update",), row
+    assert db.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+    assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 '@ | & $PythonExecutable - $DatabasePath
-    if ($LASTEXITCODE -ne 0) { throw "User database marker was not preserved across uninstall and reinstall." }
+    if ($LASTEXITCODE -ne 0) { throw "Reinstall did not create a fresh administrator or lost business data." }
     if (-not (Test-Path -LiteralPath $AttachmentPath)) { throw "Reinstall removed the preserved user attachment." }
     Stop-PackagedApp
 
@@ -345,8 +468,9 @@ with sqlite3.connect(sys.argv[1]) as db:
     Write-Output "PASS: release welcome text, version and logo rendered from the installed application bundle."
     Write-Output "PASS: configured institution name rendered in the application sidebar."
     Write-Output "PASS: standard users cannot modify the installed branding, and user-data overrides are ignored."
-    Write-Output "PASS: installer update and application migration preserved the database, backup and attachment."
-    Write-Output "PASS: uninstall and reinstall preserved user data and backups."
+    Write-Output "PASS: installer update and application migration preserved the database, backup, attachment and user accounts."
+    Write-Output "PASS: uninstall removed users and the session signing key while preserving the database, business rows, uploads and backups."
+    Write-Output "PASS: reinstall presented first-run setup, rejected old credentials, accepted the new administrator and kept business data."
     Write-Output "QA installation retained for inspection: $Root"
     Write-Output "Installer log: $LogPath"
 }
