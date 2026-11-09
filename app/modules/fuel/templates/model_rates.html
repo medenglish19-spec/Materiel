@@ -37,7 +37,6 @@
     </dialog>
   </section>
   <section class="record-panel">
-    <div class="record-section-head"><h3>جدول المعدلات المسجلة</h3><span class="record-badge">{{ rates|length }} معدل</span></div>
     <div class="record-table-wrap mt-table-theme-green" data-mt-region><table class="record-table"><thead><tr><th>الطراز</th><th>نوع الوقود</th><th>معدل الاستهلاك</th><th>وحدة القياس</th></tr></thead><tbody>
       {% for row in rates %}<tr><td>{{ row.equipment_model.name if row.equipment_model else 'طراز محذوف' }}</td><td>{{ row.fuel_type }}</td><td>{{ row.consumption_rate }}</td><td>{{ row.measurement_unit }}</td></tr>{% else %}<tr><td colspan="4" class="record-empty">لا توجد معدلات مسجلة.</td></tr>{% endfor %}
     </tbody></table></div>
