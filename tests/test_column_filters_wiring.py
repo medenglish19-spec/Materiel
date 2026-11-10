@@ -85,7 +85,8 @@ def test_engine_skips_action_editor_hierarchical_and_self_filtered_tables():
     source = _engine()
     assert "table.querySelector('.col-filter')" in source
     assert "function isEditorTable(table)" in source
-    assert 'tbody input:not([type="checkbox"]):not([type="radio"]), tbody select, tbody textarea' in source
+    assert 'tbody input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), tbody select, tbody textarea' in source
+    assert "tbody input:not([type=\"hidden\"]), tbody select, tbody textarea" in source
     assert "function isHierarchicalTable(table)" in source
     assert "tbody tr[data-level]" in source
     assert "FILTER_SKIP_HEADERS" in source
@@ -184,6 +185,7 @@ def test_other_read_only_tables_use_the_shared_filter_region():
         "equipment_list.html": ROOT / "app" / "modules" / "equipment" / "templates" / "equipment_list.html",
         "document_import_upload.html": ROOT / "app" / "modules" / "document_import" / "templates" / "upload.html",
         "drivers.html": ROOT / "app" / "modules" / "missions" / "templates" / "drivers.html",
+        "missions.html": ROOT / "app" / "modules" / "missions" / "templates" / "missions.html",
     }
     for name, path in templates.items():
         source = path.read_text(encoding="utf-8")
@@ -206,6 +208,11 @@ def test_other_read_only_tables_use_the_shared_filter_region():
     assert driver_table.count("data-mt-force-filter>") == 10
     assert '<th data-mt-force-filter>ملاحظات</th>' in driver_table
     assert "<th data-mt-no-filter>{{ 'الإجراءات' if can_manage_drivers else 'الحالة' }}</th>" in driver_table
+
+    missions = templates["missions.html"].read_text(encoding="utf-8")
+    mission_table = missions.split('class="mission-record-table"', 1)[1].split("</table>", 1)[0]
+    assert 'data-mt-region' in missions
+    assert mission_table.count("data-mt-force-filter") == 9
 
 
 def test_standalone_meter_paste_preview_loads_shared_table_filters():

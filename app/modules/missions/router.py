@@ -43,6 +43,10 @@ def missions_page(request: Request, db: Session = Depends(get_db), current_user:
         "drivers": services.list_active_assigned_drivers(db),
         "counts": services.counts_from_status_rows(mission_status_rows),
         "mission_status_rows": mission_status_rows,
+        "missions": [
+            {"mission": mission}
+            for mission in services.list_missions(db)
+        ],
         "license_expiry_alerts": services.license_expiry_alerts(drivers, today=today),
         "today": today,
         "can_create_missions": settings.DEV_DISABLE_AUTH

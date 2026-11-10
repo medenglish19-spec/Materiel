@@ -319,7 +319,7 @@
   }
 
   function isEditorTable(table) {
-    return !!table.querySelector('tbody input:not([type="checkbox"]):not([type="radio"]), tbody select, tbody textarea');
+    return !!table.querySelector('tbody input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), tbody select, tbody textarea');
   }
 
   function isHierarchicalTable(table) {
@@ -640,7 +640,7 @@
       if (table.getAttribute('data-mt-filters-ready')) return;
       if (table.closest('[data-mt-no-filter]') || table.hasAttribute('data-mt-no-filter')) return;
       if (table.querySelector('.col-filter')) return;
-      if (table.querySelector('tbody input, tbody select, tbody textarea')) return;
+      if (table.querySelector('tbody input:not([type="hidden"]), tbody select, tbody textarea')) return;
       if (table.querySelector('tr[data-level]')) return;
       var grouped = false;
       table.querySelectorAll('thead th').forEach(function (th) {

@@ -46,14 +46,27 @@
 .missions-page .mission-license-state{display:inline-flex;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:800}
 .missions-page .mission-license-state.expired{background:#fff1f1;color:#9f2d2d}
 .missions-page .mission-license-state.expiring{background:#fff6e8;color:#8a4b08}
+.missions-page .mission-record-card{overflow:hidden;margin-bottom:20px;border:1px solid #dfe7e1;border-radius:14px;background:#fff;box-shadow:0 4px 16px #162d1e0a}
+.missions-page .mission-record-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;border-bottom:1px solid #e8eee9;background:#f8faf8}
+.missions-page .mission-record-card-head h3{margin:0;color:#263a2d;font-size:16px}
+.missions-page .mission-record-total{color:#536258;font-size:13px;font-weight:700}
+.missions-page .mission-record-table-wrap{width:100%;overflow:auto}
+.missions-page .mission-record-table{width:100%;min-width:1080px;border-collapse:separate;border-spacing:0;text-align:right}
+.missions-page .mission-record-table th{padding:11px 13px;border-bottom:1px solid #dfe8e1;background:#edf4ef;color:#3d5545;font-size:12px;font-weight:800;white-space:nowrap}
+.missions-page .mission-record-table td{padding:11px 13px;border-bottom:1px solid #edf1ee;color:#34443a;font-size:13px;line-height:1.6;vertical-align:middle}
+.missions-page .mission-record-table tbody tr:nth-child(even){background:#fbfcfb}
+.missions-page .mission-record-table tbody tr:hover{background:#f3f8f4}
+.missions-page .mission-record-table tbody tr:last-child td{border-bottom:0}
+.missions-page .mission-record-equipment{color:#315f42;font-weight:800}
+.missions-page .mission-record-empty{text-align:center!important;padding:30px 16px!important;color:#69776d!important;font-size:14px!important}
 @media(max-width:900px){.missions-page .mission-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.missions-page .mission-overview{grid-template-columns:1fr}}
-@media(max-width:560px){.missions-page .mission-form{grid-template-columns:minmax(0,1fr);gap:11px}.missions-page .mission-field-wide{grid-column:auto}.missions-page .record-panel{padding:14px}.missions-page .mission-dialog,.missions-page .mission-detail-dialog{padding:16px}.missions-page .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.missions-page .mission-form{grid-template-columns:minmax(0,1fr);gap:11px}.missions-page .mission-field-wide{grid-column:auto}.missions-page .record-panel{padding:14px}.missions-page .mission-dialog,.missions-page .mission-detail-dialog{padding:16px}.missions-page .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.missions-page .mission-overview>div:nth-child(2) .mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.missions-page .mission-record-card-head{align-items:flex-start;flex-direction:column;padding:14px}}
 </style>
 {% endblock %}
 {% block content %}
 <div class="record-page missions-page" dir="rtl">
-  <header class="record-hero"><div><div class="record-eyebrow">MATERIEL · MISSIONS</div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div>{% if can_create_missions %}<div class="mission-actions"><button class="mission-open-button" type="button" id="openMissionDialog">＋ تسجيل مهمة</button></div>{% endif %}</header>
+  <header class="record-hero"><div><h2>إدارة المهمات والسائقين</h2><div class="record-muted">تسجيل المهمات ومتابعة حالتها وقراءات العداد.</div></div>{% if can_create_missions %}<div class="mission-actions"><button class="mission-open-button" type="button" id="openMissionDialog">＋ تسجيل مهمة</button></div>{% endif %}</header>
   <section class="mission-overview" aria-label="ملخص المهمات وتنبيهات الرخص">
     <div><div class="mission-metrics">
       <button class="mission-metric" type="button" data-mission-detail="planned" data-detail-title="المهمات المخططة" aria-haspopup="dialog"><span>مخططة</span><b>{{ counts.planned }}</b></button>
@@ -64,6 +77,10 @@
       <button class="mission-metric critical" type="button" data-mission-detail="expired" data-detail-title="الرخص المنتهية" aria-haspopup="dialog"><span>منتهية</span><b>{{ license_expiry_alerts.expired|length }}</b></button>
       <button class="mission-metric warning" type="button" data-mission-detail="expiring" data-detail-title="الرخص التي تنتهي خلال 30 يومًا" aria-haspopup="dialog"><span>تنتهي خلال 30 يومًا</span><b>{{ license_expiry_alerts.expiring_soon|length }}</b></button>
     </div></div>
+  </section>
+  <section class="mission-record-card" aria-labelledby="missionRecordsTitle">
+    <div class="mission-record-card-head"><h3 id="missionRecordsTitle">المهمات المسجلة</h3><span class="mission-record-total">الإجمالي: {{ missions|length }} مهمة</span></div>
+    <div class="mission-record-table-wrap" data-mt-region><table class="mission-record-table"><thead><tr><th data-mt-force-filter>العتاد</th><th data-mt-force-filter>رقم التسجيل</th><th data-mt-force-filter>رقم المهمة</th><th data-mt-force-filter>السائق</th><th data-mt-force-filter>الغرض</th><th data-mt-force-filter>الوجهة</th><th data-mt-force-filter>الذهاب</th><th data-mt-force-filter>العودة</th><th data-mt-force-filter>ملاحظة</th></tr></thead><tbody>{% for x in missions %}<tr><td><b class="mission-record-equipment">{{ x.mission.equipment.equipment_model.name if x.mission.equipment and x.mission.equipment.equipment_model else (x.mission.equipment.equipment_type.name if x.mission.equipment and x.mission.equipment.equipment_type else '—') }}</b></td><td>{{ x.mission.equipment.registration_number or '—' if x.mission.equipment else '—' }}</td><td>{{ x.mission.mission_document or '—' }}</td><td>{{ (x.mission.driver.driving_rank ~ ' - ' if x.mission.driver and x.mission.driver.driving_rank else '') ~ (x.mission.driver.first_name ~ ' ' ~ x.mission.driver.last_name if x.mission.driver else x.mission.driver_name or '-') }}</td><td>{{ x.mission.purpose or '-' }}</td><td>{{ x.mission.destination or '-' }}</td><td>{{ x.mission.start_date }}</td><td>{{ x.mission.end_date or '-' }}</td><td>{{ x.mission.notes or '-' }}</td></tr>{% else %}<tr><td colspan="9" class="mission-record-empty">لا توجد مهمات مسجلة.</td></tr>{% endfor %}</tbody></table></div>
   </section>
   <dialog class="mission-detail-dialog" id="missionMetricDialog" aria-labelledby="missionMetricDialogTitle">
     <div class="mission-detail-head"><h3 id="missionMetricDialogTitle">تفاصيل المؤشر</h3><button class="mission-dialog-close" type="button" id="closeMissionMetricDialog">إغلاق</button></div>

@@ -278,6 +278,11 @@ def test_mission_detail_dialogs_render_status_rows_from_real_missions(db):
         ).group(1)
         assert registration in panel
         assert purpose in panel
+        assert registration in page
+        assert purpose in page
+
+    assert "mission-record-table" in page
+    assert "لا توجد مهمات مسجلة." not in page
 
 
 def test_mission_detail_dialogs_show_tables_when_counts_are_zero(db):
@@ -286,6 +291,7 @@ def test_mission_detail_dialogs_show_tables_when_counts_are_zero(db):
     response = missions_page(_request("/missions"), db, admin)
     page = response.body.decode("utf-8")
 
+    assert "لا توجد مهمات مسجلة." in page
     for status, message in (
         ("planned", "لا توجد مهمات مخططة."),
         ("running", "لا توجد مهمات جارية."),
