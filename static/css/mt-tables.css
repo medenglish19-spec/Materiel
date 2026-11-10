@@ -54,6 +54,9 @@
 [data-mt-region]:focus{outline:none}
 [data-mt-region]:focus-visible{outline:2px solid var(--primary,#374151);outline-offset:2px}
 
+/* Match the roomier header cells used by the fuel-entry table. */
+[data-mt-region].fuel-table-header th{padding:10px}
+
 /* Sticky header: works for <thead> tables and for legacy header rows.
    Legacy markup (`<table><tr><th>`) gets an implicit <tbody> inserted by the
    HTML parser, so the first header row lives at `tbody:first-of-type > tr`.
