@@ -4,15 +4,17 @@ import subprocess
 import sys
 from urllib.parse import quote, urlsplit
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import make_url
 
 from app.core.branding import load_splash_content
-from app.core.config import security_warnings, settings
+from app.core.config import redact_database_url, security_warnings, settings
+from app.core.csrf import CSRF_COOKIE_NAME, enforce_csrf, new_csrf_token
+from app.core.dependencies import get_current_user
 from app.core.logging import configure_logging, get_logger, shutdown_logging
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, token_password_matches
 from app.core.storage import uploads_directory
 from app.core.templating import get_module_templates
 from app.database.init_db import admin_setup_required, create_default_admin, init_db
@@ -104,7 +106,8 @@ def create_app() -> FastAPI:
             # rather than a stale process. One line settles it.
             logger.info(
                 "Startup facts: commit=%s routes=%d database=%s",
-                _git_commit(), _route_count(_app), settings.DATABASE_URL,
+                _git_commit(), _route_count(_app),
+                redact_database_url(settings.DATABASE_URL),
             )
             # تحذيرات ما قبل النشر: تُسجّل ولا توقف الإقلاع (انظر core/config.py).
             for warning in security_warnings(_database_file()):
@@ -114,11 +117,49 @@ def create_app() -> FastAPI:
         finally:
             shutdown_logging()
 
-    app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
-    if getattr(sys, "frozen", False):
-        packaged_uploads = uploads_directory()
-        packaged_uploads.mkdir(parents=True, exist_ok=True)
-        app.mount("/static/uploads", StaticFiles(directory=str(packaged_uploads)), name="user_uploads")
+    app = FastAPI(
+        title=settings.APP_NAME,
+        debug=settings.DEBUG,
+        lifespan=lifespan,
+        dependencies=[Depends(enforce_csrf)],
+    )
+
+    @app.middleware("http")
+    async def csrf_cookie(request: Request, call_next):
+        """Issue the double-submit token before any page or script needs it."""
+        token = request.cookies.get(CSRF_COOKIE_NAME) or new_csrf_token()
+        request.state.csrf_token = token
+        response = await call_next(request)
+        if request.cookies.get(CSRF_COOKIE_NAME) is None:
+            response.set_cookie(
+                CSRF_COOKIE_NAME,
+                token,
+                httponly=False,  # JavaScript must be able to echo it
+                samesite="lax",
+                secure=False,  # local HTTP installation
+                path="/",
+            )
+        return response
+
+    # User uploads are private operational documents.  This route must be
+    # registered before the /static mount so it shadows the old public path;
+    # stored image URLs keep working unchanged, but only for a signed-in user.
+    @app.get("/static/uploads/{file_path:path}", include_in_schema=False)
+    def protected_upload(
+        file_path: str,
+        _current_user=Depends(get_current_user),
+    ):
+        root = uploads_directory().resolve()
+        try:
+            target = (root / file_path).resolve()
+        except (OSError, ValueError):
+            raise HTTPException(status_code=404, detail="الملف غير موجود")
+        if target != root and root not in target.parents:
+            raise HTTPException(status_code=404, detail="الملف غير موجود")
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="الملف غير موجود")
+        return FileResponse(target)
+
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.exception_handler(HTTPException)

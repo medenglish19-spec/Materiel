@@ -44,6 +44,24 @@ def test_packaged_app_serves_uploads_from_persistent_data_directory(tmp_path, mo
     monkeypatch.setattr(main.sys, "frozen", True, raising=False)
     monkeypatch.setattr(main, "init_db", lambda: None)
     monkeypatch.setattr(main, "create_default_admin", lambda: None)
+    # Uploads are private: the route requires an authenticated user.  This
+    # storage test isolates persistence, not identity, so provide a signed-in
+    # actor without creating a packaged database.  Anonymous access is covered
+    # by test_security_hardening.py.
+    from app.modules.users.models import User
+
+    monkeypatch.setattr(
+        main,
+        "get_current_user",
+        lambda: User(
+            id=1,
+            username="storage-tester",
+            full_name="Storage tester",
+            hashed_password="not-used",
+            role="viewer",
+            is_active=True,
+        ),
+    )
 
     with TestClient(main.create_app()) as client:
         response = client.get("/static/uploads/equipment-models/model.png")

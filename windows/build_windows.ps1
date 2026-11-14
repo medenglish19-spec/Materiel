@@ -1,7 +1,8 @@
 param(
     [string]$Version = "",
     [string]$BuildDirectory = "",
-    [string]$ReleaseDirectory = ""
+    [string]$ReleaseDirectory = "",
+    [switch]$Offline
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,10 +69,53 @@ $BuildPythonVersion = & $BuildPython -c "import sys; print(f'{sys.version_info.m
 if ($LASTEXITCODE -ne 0 -or $BuildPythonVersion.Trim() -ne "3.14") {
     throw "The isolated build environment must use Python 3.14; it reports '$BuildPythonVersion'."
 }
-& $BuildPython -m pip install --upgrade pip
-if ($LASTEXITCODE -ne 0) { throw "Could not prepare pip in the build environment." }
-& $BuildPython -m pip install -r (Join-Path $RepoRoot "requirements.txt") -r (Join-Path $PSScriptRoot "requirements-build.txt")
-if ($LASTEXITCODE -ne 0) { throw "Could not install the pinned build requirements." }
+$Requirements = @(
+    (Join-Path $RepoRoot "requirements.txt"),
+    (Join-Path $PSScriptRoot "requirements-build.txt")
+)
+
+if ($Offline) {
+    $Wheelhouse = Join-Path $ArtifactRoot "wheelhouse"
+
+    if (-not (Test-Path -LiteralPath $Wheelhouse -PathType Container)) {
+        throw "Offline wheelhouse not found: $Wheelhouse"
+    }
+
+    $WheelFiles = @(Get-ChildItem -LiteralPath $Wheelhouse -Filter "*.whl" -File)
+
+    if ($WheelFiles.Count -eq 0) {
+        throw "Offline wheelhouse contains no wheel packages."
+    }
+
+    Write-Host "Installing dependencies from local wheelhouse only..."
+
+    & $BuildPython -m pip install `
+        --disable-pip-version-check `
+        --no-index `
+        --find-links $Wheelhouse `
+        -r $Requirements[0] `
+        -r $Requirements[1]
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Offline dependency installation failed. No internet fallback is allowed."
+    }
+}
+else {
+    & $BuildPython -m pip install --upgrade pip
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not prepare pip in the build environment."
+    }
+
+    & $BuildPython -m pip install -r $Requirements[0] -r $Requirements[1]
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not install the pinned build requirements."
+    }
+}
+
+& $BuildPython -m pip check
+if ($LASTEXITCODE -ne 0) {
+    throw "Build environment dependency check failed."
+}
 
 & $BuildPython -m PyInstaller --noconfirm --clean --distpath (Join-Path $BuildRoot "dist") --workpath (Join-Path $BuildRoot "work") (Join-Path $PSScriptRoot "Materiel.spec")
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }

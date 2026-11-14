@@ -33,8 +33,17 @@ DisableProgramGroupPage=yes
 SetupLogging=yes
 
 [Dirs]
-Name: "{code:GetDataDir}"; Permissions: users-modify; Flags: uninsneveruninstall
+; The data directory is hardened after installation (see HardenDataDirectory).
+; Do not grant BUILTIN\Users or Authenticated Users modify access here: the
+; operator account, SYSTEM and Administrators are the only writers.
+Name: "{code:GetDataDir}"; Flags: uninsneveruninstall
 Name: "{code:GetDataDir}\backups"; Flags: uninsneveruninstall
+
+[Registry]
+; Remember the chosen data location so an update/reinstall finds it even when
+; the sidecar file is missing. The value is intentionally kept on uninstall.
+Root: HKCU; Subkey: "Software\Materiel"; ValueType: string; ValueName: "DataDir"; ValueData: "{code:GetDataDir}"; Flags: uninsneveruninstall
+Root: HKLM; Subkey: "Software\Materiel"; ValueType: string; ValueName: "DataDir"; ValueData: "{code:GetDataDir}"; Flags: uninsneveruninstall
 
 [Files]
 ; If this replaces an older installation, move its database to the durable data path only when that path is empty.
@@ -60,11 +69,11 @@ Name: "desktopicon"; Description: "إنشاء اختصار على سطح الم�
 Filename: "{app}\Materiel.exe"; Description: "تشغيل تسيير ومحاسبة العتاد"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
 [UninstallRun]
-; Remove only the user identity and authentication data. The operational
-; database and uploads live under GetDataDir and are never uninstalled.
-; Materiel.exe reads the update marker written by Setup and skips this cleanup
-; when the uninstaller is running as part of an upgrade.
-Filename: "{app}\Materiel.exe"; Parameters: "--uninstall-cleanup"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveMaterielUserAccounts"
+; A normal uninstall preserves the database, accounts, password hashes,
+; roles, secret.key, uploads and backups. The command below only writes an
+; audit log entry; erasing authentication data requires the separate,
+; explicitly confirmed --uninstall-erase-data mode.
+Filename: "{app}\Materiel.exe"; Parameters: "--uninstall-cleanup"; Flags: runhidden waituntilterminated; RunOnceId: "PreserveMaterielData"
 
 [Code]
 var
@@ -135,6 +144,42 @@ begin
   Result := ExpandConstant('{commonappdata}\Materiel\data');
 end;
 
+function RegistryDataDir: String;
+var
+  ConfiguredDir: String;
+begin
+  Result := '';
+  if RegQueryStringValue(HKCU, 'Software\Materiel', 'DataDir', ConfiguredDir) then
+    Result := Trim(ConfiguredDir)
+  else if RegQueryStringValue(HKLM, 'Software\Materiel', 'DataDir', ConfiguredDir) then
+    Result := Trim(ConfiguredDir);
+end;
+
+function ExistingDataDir: String;
+var
+  Drives: String;
+  Index: Integer;
+  Candidate: String;
+begin
+  Result := '';
+  { A custom location such as D:\MaterielData must survive an update even when
+    materiel-data-dir.txt was lost. Only accept a folder that already contains
+    real state, never an empty or unrelated directory. }
+  Drives := 'CDEFGHIJKLMNOPQRSTUVWXYZ';
+  for Index := 1 to Length(Drives) do begin
+    Candidate := Copy(Drives, Index, 1) + ':\MaterielData';
+    if FileExists(Candidate + '\fleet_assets.db') or
+       FileExists(Candidate + '\secret.key') then begin
+      Result := Candidate;
+      Exit;
+    end;
+  end;
+  Candidate := ExpandConstant('{commonappdata}\Materiel\data');
+  if FileExists(Candidate + '\fleet_assets.db') or
+     FileExists(Candidate + '\secret.key') then
+    Result := Candidate;
+end;
+
 function GetDataDir(Param: String): String;
 var
   ConfigFile, ConfiguredDir: String;
@@ -151,7 +196,73 @@ begin
       Exit;
     end;
   end;
+
+  ConfiguredDir := RegistryDataDir();
+  if (ConfiguredDir <> '') and DirExists(ConfiguredDir) then begin
+    Result := ConfiguredDir;
+    Exit;
+  end;
+
+  ConfiguredDir := ExistingDataDir();
+  if ConfiguredDir <> '' then begin
+    Result := ConfiguredDir;
+    Exit;
+  end;
+
   Result := DefaultDataDir();
+end;
+
+function CurrentUserAccount: String;
+var
+  Domain, UserName: String;
+begin
+  Domain := Trim(GetEnv('USERDOMAIN'));
+  UserName := Trim(GetEnv('USERNAME'));
+  if Domain <> '' then
+    Result := Domain + '\' + UserName
+  else
+    Result := UserName;
+end;
+
+procedure RunIcacls(const Parameters: String);
+var
+  ResultCode: Integer;
+begin
+  if not Exec(ExpandConstant('{sys}\icacls.exe'), Parameters, '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    RaiseException('تعذر تأمين صلاحيات مجلد البيانات.');
+end;
+
+procedure ResetChildAcls(const Dir: String);
+begin
+  { icacls /inheritance:r together with /T protects every traversed child but
+    only writes the inheritable grants to the directory. Files would be left
+    with an empty DACL (nobody can read them). Apply the policy to the
+    directory first, then reset children so they inherit exactly those ACEs. }
+  RunIcacls('"' + Dir + '\*" /reset /T /C /Q');
+end;
+
+procedure HardenDataDirectory;
+var
+  DataDir, Parameters, Account: String;
+begin
+  DataDir := GetDataDir('');
+  if not DirExists(DataDir) then
+    Exit;
+
+  { Remove explicit/inherited access (including BUILTIN\Users and Authenticated
+    Users modify rights) and grant only SYSTEM, Administrators and the
+    installing operator. SQLite side files inherit these permissions when they
+    are created, so -wal/-shm files and future uploads stay private too. }
+  Parameters := '"' + DataDir + '" /inheritance:r /remove:g ' +
+    '*S-1-5-32-545 *S-1-5-11 /grant:r ' +
+    '*S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F';
+  Account := CurrentUserAccount();
+  if Account <> '' then
+    Parameters := Parameters + ' "' + Account + '":(OI)(CI)M';
+
+  RunIcacls(Parameters);
+  ResetChildAcls(DataDir);
 end;
 
 function ExistingInstallFileExists(Param: String): Boolean;
@@ -172,29 +283,24 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ConfigFile, SplashDir, Parameters: String;
-  ResultCode: Integer;
 begin
   if CurStep = ssPostInstall then begin
     ConfigFile := ExpandConstant('{app}\materiel-data-dir.txt');
     if not FileExists(ConfigFile) then
       SaveStringToFile(ConfigFile, GetDataDir('') + #13#10, False);
 
+    { Stop granting broad write access to the operational data. }
+    HardenDataDirectory;
+
     { Brand assets ship with the application. Standard users may read them,
       but only elevated administrators can replace them between releases. }
     SplashDir := ExpandConstant('{app}\_internal\splash-screen');
-    Parameters := '"' + SplashDir + '" /inheritance:r /grant:r ' +
+    Parameters := '"' + SplashDir + '" /inheritance:r /remove:g ' +
+      '*S-1-5-32-545 *S-1-5-11 /grant:r ' +
       '*S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F ' +
-      '*S-1-5-32-545:(OI)(CI)RX /T /C';
-    if not Exec(ExpandConstant('{sys}\icacls.exe'), Parameters, '', SW_HIDE,
-      ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('تعذر حماية ملفات شاشة البداية من التعديل بعد التثبيت.');
-
-    { Grant standard users explicit read/execute on existing bundled files.
-      Inheritable permissions on the folder alone do not repair their ACLs. }
-    Parameters := '"' + SplashDir + '\*" /grant:r *S-1-5-32-545:(RX) /T /C';
-    if not Exec(ExpandConstant('{sys}\icacls.exe'), Parameters, '', SW_HIDE,
-      ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('تعذر منح المستخدمين صلاحية قراءة ملفات شاشة البداية.');
+      '*S-1-5-32-545:(OI)(CI)RX';
+    RunIcacls(Parameters);
+    ResetChildAcls(SplashDir);
 
     { The upgrade has finished copying the new release. Any uninstaller that
       ran as part of it has already seen the marker and preserved the users. }

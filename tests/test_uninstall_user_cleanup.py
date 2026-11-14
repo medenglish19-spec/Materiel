@@ -336,7 +336,8 @@ def test_reinstall_shows_first_run_setup_and_rejects_old_credentials(tmp_path, m
 
 
 def test_update_marker_skips_cleanup_and_preserves_accounts(tmp_path, monkeypatch):
-    """Scenario D: an installer update must not delete user accounts."""
+    """Scenario D: an installer update must not delete user accounts, even when
+    an (explicit) erase was requested."""
     data_directory = tmp_path / "data"
     database_path = data_directory / "fleet_assets.db"
     _seed_database(database_path)
@@ -347,9 +348,10 @@ def test_update_marker_skips_cleanup_and_preserves_accounts(tmp_path, monkeypatc
     monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
     monkeypatch.setenv("MATERIEL_UPDATE_MARKER", str(marker))
     monkeypatch.setenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", "1")
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "ERASE-MATERIEL-AUTH")
     assert update_is_in_progress() is True
 
-    assert run_uninstall_cleanup() == 0
+    assert run_uninstall_cleanup(erase=True) == 0
 
     assert _counts(database_path)["users"] == 2
     assert (data_directory / "secret.key").exists()
@@ -367,11 +369,97 @@ def test_stale_update_marker_does_not_block_real_uninstall(tmp_path, monkeypatch
     monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
     monkeypatch.setenv("MATERIEL_UPDATE_MARKER", str(marker))
     monkeypatch.setenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", "1")
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "ERASE-MATERIEL-AUTH")
 
     assert update_is_in_progress() is False
     assert not marker.exists()
-    assert run_uninstall_cleanup() == 0
+    assert run_uninstall_cleanup(erase=True) == 0
     assert _counts(database_path)["users"] == 0
+
+
+def test_default_uninstall_preserves_database_accounts_and_key_without_opening(tmp_path, monkeypatch):
+    """A normal uninstall is non-destructive and never even opens the database."""
+    data_directory = tmp_path / "data"
+    database_path = data_directory / "fleet_assets.db"
+    _seed_database(database_path)
+    secret_key = _write_secret_key(data_directory)
+    uploads = data_directory / "uploads" / "equipment"
+    uploads.mkdir(parents=True)
+    (uploads / "photo.png").write_bytes(b"user image")
+    backup = data_directory / "backups" / "fleet_assets.before-update.db"
+    backup.parent.mkdir()
+    backup.write_bytes(b"backup copy")
+    original_database = database_path.read_bytes()
+
+    monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
+    monkeypatch.delenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", raising=False)
+    monkeypatch.delenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", raising=False)
+    monkeypatch.delenv("MATERIEL_UPDATE_MARKER", raising=False)
+
+    assert run_uninstall_cleanup() == 0
+
+    assert database_path.read_bytes() == original_database
+    assert _counts(database_path)["users"] == 2
+    assert secret_key.exists()
+    assert (uploads / "photo.png").read_bytes() == b"user image"
+    assert backup.exists()
+    log = (data_directory / "uninstall-auth-cleanup.log").read_text(encoding="utf-8")
+    assert '"status": "preserved"' in log
+    assert '"database_opened": false' in log
+
+
+def test_erase_request_without_confirmation_is_refused(tmp_path, monkeypatch):
+    data_directory = tmp_path / "data"
+    database_path = data_directory / "fleet_assets.db"
+    _seed_database(database_path)
+    secret_key = _write_secret_key(data_directory)
+    original_database = database_path.read_bytes()
+
+    monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
+    monkeypatch.setenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", "1")
+    monkeypatch.delenv("MATERIEL_UPDATE_MARKER", raising=False)
+    monkeypatch.delenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", raising=False)
+
+    assert run_uninstall_cleanup(erase=True) == 2
+
+    assert database_path.read_bytes() == original_database
+    assert _counts(database_path)["users"] == 2
+    assert secret_key.exists()
+    log = (data_directory / "uninstall-auth-cleanup.log").read_text(encoding="utf-8")
+    assert '"status": "erase_confirmation_missing"' in log
+
+
+def test_confirmed_erase_is_explicit_and_preserves_business_data(tmp_path, monkeypatch):
+    data_directory = tmp_path / "data"
+    database_path = data_directory / "fleet_assets.db"
+    _seed_database(database_path)
+    secret_key = _write_secret_key(data_directory)
+    before = _counts(database_path)
+
+    monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
+    monkeypatch.setenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", "1")
+    monkeypatch.delenv("MATERIEL_UPDATE_MARKER", raising=False)
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "WRONG")
+    assert run_uninstall_cleanup(erase=True) == 2
+    assert _counts(database_path)["users"] == before["users"]
+
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "ERASE-MATERIEL-AUTH")
+    assert run_uninstall_cleanup(erase=True) == 0
+
+    after = _counts(database_path)
+    assert after["users"] == 0
+    assert not secret_key.exists()
+    for table in (
+        "equipment",
+        "maintenance_records",
+        "fuel_records",
+        "faults",
+        "spare_part_requests",
+    ):
+        assert after[table] == before[table], table
+    with sqlite3.connect(database_path) as db:
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_missing_database_is_reported_without_creating_one(tmp_path):
@@ -397,12 +485,13 @@ def test_corrupt_database_is_not_modified(tmp_path, monkeypatch):
     monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
     monkeypatch.delenv("MATERIEL_UPDATE_MARKER", raising=False)
     monkeypatch.setenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", "1")
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "ERASE-MATERIEL-AUTH")
 
     with pytest.raises(sqlite3.DatabaseError):
         remove_user_accounts(database_path, data_directory=data_directory)
 
     assert database_path.read_bytes() == original
-    assert run_uninstall_cleanup() == 1
+    assert run_uninstall_cleanup(erase=True) == 1
     log_path = data_directory / "uninstall-auth-cleanup.log"
     assert log_path.exists()
     assert '"status": "failed"' in log_path.read_text(encoding="utf-8")
@@ -415,7 +504,8 @@ def test_cleanup_refuses_to_run_outside_uninstaller_without_override(tmp_path, m
     monkeypatch.setenv("MATERIEL_DATA_DIR", str(data_directory))
     monkeypatch.delenv("MATERIEL_ALLOW_UNINSTALL_CLEANUP", raising=False)
     monkeypatch.delenv("MATERIEL_UPDATE_MARKER", raising=False)
+    monkeypatch.setenv("MATERIEL_CONFIRM_UNINSTALL_ERASE", "ERASE-MATERIEL-AUTH")
     monkeypatch.setattr(sys, "frozen", False, raising=False)
 
-    assert run_uninstall_cleanup() == 2
+    assert run_uninstall_cleanup(erase=True) == 2
     assert _counts(database_path)["users"] == 2
