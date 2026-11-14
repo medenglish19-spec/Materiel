@@ -1,0 +1,26 @@
+_registered_paths(app=None) -> set[str]:
+    """مسارات التطبيق المسجّلة.
+
+    FastAPI/Starlette 1.7 يغلّف `include_router` بكائن `_IncludedRouter` لا يملك
+    `.path`، فنجمع المسارات من الراوترات المُضمَّنة مع بادئة سياق الإدراج.
+    """
+    target = app if app is not None else main.app
+    paths: set[str] = set()
+    pending = [(route, "") for route in target.routes]
+    while pending:
+        route, prefix = pending.pop()
+        included = getattr(route, "original_router", None)
+        if included is not None:
+            context = getattr(route, "include_context", None)
+            inner_prefix = prefix + (getattr(context, "prefix", "") or "")
+            pending.extend((sub_route, inner_prefix) for sub_route in included.routes)
+            continue
+        path = getattr(route, "path", None)
+        if path:
+            paths.add(f"{prefix}{path}" if prefix else path)
+    return paths
+
+
+def test_registered_navigation_routes_are_real(monkeypatch):
+    with _client(monkeypatch):
+  

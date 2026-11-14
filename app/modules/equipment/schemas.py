@@ -24,6 +24,7 @@ class EquipmentBase(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: int
     equipment_model_id: Optional[int] = None
@@ -33,16 +34,6 @@ class EquipmentBase(BaseModel):
 
     technical_condition: str = "ready"
     operational_status: str = "available"
-
-    current_odometer: Optional[Decimal] = Field(
-        default=Decimal("0"),
-        ge=0,
-    )
-
-    current_hours: Optional[Decimal] = Field(
-        default=Decimal("0"),
-        ge=0,
-    )
 
     notes: Optional[str] = None
 
@@ -73,6 +64,7 @@ class EquipmentUpdate(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: Optional[int] = None
     equipment_model_id: Optional[int] = None
@@ -82,16 +74,6 @@ class EquipmentUpdate(BaseModel):
 
     technical_condition: Optional[str] = None
     operational_status: Optional[str] = None
-
-    current_odometer: Optional[Decimal] = Field(
-        default=None,
-        ge=0,
-    )
-
-    current_hours: Optional[Decimal] = Field(
-        default=None,
-        ge=0,
-    )
 
     notes: Optional[str] = None
 
@@ -120,6 +102,10 @@ class EquipmentUpdate(BaseModel):
         return v
 
 
+class EquipmentBulkDelete(BaseModel):
+    equipment_ids: list[int] = Field(min_length=1)
+
+
 class EquipmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -129,6 +115,7 @@ class EquipmentOut(BaseModel):
     acquisition_document: Optional[str] = None
     registration_number: Optional[str] = None
     vin: Optional[str] = None
+    image_url: Optional[str] = None
 
     equipment_type_id: int
     equipment_model_id: Optional[int] = None

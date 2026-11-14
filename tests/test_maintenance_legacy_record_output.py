@@ -6,7 +6,8 @@ operation_id، فأي صف قديم (operation_id = NULL) كان يُسقط
 
 ملاحظة عن المعطيات: الإدراج محميّ الآن بمستمع في الموديل يمنع
 السجل بلا عملية، لكن ذلك القيد أُضيف لاحقاً والعمود nullable، فتبقى
-صفوف قديمة في القاعدة. لذلك تُدرَج في هذا الاختبار عبر SQL مباشراً
+صفوف قديمة في القاعدة. قراءة العداد لم تعد عمودًا محليًا في جدول السجل؛
+فهي محفوظة في سجل العدادات المركزي. لذلك تُدرَج هذه الحالة عبر SQL مباشرةً
 كما كانت تُكتب فعلاً، لا عبر ORM الذي يرفضها اليوم.
 """
 from datetime import date
@@ -63,14 +64,13 @@ def _insert_legacy_record(db, equipment_id):
         text(
             "INSERT INTO maintenance_records "
             "(equipment_id, operation_id, plan_id, maintenance_date, "
-            " reported_date, meter_value, status, is_scheduled, created_at) "
-            "VALUES (:eid, NULL, NULL, :mdate, :rdate, :meter, 'completed', 0, :now)"
+            " reported_date, status, is_scheduled, created_at, updated_at) "
+            "VALUES (:eid, NULL, NULL, :mdate, :rdate, 'completed', 0, :now, :now)"
         ),
         {
             "eid": equipment_id,
             "mdate": "2024-03-01",
             "rdate": "2024-03-02",
-            "meter": "100",
             "now": "2024-03-02 08:00:00",
         },
     )

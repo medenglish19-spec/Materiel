@@ -213,6 +213,31 @@ def test_excel_option_accepts_arabic_english_headers_reordered_dates_and_values(
     assert db.query(MeterReading).filter(MeterReading.equipment_id == equipment_hours.id).one().equipment_status == "unavailable"
 
 
+def test_exact_arabic_template_headers_import_when_reordered(db):
+    equipment_km = seed(db, "E-410", "km")
+    equipment_hours = seed(db, "E-411", "hours")
+    actor = user(db, "arabic-template-order")
+    headers = ["حالة العداد", "الساعات", "رقم التسجيل", "الطراز", "الكيلومترات", "التاريخ"]
+    rows = [
+        ["يعمل", None, "E-410", "طراز-E-410", 1500, date(2026, 8, 18)],
+        ["لا يعمل", 82.5, "E-411", "طراز-E-411", None, date(2026, 8, 19)],
+    ]
+
+    response = meter_readings_import_excel(
+        UploadFile(filename="arabic-template.xlsx", file=make_excel(rows, headers)),
+        None,
+        db,
+        actor,
+    )
+
+    payload = response.body.decode("utf-8")
+    assert response.status_code == 200
+    assert '"created":2' in payload
+    assert '"skipped":0' in payload
+    assert float(db.query(MeterReading).filter(MeterReading.equipment_id == equipment_km.id).one().odometer) == 1500
+    assert float(db.query(MeterReading).filter(MeterReading.equipment_id == equipment_hours.id).one().hours) == 82.5
+
+
 def test_excel_error_identifies_equipment_and_retry_with_corrected_file(db):
     equipment = seed(db, "E-500", "km")
     actor = user(db, "excel-retry")

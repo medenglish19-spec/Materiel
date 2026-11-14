@@ -11,19 +11,28 @@ from app.modules.maintenance.schemas import (
 )
 
 
-def test_operation_requires_at_least_one_interval():
-    with pytest.raises(ValidationError):
-        MaintenanceOperationCreate(name="تغيير الزيت")
+def test_operation_does_not_require_an_interval_on_its_own_row():
+    """شرط الاستحقاق يخص علاقة الطراز؛ الإنذار يبقى إلزاميًا للعملية."""
+    item = MaintenanceOperationCreate(name="تغيير الزيت", warning_hours=Decimal("10"))
+    assert item.interval_km is None
+    assert item.interval_hours is None
+    assert item.interval_days is None
+    assert item.equipment_model_conditions == []
 
 
 def test_operation_accepts_single_interval():
-    item = MaintenanceOperationCreate(name="تغيير الزيت", interval_km=Decimal("10000"))
+    item = MaintenanceOperationCreate(name="تغيير الزيت", interval_km=Decimal("10000"), warning_km=0)
     assert item.interval_km == Decimal("10000")
+
+
+def test_operation_requires_at_least_one_warning_axis():
+    with pytest.raises(ValidationError, match="قيمة إنذار واحدة على الأقل"):
+        MaintenanceOperationCreate(name="تغيير الزيت")
 
 
 def test_operation_rejects_nonpositive_interval():
     with pytest.raises(ValidationError):
-        MaintenanceOperationCreate(name="تغيير الزيت", interval_days=0)
+        MaintenanceOperationCreate(name="تغيير الزيت", interval_days=0, warning_km=0)
 
 
 def test_operation_rejects_negative_warning():

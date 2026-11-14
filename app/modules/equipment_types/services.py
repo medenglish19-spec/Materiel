@@ -1,8 +1,56 @@
+from io import BytesIO
 from typing import Optional
+from pathlib import Path
+from uuid import uuid4
+from app.core.storage import uploads_directory
 from sqlalchemy.orm import Session, joinedload
 from app.modules.equipment_types.models import EquipmentBrand, EquipmentCategory, EquipmentModel, EquipmentType, EquipmentModelSpecDefinition, EquipmentModelSpecValue, equipment_type_spec_definitions
 from app.modules.tires.models import TirePosition, TireModelSize, TireMovement
 from app.modules.equipment_types.schemas import EquipmentBrandCreate, EquipmentBrandUpdate, EquipmentCategoryCreate, EquipmentCategoryUpdate, EquipmentModelCreate, EquipmentTypeCreate, EquipmentTypeUpdate, SpecDefinitionCreate, SpecValueInput
+
+MODEL_IMAGE_PREFIX = "/static/uploads/equipment-models/"
+
+def store_model_image(data: bytes, filename: str) -> str:
+    if not data or len(data) > 5 * 1024 * 1024:
+        raise ValueError("يجب ألا يتجاوز حجم الصورة 5 ميغابايت.")
+    extension = Path(filename or "").suffix.lower()
+    formats = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".webp": "WEBP"}
+    if extension not in formats:
+        raise ValueError("نوع الصورة غير مدعوم. استخدم JPEG أو PNG أو WebP.")
+    try:
+        from PIL import Image
+        source = BytesIO(data)
+        with Image.open(source) as image:
+            if image.format != formats[extension] or image.width * image.height > 50_000_000:
+                raise ValueError("الصورة غير صالحة أو أبعادها تتجاوز الحد المسموح.")
+            image.verify()
+        source.seek(0)
+        with Image.open(source) as image:
+            output = BytesIO()
+            if formats[extension] == "JPEG":
+                image.convert("RGB").save(output, format="JPEG", quality=90, optimize=True)
+            else:
+                image.save(output, format=formats[extension])
+        extension = ".jpg" if formats[extension] == "JPEG" else extension
+    except ImportError as exc:
+        raise ValueError("رفع الصور يتطلب مكتبة Pillow المثبتة مع التطبيق.") from exc
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError("ملف الصورة تالف أو غير صالح.") from exc
+    root = uploads_directory(__file__) / "equipment-models"
+    root.mkdir(parents=True, exist_ok=True)
+    filename = uuid4().hex + extension
+    (root / filename).write_bytes(output.getvalue())
+    return MODEL_IMAGE_PREFIX + filename
+
+def remove_model_image(image_url: str | None) -> None:
+    if not image_url or not image_url.startswith(MODEL_IMAGE_PREFIX):
+        return
+    root = (uploads_directory(__file__) / "equipment-models").resolve()
+    target = (root / Path(image_url[len(MODEL_IMAGE_PREFIX):]).name).resolve()
+    if target.parent == root and target.is_file():
+        target.unlink()
 
 def list_categories(db: Session) -> list[EquipmentCategory]: return db.query(EquipmentCategory).order_by(EquipmentCategory.sort_order, EquipmentCategory.name).all()
 def list_user_categories(db: Session) -> list[EquipmentCategory]: return db.query(EquipmentCategory).filter(EquipmentCategory.is_system.is_(False)).order_by(EquipmentCategory.sort_order, EquipmentCategory.name).all()
@@ -79,14 +127,14 @@ def create_type(db:Session,data:EquipmentTypeCreate)->EquipmentType:
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     if get_type_by_name(db,name): raise ValueError("نوع العتاد موجود مسبقًا")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     obj=EquipmentType(name=name,measurement_unit=data.measurement_unit,theoretical_quantity=data.theoretical_quantity,category_id=data.category_id);db.add(obj);db.commit();db.refresh(obj);return obj
 def update_type(db:Session,obj:EquipmentType,data:EquipmentTypeUpdate)->EquipmentType:
     if obj.is_frozen: raise ValueError("نوع العتاد مجمد؛ أعد اعتماده أولًا قبل تعديل بياناته")
     name=data.name.strip()
     if not name: raise ValueError("اسم نوع العتاد مطلوب")
     category=get_category(db,data.category_id)
-    if category is None or category.is_system: raise ValueError("اختر فئة المؤسسة الخاصة بك")
+    if category is None: raise ValueError("اختر تصنيفًا موجودًا")
     if db.query(EquipmentType).filter(EquipmentType.id!=obj.id,EquipmentType.name==name).first(): raise ValueError("نوع العتاد موجود مسبقًا")
     if data.measurement_unit != obj.measurement_unit:
         from app.modules.equipment.models import Equipment
@@ -139,7 +187,7 @@ def _option_list_copy(unit: Optional[str], options: Optional[str]) -> bool:
     return bool(left) and left==right
 
 
-def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> EquipmentModelSpecDefinition:
+def create_spec_definition(db: Session, data: SpecDefinitionCreate, commit: bool = True) -> EquipmentModelSpecDefinition:
     name=data.name.strip()
     if not name: raise ValueError("اسم الخاصية مطلوب")
     if db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.name==name).first():
@@ -169,7 +217,13 @@ def create_spec_definition(db: Session, data: SpecDefinitionCreate) -> Equipment
         category_id=data.category_id,
         sort_order=db.query(EquipmentModelSpecDefinition).count(),
     )
-    db.add(obj);db.commit();db.refresh(obj);return obj
+    db.add(obj)
+    if commit:
+        db.commit()
+        db.refresh(obj)
+    else:
+        db.flush()
+    return obj
 
 def delete_spec_definition(db: Session, definition_id: int) -> None:
     obj=db.query(EquipmentModelSpecDefinition).filter(EquipmentModelSpecDefinition.id==definition_id).first()
@@ -339,7 +393,7 @@ def delete_position(db:Session,position_id:int):
 
 def create_model(db:Session,data:EquipmentModelCreate)->EquipmentModel:
     _validate_model_data(db,data);_validate_tire_positions_and_sizes(db,data,None)
-    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,axle_count=data.axle_count,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver)
+    obj=EquipmentModel(name=data.name.strip(),equipment_type_id=data.equipment_type_id,brand_id=data.brand_id,has_tires=data.has_tires,tire_positions_required=data.tire_positions_required,axle_count=data.axle_count,tire_size=(data.tire_size or "").strip() or None,has_batteries=data.has_batteries,battery_count_required=data.battery_count_required,battery_capacity_ah=data.battery_capacity_ah,battery_voltage_v=data.battery_voltage_v,mobility_type=data.mobility_type,requires_driver=data.requires_driver,image_url=(data.image_url or "").strip() or None)
     db.add(obj);db.flush();_sync_positions(db,obj.id,[p.model_copy(update={"id":None}) for p in data.positions] if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
     db.commit();db.refresh(obj);return obj
 
@@ -350,6 +404,7 @@ def update_model(db:Session,obj:EquipmentModel,data:EquipmentModelCreate)->Equip
         from app.modules.equipment.models import Equipment
         if db.query(Equipment.id).filter(Equipment.equipment_model_id==obj.id).first():raise ValueError("لا يمكن نقل طراز مرتبط بعتاد فعلي إلى نوع آخر؛ حافظ على التاريخ والمرجع")
     obj.name=data.name.strip();obj.equipment_type_id=data.equipment_type_id;obj.brand_id=data.brand_id;obj.has_tires=data.has_tires;obj.tire_positions_required=data.tire_positions_required;obj.axle_count=data.axle_count;obj.tire_size=(data.tire_size or "").strip() or None;obj.has_batteries=data.has_batteries;obj.battery_count_required=data.battery_count_required;obj.battery_capacity_ah=data.battery_capacity_ah;obj.battery_voltage_v=data.battery_voltage_v;obj.mobility_type=data.mobility_type;obj.requires_driver=data.requires_driver
+    if data.image_url is not None:obj.image_url=data.image_url.strip() or None
     _sync_positions(db,obj.id,data.positions if data.has_tires else []);_sync_sizes(db,obj.id,data.tire_size,data.sizes if data.has_tires else []);db.flush();_validate_and_sync_specs(db,obj.id,data.specs)
     db.commit();db.refresh(obj);return obj
 

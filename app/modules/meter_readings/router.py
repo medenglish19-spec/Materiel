@@ -3,19 +3,22 @@ from decimal import Decimal, InvalidOperation
 from html import escape
 from typing import Optional
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from openpyxl.utils.datetime import from_excel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.core.permissions import Role, require_min_role
 from app.core.templating import get_module_templates
 from app.database.session import get_db
 from app.modules.equipment import services as equipment_services
-from app.modules.equipment_types import services as type_services
 from app.modules.meter_readings import services
 from app.modules.meter_readings.models import MeterReading
+from app.modules.meter_readings.audit import MeterReadingChange, utc_now
 from app.modules.meter_readings.audit_service import add_validation_details, create_operation
 from app.modules.meter_readings.excel_reader import load_meter_workbook
+from app.modules.meter_readings.excel_template import build_template
 from app.modules.users.models import User
 router = APIRouter(prefix="/meter-readings", tags=["Meter Readings"])
 templates = get_module_templates("app/modules/meter_readings/templates")
@@ -69,17 +72,21 @@ def _annotate_bulk_errors(errors, raw_rows, db):
         if "رقم التسجيل:" in message or "العتاد:" in message: annotated.append(message)
         else: annotated.append(_with_input_context(message, db, registration=registration))
     return annotated
-def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort):
-    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort)
-    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "types": type_services.list_types(db), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "last_update": last_update}
+def _page_context(request, db, current_user, page, page_size, search, type_id, unit, sort, date_from=None, date_to=None):
+    date_from_value = datetime.combine(date_from, datetime.min.time()) if date_from else None
+    date_to_value = datetime.combine(date_to, datetime.max.time()) if date_to else None
+    rows, total, pages, last_update = services.list_latest_rows(db, page=page, page_size=page_size, search=search, type_id=type_id, unit=unit, sort=sort, date_from=date_from_value, date_to=date_to_value)
+    return {"request": request, "user": current_user, "readings": rows, "equipment_options": equipment_services.list_equipment(db, limit=10000), "total": total, "page": page, "page_size": page_size, "pages": pages, "search": search, "type_id": type_id, "unit": unit, "sort": sort, "date_from": date_from, "date_to": date_to, "last_update": last_update, "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}}
 def _finish_operation(db: Session, current_user: User, kind: str, filename: str | None, total_rows: int, reading_ids: list[int], rejected_rows: int, errors: list[str], warnings: list[str]):
     op = create_operation(db, kind=kind, user_id=getattr(current_user, "id", None), filename=filename, total_rows=total_rows, reading_ids=reading_ids, rejected_rows=rejected_rows); add_validation_details(db, op.id, getattr(current_user, "id", None), errors=errors, warnings=warnings); db.commit(); return op
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort))
+def meter_readings_page(request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), search: str = Query(""), type_id: str | None = Query(default=None), unit: str = Query(""), sort: str = Query("date_desc"), date_from: date | None = Query(default=None), date_to: date | None = Query(default=None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="تاريخ البداية يجب أن يسبق تاريخ النهاية.")
+    services.cleanup_invalid_readings(db); return templates.TemplateResponse(request=request, name="meter_readings.html", context=_page_context(request, db, current_user, page, page_size, search, _parse_type_id(type_id), unit, sort, date_from, date_to))
 @router.post("/create")
-def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), equipment_status: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def meter_reading_create(equipment_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), equipment_status: str | None = Form(None), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     equipment = equipment_services.get_equipment(db, equipment_id); context = _equipment_label(equipment)
     try:
         if not equipment: raise ValueError("العتاد غير موجود")
@@ -100,17 +107,27 @@ def _prepare_paste_rows(raw_rows, db):
         except ValueError as exc: parse_errors.append(_with_input_context(str(exc), db, registration=registration, row_number=index))
     return valid_rows, parse_errors
 @router.post("/bulk-create")
-def meter_readings_bulk_create(payload: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def meter_readings_bulk_create(payload: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     raw_rows = payload.get("rows") if isinstance(payload, dict) else None
     if not isinstance(raw_rows, list): raise HTTPException(status_code=400, detail="بيانات اللصق غير صحيحة.")
     valid_rows, parse_errors = _prepare_paste_rows(raw_rows, db)
     try:
-        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
+        created, rejected, service_errors, warnings, reading_ids = services.create_bulk_readings(db, valid_rows, source="paste"); errors = parse_errors + _annotate_bulk_errors(service_errors, raw_rows, db); rejected_total = len(raw_rows) - created
         if raw_rows: _finish_operation(db, current_user, "paste", None, len(raw_rows), reading_ids, rejected_total, errors, warnings)
     except SQLAlchemyError:
         db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": len(raw_rows), "errors": [_error_card("تعذر حفظ القراءات بسبب خطأ في قاعدة البيانات.")]})
     cards = [_error_card(x) for x in errors[:100]] + [_warning_card(x) for x in warnings[:100]]
     return JSONResponse({"ok": not errors, "created": created, "skipped": rejected_total, "errors": cards, "message": "تم حفظ القراءات الصحيحة، مع وجود أخطاء تحتاج للمراجعة." if errors else "تم الحفظ بنجاح."})
+@router.get("/import-template")
+def meter_readings_import_template(current_user: User = Depends(get_current_user)):
+    from io import BytesIO
+    return StreamingResponse(
+        BytesIO(build_template()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="meter-readings-import-template.xlsx"'},
+    )
+
+
 def _normalize_header(value):
     if value is None: return ""
     text = str(value).strip().lower()
@@ -150,7 +167,7 @@ def _read_excel_rows(file, db):
         except ValueError as exc: parse_errors.append(_with_input_context(str(exc), db, registration=registration, row_number=row_number))
     return import_rows, parse_errors, data_row_count
 @router.post("/import-excel")
-def meter_readings_import_excel(file: UploadFile = File(...), equipment_status: str | None = Form(None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def meter_readings_import_excel(file: UploadFile = File(...), equipment_status: str | None = Form(None), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     filename = file.filename or ""
     if not filename.lower().endswith(".xlsx"): return JSONResponse(status_code=400, content={"created": 0, "skipped": 0, "errors": [_error_card("الملف يجب أن يكون بصيغة Excel .xlsx.")]})
     try:
@@ -160,12 +177,35 @@ def meter_readings_import_excel(file: UploadFile = File(...), equipment_status: 
     except ValueError as exc:
         db.rollback(); return JSONResponse(status_code=400, content={"created": 0, "skipped": 0, "errors": [_error_card(str(exc))]})
     except SQLAlchemyError:
-        db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": 0, "errors": [_error_card("تعذر استيراد الملف بسبب خطأ في قاعدة البيانات.")]})
-    except Exception as exc:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card("\u062a\u0639\u0630\u0631 \u0641\u062d\u0635 \u0627\u0644\u0645\u0644\u0641 \u0628\u0633\u0628\u0628 \u062e\u0637\u0623 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.")]})
         db.rollback(); return JSONResponse(status_code=500, content={"created": 0, "skipped": 0, "errors": [_error_card(f"تعذر قراءة ملف Excel: {exc}", "تعذر قراءة ملف Excel")]})
 @router.post("/import-excel-preview")
-def meter_readings_import_excel_preview(file: UploadFile = File(...), equipment_status: str | None = Form(None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return meter_readings_import_excel(file, equipment_status, db, current_user)
+def meter_readings_import_excel_preview(file: UploadFile = File(...), equipment_status: str | None = Form(None), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".xlsx"):
+        return JSONResponse(status_code=400, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card("\u064a\u062c\u0628 \u0623\u0646 \u064a\u0643\u0648\u0646 \u0627\u0644\u0645\u0644\u0641 \u0628\u0635\u064a\u063a\u0629 Excel .xlsx.")]})
+    try:
+        import_rows, parse_errors, data_row_count = _read_excel_rows(file, db)
+        valid, _, service_errors, warnings, _ = services.create_bulk_readings(db, import_rows, dry_run=True)
+        errors = parse_errors + _annotate_bulk_errors(service_errors, import_rows, db)
+        return JSONResponse({
+            "ok": not errors,
+            "total": data_row_count,
+            "valid": valid,
+            "rejected": data_row_count - valid,
+            "errors": [_error_card(error) for error in errors[:100]],
+            "warnings": [_warning_card(warning) for warning in warnings[:100]],
+        })
+    except ValueError as exc:
+        db.rollback()
+        return JSONResponse(status_code=400, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card(str(exc))]})
+    except SQLAlchemyError:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card("\u062a\u0639\u0630\u0631 \u0641\u062d\u0635 \u0627\u0644\u0645\u0644\u0641 \u0628\u0633\u0628\u0628 \u062e\u0637\u0623 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.")]})
+    except Exception as exc:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card(f"\u062a\u0639\u0630\u0631 \u0642\u0631\u0627\u0621\u0629 \u0645\u0644\u0641 Excel"+f": {exc}", "\u062a\u0639\u0630\u0631 \u0642\u0631\u0627\u0621\u0629 \u0645\u0644\u0641 Excel")]})
 def _reading_context(db: Session, equipment_id: int, reading_id: int):
     equipment = services.get_equipment_with_readings(db, equipment_id)
     reading = db.query(MeterReading).filter(MeterReading.id == reading_id, MeterReading.equipment_id == equipment_id).first()
@@ -175,17 +215,9 @@ def _reading_context(db: Session, equipment_id: int, reading_id: int):
 def _validate_updated_reading(db: Session, equipment_id: int, reading_id: int, reading_date: datetime, value: Decimal, unit: str):
     if reading_date.date() > datetime.now().astimezone().date(): raise ValueError("لا يمكن إدخال قراءة بتاريخ مستقبلي")
     if value < 0: raise ValueError("قيمة العداد لا يمكن أن تكون سالبة")
-    for other in services.list_readings(db, equipment_id):
-        if other.id == reading_id: continue
-        other_value = services._value(other, unit)
-        if other_value is None: continue
-        other_value = Decimal(other_value)
-        if other.reading_date < reading_date and other_value > value:
-            raise ValueError(f"القيمة ({value:g}) أقل من القراءة المسجلة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
-        if other.reading_date > reading_date and other_value < value:
-            raise ValueError(f"القيمة ({value:g}) أكبر من القراءة اللاحقة بتاريخ {other.reading_date:%d/%m/%Y} ({other_value:g})")
+    services._validate_reading_position(db, equipment_id, reading_date, value, unit, exclude_reading_id=reading_id)
 @router.post("/history/{equipment_id}/update")
-def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading_date: str = Form(...), value: str = Form(...), notes: str = Form(""), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment); unit = services._unit(equipment)
     try:
         date_value = _parse_date(reading_date); meter_value = _parse_decimal(value); _validate_updated_reading(db, equipment_id, reading_id, date_value, meter_value, unit)
@@ -196,17 +228,317 @@ def meter_reading_update(equipment_id: int, reading_id: int = Form(...), reading
     except ValueError as exc:
         db.rollback(); return JSONResponse(status_code=400, content={"ok": False, "error": f"{context}. {exc}"})
     except SQLAlchemyError:
-        db.rollback(); return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. تعذر تعديل القراءة بسبب خطأ في قاعدة البيانات."})
+        db.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. "+json.dumps("تعذر تعديل القراءة بسبب خطأ في قاعدة البيانات.",ensure_ascii=False)[1:-1]})
 @router.post("/history/{equipment_id}/delete")
-def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
     equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment)
     try:
+        unit = services._unit(equipment)
+        db.add(MeterReadingChange(
+            reading_id=reading.id, equipment_id=equipment_id, changed_at=utc_now(),
+            action="delete", source=reading.source or "manual", reading_date=reading.reading_date,
+            unit=unit, old_value=services._value(reading, unit), new_value=None,
+            actor_id=current_user.id if current_user else None, details="حذف قراءة مسجلة.",
+        ))
         db.delete(reading); db.flush(); services._refresh_equipment_current(db, equipment, services._unit(equipment)); db.commit()
         return JSONResponse({"ok": True, "message": "تم حذف القراءة بنجاح"})
     except SQLAlchemyError:
-        db.rollback(); return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. تعذر حذف القراءة بسبب خطأ في قاعدة البيانات."})
+        db.rollback()
+        return JSONResponse(status_code=500, content={"ok": False, "error": f"{context}. "+json.dumps("تعذر حذف القراءة بسبب خطأ في قاعدة البيانات.",ensure_ascii=False)[1:-1]})
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
 @router.get("/history/{equipment_id}", response_class=HTMLResponse)
 def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
     if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
-    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size})
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size, "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}})
+def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
+    equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment)
+    try:
+        unit = services._unit(equipment)
+        db.add(MeterReadingChange(
+            reading_id=reading.id, equipment_id=equipment_id, changed_at=utc_now(),
+            action="delete", source=reading.source or "manual", reading_date=reading.reading_date,
+            unit=unit, old_value=services._value(reading, unit), new_value=None,
+            actor_id=current_user.id if current_user else None, details="حذف قراءة مسجلة.",
+        ))
+        db.delete(reading); db.flush(); services._refresh_equipment_current(db, equipment, services._unit(equipment)); db.commit()
+        return JSONResponse({"ok": True, "message": "تم حذف القراءة بنجاح"})
+    except SQLAlchemyError:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card("\u062a\u0639\u0630\u0631 \u0641\u062d\u0635 \u0627\u0644\u0645\u0644\u0641 \u0628\u0633\u0628\u0628 \u062e\u0637\u0623 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.")]})
+
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}", response_class=HTMLResponse)
+def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
+    if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size, "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}})
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}", response_class=HTMLResponse)
+def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
+    if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size, "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}})
+def meter_reading_delete(equipment_id: int, reading_id: int = Form(...), db: Session = Depends(get_db), current_user: User = Depends(require_min_role(Role.OPERATOR))):
+    equipment, reading = _reading_context(db, equipment_id, reading_id); context = _equipment_label(equipment)
+    try:
+        unit = services._unit(equipment)
+        db.add(MeterReadingChange(
+            reading_id=reading.id, equipment_id=equipment_id, changed_at=utc_now(),
+            action="delete", source=reading.source or "manual", reading_date=reading.reading_date,
+            unit=unit, old_value=services._value(reading, unit), new_value=None,
+            actor_id=current_user.id if current_user else None, details="حذف قراءة مسجلة.",
+        ))
+        db.delete(reading); db.flush(); services._refresh_equipment_current(db, equipment, services._unit(equipment)); db.commit()
+        return JSONResponse({"ok": True, "message": "تم حذف القراءة بنجاح"})
+    except SQLAlchemyError:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"total": 0, "valid": 0, "rejected": 0, "errors": [_error_card("\u062a\u0639\u0630\u0631 \u0641\u062d\u0635 \u0627\u0644\u0645\u0644\u0641 \u0628\u0633\u0628\u0628 \u062e\u0637\u0623 \u0641\u064a \u0642\u0627\u0639\u062f\u0629 \u0627\u0644\u0628\u064a\u0627\u0646\u0627\u062a.")]})
+
+@router.get("/history/{equipment_id}/{reading_id}/delete-impact")
+def meter_reading_delete_impact(equipment_id: int, reading_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, reading = _reading_context(db, equipment_id, reading_id)
+    unit = services._unit(equipment)
+    later = db.query(MeterReading.id).filter(
+        MeterReading.equipment_id == equipment_id,
+        MeterReading.id != reading_id,
+        MeterReading.reading_date > reading.reading_date,
+    ).count()
+    return {
+        "label": f"{_equipment_label(equipment)} — {services._value(reading, unit)} {unit} بتاريخ {reading.reading_date:%Y-%m-%d}",
+        "effects": [
+            {"label": "قراءة العداد التي ستحذف", "count": 1},
+            {"label": "القراءات اللاحقة التي ستراجع فروقها", "count": later},
+            {"label": "القيمة الحالية للعداد ستعاد مزامنتها", "count": 1, "kind": "recalculate"},
+            {"label": "سيحفظ النظام أثر الحذف في سجل تدقيق القراءات", "count": 1, "kind": "remain"},
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}/modal")
+def meter_history_modal_data(
+    equipment_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=5, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    equipment, rows, total, pages, page = services.history_rows(
+        db, equipment_id, page=page, page_size=page_size
+    )
+    if not equipment:
+        raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    unit = services._unit(equipment)
+    return {
+        "equipment": {
+            "type": equipment.equipment_type.name if equipment.equipment_type else "—",
+            "model": equipment.equipment_model.name if equipment.equipment_model else "—",
+            "registration": equipment.registration_number or equipment.asset_code or equipment.vin or "—",
+        },
+        "unit": "كم" if unit == "km" else "ساعة عمل",
+        "status": rows[0]["status"] if rows else "—",
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "rows": [
+            {
+                "number": row["number"],
+                "date": row["date"],
+                "reading": row["reading"],
+                "difference": row["difference"],
+                "source": row["source"],
+                "note": row["note"],
+                "status": row["status"],
+                "status_class": row["status_class"],
+            }
+            for row in rows
+        ],
+    }
+
+
+@router.get("/history/{equipment_id}", response_class=HTMLResponse)
+def meter_history_page(equipment_id: int, request: Request, page: int = Query(1, ge=1), page_size: int = Query(20, ge=5, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipment, rows, total, pages, page = services.history_rows(db, equipment_id, page=page, page_size=page_size)
+    if not equipment: raise HTTPException(status_code=404, detail="العتاد غير موجود")
+    return templates.TemplateResponse(request=request, name="meter_readings_list.html", context={"request": request, "user": current_user, "equipment": equipment, "rows": rows, "total": total, "pages": pages, "page": page, "page_size": page_size, "can_manage_meters": settings.DEV_DISABLE_AUTH or current_user.role in {Role.ADMIN.value, Role.FLEET_MANAGER.value, Role.OPERATOR.value}})

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}تعديل بيانات سائق | المهمات{% endblock %}
+{% block extra_head %}
+<style>
+.driver-edit{max-width:900px;margin:0 auto}.driver-edit *{box-sizing:border-box}.driver-edit .panel{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:20px;margin-top:18px}.driver-edit h1{font-size:25px;margin:0 0 8px}.driver-edit p{color:#667085}.driver-edit form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}.driver-edit label{display:grid;gap:6px;min-width:0;font-size:12px;font-weight:700;color:#475467}.driver-edit input,.driver-edit select{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;font:inherit}.driver-edit .wide{grid-column:1/-1}.driver-edit button,.driver-edit a{display:inline-flex;justify-content:center;align-items:center;min-height:40px;padding:8px 14px;border-radius:8px;font:inherit;font-weight:800;text-decoration:none;cursor:pointer}.driver-edit button{border:0;background:#315f42;color:#fff}.driver-edit a{border:1px solid #d0d5dd;color:#344054;background:#fff}@media(max-width:700px){.driver-edit form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.driver-edit .panel{padding:14px}.driver-edit form{grid-template-columns:1fr}.driver-edit .wide{grid-column:auto}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="driver-edit" dir="rtl">
+  <section class="panel">
+    <h1>تعديل بيانات السائق</h1>
+    <p>رقم السائق في القائمة تسلسلي حسب ترتيب ظهور السجلات.</p>
+    <form method="post" action="/missions/drivers/{{ driver.id }}/edit" data-em-root>
+      <label>الاسم *<input name="first_name" maxlength="100" value="{{ driver.first_name }}" required></label>
+      <label>اللقب *<input name="last_name" maxlength="100" value="{{ driver.last_name }}" required></label>
+      <label>صنف الرخصة *<input name="license_class" maxlength="50" value="{{ driver.license_class }}" required></label>
+      <label>تاريخ الإصدار<input type="date" name="license_issue_date" value="{{ driver.license_issue_date.isoformat() if driver.license_issue_date else '' }}"></label>
+      <label>تاريخ نهاية الصلاحية<input type="date" name="license_expiry_date" value="{{ driver.license_expiry_date.isoformat() if driver.license_expiry_date else '' }}"></label>
+      <label>الرتبة<input name="driving_rank" maxlength="120" value="{{ driver.driving_rank or '' }}" placeholder="أدخل رتبة السائق"></label>
+      <label>رقم تسجيل السائق<input name="registration_number" maxlength="80" value="{{ driver.registration_number or '' }}" placeholder="أدخل رقم تسجيل السائق"></label>
+      <label>طراز العتاد<select id="editDriverEquipmentModel" name="equipment_model_id"><option value="">غير معيّن</option>{% for model in equipment_models %}<option value="{{ model.id }}" {% if driver.equipment_model_id == model.id %}selected{% endif %}>{{ model.name }}</option>{% endfor %}</select></label>
+      <label>رقم تسجيل العتاد<select id="editDriverAssignedEquipment" name="assigned_equipment_id" {% if not driver.assigned_equipment %}disabled{% endif %}><option value="">اختر الطراز أولًا</option>{% for item in equipment %}<option value="{{ item.id }}" data-model-id="{{ item.equipment_model_id }}" {% if driver.assigned_equipment_id == item.id %}selected{% endif %}>{{ item.registration_number or item.vin or item.asset_code }}</option>{% endfor %}</select></label>
+      <label class="wide">ملاحظات<input name="notes" value="{{ driver.notes or '' }}"></label>
+      <button type="submit" data-em-action="save">حفظ التعديلات</button>
+      <a href="/missions/drivers">العودة إلى قائمة السائقين</a>
+    </form>
+  </section>
+</div>
+<script>
+(function(){var modelSelect=document.getElementById('editDriverEquipmentModel');var equipmentSelect=document.getElementById('editDriverAssignedEquipment');function filterEquipment(reset){if(!modelSelect||!equipmentSelect)return;var modelId=modelSelect.value;Array.from(equipmentSelect.options).forEach(function(option){if(!option.value)return;var compatible=!!modelId&&option.getAttribute('data-model-id')===modelId;option.hidden=!compatible;option.disabled=!compatible;});equipmentSelect.disabled=!modelId;equipmentSelect.required=!!modelId;if(reset||!modelId||(equipmentSelect.selectedOptions[0]&&equipmentSelect.selectedOptions[0].disabled))equipmentSelect.value='';}if(modelSelect){modelSelect.addEventListener('change',function(){filterEquipment(true);});filterEquipment(false);}})();
+</script>
+{% endblock %}

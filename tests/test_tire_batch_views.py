@@ -1,5 +1,6 @@
 from datetime import date
 
+from app.database import model_registry  # noqa: F401
 from app.modules.tires import batch_state
 from app.modules.tires.models import Tire
 
@@ -20,6 +21,22 @@ class FakeMovement:
     def __init__(self, equipment_id=None, position=None):
         self.equipment = FakeEquipment(equipment_id) if equipment_id is not None else None
         self.position = position
+
+
+class FakeQuery:
+    def options(self, *_args):
+        return self
+
+    def order_by(self, *_args):
+        return self
+
+    def all(self):
+        return []
+
+
+class FakeSession:
+    def query(self, *_args):
+        return FakeQuery()
 
 
 def _snapshot():
@@ -87,7 +104,7 @@ def test_inventory_uses_one_batched_snapshot(monkeypatch):
         lambda db: (calls.append(db) or (tires, states)),
     )
 
-    rows = batch_state.inventory(object())
+    rows = batch_state.inventory(FakeSession())
 
     assert len(calls) == 1
     assert [row["tire"].serial_number for row in rows] == ["T-002", "T-003"]

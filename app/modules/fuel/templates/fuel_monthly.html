@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}الاستهلاك الشهري للوقود{% endblock %}
+{% block content %}
+<div class="record-page fuel-monthly-page" dir="rtl">
+  <header class="record-hero">
+    <div>
+      <h2>الاستهلاك الشهري</h2>
+      <div class="record-muted">ملخص كميات الوقود وعدد التعبئات مرتبة من الأحدث إلى الأقدم.</div>
+    </div>
+  </header>
+  <section class="record-panel">
+    <div class="record-table-wrap mt-table-theme-green fuel-table-header" data-mt-region>
+      <table class="record-table">
+        <thead><tr><th>السنة</th><th>الشهر</th><th>إجمالي الكمية (لتر)</th><th>عدد التعبئات</th></tr></thead>
+        <tbody>
+          {% for row in monthly %}
+          <tr><td>{{ row.year }}</td><td>{{ row.month }}</td><td>{{ row.quantity }}</td><td>{{ row.records }}</td></tr>
+          {% else %}
+          <tr><td colspan="4" class="record-empty">لا توجد بيانات شهرية.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

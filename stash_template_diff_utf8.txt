@@ -1,0 +1,250 @@
+﻿diff --git a/app/modules/maintenance/templates/maintenance_rules_model_only.html b/app/modules/maintenance/templates/maintenance_rules_model_only.html
+index 8c834c50..7b3d69a1 100644
+--- a/app/modules/maintenance/templates/maintenance_rules_model_only.html
++++ b/app/modules/maintenance/templates/maintenance_rules_model_only.html
+@@ -26,16 +26,16 @@
+   </div>
+ 
+   <div class="toolbar-card">
+-    <div class="toolbar" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+-      <div class="search-wrap" style="flex:1 1 280px;min-width:240px"><span class="search-icon">Ôîò</span><input id="operationSearch" class="m-input" placeholder="Ï¿Ï¡Ï½ ┘ü┘è Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ®..."></div>
+-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+-        <select id="groupFilter" class="m-select"><option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option></select>
+-        <button class="m-btn" type="button" id="newGroupBtn">´╝ï &nbsp;┘àÏ¼┘à┘êÏ╣Ï®</button>
+-        <button class="m-btn" type="button" id="editGroupBtn" disabled>Ô£Å´©Å Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+-        <button class="m-btn" type="button" id="deleteGroupBtn" disabled>­ƒùæ Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
+-        <select id="statusFilter" class="m-select"><option value="">┘â┘ä Ïº┘äÏ¡Ïº┘äÏºÏ¬</option><option value="active">┘à┘üÏ╣┘äÏ®</option><option value="inactive">┘àÏ¬┘ê┘é┘üÏ®</option></select>
+-        <button class="m-btn" type="button" id="refreshLibrary">Ôå╗ &nbsp;Ï¬Ï¡Ï»┘èÏ½</button>
+-        <button class="m-btn primary" type="button" id="newOperationBtn">´╝ï &nbsp;ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</button>
++    <div class="toolbar" style="justify-content:flex-end;gap:12px;flex-wrap:wrap">
++      <div class="dropdown" id="managementDropdown" style="position:relative">
++        <button class="m-btn" type="button" id="managementBtn" aria-haspopup="true" aria-expanded="false">ÔÜÖ´©Å ÏÑÏ»ÏºÏ▒Ï® Ï╣┘à┘ä┘èÏºÏ¬ Ïº┘äÏÁ┘èÏº┘åÏ® Ôû¥</button>
++        <div class="dropdown-menu" id="managementMenu" role="menu" style="display:none;position:fixed;z-index:1000;min-width:220px;background:#fff;border:1px solid #d8dee8;border-radius:8px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:6px;">
++          <button type="button" class="dropdown-item" id="menuNewOperation" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#2b9a62;white-space:nowrap">Ô×ò &nbsp;ÏÑÏÂÏº┘üÏ® Ï╣┘à┘ä┘èÏ® ÏÁ┘èÏº┘åÏ®</button>
++          <button type="button" class="dropdown-item" id="menuNewGroup" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">­ƒôü &nbsp;ÏÑÏÂÏº┘üÏ® ┘àÏ¼┘à┘êÏ╣Ï®</button>
++          <button type="button" class="dropdown-item" id="menuEditGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap;opacity:.45;cursor:not-allowed">Ô£Å´©Å &nbsp;Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
++          <button type="button" class="dropdown-item danger" id="menuDeleteGroup" role="menuitem" disabled style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#b91c1c;white-space:nowrap;opacity:.45;cursor:not-allowed">­ƒùæ &nbsp;Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®</button>
++          <button type="button" class="dropdown-item" id="menuRefresh" role="menuitem" style="display:block;width:100%;box-sizing:border-box;text-align:right;border:0;background:transparent;padding:8px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap">Ôå╗ &nbsp;Ï¬Ï¡Ï»┘èÏ½ Ïº┘äÏ¼Ï»┘ê┘ä</button>
++        </div>
+       </div>
+     </div>
+   </div>
+@@ -84,6 +84,9 @@
+       <button class="m-btn" type="button" id="cancelEditor">ÏÑ┘äÏ║ÏºÏí</button>
+     </form>
+   </section>
++  <!-- Hidden filters for edit/delete group functionality -->
++  <select id="groupFilter" class="m-select" style="display:none"><option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option></select>
++  <select id="statusFilter" class="m-select" style="display:none"><option value="">┘â┘ä Ïº┘äÏ¡Ïº┘äÏºÏ¬</option><option value="active">┘à┘üÏ╣┘äÏ®</option><option value="inactive">┘àÏ¬┘ê┘é┘üÏ®</option></select>
+ </div>
+ 
+ <style>
+@@ -112,7 +115,7 @@
+ (function(){
+   const api='/api/maintenance';
+   const state={groups:[],operations:[],planId:null,planName:"",planOps:new Set(),initialPlanOps:new Set()};
+-  const columnFilters={name:new Set(),group:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
++  const columnFilters={name:new Set(),group:new Set(),models:new Set(),condition:new Set(),warning:new Set(),status:new Set()};
+   let openFilterMenu=null;
+   const $=id=>document.getElementById(id);
+   const alertBox=$('libraryAlert');
+@@ -156,14 +159,17 @@
+   }
+   function renderGroups(){
+     const filter=$('groupFilter'), editor=$('operationGroup');
+-    const currentFilter=filter.value, currentEditor=editor.value;
+-    filter.innerHTML='<option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option>';
++    const currentEditor=editor.value;
+     editor.innerHTML='<option value="">Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®</option>';
+     state.groups.forEach(g=>{
+-      filter.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+       editor.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
+     });
+-    filter.value=currentFilter; editor.value=currentEditor;
++    // Also populate the hidden groupFilter for edit/delete group functionality
++    filter.innerHTML='<option value="">┘â┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣ÏºÏ¬</option>';
++    state.groups.forEach(g=>{
++      filter.insertAdjacentHTML('beforeend',`<option value="${g.id}">${escapeHtml(g.name)}</option>`);
++    });
++    editor.value=currentEditor;
+   }
+   function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+   function filterValue(op,col){
+@@ -191,7 +197,7 @@
+   function openColumnFilter(col,button){
+     closeFilterMenu();
+     const values=[...new Set(state.operations.map(op=>filterValue(op,col)))].sort((a,b)=>a.localeCompare(b,'ar'));
+-    const selected=columnFilters[col];
++    const selected=columnFilters[col] || new Set();
+     const menu=document.createElement('div');
+     menu.className='excel-filter-menu';
+     menu.innerHTML=`
+@@ -239,20 +245,24 @@
+     });
+   }
+   function render(){
+-    const q=$('operationSearch').value.toLowerCase().trim(), group=$('groupFilter').value, status=$('statusFilter').value;
+-    const rows=state.operations.filter(op=>(!q||[op.name,op.description,groupName(op.group_id)].join(' ').toLowerCase().includes(q))&&(!group||String(op.group_id)===group)&&(!status||(status==='active'?op.is_active:!op.is_active))&&passesColumnFilters(op));
+-    $('operationCount').textContent=rows.length+' Ï╣┘à┘ä┘èÏ®';
+-    $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
+-      const selected=isPlanMode() && state.planOps.has(op.id);
+-      return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
+-      <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="ÏÑÏ¼Ï▒ÏºÏíÏºÏ¬ Ïº┘äÏ╣┘à┘ä┘èÏ®">Ôï«</button></td>
+-      <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">Ô£ô ÏÂ┘à┘å Ïº┘äÏ«ÏÀÏ®</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
+-      <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
+-      <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®'}</span></td>
+-    </tr>`;
+-    }).join(''):'<tr><td colspan="8" class="muted">┘äÏº Ï¬┘êÏ¼Ï» Ï╣┘à┘ä┘èÏºÏ¬ ┘àÏÀÏºÏ¿┘éÏ®.</td></tr>';
+-    if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' ┘àÏ¡Ï»Ï»Ï®';
+-    updateFilterButtons();
++    try {
++      const rows=state.operations.filter(op=>passesColumnFilters(op));
++      $('operationCount').textContent=rows.length+' Ï╣┘à┘ä┘èÏ®';
++      $('operationsBody').innerHTML=rows.length?rows.map((op,i)=>{
++        const selected=isPlanMode() && state.planOps.has(op.id);
++        return `<tr class="${selected?'plan-selected':''}" data-plan-select="${isPlanMode()?op.id:''}" data-operation-id="${op.id}">
++        <td class="mt-actions-td"><button class="mt-row-btn" type="button" data-menu="${op.id}" aria-haspopup="true" aria-expanded="false" aria-label="ÏÑÏ¼Ï▒ÏºÏíÏºÏ¬ Ïº┘äÏ╣┘à┘ä┘èÏ®">Ôï«</button></td>
++        <td><strong>${escapeHtml(op.name)}</strong>${selected?'<span class="plan-selected-mark">Ô£ô ÏÂ┘à┘å Ïº┘äÏ«ÏÀÏ®</span>':''}${op.description?`<div class="muted">${escapeHtml(op.description)}</div>`:''}</td>
++        <td>${escapeHtml(groupName(op.group_id))}</td><td class="num">${modelsText(op)}</td><td class="num">${escapeHtml(conditionText(op))}</td><td class="num">${escapeHtml(unitText(op))}</td><td class="num">${escapeHtml(warningText(op))}</td>
++        <td><span class="badge ${op.is_active?'success':'neutral'}">${op.is_active?'┘à┘üÏ╣┘äÏ®':'┘àÏ¬┘ê┘é┘üÏ®'}</span></td>
++      </tr>`;
++      }).join(''):'<tr><td colspan="8" class="muted">┘äÏº Ï¬┘êÏ¼Ï» Ï╣┘à┘ä┘èÏºÏ¬ ┘àÏÀÏºÏ¿┘éÏ®.</td></tr>';
++      if(isPlanMode()) $('planSelectedCount').textContent=state.planOps.size+' ┘àÏ¡Ï»Ï»Ï®';
++      updateFilterButtons();
++    } catch(e) {
++      console.error('Render error:', e);
++      $('operationsBody').innerHTML=`<tr><td colspan="8" class="muted danger">Ï«ÏÀÏú ┘ü┘è Ïº┘äÏ╣Ï▒ÏÂ: ${escapeHtml(e.message)}</td></tr>`;
++    }
+   }
+   function rowMenuItems(op){
+     return [
+@@ -360,7 +370,8 @@
+   }
+   async function load(){
+     try{
+-      const [groups,operations,models]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`),request('/api/equipment/models')]);
++      const [groups,operations,models]=await Promise.all([request(`${api}/operation-groups`),request(`${api}/operations`),request(`${api}/equipment/models`)]);
++      console.log('Loaded:', groups.length, 'groups,', operations.length, 'operations,', models.length, 'models');
+       state.groups=groups; state.operations=operations; state.models=models;
+       // Populate equipment models select
+       const modelSelect=$('operationModels');
+@@ -376,7 +387,10 @@
+         });
+       }
+       renderGroups(); render(); syncGroupButtons();
+-    }catch(e){$('operationsBody').innerHTML=`<tr><td colspan="8" class="muted">${escapeHtml(e.message)}</td></tr>`}
++    }catch(e){
++      console.error('Load error:', e);
++      $('operationsBody').innerHTML=`<tr><td colspan="8" class="muted danger">Ï«ÏÀÏú ┘ü┘è Ïº┘äÏ¬Ï¡┘à┘è┘ä: ${escapeHtml(e.message)}</td></tr>`;
++    }
+   }
+   $('operationForm').addEventListener('submit',async e=>{
+     e.preventDefault();
+@@ -398,17 +412,97 @@
+       $('operationEditor').style.display='none'; await load();
+     }catch(err){showAlert(err.message,'danger')}
+   });
+-  $('newGroupBtn').onclick=async()=>{const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® Ïº┘äÏ¼Ï»┘èÏ»Ï®:')||'').trim();if(!name)return;try{await request(`${api}/operation-groups`,{method:'POST',body:JSON.stringify({name,sort_order:state.groups.length})});showAlert('Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
++  // Dropdown handling for management menu
++  const managementBtn = $('managementBtn');
++  const managementMenu = $('managementMenu');
++  let managementMenuOpen = false;
++
++  function openManagementMenu() {
++    const rect = managementBtn.getBoundingClientRect();
++    managementMenu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - managementMenu.offsetWidth - 8)) + 'px';
++    managementMenu.style.top = Math.min(rect.bottom + 4, window.innerHeight - managementMenu.offsetHeight - 8) + 'px';
++    managementMenu.style.display = 'block';
++    managementBtn.setAttribute('aria-expanded', 'true');
++    managementMenuOpen = true;
++  }
++
++  function closeManagementMenu() {
++    managementMenu.style.display = 'none';
++    managementBtn.setAttribute('aria-expanded', 'false');
++    managementMenuOpen = false;
++  }
++
++  function toggleManagementMenu() {
++    if (managementMenuOpen) closeManagementMenu();
++    else openManagementMenu();
++  }
++
++  managementBtn.onclick = (e) => { e.stopPropagation(); toggleManagementMenu(); };
++
++  // Close dropdown on outside click
++  document.addEventListener('click', (e) => {
++    if (managementMenuOpen && !managementMenu.contains(e.target) && !managementBtn.contains(e.target)) {
++      closeManagementMenu();
++    }
++  });
++
++  // Close dropdown on Escape
++  document.addEventListener('keydown', (e) => {
++    if (e.key === 'Escape' && managementMenuOpen) closeManagementMenu();
++  });
++
++  // Close dropdown on scroll
++  document.addEventListener('scroll', () => { if (managementMenuOpen) closeManagementMenu(); }, true);
++
++  // Menu item handlers (reusing existing functions)
++  $('menuNewOperation').onclick = () => { closeManagementMenu(); resetEditor(); };
++  $('menuNewGroup').onclick = async () => {
++    closeManagementMenu();
++    const name = (prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® Ïº┘äÏ¼Ï»┘èÏ»Ï®:') || '').trim();
++    if (!name) return;
++    try {
++      await request(`${api}/operation-groups`, {method: 'POST', body: JSON.stringify({name, sort_order: state.groups.length})});
++      showAlert('Ï¬┘àÏ¬ ÏÑÏÂÏº┘üÏ® Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
++      await load();
++    } catch (err) { showAlert(err.message, 'danger'); }
++  };
++  $('menuEditGroup').onclick = async () => {
++    closeManagementMenu();
++    const g = selectedGroup();
++    if (!g) return;
++    const name = (prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®:', g.name) || '').trim();
++    if (!name || name === g.name) return;
++    try {
++      await request(`${api}/operation-groups/${g.id}`, {method: 'PUT', body: JSON.stringify({name, sort_order: g.sort_order})});
++      showAlert('Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
++      await load();
++    } catch (err) { showAlert(err.message, 'danger'); }
++  };
++  $('menuDeleteGroup').onclick = async () => {
++    closeManagementMenu();
++    const g = selectedGroup();
++    if (!g) return;
++    if (!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® ┘ü┘éÏÀÏî ┘êÏ│Ï¬Ï¿┘é┘ë Ï╣┘à┘ä┘èÏºÏ¬┘çÏº Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ')) return;
++    try {
++      await request(`${api}/operation-groups/${g.id}`, {method: 'DELETE'});
++      showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');
++      await load();
++    } catch (err) { showAlert(err.message, 'danger'); }
++  };
++  $('menuRefresh').onclick = () => { closeManagementMenu(); load(); };
++
+   function selectedGroup(){return state.groups.find(g=>String(g.id)===$('groupFilter').value)}
+-  function syncGroupButtons(){const has=!!selectedGroup();$('editGroupBtn').disabled=!has;$('deleteGroupBtn').disabled=!has}
+-  $('groupFilter').addEventListener('change',syncGroupButtons);
+-  $('editGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;const name=(prompt('ÏºÏ│┘à Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®:',g.name)||'').trim();if(!name||name===g.name)return;try{await request(`${api}/operation-groups/${g.id}`,{method:'PUT',body:JSON.stringify({name,sort_order:g.sort_order})});showAlert('Ï¬┘à Ï¬Ï╣Ï»┘è┘ä Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+-  $('deleteGroupBtn').onclick=async()=>{const g=selectedGroup();if(!g)return;if(!confirm('Ï│┘èÏ¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï® ┘ü┘éÏÀÏî ┘êÏ│Ï¬Ï¿┘é┘ë Ï╣┘à┘ä┘èÏºÏ¬┘çÏº Ï¿Ï»┘ê┘å ┘àÏ¼┘à┘êÏ╣Ï®. ┘ç┘ä Ïú┘åÏ¬ ┘àÏ¬Ïú┘âÏ»Ïƒ'))return;try{await request(`${api}/operation-groups/${g.id}`,{method:'DELETE'});showAlert('Ï¬┘à Ï¡Ï░┘ü Ïº┘ä┘àÏ¼┘à┘êÏ╣Ï®.');await load()}catch(err){showAlert(err.message,'danger')}};
+-  $('newOperationBtn').onclick=resetEditor;
+-  $('savePlanOperations').onclick=savePlanOperations;
+-  $('cancelPlanMode').onclick=()=>{window.location.href='/maintenance/plans'};
+-  $('cancelEditor').onclick=()=>{$('operationEditor').style.display='none'};
+-  $('refreshLibrary').onclick=load; $('operationSearch').oninput=render; $('groupFilter').onchange=render; $('statusFilter').onchange=render;
++  function syncGroupButtons(){
++    const has = !!selectedGroup();
++    const menuEditBtn = $('menuEditGroup'), menuDeleteBtn = $('menuDeleteGroup');
++    if (menuEditBtn) { menuEditBtn.disabled = !has; menuEditBtn.style.opacity = has ? '' : '.45'; menuEditBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
++    if (menuDeleteBtn) { menuDeleteBtn.disabled = !has; menuDeleteBtn.style.opacity = has ? '.45' : '.45'; menuDeleteBtn.style.cursor = has ? 'pointer' : 'not-allowed'; }
++  }
++  $('groupFilter').addEventListener('change', syncGroupButtons);
++  $('savePlanOperations').onclick = savePlanOperations;
++  $('cancelPlanMode').onclick = () => { window.location.href = '/maintenance/plans'; };
++  $('cancelEditor').onclick = () => { $('operationEditor').style.display = 'none'; };
++  $('groupFilter').onchange = render; $('statusFilter').onchange = render;
+   load();
+ })();
+ </script>

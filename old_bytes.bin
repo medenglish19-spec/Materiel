@@ -1,0 +1,161 @@
+def operations_payload(db: Session, operations: list) -> list:
+    """Serialize operations with their per-model conditions for the JSON API.
+
+    Only conditions stored on the operation↔model relation are exposed. The
+    operation's own `interval_*` / `warning_*` columns are legacy shared values
+    that no calculation uses, so they are not sent as a model condition nor as a
+    reference the UI is expected to copy.
+    """
+    operations = list(operations)
+    conditions = operation_conditions_by_model(db, [operation.id for operation in operations])
+    payload = []
+    for operation in operations:
+        details = []
+        for model in sorted(operation.equipment_models, key=lambda model: (model.name or "", model.id)):
+            condition = conditions.get(
+                (operation.id, model.id),
+                ModelCondition(operation_id=operation.id, equipment_model_id=model.id),
+            )
+            details.append(
+                {
+                    "model_id": model.id,
+                    "model_name": model.name,
+                    "is_defined": condition.is_defined,
+                    "condition_source": condition.condition_source,
+                    "interval_km": condition.interval_km,
+                    "interval_hours": condition.interval_hours,
+                    "interval_days": condition.interval_days,
+                    "warning_km": condition.warning_km,
+                    "warning_days": condition.warning_days,
+                    "condition_text": condition_axis_text(condition),
+                    "condition_units": condition_axis_units(condition),
+                    "unit_text": condition_unit_text(condition),
+                    "warning_text": warning_setting_text(condition),
+                }
+            )
+        has_model_conditions = len(details) > 0
+        # condition_source is "model_conditions" only if at least one model has a defined condition
+        has_defined = any(d["is_defined"] for d in details)
+        payload.append(
+            {
+                "id": operation.id,
+                "name": operation.name,
+                "group_id": operation.group_id,
+                "description": operation.description,
+                "is_active": bool(operation.is_active),
+                "model_conditions": details,
+                "condition_summary": summarize_operation_conditions(details),
+                "condition_source": "model_conditions" if has_defined else "none",
+            }
+        )
+    return payload
+
+
+def operation_condition_meta(condition, equipment, record, current_value, today=None):
+    """Due state of one operation under one model's condition.
+
+    The engine refuses to invent a condition: an unset or interval-less model
+    condition yields an explicit "not computed" state. The operation's legacy
+    shared columns are never consulted, so they cannot produce a due state.
+    """
+    if condition is None or not condition.is_defined or not condition.has_interval:
+        return (
+            CONDITION_UNSET_LABEL,
+            "neutral",
+            None,
+            {
+                "remaining_days": None,
+                "next_meter": None,
+                "next_date": None,
+                "remaining_km": None,
+                "remaining_hours": None,
+                "condition_unset": True,
+            },
+        )
+    return status_for(condition, equipment, record, current_value, today=today)
+
+def priority_for(state, remaining_meter, meta):
+    if state == "مستحقة الآن":
+        return 1
+    if state == "تقترب":
+        return 2
+    if state == "بلا سجل":
+        return 3
+    candidates = [x for x in (remaining_meter, meta.get("remaining_days")) if x is not None]
+    return 4 if candidates else 5
+
+
+def check_plan_operation_compatibility(plan, operation):
+    """Check if operation's conditions are compatible with plan's conditions.
+    Returns error message if incompatible, None if compatible.
+
+    This is the single source of truth for plan-operation compatibility validation.
+    """
+    # Check if both have interval_km
+    if plan.interval_km is not None and operation.interval_km is not None:
+        if plan.interval_km != operation.interval_km:
+            return f"شرط العملية ({operation.interval_km} كم) لا يطابق شرط الخطة ({plan.interval_km} كم)"
+    elif plan.interval_km is not None and operation.interval_km is None:
+        return f"الخطة تشترط كيلومترات ({plan.interval_km} كم) لكن العملية لا تحدد شرط كيلومترات"
+    elif plan.interval_km is None and operation.interval_km is not None:
+        return f"العملية تشترط كيلومترات ({operation.interval_km} كم) لكن الخطة لا تحدد شرط كيلومترات"
+
+    # Check if both have interval_hours
+    if plan.interval_hours is not None and operation.interval_hours is not None:
+        if plan.interval_hours != operation.interval_hours:
+            return f"شرط العملية ({operation.interval_hours} ساعة) لا يطابق شرط الخطة ({plan.interval_hours} ساعة)"
+    elif plan.interval_hours is not None and operation.interval_hours is None:
+        return f"الخطة تشترط ساعات تشغيل ({plan.interval_hours} ساعة) لكن العملية لا تحدد شرط ساعات"
+    elif plan.interval_hours is None and operation.interval_hours is not None:
+        return f"العملية تشترط ساعات تشغيل ({operation.interval_hours} ساعة) لكن الخطة لا تحدد شرط ساعات"
+
+    # Check if both have interval_days
+    if plan.interval_days is not None and operation.interval_days is not None:
+        if plan.interval_days != operation.interval_days:
+            return f"شرط العملية ({operation.interval_days} يوم) لا يطابق شرط الخطة ({plan.interval_days} يوم)"
+    elif plan.interval_days is not None and operation.interval_days is None:
+        return f"الخطة تشترط أيام ({plan.interval_days} يوم) لكن العملية لا تحدد شرط أيام"
+    elif plan.interval_days is None and operation.interval_days is not None:
+        return f"العملية تشترط أيام ({operation.interval_days} يوم) لكن الخطة لا تحدد شرط أيام"
+
+    # Check that they have the same type of condition (at least one matching non-null)
+    plan_conditions = [c for c in [plan.interval_km, plan.interval_hours, plan.interval_days] if c is not None]
+    op_conditions = [c for c in [operation.interval_km, operation.interval_hours, operation.interval_days] if c is not None]
+
+    if not plan_conditions:
+        return "الخطة لا تحدد أي شرط صيانة"
+
+    # At least one condition type must match
+    matching_types = 0
+    if plan.interval_km is not None and operation.interval_km is not None:
+        matching_types += 1
+    if plan.interval_hours is not None and operation.interval_hours is not None:
+        matching_types += 1
+    if plan.interval_days is not None and operation.interval_days is not None:
+        matching_types += 1
+
+    if matching_types == 0:
+        return "نوع شرط العملية لا يتطابق مع نوع شرط الخطة"
+
+    return None
+
+
+def validate_operation_applicable_to_equipment(db: Session, operation: MaintenanceOperation, equipment) -> str | None:
+    """Validate that an operation is applicable to the given equipment.
+    
+    Returns error message if not applicable, None if applicable.
+    """
+    if operation is None:
+        return "يجب تحديد عملية الصيانة."
+    if not operation.is_active:
+        return "عملية الصيانة غير مفعلة."
+    
+    equipment_model_id = getattr(equipment, "equipment_model_id", None)
+    if equipment_model_id is None:
+        return "طراز العتاد غير محدد."
+    
+    model_linked = any(m.id == equipment_model_id for m in operation.equipment_models)
+    if not model_linked:
+        return "عملية الصيانة لا تنطبق على طراز هذا العتاد."
+    
+    return None

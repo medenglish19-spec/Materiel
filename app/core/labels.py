@@ -47,14 +47,12 @@ FAULT_STATUS_LABELS: Dict[str, str] = {
     "repairing": "قيد الإصلاح",
     "waiting_parts": "بانتظار قطع الغيار",
     "repaired": "تم الإصلاح",
-    "closed": "مغلق",
 }
 
 # حالة التصليح (faults_repairs/schemas.py :: REPAIR_STATUSES)
 REPAIR_STATUS_LABELS: Dict[str, str] = {
     "in_progress": "قيد الإصلاح",
     "completed": "تم الإصلاح",
-    "cancelled": "ملغى",
 }
 
 # خطورة العطل (نفس التسميات المستعملة في <select> داخل faults.html)
@@ -65,6 +63,40 @@ SEVERITY_LABELS: Dict[str, str] = {
     "critical": "حرجة",
 }
 
+SPARE_REQUEST_STATUS_LABELS: Dict[str, str] = {
+    "pending": "معلق",
+    "approved": "معتمد",
+    "rejected": "مرفوض",
+    "cancelled": "ملغى",
+}
+
+# Nature of an action extracted from a maintenance source. These values are
+# review metadata, not translations of the operation name itself.
+MAINTENANCE_ACTION_LABELS: Dict[str, str] = {
+    "replacement": "استبدال",
+    "inspection": "فحص",
+    "adjustment": "ضبط",
+    "cleaning": "تنظيف",
+    "lubrication": "تشحيم",
+    "rotation": "تدوير",
+    "testing": "اختبار",
+    "refill": "تعبئة",
+    "repair": "إصلاح",
+    "service": "صيانة عامة",
+    "combined": "إجراء مركب",
+    "unspecified": "غير محدد؛ يحتاج مراجعة",
+}
+
+METER_UNIT_LABELS: Dict[str, str] = {
+    "km": "كم",
+    "hours": "ساعة عمل",
+}
+
+FUEL_CONSUMPTION_UNIT_LABELS: Dict[str, str] = {
+    "liter_per_100_km": "لتر/100 كم",
+    "liter_per_hour": "لتر/ساعة",
+}
+
 
 LABELS: Dict[str, Dict[str, str]] = {
     "operational": OPERATIONAL_STATUS_LABELS,
@@ -72,6 +104,10 @@ LABELS: Dict[str, Dict[str, str]] = {
     "fault": FAULT_STATUS_LABELS,
     "repair": REPAIR_STATUS_LABELS,
     "severity": SEVERITY_LABELS,
+    "spare_request": SPARE_REQUEST_STATUS_LABELS,
+    "maintenance_action": MAINTENANCE_ACTION_LABELS,
+    "meter_unit": METER_UNIT_LABELS,
+    "fuel_consumption": FUEL_CONSUMPTION_UNIT_LABELS,
 }
 
 

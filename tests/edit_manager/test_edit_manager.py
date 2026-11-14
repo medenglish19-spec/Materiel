@@ -1,8 +1,10 @@
+import os
 import pytest
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import ChoiceLoader, Environment, FileSystemLoader, select_autoescape
 
 playwright = pytest.importorskip("playwright.sync_api")
 from playwright.sync_api import expect, sync_playwright
@@ -18,19 +20,24 @@ class _Request:
 
 def render_fixture(body):
     env = Environment(loader=FileSystemLoader(BASE), autoescape=select_autoescape(["html"]))
+    env.globals.update(
+        institution_name=lambda: "اسم المؤسسة",
+        page_section=lambda _path: "اختبار",
+    )
     t = env.from_string('{% extends "base.html" %}{% block title %}اختبار{% endblock %}{% block content %}' + body + '{% endblock %}')
-    return t.render(request=_Request())
+    return t.render(request=_Request(), topbar_page_title="اختبار")
 
 @pytest.fixture
 def browser_page():
     html = render_fixture('''
-    <form id="record" method="post" action="/maintenance/records/create">
+    <form id="record" method="post" action="/maintenance/records/create" data-em-root>
       <select id="model" name="model" required><option value="">طراز</option><option value="1">طراز 1</option></select>
       <select id="equipment" name="equipment" required><option value="">عتاد</option><option value="10">عتاد 10</option></select>
       <select id="operation" name="operation" required><option value="">عملية</option><option value="20">تغيير الزيت</option></select>
       <input id="date" name="date" type="date" required><input id="meter" name="meter" type="number" min="0">
-      <button type="submit">حفظ الصيانة</button>
+      <button type="submit">حفظ الصيانة</button><a href="/cancel" class="cancel-btn">إلغاء</a>
     </form>
+    <form id="other" data-em-root><input id="otherValue" name="other_value"></form>
     <input id="search" type="search" placeholder="بحث">
     <script>
       model.onchange=()=>{equipment.value='';operation.value=''};
@@ -40,16 +47,30 @@ def browser_page():
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path == "/static/js/edit-manager.js":
-                p=STATIC/"js"/"edit-manager.js";data=p.read_bytes();self.send_response(200);self.send_header("Content-Type","text/javascript");self.end_headers();self.wfile.write(data);return
+            if self.path.startswith("/static/"):
+                relative=Path(self.path.removeprefix("/static/"))
+                p=(STATIC/relative).resolve()
+                if STATIC.resolve() not in p.parents or not p.is_file():
+                    self.send_error(404);return
+                data=p.read_bytes()
+                content_type="text/javascript" if p.suffix==".js" else "text/css" if p.suffix==".css" else "application/octet-stream"
+                self.send_response(200);self.send_header("Content-Type",content_type);self.end_headers();self.wfile.write(data);return
             self.send_response(200);self.send_header("Content-Type","text/html; charset=utf-8");self.end_headers();self.wfile.write(html.encode())
         def do_POST(self):
+            if self.path == "/legacy-save":
+                time.sleep(0.25)
+            if self.path == "/native-save":
+                self.send_response(303)
+                self.send_header("Location", "/maintenance/records?submitted=1")
+                self.end_headers()
+                return
             self.send_response(200);self.send_header("Content-Type","application/json");self.end_headers();self.wfile.write(b'{"ok":true}')
         def log_message(self,*_): pass
 
     server=ThreadingHTTPServer(("127.0.0.1",0),Handler);Thread(target=server.serve_forever,daemon=True).start()
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on("pageerror",lambda e:errors.append(str(e)))
+        channel=os.environ.get("PLAYWRIGHT_BROWSER_CHANNEL")
+        browser=p.chromium.launch(headless=True,channel=channel) if channel else p.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on("pageerror",lambda e:errors.append(str(e)))
         page.goto(f"http://127.0.0.1:{server.server_port}/maintenance/records");yield page,errors;browser.close()
     server.shutdown()
 
@@ -59,9 +80,106 @@ def test_toolbar_and_search_are_clean(browser_page):
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     page.locator('#search').fill('زيت');expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
 
+def test_programmatic_form_initialization_is_not_dirty_but_user_edit_is(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => { model.value='1'; model.dispatchEvent(new Event('input',{bubbles:true})); model.dispatchEvent(new Event('change',{bubbles:true})); }""")
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate("EditManager.isDirty()")
+    # Revert the programmatic init too, so the DOM matches the baseline captured
+    # at load; only then does returning the user's field to its original value
+    # bring the editor back to clean.
+    page.evaluate("() => { model.value=''; }")
+    page.locator('#meter').fill('')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert not page.evaluate("EditManager.isDirty()")
+    assert not errors
+
+
+def test_form_scoped_baseline_and_restore_preserve_the_open_form_state(browser_page):
+    page, errors = browser_page
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(500)
+    page.evaluate("() => EditManager.markFormBaseline(document.getElementById('record'))")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'clean')
+
+    page.locator('#meter').fill('600')
+    page.wait_for_timeout(500)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
+    page.evaluate("async () => EditManager.restoreForm(document.getElementById('record'), 'إلغاء تعديل')")
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'clean')
+    assert not errors
+
+
+def test_form_scoped_rebase_and_restore_do_not_clear_another_form(browser_page):
+    page, errors = browser_page
+    page.locator('#otherValue').fill('draft in another form')
+    page.wait_for_timeout(500)
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(500)
+    page.evaluate("() => EditManager.markFormBaseline(document.getElementById('record'))")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
+
+    page.locator('#meter').fill('600')
+    page.wait_for_timeout(500)
+    page.evaluate("async () => EditManager.restoreForm(document.getElementById('record'), 'إلغاء نموذج')")
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#otherValue')).to_have_value('draft in another form')
+    expect(page.locator('#emStatus')).to_have_attribute('data-state', 'dirty')
+    assert not errors
+
+
+def test_escape_exits_clean_editor_without_prompt_and_dirty_editor_with_prompt(browser_page):
+    page,errors=browser_page
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.accept()))
+    page.locator('.app-topbar-title').focus()
+    page.keyboard.press('Escape')
+    page.wait_for_url('**/cancel')
+    assert page.url.endswith('/cancel')
+    assert dialogs==[]
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(500)
+    page.keyboard.press('Escape')
+    page.wait_for_url('**/cancel')
+    # Dirty escape shows the custom confirm prompt; then navigating away also
+    # trips EditManager's beforeunload guard (still dirty), so two dialogs fire.
+    assert dialogs[0]=='لديك تعديلات غير محفوظة. هل تريد الخروج دون حفظها؟'
+    assert len(dialogs)==2
+    assert page.url.endswith('/cancel')
+    assert not errors
+
+
+def test_escape_does_not_intercept_non_editor_forms(browser_page):
+    page,errors=browser_page
+    page.locator('#record').evaluate("el => el.remove()")
+    page.evaluate("""() => {
+      const form=document.createElement('form');
+      form.innerHTML='<input id="filter" name="filter" placeholder="بحث"><button type="submit">بحث</button><a href="/cancel" class="cancel-btn">إلغاء</a>';
+      document.querySelector('main').appendChild(form);
+    }""")
+    dialogs=[]
+    page.on('dialog',lambda dialog:(dialogs.append(dialog.message),dialog.dismiss()))
+    page.locator('#filter').focus()
+    page.keyboard.press('Escape')
+    assert dialogs==[]
+    assert page.url.endswith('/maintenance/records')
+    assert not errors
+
+
 def test_chained_form_undo_redo_and_save(browser_page):
     page,errors=browser_page
-    page.locator('#model').select_option('1');page.locator('#equipment').select_option('10');page.locator('#operation').select_option('20');page.wait_for_timeout(500)
+    # Playwright select_option() fires untrusted events; simulate a real user
+    # with keyboard-driven selection so EditManager sees isTrusted=true.
+    for selector in ('#model','#equipment','#operation'):
+        page.locator(selector).focus();page.keyboard.press('ArrowDown');page.keyboard.press('Enter')
+    page.wait_for_timeout(500)
     expect(page.locator('[data-em-action="undo"]')).to_be_enabled();page.keyboard.press('Control+z');page.wait_for_timeout(100);page.keyboard.press('Control+y');page.wait_for_timeout(100)
     page.locator('[data-em-action="save"]').click();page.wait_for_timeout(100);expect(page.locator('#emStatus')).to_have_attribute('data-state','clean');assert not errors
 
@@ -87,13 +205,256 @@ def test_form_without_method_is_tracked_and_fetch_save_is_awaited(browser_page):
     expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
     assert not errors
 
+def test_native_form_submission_is_listed_once_after_navigation(browser_page):
+    page, errors = browser_page
+    page.evaluate("""() => {
+      EditManager.setSaveHandler(null);
+      const form=document.createElement('form');form.id='nativeSaveForm';form.method='post';form.action='/native-save';form.dataset.emRoot='';
+      form.innerHTML='<input name="note" value="قبل"><button type="submit">حفظ الملاحظة</button>';
+      document.querySelector('main').append(form);
+      EditManager.markFormBaseline(form);
+    }""")
+    page.locator("#nativeSaveForm [name='note']").fill("بعد")
+    page.locator('[data-em-action="save"]').click()
+    page.wait_for_url("**/maintenance/records?submitted=1")
+    actions = page.evaluate("JSON.parse(sessionStorage.getItem('materiel:session-actions:v1') || '[]')")
+    assert len(actions) == 1
+    assert actions[0]["path"] == "/native-save"
+    assert actions[0]["method"] == "تنفيذ"
+    assert not errors
+
 
 def test_save_failure_keeps_page_dirty(browser_page):
     page,errors=browser_page
-    page.locator('#date').fill('2026-09-29')
+    page.locator('#meter').fill('250')
     page.wait_for_timeout(500)
+    page.evaluate("window.noticeMessages=[];window.showMaterielNotice=(message,type)=>window.noticeMessages.push({message,type})")
     page.evaluate("EditManager.setSaveHandler(async()=>false)")
     page.locator('[data-em-action="save"]').click()
     page.wait_for_timeout(100)
     expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    assert page.evaluate('window.noticeMessages.at(-1)') == {"message": "تعذر حفظ التغييرات. حاول مرة أخرى.", "type": "danger"}
+    assert not errors
+
+
+def test_saving_locks_edits_and_history_until_server_success(browser_page):
+    page,errors=browser_page
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(450)
+    page.evaluate("""() => {
+      window.finishSave = null;
+      EditManager.setSaveHandler(() => new Promise(resolve => { window.finishSave = resolve; }));
+      window.pendingSave = EditManager.save();
+    }""")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','saving')
+    expect(page.locator('[data-em-action="undo"]')).to_be_disabled()
+    assert page.evaluate('document.body.inert')
+    assert page.evaluate('EditManager.undo()') is False
+    page.evaluate('window.finishSave(true)')
+    page.wait_for_function("document.getElementById('emStatus').dataset.state === 'clean'")
+    assert not page.evaluate('document.body.inert')
+    expect(page.locator('#meter')).to_have_value('250')
+    assert not errors
+
+
+def test_legacy_page_save_locks_edits_until_its_request_finishes(browser_page):
+    page,errors=browser_page
+    page.evaluate("""() => {
+      const form=document.createElement('form');form.id='legacySaveForm';form.method='post';form.dataset.emRoot='';form.style.cssText='position:fixed;top:30%;left:50%;z-index:10000;background:white';
+      form.innerHTML='<input id="legacyValue" name="value"><button type="submit">حفظ الصفحة</button>';
+      document.body.append(form);
+      form.addEventListener('submit',async event=>{
+        event.preventDefault();
+        const response=await fetch('/legacy-save',{method:'POST',body:new FormData(form)});
+        if(response.ok)EditManager.markSavedForm(form);
+      });
+      EditManager.markFormBaseline(form);
+    }""")
+    page.locator('#legacyValue').fill('saved value')
+    page.wait_for_timeout(450)
+    page.locator('#legacySaveForm button').click()
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','saving')
+    expect(page.locator('[data-em-action="undo"]')).to_be_disabled()
+    assert page.evaluate('document.body.inert')
+    assert page.evaluate('EditManager.undo()') is False
+    page.wait_for_function("document.getElementById('emStatus').dataset.state === 'clean'")
+    assert not page.evaluate('document.body.inert')
+    expect(page.locator('#legacyValue')).to_have_value('saved value')
+    assert not errors
+
+
+def test_async_form_save_waits_for_api_and_retries_without_losing_input(browser_page):
+    page,errors=browser_page
+    attempts=[]
+    def save_route(route):
+        attempts.append(route.request.method)
+        if len(attempts)==1:
+            route.fulfill(status=422,json={"detail":[{"msg":"Value error, الكمية المتاحة للتوزيع هي 3 فقط"}]})
+        else:
+            route.fulfill(status=200,json={"ok":True})
+    page.route("**/submit-save",save_route)
+    page.evaluate("""() => {
+      EditManager.setSaveHandler(null);
+      const form=document.createElement('form');form.id='asyncSaveForm';
+      form.innerHTML='<input id="asyncSaveValue" name="value"><button type="submit">حفظ</button>';
+      document.body.appendChild(form);
+      form.addEventListener('submit',async event=>{
+        event.preventDefault();
+        await new Promise(resolve=>setTimeout(resolve,80));
+        await fetch('/submit-save',{method:'POST',body:JSON.stringify({value:asyncSaveValue.value})});
+      });
+    }""")
+    page.locator('#asyncSaveValue').fill('keep-me')
+    page.wait_for_timeout(450)
+    page.evaluate("window.firstSave=EditManager.save();true")
+    page.wait_for_timeout(25)
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','saving')
+    assert page.evaluate("EditManager.isDirty()")
+    assert not page.evaluate("window.firstSave")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    expect(page.locator('#asyncSaveValue')).to_have_value('keep-me')
+    expect(page.get_by_role('alertdialog')).to_contain_text('الكمية المتاحة للتوزيع هي 3 فقط')
+    assert page.url.endswith('/maintenance/records')
+
+    page.locator('#asyncSaveValue').fill('valid-value')
+    page.wait_for_timeout(450)
+    assert page.evaluate("EditManager.save()")
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','clean')
+    assert attempts==['POST','POST']
+    assert not errors
+
+
+def test_concurrent_writes_are_all_awaited_and_repeated_save_is_guarded(browser_page):
+    page,errors=browser_page
+    calls=[]
+    api_errors=[]
+    def route_api(route):
+        calls.append((route.request.method,route.request.url))
+        if route.request.url.endswith('/write-b'):
+            route.fulfill(status=422,json={"detail":[{"msg":"قيمة غير صالحة"}]})
+        else:
+            route.fulfill(status=200,json={"ok":True})
+    page.route("**/write-*",route_api)
+    page.evaluate("""() => {
+      document.addEventListener('materiel:api-error',event=>window.apiErrors.push(event.detail));
+      window.apiErrors=[];
+      EditManager.setSaveHandler(async()=>{
+        await new Promise(resolve=>setTimeout(resolve,60));
+        const responses=await Promise.all([
+          fetch('/write-a',{method:'POST'}),
+          fetch('/write-b',{method:'PATCH'})
+        ]);
+        return responses.every(response=>response.ok);
+      });
+    }""")
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(450)
+    results=page.evaluate("Promise.all([EditManager.save(),EditManager.save()])")
+    assert results==[False,False]
+    assert [method for method,_ in calls]==['POST','PATCH']
+    assert page.evaluate("window.apiErrors.length")==1
+    expect(page.locator('#emStatus')).to_have_attribute('data-state','dirty')
+    expect(page.get_by_role('alertdialog')).to_contain_text('قيمة غير صالحة')
+    assert not errors
+
+
+def test_api_bridge_ignores_get_and_reports_post_patch_delete_once(browser_page):
+    page,errors=browser_page
+    events=[]
+    page.route("**/method-check/**",lambda route:route.fulfill(status=500,json={"detail":"تعذر التنفيذ"}))
+    page.evaluate("window.apiErrors=[];document.addEventListener('materiel:api-error',event=>window.apiErrors.push(event.detail))")
+    page.evaluate("""async()=>{
+      await fetch('/method-check/get');
+      await fetch('/method-check/post',{method:'POST'});
+      await fetch('/method-check/patch',{method:'PATCH'});
+      await fetch(new Request(location.origin+'/method-check/delete',{method:'DELETE'}));
+      await new Promise(resolve=>setTimeout(resolve,0));
+    }""")
+    assert page.evaluate("window.apiErrors.map(error=>typeof error.input==='string'?error.input:error.input.url)") == [
+        '/method-check/post',
+        '/method-check/patch',
+        page.url.split('/maintenance/records')[0]+'/method-check/delete',
+    ]
+    assert not errors
+
+
+def test_distribution_save_failure_refreshes_balances_without_losing_quantities(browser_page):
+    page,errors=browser_page
+    env=Environment(
+        loader=ChoiceLoader([
+            FileSystemLoader(ROOT/"app"/"modules"/"spare_parts_movements"/"templates"),
+            FileSystemLoader(BASE),
+        ]),
+        autoescape=select_autoescape(["html"]),
+    )
+    env.globals.update(
+        institution_name=lambda: "اسم المؤسسة",
+        page_section=lambda _path: "اختبار",
+    )
+    distribution_html=env.get_template("distribution.html").render(
+        request=_Request(), topbar_page_title="اختبار"
+    )
+    posts=[]
+    def distribution_api(route):
+        request=route.request
+        if request.method=="GET" and request.url.endswith("/available"):
+            route.fulfill(status=200,json=[{
+                "request_item_id":42,"request_number":"SR-42","part_name":"فلتر",
+                "equipment_code":"EQ-42","received_date":"2026-10-01",
+                "supplier_institution":"المورد","available_quantity":3,
+            }])
+        elif request.method=="GET":
+            route.fulfill(status=200,json=[])
+        elif request.method=="POST":
+            posts.append(request.post_data_json)
+            if len(posts)==1:
+                route.fulfill(status=400,json={"detail":"الكمية المتاحة للتوزيع هي 3 فقط"})
+            else:
+                route.fulfill(status=201,json={"ok":True})
+        else:
+            route.fulfill(status=200,json={"ok":True})
+    page.route("**/api/spare-parts-movements**",distribution_api)
+    page.set_content(distribution_html,wait_until="load")
+    page.wait_for_selector('#lines tr[data-id="42"]',state="attached")
+    page.locator('#newBtn').click()
+    page.locator('#number').fill('D-42')
+    page.locator('#recipient').fill('الورشة')
+    page.locator('#lines tr[data-id="42"] .qty').fill('5')
+    page.locator('#save').click()
+    expect(page.locator('#notice')).to_contain_text('الكمية المتاحة للتوزيع هي 3 فقط')
+    expect(page.locator('#lines tr[data-id="42"] .qty')).to_have_value('5')
+    assert page.locator('#emToast').count()==0 or not page.locator('#emToast').is_visible()
+    page.locator('#lines tr[data-id="42"] .qty').fill('3')
+    page.locator('#save').click()
+    expect(page.locator('#form')).not_to_have_class('open')
+    assert len(posts)==2
+    assert posts[0]["items"]==[{"request_item_id":42,"quantity":5}]
+    assert posts[1]["items"]==[{"request_item_id":42,"quantity":3}]
+    assert page.url.endswith('/maintenance/records')
+    assert not errors
+
+def test_history_index_is_read_only_and_undo_redo_remain_sequential(browser_page):
+    page, errors = browser_page
+    page.locator('#meter').fill('250')
+    page.wait_for_timeout(450)
+    page.locator('#meter').fill('500')
+    page.wait_for_timeout(450)
+    expect(page.locator('#emHistoryCount')).to_have_text('2')
+    page.locator('#emHistoryMenu summary').click()
+    items = page.locator('#emHistoryList .app-history-item')
+    expect(items).to_have_count(3)
+    expect(page.locator('#emHistoryList button')).to_have_count(0)
+    expect(page.locator('#emHistoryList [data-em-history-index]')).to_have_count(0)
+    assert page.evaluate("typeof EditManager.goToHistory") == 'undefined'
+    items.nth(1).click()
+    expect(page.locator('#meter')).to_have_value('500')
+    expect(page.locator('#emHistoryCount')).to_have_text('2')
+    page.locator('[data-em-action="undo"]').click()
+    expect(page.locator('#meter')).to_have_value('250')
+    page.locator('[data-em-action="undo"]').click()
+    expect(page.locator('#meter')).to_have_value('')
+    page.locator('[data-em-action="redo"]').click()
+    expect(page.locator('#meter')).to_have_value('250')
+    page.locator('[data-em-action="redo"]').click()
+    expect(page.locator('#meter')).to_have_value('500')
     assert not errors

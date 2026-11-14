@@ -37,7 +37,7 @@ class MeterReadingOperationEvent(Base):
 
 
 class MeterReadingChange(Base):
-    """Immutable business-level history of an actual meter-data change."""
+    """A log row describing a meter-data change, separate from the reading itself."""
     __tablename__ = "meter_reading_changes"
     id = Column(Integer, primary_key=True, index=True)
     reading_id = Column(Integer, ForeignKey("meter_readings.id", ondelete="SET NULL"), nullable=True, index=True)

@@ -1,0 +1,4 @@
+block title %}مكتبة شروط الصيانة الدورية{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="/static/css/maintenance.css">{% endblock %}
+{% block content %}
+<div class="maintenance-page" 
